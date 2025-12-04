@@ -6,8 +6,15 @@ function Login() {
   const { loginUser, isPending, error } = useLogin();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [emailError, setEmailError] = useState("");
   const handleSubmit = (event) => {
     event.preventDefault();
+    const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!isValidEmail) {
+      setEmailError("To‘g‘ri email kiriting");
+      return;
+    }
+    setEmailError("");
     loginUser(email, password);
     setEmail("");
     setPassword("");
@@ -21,12 +28,19 @@ function Login() {
         >
           <h1 className="text-2xl font-bold text-center ">Anmeldung</h1>
           <FormInput
-            placeholder="Username"
-            name="username"
+            label="Email"
+            placeholder="Email"
+            name="email"
+            type="email"
+            inputClassName={emailError ? "input-error" : ""}
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (emailError) setEmailError("");
+            }}
           />
           <FormInput
+            label="Password"
             placeholder="Password"
             name="password"
             type="password"
