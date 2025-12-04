@@ -13,6 +13,7 @@ import { useEffect } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./firebase/config";
 import { login, setAuthReady } from "./features/authSlice";
+import Create from "./pages/Create";
 
 function App() {
   const dispatch = useDispatch();
@@ -39,6 +40,10 @@ function App() {
     {
       path: "/login",
       element: user ? <Navigate to="/" /> : <Login />,
+    },
+    {
+      path: "/create",
+      element: <Create />,
     },
   ]);
 
