@@ -32,7 +32,7 @@ function App() {
           element: <Home />,
         },
         {
-          path: "/collectionCv/:id",
+          path: "/collectionCv/:major",
           element: <CollectionCv />,
         },
       ],
