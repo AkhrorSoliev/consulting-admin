@@ -29,7 +29,7 @@ function MajorModal() {
 
           <div className="modal-action">
             <button className="btn btn-secondary">Qo'shish</button>
-            <button onClick={closeModal} className="btn">
+            <button type="button" onClick={closeModal} className="btn">
               Close
             </button>
           </div>

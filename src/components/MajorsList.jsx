@@ -25,11 +25,12 @@ export default function MajorsList() {
               <FaLink />
             </button>
             <Link
-              to={`/create?major=${major}`}
+              //  to={`/create?major=${major}`}
+              to={`collectionCv/${major}`}
               key={major}
               className="btn btn-sm btn-outline-info grow"
             >
-              <span className="font-medium">{major.slice(0, 10)}...</span>
+              <span className="font-medium">{major.slice(0, 8)}...</span>
             </Link>
           </li>
         ))}
