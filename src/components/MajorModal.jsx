@@ -19,7 +19,11 @@ function MajorModal() {
         <h3 className="font-bold text-lg mb-5">Yo'nalish Qo'shing</h3>
 
         <form onSubmit={handleSubmit}>
+          <label className="label" htmlFor="major-name">
+            <span className="label-text">Yo'nalish nomi</span>
+          </label>
           <input
+            id="major-name"
             type="text"
             placeholder="Type here"
             className="input w-full"
