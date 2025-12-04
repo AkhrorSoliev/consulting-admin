@@ -8,20 +8,20 @@ import {
   arrayUnion,
   getDoc,
   onSnapshot,
+  deleteDoc,
+  getDocs,
+  arrayRemove,
 } from "firebase/firestore";
 
 export async function createCollection(name) {
   try {
-    // 1. Collectionni yaratish (birinchi document qo'yish orqali)
     await setDoc(doc(collection(db, name)), {
       createdAt: Date.now(),
       initialized: true,
     });
 
-    // 2. Meta hujjat manzili
     const metaRef = doc(db, "meta", "collectionsList");
 
-    // 3. Meta hujjat mavjudmi?
     const metaSnap = await getDoc(metaRef);
 
     if (!metaSnap.exists()) {
@@ -45,7 +45,6 @@ export function subscribeToCollections(callback) {
   try {
     const metaRef = doc(db, "meta", "collectionsList");
 
-    // REALTIME listener
     const unsubscribe = onSnapshot(metaRef, (snapshot) => {
       if (snapshot.exists()) {
         const names = snapshot.data().names || [];
@@ -55,8 +54,30 @@ export function subscribeToCollections(callback) {
       }
     });
 
-    return unsubscribe; // kerak bo‘lsa componentda tozalaysiz
+    return unsubscribe;
   } catch (error) {
     console.error("subscribeToCollections error:", error);
+  }
+}
+
+export async function deleteCollectionByName(name) {
+  try {
+    const colRef = collection(db, name);
+    const docsSnapshot = await getDocs(colRef);
+
+    const deletePromises = docsSnapshot.docs.map((d) =>
+      deleteDoc(doc(db, name, d.id))
+    );
+    await Promise.all(deletePromises);
+
+    const metaRef = doc(db, "meta", "collectionsList");
+    await updateDoc(metaRef, {
+      names: arrayRemove(name),
+    });
+
+    toast.success(`Collection "${name}" o‘chirildi!`);
+  } catch (error) {
+    toast.error(`Xatolik: ${error.message}`);
+    console.error("deleteCollectionByName error:", error);
   }
 }
