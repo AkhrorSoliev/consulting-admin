@@ -8,19 +8,19 @@ export default function MajorsList() {
   const [majors, setMajors] = useState([]);
 
   const handleCopyLink = (major) => {
-    const link = `https://consulting-admin.vercel.app/create?major=${major}`;
+    const link = `http://localhost:5173/create?major=${major}`;
     navigator.clipboard
       .writeText(link)
       .then(() => {
-        toast.success("Link copied to clipboard!");
+        toast.success("Link in die Zwischenablage kopiert!");
       })
       .catch(() => {
-        toast.error("Failed to copy link");
+        toast.error("Link konnte nicht kopiert werden");
       });
   };
 
   const handleDeleteMajor = async (major) => {
-    if (window.confirm(`Are you sure you want to delete "${major}"?`)) {
+    if (window.confirm(`Möchten Sie „${major}“ wirklich löschen?`)) {
       try {
         await deleteCollectionByName(major);
       } catch (error) {}
@@ -36,32 +36,46 @@ export default function MajorsList() {
 
   return (
     <div>
-      <ul className="flex flex-col gap-5">
-        {majors.map((major, i) => (
-          <li key={i} className="flex w-full gap-2">
-            <button
-              onClick={() => handleDeleteMajor(major)}
-              className="btn btn-sm btn-error"
-            >
-              <FaTrash />
-            </button>
-            <button
-              onClick={() => handleCopyLink(major)}
-              className="btn btn-sm btn-neutral"
-            >
-              <FaLink />
-            </button>
-            <Link
-              //  to={`/create?major=${major}`}
-              to={`collectionCv/${major}`}
+      {majors.length === 0 ? (
+        <div className="text-center opacity-70 py-8 text-sm">
+          <p>Derzeit keine Berufsfelder vorhanden.</p>
+          <p className="mt-1">
+            Klicken Sie auf „Neues Berufsfeld“, um zu beginnen.
+          </p>
+        </div>
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {majors.map((major) => (
+            <li
               key={major}
-              className="btn btn-sm btn-outline-info grow"
+              className="flex w-full items-center gap-2 rounded-lg border border-base-200 p-2 hover:bg-base-200/50 transition-colors"
             >
-              <span className="font-medium">{major.slice(0, 8)}...</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+              <button
+                onClick={() => handleDeleteMajor(major)}
+                className="btn btn-sm btn-error"
+                aria-label={`„${major}“ löschen`}
+              >
+                <FaTrash />
+              </button>
+              <button
+                onClick={() => handleCopyLink(major)}
+                className="btn btn-sm btn-neutral"
+                aria-label={`Link für „${major}“ kopieren`}
+              >
+                <FaLink />
+              </button>
+              <Link
+                //  to={`/create?major=${major}`}
+                to={`collectionCv/${major}`}
+                className="btn btn-sm btn-outline-info grow justify-start overflow-hidden min-w-0"
+                title={major}
+              >
+                <span className="font-medium truncate">{major}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

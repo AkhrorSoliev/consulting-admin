@@ -5,53 +5,60 @@ import {
   doc,
   setDoc,
   updateDoc,
-  arrayUnion,
   getDoc,
   onSnapshot,
   deleteDoc,
   getDocs,
-  arrayRemove,
+  query,
+  orderBy,
 } from "firebase/firestore";
 
 export async function createCollection(name) {
   try {
-    await setDoc(doc(collection(db, name)), {
-      createdAt: Date.now(),
-      initialized: true,
-    });
+    // Normalize name defensively here as well; we only add meta now
+    const normalizedName = String(name || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "-");
 
-    const metaRef = doc(db, "meta", "collectionsList");
-
-    const metaSnap = await getDoc(metaRef);
-
-    if (!metaSnap.exists()) {
-      await setDoc(metaRef, {
-        names: [name],
-      });
-    } else {
-      await updateDoc(metaRef, {
-        names: arrayUnion(name),
-      });
+    if (!normalizedName) {
+      toast.error("Der Name des Berufsfelds darf nicht leer sein.");
+      return { created: false, reason: "empty" };
     }
 
-    toast.success(`Collection "${name}" muvaffaqiyatli yaratildi!`);
+    // Check existence in meta collection (doc id = normalizedName)
+    const metaDocRef = doc(db, "meta", normalizedName);
+    const metaDocSnap = await getDoc(metaDocRef);
+    if (metaDocSnap.exists()) {
+      toast.error(`„${normalizedName}“ ist bereits vorhanden.`);
+      return { created: false, reason: "exists" };
+    }
+
+    // Only add a meta document; do NOT create the actual collection here
+    await setDoc(metaDocRef, {
+      name: normalizedName,
+      createdAt: Date.now(),
+    });
+
+    toast.success(`„${normalizedName}“ wurde zur Meta-Liste hinzugefügt!`);
+    return { created: true, name: normalizedName };
   } catch (error) {
-    toast.error(`Xato yuz berdi: ${error.message}`);
+    toast.error(`Fehler: ${error.message}`);
     console.error("createCollection error:", error);
+    return { created: false, reason: "error", error };
   }
 }
 
 export function subscribeToCollections(callback) {
   try {
-    const metaRef = doc(db, "meta", "collectionsList");
-
-    const unsubscribe = onSnapshot(metaRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const names = snapshot.data().names || [];
-        callback(names);
-      } else {
-        callback([]);
-      }
+    // Listen to documents inside "meta" collection and map to names
+    const metaColRef = collection(db, "meta");
+    const q = query(metaColRef, orderBy("createdAt", "desc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const names = snapshot.docs
+        .map((d) => d.data()?.name)
+        .filter((n) => typeof n === "string" && n.trim().length > 0);
+      callback(names);
     });
 
     return unsubscribe;
@@ -70,14 +77,13 @@ export async function deleteCollectionByName(name) {
     );
     await Promise.all(deletePromises);
 
-    const metaRef = doc(db, "meta", "collectionsList");
-    await updateDoc(metaRef, {
-      names: arrayRemove(name),
-    });
+    // Remove meta document entry
+    const metaDocRef = doc(db, "meta", name);
+    await deleteDoc(metaDocRef);
 
-    toast.success(`Collection "${name}" o‘chirildi!`);
+    toast.success(`Sammlung „${name}“ wurde gelöscht!`);
   } catch (error) {
-    toast.error(`Xatolik: ${error.message}`);
+    toast.error(`Fehler: ${error.message}`);
     console.error("deleteCollectionByName error:", error);
   }
 }
@@ -265,4 +271,27 @@ export function generateSkills(cv, kind) {
     const pool = [...contextPc, ...pcPoolBase];
     return pickNew(pool, existingPc, 4);
   }
+}
+
+// Firestore document helpers
+// Add a document to a collection. If id is provided, it will be used, otherwise a random id is generated.
+export async function addDocument(collectionName, data, id) {
+  const colRef = collection(db, collectionName);
+  const docRef = id ? doc(db, collectionName, id) : doc(colRef);
+  await setDoc(docRef, data);
+  return { id: docRef.id };
+}
+
+// Update a document by id with partial data
+export async function updateDocument(collectionName, id, data) {
+  const docRef = doc(db, collectionName, id);
+  await updateDoc(docRef, data);
+  return { id };
+}
+
+// Delete a document by id
+export async function deleteDocumentById(collectionName, id) {
+  const docRef = doc(db, collectionName, id);
+  await deleteDoc(docRef);
+  return { id };
 }

@@ -1,5 +1,8 @@
 import { useMemo, useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
+import toast from "react-hot-toast";
+import { addDocument } from "../utils";
 import FormInput from "../components/FormInput";
 import ExperienceSection from "../components/ExperienceSection";
 import EducationSection from "../components/EducationSection";
@@ -40,6 +43,7 @@ function Create() {
   const [isGeneratingPc, setIsGeneratingPc] = useState(false);
   const [recentlyAdded, setRecentlyAdded] = useState({ soft: [], pc: [] });
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [searchParams] = useSearchParams();
 
   useEffect(() => {
     try {
@@ -298,7 +302,7 @@ function Create() {
     });
   }
 
-  function onSubmit(formData) {
+  async function onSubmit(formData) {
     const final = {
       ...cv,
       personalInfo: {
@@ -344,24 +348,52 @@ function Create() {
       },
     };
 
-    console.log("Lebenslauf:", lebenslauf);
-    try {
-      localStorage.setItem("createCvSubmitted", "true");
-    } catch {
-      // ignore storage errors
+    const major = (searchParams.get("major") || "").trim();
+
+    if (!major) {
+      toast.error("Der URL-Parameter ?major= fehlt oder ist leer.");
+      return;
     }
-    setIsSubmitted(true);
+
+    try {
+      await addDocument(major, { ...lebenslauf, createdAt: Date.now() });
+      toast.success("Daten erfolgreich gesendet!");
+      try {
+        localStorage.setItem("createCvSubmitted", "true");
+      } catch {
+        // ignore storage errors
+      }
+      setIsSubmitted(true);
+    } catch (error) {
+      console.error("Fehler beim Senden an Firestore:", error);
+      toast.error(`Fehler beim Senden: ${error.message}`);
+    }
   }
 
   return (
     <div className="min-h-screen p-6 bg-base-200">
-      <div className={isSubmitted ? "max-w-3xl mx-auto min-h-[calc(100vh-3rem)] grid place-items-center" : "max-w-3xl mx-auto"}>
+      <div
+        className={
+          isSubmitted
+            ? "max-w-3xl mx-auto min-h-[calc(100vh-3rem)] grid place-items-center"
+            : "max-w-3xl mx-auto"
+        }
+      >
         <section className="card bg-base-100 shadow w-full max-w-lg mx-auto">
-          <div className={isSubmitted ? "card-body items-center text-center" : "card-body"}>
+          <div
+            className={
+              isSubmitted ? "card-body items-center text-center" : "card-body"
+            }
+          >
             {isSubmitted ? (
               <div className="space-y-4 text-center">
-                <h2 className="card-title text-3xl font-bold w-full justify-center text-center">Vielen Dank!</h2>
-                <p>Vielen Dank, dass Sie die Informationen auf Deutsch ausgefüllt haben.</p>
+                <h2 className="card-title text-3xl font-bold w-full justify-center text-center">
+                  Vielen Dank!
+                </h2>
+                <p>
+                  Vielen Dank, dass Sie die Informationen auf Deutsch ausgefüllt
+                  haben.
+                </p>
               </div>
             ) : (
               <>
@@ -371,223 +403,256 @@ function Create() {
                   </h2>
                 </div>
 
-                <form onSubmit={rhfHandleSubmit(onSubmit)} className="space-y-6">
-              <div className="divider mt-0">
-                <span className="mx-auto">Persönliche Daten</span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Controller
-                  control={control}
-                  name="personalInfo.name"
-                  rules={{ required: "Name ist erforderlich" }}
-                  render={({ field, fieldState }) => (
-                    <FormInput
-                      label="Name"
-                      placeholder="Name"
-                      inputClassName={
-                        errors?.personalInfo?.name
-                          ? "input-error border-error focus:border-error focus:ring-error"
-                          : ""
-                      }
-                      aria-invalid={errors?.personalInfo?.name ? "true" : "false"}
-                      {...field}
-                    />
-                  )}
-                />
-                <div>
-                  <Controller
-                    control={control}
-                    name="personalInfo.birthDate"
-                    rules={{ required: "Geburtsdatum ist erforderlich" }}
-                    render={({ field, fieldState }) => (
-                      <>
-                        <label className="label" htmlFor="personalInfo-birthDate">
-                          <span className="label-text">Geburtsdatum</span>
-                        </label>
-                        <input
-                          id="personalInfo-birthDate"
-                          type="date"
-                          className={`input input-bordered w-full bg-base-100 text-base-content border-base-300 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition-all duration-200 ${
-                            errors?.personalInfo?.birthDate
+                <form
+                  onSubmit={rhfHandleSubmit(onSubmit)}
+                  className="space-y-6"
+                >
+                  <div className="divider mt-0">
+                    <span className="mx-auto">Persönliche Daten</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Controller
+                      control={control}
+                      name="personalInfo.name"
+                      rules={{ required: "Name ist erforderlich" }}
+                      render={({ field, fieldState }) => (
+                        <FormInput
+                          label="Name"
+                          placeholder="Name"
+                          inputClassName={
+                            errors?.personalInfo?.name
                               ? "input-error border-error focus:border-error focus:ring-error"
                               : ""
-                          }`}
-                          aria-invalid={errors?.personalInfo?.birthDate ? "true" : "false"}
+                          }
+                          aria-invalid={
+                            errors?.personalInfo?.name ? "true" : "false"
+                          }
                           {...field}
                         />
-                      </>
-                    )}
-                  />
-                </div>
-                <div>
-                  <Controller
-                    control={control}
-                    name="personalInfo.maritalStatus"
-                    rules={{ required: "Bitte Familienstand auswählen" }}
-                    render={({ field, fieldState }) => (
-                      <>
-                        <label className="label" htmlFor="personalInfo-maritalStatus">
-                          <span className="label-text">Familienstand</span>
-                        </label>
-                        <select
-                          id="personalInfo-maritalStatus"
-                          className={`select select-bordered w-full bg-base-100 text-base-content border-base-300 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition-all duration-200 ${
-                            errors?.personalInfo?.maritalStatus
-                              ? "select-error border-error focus:border-error"
-                              : ""
-                          }`}
-                          aria-invalid={errors?.personalInfo?.maritalStatus ? "true" : "false"}
-                          {...field}
-                        >
-                          <option value="">Bitte auswählen</option>
-                          <option value="ledig">ledig</option>
-                          <option value="verheiratet">verheiratet</option>
-                        </select>
-                      </>
-                    )}
-                  />
-                </div>
-                <Controller
-                  control={control}
-                  name="personalInfo.phone"
-                  rules={{ required: "Telefonnummer ist erforderlich" }}
-                  render={({ field, fieldState }) => (
-                    <FormInput
-                      label="Telefonnummer"
-                      placeholder="Telefonnummer"
-                      inputClassName={
-                        errors?.personalInfo?.phone
-                          ? "input-error border-error focus:border-error focus:ring-error"
-                          : ""
-                      }
-                      aria-invalid={errors?.personalInfo?.phone ? "true" : "false"}
-                      {...field}
+                      )}
                     />
-                  )}
-                />
-                <div>
-                  <Controller
-                    control={control}
-                    name="personalInfo.email"
-                    rules={{
-                      required: "E-Mail ist erforderlich",
-                      pattern: {
-                        value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                        message: "Bitte gültige E-Mail eingeben",
-                      },
-                    }}
-                    render={({ field, fieldState }) => (
-                      <FormInput
-                        label="E-Mail"
-                        placeholder="E-Mail"
-                        type="email"
-                        inputClassName={
-                          errors?.personalInfo?.email
-                            ? "input-error border-error focus:border-error focus:ring-error"
-                            : ""
-                        }
-                        aria-invalid={errors?.personalInfo?.email ? "true" : "false"}
-                        {...field}
+                    <div>
+                      <Controller
+                        control={control}
+                        name="personalInfo.birthDate"
+                        rules={{ required: "Geburtsdatum ist erforderlich" }}
+                        render={({ field, fieldState }) => (
+                          <>
+                            <label
+                              className="label"
+                              htmlFor="personalInfo-birthDate"
+                            >
+                              <span className="label-text">Geburtsdatum</span>
+                            </label>
+                            <input
+                              id="personalInfo-birthDate"
+                              type="date"
+                              className={`input input-bordered w-full bg-base-100 text-base-content border-base-300 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition-all duration-200 ${
+                                errors?.personalInfo?.birthDate
+                                  ? "input-error border-error focus:border-error focus:ring-error"
+                                  : ""
+                              }`}
+                              aria-invalid={
+                                errors?.personalInfo?.birthDate
+                                  ? "true"
+                                  : "false"
+                              }
+                              {...field}
+                            />
+                          </>
+                        )}
                       />
-                    )}
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="label" htmlFor="personalInfo-photo-file">
-                    <span className="label-text">
-                      Foto hochladen (JPEG/PNG)
-                    </span>
-                  </label>
-                  <input
-                    type="hidden"
-                    {...register("personalInfo.photo", {
-                      required: "Foto ist erforderlich",
-                    })}
-                  />
-                  <input
-                    id="personalInfo-photo-file"
-                    type="file"
-                    accept="image/*"
-                    className={`file-input file-input-bordered w-full ${errors?.personalInfo?.photo ? "file-input-error" : ""}`}
-                    onChange={handlePhotoFileChange}
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <Controller
-                    control={control}
-                    name="personalInfo.address"
-                    rules={{ required: "Adresse ist erforderlich" }}
-                    render={({ field, fieldState }) => (
-                      <>
-                        <label className="label" htmlFor="personalInfo-address">
-                          <span className="label-text">Adresse</span>
-                        </label>
-                        <textarea
-                          id="personalInfo-address"
-                          className={`textarea textarea-bordered w-full bg-base-100 text-base-content border-base-300 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition-all duration-200 ${
-                            errors?.personalInfo?.address
-                              ? "textarea-error border-error focus:border-error focus:ring-error"
+                    </div>
+                    <div>
+                      <Controller
+                        control={control}
+                        name="personalInfo.maritalStatus"
+                        rules={{ required: "Bitte Familienstand auswählen" }}
+                        render={({ field, fieldState }) => (
+                          <>
+                            <label
+                              className="label"
+                              htmlFor="personalInfo-maritalStatus"
+                            >
+                              <span className="label-text">Familienstand</span>
+                            </label>
+                            <select
+                              id="personalInfo-maritalStatus"
+                              className={`select select-bordered w-full bg-base-100 text-base-content border-base-300 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition-all duration-200 ${
+                                errors?.personalInfo?.maritalStatus
+                                  ? "select-error border-error focus:border-error"
+                                  : ""
+                              }`}
+                              aria-invalid={
+                                errors?.personalInfo?.maritalStatus
+                                  ? "true"
+                                  : "false"
+                              }
+                              {...field}
+                            >
+                              <option value="">Bitte auswählen</option>
+                              <option value="ledig">ledig</option>
+                              <option value="verheiratet">verheiratet</option>
+                            </select>
+                          </>
+                        )}
+                      />
+                    </div>
+                    <Controller
+                      control={control}
+                      name="personalInfo.phone"
+                      rules={{ required: "Telefonnummer ist erforderlich" }}
+                      render={({ field, fieldState }) => (
+                        <FormInput
+                          label="Telefonnummer"
+                          placeholder="Telefonnummer"
+                          inputClassName={
+                            errors?.personalInfo?.phone
+                              ? "input-error border-error focus:border-error focus:ring-error"
                               : ""
-                          }`}
-                          placeholder="Adresse"
-                          rows={2}
-                          aria-invalid={errors?.personalInfo?.address ? "true" : "false"}
+                          }
+                          aria-invalid={
+                            errors?.personalInfo?.phone ? "true" : "false"
+                          }
                           {...field}
                         />
-                      </>
-                    )}
+                      )}
+                    />
+                    <div>
+                      <Controller
+                        control={control}
+                        name="personalInfo.email"
+                        rules={{
+                          required: "E-Mail ist erforderlich",
+                          pattern: {
+                            value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                            message: "Bitte gültige E-Mail eingeben",
+                          },
+                        }}
+                        render={({ field, fieldState }) => (
+                          <FormInput
+                            label="E-Mail"
+                            placeholder="E-Mail"
+                            type="email"
+                            inputClassName={
+                              errors?.personalInfo?.email
+                                ? "input-error border-error focus:border-error focus:ring-error"
+                                : ""
+                            }
+                            aria-invalid={
+                              errors?.personalInfo?.email ? "true" : "false"
+                            }
+                            {...field}
+                          />
+                        )}
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label
+                        className="label"
+                        htmlFor="personalInfo-photo-file"
+                      >
+                        <span className="label-text">
+                          Foto hochladen (JPEG/PNG)
+                        </span>
+                      </label>
+                      <input
+                        type="hidden"
+                        {...register("personalInfo.photo", {
+                          required: "Foto ist erforderlich",
+                        })}
+                      />
+                      <input
+                        id="personalInfo-photo-file"
+                        type="file"
+                        accept="image/*"
+                        className={`file-input file-input-bordered w-full ${
+                          errors?.personalInfo?.photo ? "file-input-error" : ""
+                        }`}
+                        onChange={handlePhotoFileChange}
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Controller
+                        control={control}
+                        name="personalInfo.address"
+                        rules={{ required: "Adresse ist erforderlich" }}
+                        render={({ field, fieldState }) => (
+                          <>
+                            <label
+                              className="label"
+                              htmlFor="personalInfo-address"
+                            >
+                              <span className="label-text">Adresse</span>
+                            </label>
+                            <textarea
+                              id="personalInfo-address"
+                              className={`textarea textarea-bordered w-full bg-base-100 text-base-content border-base-300 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition-all duration-200 ${
+                                errors?.personalInfo?.address
+                                  ? "textarea-error border-error focus:border-error focus:ring-error"
+                                  : ""
+                              }`}
+                              placeholder="Adresse"
+                              rows={2}
+                              aria-invalid={
+                                errors?.personalInfo?.address ? "true" : "false"
+                              }
+                              {...field}
+                            />
+                          </>
+                        )}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="divider">Berufserfahrung</div>
+                  <ExperienceSection
+                    experience={cv.experience}
+                    onAddExperience={addExperience}
+                    onUpdateExperience={updateExperience}
+                    onRemoveExperience={removeExperience}
+                    onAddResponsibility={addResponsibility}
+                    onRemoveResponsibility={removeResponsibility}
                   />
-                </div>
-              </div>
 
-              <div className="divider">Berufserfahrung</div>
-              <ExperienceSection
-                experience={cv.experience}
-                onAddExperience={addExperience}
-                onUpdateExperience={updateExperience}
-                onRemoveExperience={removeExperience}
-                onAddResponsibility={addResponsibility}
-                onRemoveResponsibility={removeResponsibility}
-              />
+                  <div className="divider">Ausbildung</div>
+                  <EducationSection
+                    education={cv.education}
+                    onAddEducation={addEducation}
+                    onUpdateEducation={updateEducation}
+                    onRemoveEducation={removeEducation}
+                  />
 
-              <div className="divider">Ausbildung</div>
-              <EducationSection
-                education={cv.education}
-                onAddEducation={addEducation}
-                onUpdateEducation={updateEducation}
-                onRemoveEducation={removeEducation}
-              />
+                  <div className="divider">Fähigkeiten</div>
+                  <SkillsSection
+                    softSkills={cv.skills.softSkills}
+                    pcSkills={cv.skills.pcSkills}
+                    onAddSoft={(val) => addTag(["skills", "softSkills"], val)}
+                    onRemoveSoft={(i) => removeTag(["skills", "softSkills"], i)}
+                    onAddPc={(val) => addTag(["skills", "pcSkills"], val)}
+                    onRemovePc={(i) => removeTag(["skills", "pcSkills"], i)}
+                    onAutoAddSoft={() => autoAddSkills("soft")}
+                    onAutoAddPc={() => autoAddSkills("pc")}
+                    isGeneratingSoft={isGeneratingSoft}
+                    isGeneratingPc={isGeneratingPc}
+                    recentlyAddedSoft={recentlyAdded.soft}
+                    recentlyAddedPc={recentlyAdded.pc}
+                  />
 
-              <div className="divider">Fähigkeiten</div>
-              <SkillsSection
-                softSkills={cv.skills.softSkills}
-                pcSkills={cv.skills.pcSkills}
-                onAddSoft={(val) => addTag(["skills", "softSkills"], val)}
-                onRemoveSoft={(i) => removeTag(["skills", "softSkills"], i)}
-                onAddPc={(val) => addTag(["skills", "pcSkills"], val)}
-                onRemovePc={(i) => removeTag(["skills", "pcSkills"], i)}
-                onAutoAddSoft={() => autoAddSkills("soft")}
-                onAutoAddPc={() => autoAddSkills("pc")}
-                isGeneratingSoft={isGeneratingSoft}
-                isGeneratingPc={isGeneratingPc}
-                recentlyAddedSoft={recentlyAdded.soft}
-                recentlyAddedPc={recentlyAdded.pc}
-              />
-
-              <div className="divider">Sprachen</div>
-              <LanguagesSection
-                languageRows={languageRows}
-                onAddRow={addLanguageRow}
-                onUpdateRow={updateLanguageRow}
-                onRemoveRow={removeLanguageRow}
-              />
-              <div className="divider"></div>
-              <div className="flex justify-end">
-                <button type="submit" className="btn btn-primary">
-                  Absenden
-                </button>
-              </div>
-            </form>
+                  <div className="divider">Sprachen</div>
+                  <LanguagesSection
+                    languageRows={languageRows}
+                    onAddRow={addLanguageRow}
+                    onUpdateRow={updateLanguageRow}
+                    onRemoveRow={removeLanguageRow}
+                  />
+                  <div className="divider"></div>
+                  <div className="flex justify-end">
+                    <button type="submit" className="btn btn-primary">
+                      Absenden
+                    </button>
+                  </div>
+                </form>
               </>
             )}
           </div>
