@@ -2,7 +2,7 @@ import { forwardRef, useId } from "react";
 
 const FormInput = forwardRef(function FormInput(
   {
-    placeholder = "Type here",
+    placeholder = "Hier eingeben",
     className = "",
     inputClassName = "",
     label = "",

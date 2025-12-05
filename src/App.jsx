@@ -14,6 +14,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./firebase/config";
 import { login, setAuthReady } from "./features/authSlice";
 import Create from "./pages/Create";
+import Generate from "./pages/Generate";
 
 function App() {
   const dispatch = useDispatch();
@@ -34,6 +35,10 @@ function App() {
         {
           path: "/collectionCv/:major",
           element: <CollectionCv />,
+        },
+        {
+          path: "/generate/:major/:id",
+          element: <Generate />,
         },
       ],
     },

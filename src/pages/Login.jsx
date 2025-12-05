@@ -11,7 +11,7 @@ function Login() {
     event.preventDefault();
     const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     if (!isValidEmail) {
-      setEmailError("To‘g‘ri email kiriting");
+      setEmailError("Bitte eine gültige E-Mail eingeben");
       return;
     }
     setEmailError("");
@@ -28,8 +28,8 @@ function Login() {
         >
           <h1 className="text-2xl font-bold text-center ">Anmeldung</h1>
           <FormInput
-            label="Email"
-            placeholder="Email"
+            label="E-Mail"
+            placeholder="E-Mail"
             name="email"
             type="email"
             inputClassName={emailError ? "input-error" : ""}
@@ -40,8 +40,8 @@ function Login() {
             }}
           />
           <FormInput
-            label="Password"
-            placeholder="Password"
+            label="Passwort"
+            placeholder="Passwort"
             name="password"
             type="password"
             value={password}
@@ -49,12 +49,12 @@ function Login() {
           />
           {!isPending && (
             <button type="submit" className="btn btn-primary">
-              Login
+              Anmelden
             </button>
           )}
           {isPending && (
             <button type="submit" className="btn btn-primary" disabled>
-              Logging in...
+              Anmeldung läuft...
             </button>
           )}
           {error && <p className="text-red-500">{error}</p>}

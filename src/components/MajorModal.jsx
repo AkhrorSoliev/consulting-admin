@@ -1,4 +1,5 @@
 import { useState } from "react";
+import toast from "react-hot-toast";
 import { createCollection } from "../utils";
 
 function MajorModal() {
@@ -9,32 +10,39 @@ function MajorModal() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    await createCollection(input.trim().toLowerCase().replace(/\s+/g, "-"));
-    setInput("");
-    closeModal();
+    const raw = String(input || "").trim();
+    if (!raw) {
+      toast.error("Der Name des Berufsfelds wurde nicht eingegeben.");
+      return;
+    }
+    const { created } = await createCollection(raw);
+    if (created) {
+      setInput("");
+      closeModal();
+    }
   };
   return (
     <dialog id="my_modal_5" className="modal modal-bottom sm:modal-middle">
       <div className="modal-box">
-        <h3 className="font-bold text-lg mb-5">Yo'nalish Qo'shing</h3>
+        <h3 className="font-bold text-lg mb-5">Berufsfeld hinzufügen</h3>
 
         <form onSubmit={handleSubmit}>
           <label className="label" htmlFor="major-name">
-            <span className="label-text">Yo'nalish nomi</span>
+            <span className="label-text">Name des Berufsfelds</span>
           </label>
           <input
             id="major-name"
             type="text"
-            placeholder="Type here"
+            placeholder="Hier eingeben"
             className="input w-full"
             value={input}
             onChange={(e) => setInput(e.target.value)}
           />
 
           <div className="modal-action">
-            <button className="btn btn-secondary">Qo'shish</button>
+            <button className="btn btn-secondary">Hinzufügen</button>
             <button type="button" onClick={closeModal} className="btn">
-              Close
+              Schließen
             </button>
           </div>
         </form>
