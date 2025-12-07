@@ -96,7 +96,9 @@ function CollectionCv() {
     const colName = String(major || "").trim();
     if (!colName || !itemId) return;
     const ok = window.confirm(
-      `Möchten Sie „${displayName || "Kandidat"}“ wirklich löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.`
+      `Möchten Sie „${
+        displayName || "Kandidat"
+      }“ wirklich löschen? Dieser Vorgang kann nicht rückgängig gemacht werden.`
     );
     if (!ok) return;
     try {

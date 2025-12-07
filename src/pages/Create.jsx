@@ -13,6 +13,7 @@ import {
   toInputDate,
   fromInputDate,
   generateSkills,
+  uploadFilesToConsulting,
 } from "../utils";
 
 function Create() {
@@ -43,7 +44,30 @@ function Create() {
   const [isGeneratingPc, setIsGeneratingPc] = useState(false);
   const [recentlyAdded, setRecentlyAdded] = useState({ soft: [], pc: [] });
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
   const [searchParams] = useSearchParams();
+  const [diplomaFiles, setDiplomaFiles] = useState([]);
+  const [langCertFiles, setLangCertFiles] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
+  const [noDiploma, setNoDiploma] = useState(false);
+  const [noLangCert, setNoLangCert] = useState(false);
+
+  function uniqueKey(file) {
+    return `${file?.name || ""}__${file?.size || 0}__${file?.lastModified || 0}`;
+  }
+
+  function mergeFiles(existing, incoming) {
+    const map = new Map();
+    (existing || []).forEach((f) => map.set(uniqueKey(f), f));
+    (incoming || []).forEach((f) => {
+      if (f instanceof File) map.set(uniqueKey(f), f);
+    });
+    return Array.from(map.values());
+  }
+
+  function removeFileAt(files, idx) {
+    return (files || []).filter((_, i) => i !== idx);
+  }
 
   useEffect(() => {
     try {
@@ -54,11 +78,23 @@ function Create() {
     }
   }, []);
 
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key === "Escape") setIsPrivacyOpen(false);
+    }
+    if (isPrivacyOpen) {
+      window.addEventListener("keydown", onKeyDown);
+    }
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isPrivacyOpen]);
+
   const {
     register,
     control,
     handleSubmit: rhfHandleSubmit,
     setValue,
+    setFocus,
+    watch,
     formState: { errors },
   } = useForm({
     defaultValues: {
@@ -113,6 +149,48 @@ function Create() {
       next[idx] = { ...next[idx], [field]: value };
       return { ...prev, experience: next };
     });
+  }
+
+  function onInvalid(formErrors) {
+    const requiredOrder = [
+      "personalInfo.name",
+      "personalInfo.birthDate",
+      "personalInfo.maritalStatus",
+      "personalInfo.phone",
+      "personalInfo.email",
+      "personalInfo.photo",
+      "personalInfo.address",
+    ];
+    const labelMap = {
+      "personalInfo.name": "Name",
+      "personalInfo.birthDate": "Geburtsdatum",
+      "personalInfo.maritalStatus": "Familienstand",
+      "personalInfo.phone": "Telefonnummer",
+      "personalInfo.email": "E-Mail",
+      "personalInfo.photo": "Foto",
+      "personalInfo.address": "Adresse",
+    };
+    const hasErrAt = (path) => {
+      const parts = path.split(".");
+      let cur = formErrors;
+      for (const p of parts) {
+        if (!cur || typeof cur !== "object") return false;
+        cur = cur[p];
+      }
+      return Boolean(cur);
+    };
+    const firstPath = requiredOrder.find((p) => hasErrAt(p));
+    if (firstPath) {
+      const label = labelMap[firstPath] || firstPath;
+      toast.error(`Bitte füllen Sie „${label}“ aus.`);
+      try {
+        setFocus(firstPath);
+      } catch {
+        // ignore focus errors
+      }
+    } else {
+      toast.error("Bitte füllen Sie alle Pflichtfelder aus.");
+    }
   }
 
   function removeExperience(idx) {
@@ -356,7 +434,25 @@ function Create() {
     }
 
     try {
-      await addDocument(major, { ...lebenslauf, createdAt: Date.now() });
+      setIsUploading(true);
+      // Upload files first and attach URLs (skip if user marked as not available)
+      const [diplomaUrls, langUrls] = await Promise.all([
+        noDiploma ? Promise.resolve([]) : uploadFilesToConsulting(diplomaFiles),
+        noLangCert ? Promise.resolve([]) : uploadFilesToConsulting(langCertFiles),
+      ]);
+
+      const payload = {
+        ...lebenslauf,
+        attachments: {
+          diplomas: diplomaUrls || [],
+          languageCertificates: langUrls || [],
+          noDiploma: Boolean(noDiploma),
+          noLanguageCertificate: Boolean(noLangCert),
+        },
+        createdAt: Date.now(),
+      };
+
+      await addDocument(major, payload);
       toast.success("Daten erfolgreich gesendet!");
       try {
         localStorage.setItem("createCvSubmitted", "true");
@@ -367,6 +463,8 @@ function Create() {
     } catch (error) {
       console.error("Fehler beim Senden an Firestore:", error);
       toast.error(`Fehler beim Senden: ${error.message}`);
+    } finally {
+      setIsUploading(false);
     }
   }
 
@@ -404,7 +502,7 @@ function Create() {
                 </div>
 
                 <form
-                  onSubmit={rhfHandleSubmit(onSubmit)}
+                  onSubmit={rhfHandleSubmit(onSubmit, onInvalid)}
                   className="space-y-6"
                 >
                   <div className="divider mt-0">
@@ -646,10 +744,220 @@ function Create() {
                     onUpdateRow={updateLanguageRow}
                     onRemoveRow={removeLanguageRow}
                   />
+
+                  <div className="divider">Dokumente</div>
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="label" htmlFor="doc-diplomas">
+                          <span className="label-text">Diplome (mehrere möglich)</span>
+                        </label>
+                        {Array.isArray(diplomaFiles) && diplomaFiles.length > 0 ? (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-xs"
+                            onClick={() => setDiplomaFiles([])}
+                          >
+                            Alle entfernen
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="form-control mb-2">
+                        <label className="cursor-pointer flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            className="checkbox checkbox-sm"
+                            checked={noDiploma}
+                            onChange={(e) => {
+                              const v = e.target.checked;
+                              setNoDiploma(v);
+                              if (v) setDiplomaFiles([]);
+                            }}
+                          />
+                          <span className="text-sm">Kein Diplom</span>
+                        </label>
+                      </div>
+                      <input
+                        id="doc-diplomas"
+                        type="file"
+                        multiple
+                        accept=".pdf,application/pdf"
+                        className="file-input file-input-bordered w-full"
+                        disabled={noDiploma}
+                        onChange={(e) => {
+                          const raw = Array.from(e.target.files || []);
+                          const pdfs = raw.filter(
+                            (f) =>
+                              String(f.type).toLowerCase() === "application/pdf" ||
+                              /\.pdf$/i.test(String(f.name || ""))
+                          );
+                          const invalid = raw.length - pdfs.length;
+                          if (invalid > 0) {
+                            toast.error("Nur PDF-Dateien sind erlaubt.");
+                          }
+                          setDiplomaFiles((prev) => mergeFiles(prev, pdfs));
+                          // reset value to allow picking the same file again if needed
+                          e.target.value = "";
+                        }}
+                      />
+                      {Array.isArray(diplomaFiles) && diplomaFiles.length > 0 ? (
+                        <div className="mt-2">
+                          <div className="text-xs opacity-70 mb-1">Nur PDF</div>
+                          <ul className="space-y-2">
+                            {diplomaFiles.map((f, i) => (
+                              <li key={uniqueKey(f)} className="flex items-center justify-between gap-2 rounded-box border border-base-300 px-3 py-2">
+                                <div className="min-w-0">
+                                  <div className="truncate font-medium">{f.name}</div>
+                                  <div className="text-xs opacity-70">
+                                    {(f.size / 1024).toFixed(1)} KB
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-xs"
+                                  onClick={() =>
+                                    setDiplomaFiles((prev) => removeFileAt(prev, i))
+                                  }
+                                  aria-label="Entfernen"
+                                >
+                                  ✕
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="label" htmlFor="doc-langcerts">
+                          <span className="label-text">
+                            Sprachzertifikate (mehrere möglich)
+                          </span>
+                        </label>
+                        {Array.isArray(langCertFiles) && langCertFiles.length > 0 ? (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-xs"
+                            onClick={() => setLangCertFiles([])}
+                          >
+                            Alle entfernen
+                          </button>
+                        ) : null}
+                      </div>
+                      <div className="form-control mb-2">
+                        <label className="cursor-pointer flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            className="checkbox checkbox-sm"
+                            checked={noLangCert}
+                            onChange={(e) => {
+                              const v = e.target.checked;
+                              setNoLangCert(v);
+                              if (v) setLangCertFiles([]);
+                            }}
+                          />
+                          <span className="text-sm">Kein Sprachzertifikat</span>
+                        </label>
+                      </div>
+                      <input
+                        id="doc-langcerts"
+                        type="file"
+                        multiple
+                        accept=".pdf,application/pdf"
+                        className="file-input file-input-bordered w-full"
+                        disabled={noLangCert}
+                        onChange={(e) => {
+                          const raw = Array.from(e.target.files || []);
+                          const pdfs = raw.filter(
+                            (f) =>
+                              String(f.type).toLowerCase() === "application/pdf" ||
+                              /\.pdf$/i.test(String(f.name || ""))
+                          );
+                          const invalid = raw.length - pdfs.length;
+                          if (invalid > 0) {
+                            toast.error("Nur PDF-Dateien sind erlaubt.");
+                          }
+                          setLangCertFiles((prev) => mergeFiles(prev, pdfs));
+                          e.target.value = "";
+                        }}
+                      />
+                      {Array.isArray(langCertFiles) && langCertFiles.length > 0 ? (
+                        <div className="mt-2">
+                          <div className="text-xs opacity-70 mb-1">Nur PDF</div>
+                          <ul className="space-y-2">
+                            {langCertFiles.map((f, i) => (
+                              <li key={uniqueKey(f)} className="flex items-center justify-between gap-2 rounded-box border border-base-300 px-3 py-2">
+                                <div className="min-w-0">
+                                  <div className="truncate font-medium">{f.name}</div>
+                                  <div className="text-xs opacity-70">
+                                    {(f.size / 1024).toFixed(1)} KB
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-xs"
+                                  onClick={() =>
+                                    setLangCertFiles((prev) => removeFileAt(prev, i))
+                                  }
+                                  aria-label="Entfernen"
+                                >
+                                  ✕
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="divider"></div>
+                  <div className="form-control">
+                    <div className="rounded-box border border-base-300 bg-base-200/40 p-4 md:p-5">
+                      <div className="flex items-start gap-3">
+                        <input
+                          id="agreePrivacy"
+                          type="checkbox"
+                          className={`checkbox mt-1 ${
+                            errors?.agreePrivacy ? "checkbox-error" : ""
+                          }`}
+                          aria-invalid={errors?.agreePrivacy ? "true" : "false"}
+                          aria-describedby={errors?.agreePrivacy ? "agreePrivacy-error" : undefined}
+                          {...register("agreePrivacy", { required: true })}
+                        />
+                        <div className="min-w-0">
+                          <label
+                            htmlFor="agreePrivacy"
+                            className="font-medium leading-6 cursor-pointer"
+                          >
+                            Ich habe die Datenschutzerklärung gelesen und stimme zu.
+                          </label>
+                          <div className="mt-1 text-sm text-base-content/80 flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              className="link link-primary"
+                              onClick={() => setIsPrivacyOpen(true)}
+                            >
+                              Datenschutzrichtlinie
+                            </button>
+                          </div>
+                          {errors?.agreePrivacy ? (
+                            <p id="agreePrivacy-error" className="text-error text-sm mt-2">
+                              Bitte stimmen Sie der Datenschutzerklärung zu, um fortzufahren.
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   <div className="divider"></div>
                   <div className="flex justify-end">
-                    <button type="submit" className="btn btn-primary">
-                      Absenden
+                    <button
+                      type="submit"
+                      className="btn btn-primary"
+                      disabled={!watch("agreePrivacy") || isUploading}
+                    >
+                      {isUploading ? "Hochladen..." : "Absenden"}
                     </button>
                   </div>
                 </form>
@@ -658,6 +966,89 @@ function Create() {
           </div>
         </section>
       </div>
+      {isPrivacyOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-base-content/50 backdrop-blur-sm"
+            onClick={() => setIsPrivacyOpen(false)}
+          />
+          <div
+            className="relative w-full max-w-3xl mx-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="privacy-title"
+          >
+            <div className="bg-base-100 text-base-content rounded-box shadow-xl flex flex-col max-h-[85vh] overflow-hidden">
+              <div className="sticky top-0 z-10 px-6 py-4 border-b border-base-300 bg-base-100/95 backdrop-blur">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 id="privacy-title" className="text-xl md:text-2xl font-bold truncate">
+                    Datenschutzrichtlinie
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => setIsPrivacyOpen(false)}
+                      aria-label="Schließen"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="px-6 py-4 overflow-y-auto">
+                <div className="space-y-4 text-sm leading-7">
+                  <p>
+                    Auf der Plattform <strong>Consultinguz</strong> gelten alle eingegebenen
+                    personenbezogenen Daten (Name, Kontaktdaten, Berufserfahrung,
+                    Ausbildung, Lebenslauf u. a.) als vertraulich und werden gemäß den
+                    geltenden gesetzlichen Bestimmungen sowie unseren internen
+                    Sicherheitsrichtlinien geschützt.
+                  </p>
+                  <p>
+                    Wir verwenden die von Nutzerinnen und Nutzern übermittelten Daten
+                    ausschließlich zu einem Zweck – <strong>die Qualifikation und Erfahrung
+                    der Kandidatinnen und Kandidaten zu prüfen und sie passenden
+                    Arbeitgebern zu empfehlen</strong>.
+                  </p>
+                  <ul className="list-disc pl-6 space-y-2">
+                    <li>
+                      Ihre Daten werden <strong>niemals an Dritte verkauft oder frei
+                      weitergegeben</strong>.
+                    </li>
+                    <li>
+                      Informationen über eine Kandidatin oder einen Kandidaten werden{" "}
+                      <strong>nur in dem für den Arbeitgeber erforderlichen Umfang</strong>{" "}
+                      und <strong>auf Grundlage Ihrer Einwilligung</strong> bereitgestellt.
+                    </li>
+                    <li>
+                      Alle Daten werden auf sicheren Servern gespeichert und sind vor
+                      unbefugtem Zugriff geschützt.
+                    </li>
+                  </ul>
+                  <p>
+                    Sie können Ihre Daten jederzeit aktualisieren, löschen oder die
+                    Verarbeitung einschränken, indem Sie sich an <strong>Consultinguz</strong>{" "}
+                    wenden. Wir schätzen Ihr Vertrauen und verarbeiten Ihre Daten
+                    sorgfältig und ausschließlich, um Ihnen bei der Jobsuche zu helfen.
+                  </p>
+                </div>
+              </div>
+              <div className="sticky bottom-0 z-10 px-6 py-3 border-t border-base-300 bg-base-100/95 backdrop-blur">
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => setIsPrivacyOpen(false)}
+                  >
+                    Schließen
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
