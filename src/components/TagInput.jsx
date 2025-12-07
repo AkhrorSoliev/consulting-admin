@@ -60,6 +60,7 @@ function TagInput({
             <span key={idx} className="badge badge-neutral gap-2">
               {tag}
               <button
+                type="button"
                 className="btn btn-ghost btn-xs"
                 onClick={() => onRemove(idx)}
               >
