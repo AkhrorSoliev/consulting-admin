@@ -1,12 +1,13 @@
 import IgnoreTailwind from "./IgnoreTailwind";
 
-export default function Content({ cv, contentRef, generatedSettings }) {
+export default function Content({ cv, contentRef, generatedSettings, order }) {
   return (
     <IgnoreTailwind>
       <div ref={contentRef}>
         <div
           style={{
             display: "flex",
+            backgroundColor: "white",
             flexDirection: "column",
             gap: "50px",
           }}
@@ -57,52 +58,55 @@ export default function Content({ cv, contentRef, generatedSettings }) {
                   height: "100%",
                 }}
               >
-                {Object.entries(cv.persoenlicheDaten).map(
-                  ([label, value], index) => {
+                {Object.entries(cv.persoenlicheDaten)
+                  .sort(
+                    ([a], [b]) =>
+                      order.personalData.indexOf(a) -
+                      order.personalData.indexOf(b)
+                  )
+                  .map(([label, value], index) => {
+                    if (label === "foto") return null;
                     return (
-                      label !== "foto" && (
+                      <div
+                        key={index}
+                        style={{
+                          position: "relative",
+                          display: "flex",
+                          alignItems: "center",
+                        }}
+                      >
                         <div
-                          key={index}
                           style={{
-                            position: "relative",
-                            display: "flex",
-                            alignItems: "center",
+                            display: "grid",
+                            gridTemplateColumns: "repeat(2, 1fr)",
+                            alignItems: "start",
+                            width: "100%",
                           }}
                         >
-                          <div
+                          <strong
                             style={{
-                              display: "grid",
-                              gridTemplateColumns: "repeat(2, 1fr)",
-                              alignItems: "start",
-                              width: "100%",
+                              fontFamily: generatedSettings.fontFamily,
+                              textTransform: "capitalize",
+                              fontSize: "14px",
+                              lineHeight: "1.2",
                             }}
                           >
-                            <strong
-                              style={{
-                                fontFamily: generatedSettings.fontFamily,
-                                textTransform: "capitalize",
-                                fontSize: "14px",
-                                lineHeight: "1.2",
-                              }}
-                            >
-                              {label}:
-                            </strong>
-                            <p
-                              style={{
-                                margin: "0px",
-                                fontFamily: generatedSettings.fontFamily,
-                                fontSize: "14px",
-                                lineHeight: "1.2",
-                              }}
-                            >
-                              {value}
-                            </p>
-                          </div>
+                            {label}:
+                          </strong>
+                          <p
+                            style={{
+                              margin: "0px",
+                              fontFamily: generatedSettings.fontFamily,
+                              fontSize: "14px",
+                              lineHeight: "1.2",
+                            }}
+                          >
+                            {value}
+                          </p>
                         </div>
-                      )
+                      </div>
                     );
-                  }
-                )}
+                  })}
               </div>
 
               <div

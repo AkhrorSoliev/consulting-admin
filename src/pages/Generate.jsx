@@ -17,6 +17,9 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "../components/ui/native-select";
+import Fieldset from "../components/Fieldset";
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
 
 const pdfSafeFonts = [
   "Arial",
@@ -27,6 +30,19 @@ const pdfSafeFonts = [
   "Verdana",
   "Tahoma",
 ];
+
+const order = {
+  personalData: [
+    "name",
+    "geburtsdatum",
+    "familienstand",
+    "adresse",
+    "email",
+    "telefon",
+  ],
+};
+
+const maritalStatus = ["ledig", "verheiratet", "geschieden", "verwitwet"];
 
 function Generate() {
   const { major, id } = useParams();
@@ -65,8 +81,7 @@ function Generate() {
     if (!col || !docId) return;
     try {
       setIsSaving(true);
-      const payload = mapFormToDoc(cv);
-      await updateDocument(col, docId, payload);
+      await updateDocument(col, docId, cv);
       toast.success("Änderungen wurden gespeichert.");
     } catch (e) {
       console.error(e);
@@ -74,6 +89,12 @@ function Generate() {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function updatePersonalData(key, value) {
+    const clone = structuredClone(cv);
+    clone.persoenlicheDaten = { ...cv.persoenlicheDaten, [key]: value };
+    setCv(clone);
   }
 
   function download(blob, fileName) {
@@ -117,8 +138,6 @@ function Generate() {
       });
   }
 
-  console.log(cv);
-
   useEffect(() => {
     const col = String(major || "").trim();
     const docId = String(id || "").trim();
@@ -135,7 +154,6 @@ function Generate() {
           setError(true);
         } else {
           const data = snap.data() || null;
-
           setError(false);
           if (!formInitialized) {
             setCv(data);
@@ -152,9 +170,21 @@ function Generate() {
     return () => unsub();
   }, [major, id, formInitialized]);
 
+  if (loading) {
+    return (
+      <div className="fixed inset-0 bg-slate-600 flex items-center justify-center w-full h-full z-100">
+        <UpdateIcon
+          width={60}
+          height={60}
+          className="animate-spin text-white"
+        />
+      </div>
+    );
+  }
+
   return (
-    <section className="p-2 w-full h-full bg-base-200">
-      <div className="flex items-center justify-between p-3 border rounded-sm fixed  z-50 left-2 right-2 top-2 bg-white shadow-sm">
+    <section className="p-2 w-full h-full bg-base-200 fade-in-once">
+      <div className="flex items-center justify-between p-3 border rounded-sm fixed  z-50 left-2 right-2 top-2 bg-white">
         <Button variant={"ghost"} asChild>
           <NavLink to={`/collectionCV/${major}`}>
             <ArrowLeftIcon />
@@ -163,7 +193,7 @@ function Generate() {
         </Button>
 
         <div className="flex items-center gap-3">
-          <Button disabled={isSaving}>
+          <Button onClick={handleSave} disabled={isSaving}>
             {isSaving ? (
               <>
                 <UpdateIcon className="animate-spin" />
@@ -198,36 +228,102 @@ function Generate() {
 
       {/* Content */}
       <section className="grid grid-cols-[1fr_794px] gap-2 w-full pt-20">
-        <div className="border w-full p-[25px] bg-white">
-          <NativeSelect
-            onChange={(evt) => {
-              const fontFamily = evt.target.value;
-              setGeneratedSettings((prev) => {
-                return { ...prev, fontFamily };
-              });
-            }}
-            defaultValue="Georgia"
-          >
-            {pdfSafeFonts.map((font) => {
-              return (
-                <NativeSelectOption value={font} key={font}>
-                  {font}
-                </NativeSelectOption>
-              );
-            })}
-          </NativeSelect>
+        <div className="border w-full p-[25px] bg-white flex flex-col gap-10">
+          <Fieldset label="Theme">
+            {/* Font  */}
+            <NativeSelect
+              onChange={(evt) => {
+                const fontFamily = evt.target.value;
+                setGeneratedSettings((prev) => {
+                  return { ...prev, fontFamily };
+                });
+              }}
+              defaultValue="Georgia"
+            >
+              {pdfSafeFonts.map((font) => {
+                return (
+                  <NativeSelectOption value={font} key={font}>
+                    {font}
+                  </NativeSelectOption>
+                );
+              })}
+            </NativeSelect>
+          </Fieldset>
+          {/* Personal Data */}
+          <Fieldset label="Persönliche daten">
+            <div className="flex flex-col gap-5 w-full">
+              <Input
+                onChange={(evt) => {
+                  const value = evt.target.value;
+                  updatePersonalData("name", value);
+                }}
+                placeholder="Name:"
+                value={cv.persoenlicheDaten.name}
+                type={"text"}
+                defaultValue={cv.persoenlicheDaten.name}
+              />
+
+              <Input
+                onChange={(evt) => {
+                  const value = evt.target.value;
+                  updatePersonalData("geburtsdatum", value);
+                }}
+                placeholder="Geburtsdatum:"
+                type={"date"}
+                value={cv.persoenlicheDaten.geburtsdatum.replaceAll(".", "-")}
+              />
+
+              <NativeSelect
+                onChange={(evt) => {
+                  const value = evt.target.value;
+                  updatePersonalData("familienstand", value);
+                }}
+                defaultValue={cv.persoenlicheDaten.familienstand}
+              >
+                {maritalStatus.map((type) => {
+                  return (
+                    <NativeSelectOption key={type}>{type}</NativeSelectOption>
+                  );
+                })}
+              </NativeSelect>
+
+              <Textarea
+                onChange={(evt) => {
+                  const value = evt.target.value;
+                  updatePersonalData("adresse", value);
+                }}
+                defaultValue={cv.persoenlicheDaten.adresse}
+                placeholder="Adresse:"
+              ></Textarea>
+
+              <Input
+                onChange={(evt) => {
+                  const file = evt.target.files[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = function (e) {
+                    const base64 = e.target.result;
+                    updatePersonalData("foto", base64);
+                  };
+                  reader.readAsDataURL(file);
+                }}
+                className="w-full"
+                type="file"
+                accept="image/*"
+              />
+            </div>
+          </Fieldset>
         </div>
 
         {/* PDF */}
-        <div className="bg-white">
-          {cv && (
-            <Content
-              cv={cv}
-              generatedSettings={generatedSettings}
-              editMode={editMode}
-              contentRef={contentRef}
-            />
-          )}
+        <div>
+          <Content
+            order={order}
+            cv={cv}
+            generatedSettings={generatedSettings}
+            editMode={editMode}
+            contentRef={contentRef}
+          />
         </div>
       </section>
     </section>
