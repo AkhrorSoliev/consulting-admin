@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/config";
-import { FaDownload, FaArrowLeft } from "react-icons/fa";
+import { FaDownload, FaArrowLeft, FaExternalLinkAlt } from "react-icons/fa";
 import toast from "react-hot-toast";
 import {
   Document,
@@ -11,6 +11,7 @@ import {
   StyleSheet,
   Text,
   View,
+  Link as PdfLink,
   pdf,
   Font,
 } from "@react-pdf/renderer";
@@ -77,10 +78,12 @@ function Generate() {
       experience: [],
       education: [],
       skills: { softSkills: [], pcSkills: [], languages: {} },
+      documents: { diplomas: [], certificates: [] },
     }),
     []
   );
   const [formCv, setFormCv] = useState(initialForm);
+  const [showDocuments, setShowDocuments] = useState(true);
   const [isGeneratingSoft, setIsGeneratingSoft] = useState(false);
   const [isGeneratingPc, setIsGeneratingPc] = useState(false);
   const [recentlyAdded, setRecentlyAdded] = useState({ soft: [], pc: [] });
@@ -127,6 +130,23 @@ function Generate() {
       : [];
     const ausb = Array.isArray(data?.ausbildung) ? data.ausbildung : [];
     const f = data?.faehigkeiten || {};
+    const d = data?.dokumente || {};
+    const att = data?.attachments || {};
+
+    let diplomas = [];
+    if (Array.isArray(d?.diplome)) {
+      diplomas = d.diplome;
+    } else if (Array.isArray(att?.diplomas)) {
+      diplomas = att.diplomas;
+    }
+
+    let certificates = [];
+    if (Array.isArray(d?.zertifikate)) {
+      certificates = d.zertifikate;
+    } else if (Array.isArray(att?.languageCertificates)) {
+      certificates = att.languageCertificates;
+    }
+
     return {
       personalInfo: {
         name: String(p.name || ""),
@@ -160,6 +180,10 @@ function Generate() {
           typeof f?.sprachen === "object" && f?.sprachen !== null
             ? f.sprachen
             : {},
+      },
+      documents: {
+        diplomas,
+        certificates,
       },
     };
   }
@@ -199,6 +223,10 @@ function Generate() {
         sozialkompetenzen: f.skills?.softSkills || [],
         pcKenntnisse: f.skills?.pcSkills || [],
         sprachen: f.skills?.languages || {},
+      },
+      dokumente: {
+        diplome: f.documents?.diplomas || [],
+        zertifikate: f.documents?.certificates || [],
       },
     };
   }
@@ -303,7 +331,7 @@ function Generate() {
     },
   });
 
-  const CvPdfDocument = ({ form }) => {
+  const CvPdfDocument = ({ form, showDocuments }) => {
     const personal = form?.personalInfo || {};
     const fullName = String(personal.name || "").trim() || "—";
     const address = String(personal.address || "").trim() || "—";
@@ -315,6 +343,7 @@ function Generate() {
     const experience = Array.isArray(form?.experience) ? form.experience : [];
     const education = Array.isArray(form?.education) ? form.education : [];
     const skills = form?.skills || {};
+    const documents = form?.documents || {};
     const languagesEntries = Object.entries(skills.languages || {});
 
     return (
@@ -483,6 +512,59 @@ function Generate() {
               </View>
             </>
           ) : null}
+
+          {(showDocuments && (documents?.diplomas?.length > 0 ||
+            documents?.certificates?.length > 0)) && (
+            <>
+              <Text style={pdfStyles.sectionTitle}>Dokumente</Text>
+              <View style={{ gap: 8 }}>
+                {documents.diplomas?.length > 0 && (
+                  <View style={{ gap: 2 }}>
+                    <Text style={{ fontWeight: "bold", fontSize: 10 }}>
+                      Diplome
+                    </Text>
+                    {documents.diplomas.map((url, i) => (
+                      <View key={i} style={pdfStyles.bulletRow}>
+                        <Text>•</Text>
+                        <PdfLink
+                          src={url}
+                          style={{
+                            fontSize: 10,
+                            color: "#2563eb",
+                            textDecoration: "none",
+                          }}
+                        >
+                          {url}
+                        </PdfLink>
+                      </View>
+                    ))}
+                  </View>
+                )}
+                {documents.certificates?.length > 0 && (
+                  <View style={{ gap: 2 }}>
+                    <Text style={{ fontWeight: "bold", fontSize: 10 }}>
+                      Zertifikate
+                    </Text>
+                    {documents.certificates.map((url, i) => (
+                      <View key={i} style={pdfStyles.bulletRow}>
+                        <Text>•</Text>
+                        <PdfLink
+                          src={url}
+                          style={{
+                            fontSize: 10,
+                            color: "#2563eb",
+                            textDecoration: "none",
+                          }}
+                        >
+                          {url}
+                        </PdfLink>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </>
+          )}
         </Page>
       </Document>
     );
@@ -708,7 +790,7 @@ function Generate() {
       const fileBase = personName ? `Lebenslauf ${personName}` : "Lebenslauf";
       const safeFileName =
         fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Lebenslauf";
-      const blob = await pdf(<CvPdfDocument form={formCv} />).toBlob();
+      const blob = await pdf(<CvPdfDocument form={formCv} showDocuments={showDocuments} />).toBlob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -717,7 +799,7 @@ function Generate() {
       URL.revokeObjectURL(url);
     } catch (e) {
       console.error(e);
-      toast.error("PDF yaratishda xatolik yuz berdi.");
+      toast.error("Fehler beim Erstellen der PDF.");
     } finally {
       setIsDownloading(false);
     }
@@ -772,7 +854,7 @@ function Generate() {
               onClick={handleDownloadPdf}
               disabled={loading || notFound || isDownloading}
             >
-              <FaDownload /> {isDownloading ? "Yuklanmoqda..." : "Download"}
+              <FaDownload /> {isDownloading ? "Wird geladen..." : "Herunterladen"}
             </button>
             <button
               className={`btn btn-sm btn-primary ${
@@ -968,6 +1050,90 @@ function Generate() {
                   onRemoveRow={removeLanguageRow}
                 />
 
+                <div className="divider">Dokumente</div>
+                
+                <div className="form-control mb-4">
+                  <label className="label cursor-pointer justify-start gap-3">
+                    <span className="label-text font-semibold">
+                      Dokumente im PDF anzeigen
+                    </span>
+                    <input
+                      type="checkbox"
+                      className="toggle toggle-primary"
+                      checked={showDocuments}
+                      onChange={(e) => setShowDocuments(e.target.checked)}
+                    />
+                  </label>
+                </div>
+
+                {/* Diplomas */}
+                <div className="mb-6">
+                  <h4 className="font-semibold mb-2 text-sm uppercase tracking-wide opacity-80">Diplome</h4>
+                  <div className="flex flex-col gap-2">
+                    {(!formCv.documents?.diplomas || formCv.documents.diplomas.length === 0) ? (
+                      <div className="p-3 bg-base-200 rounded text-sm text-center opacity-60 italic border border-dashed border-base-300">
+                        Keine Diplome vorhanden.
+                      </div>
+                    ) : (
+                      formCv.documents.diplomas.map((url, i) => (
+                        <div key={i} className="flex gap-2 items-center p-2 bg-base-100 border rounded">
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="link link-primary text-sm truncate flex-1"
+                          >
+                            {url}
+                          </a>
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn btn-square btn-sm btn-ghost text-primary"
+                            title="Link öffnen"
+                          >
+                            <FaExternalLinkAlt />
+                          </a>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Certificates */}
+                <div className="mb-4">
+                  <h4 className="font-semibold mb-2 text-sm uppercase tracking-wide opacity-80">Zertifikate</h4>
+                  <div className="flex flex-col gap-2">
+                    {(!formCv.documents?.certificates || formCv.documents.certificates.length === 0) ? (
+                      <div className="p-3 bg-base-200 rounded text-sm text-center opacity-60 italic border border-dashed border-base-300">
+                        Keine Zertifikate vorhanden.
+                      </div>
+                    ) : (
+                      formCv.documents.certificates.map((url, i) => (
+                        <div key={i} className="flex gap-2 items-center p-2 bg-base-100 border rounded">
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="link link-primary text-sm truncate flex-1"
+                          >
+                            {url}
+                          </a>
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn btn-square btn-sm btn-ghost text-primary"
+                            title="Link öffnen"
+                          >
+                            <FaExternalLinkAlt />
+                          </a>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
                 <div className="divider"></div>
                 <div className="flex justify-end gap-2">
                   <button
@@ -990,7 +1156,7 @@ function Generate() {
                   <span>Vorschau (A4)</span>
                   <span className="flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                    Live Update
+                    Live-Aktualisierung
                   </span>
                 </div>
 
@@ -1168,6 +1334,62 @@ function Generate() {
                                   >
                                     <span>•</span>
                                     <span>{s}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {/* Dokumente */}
+                    {(showDocuments && (formCv.documents?.diplomas?.length > 0 ||
+                      formCv.documents?.certificates?.length > 0)) && (
+                      <>
+                        <PreviewSectionTitle>Dokumente</PreviewSectionTitle>
+                        <div className="flex flex-col gap-[12pt]">
+                          {formCv.documents.diplomas?.length > 0 && (
+                            <div className="flex flex-col gap-[4pt]">
+                              <div className="font-bold">Diplome</div>
+                              <div className="flex flex-col gap-[3pt]">
+                                {formCv.documents.diplomas.map((url, i) => (
+                                  <div
+                                    key={i}
+                                    className="flex flex-row gap-[6pt]"
+                                  >
+                                    <span>•</span>
+                                    <a
+                                      href={url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-blue-600 hover:underline break-all"
+                                    >
+                                      {url}
+                                    </a>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {formCv.documents.certificates?.length > 0 && (
+                            <div className="flex flex-col gap-[4pt]">
+                              <div className="font-bold">Zertifikate</div>
+                              <div className="flex flex-col gap-[3pt]">
+                                {formCv.documents.certificates.map((url, i) => (
+                                  <div
+                                    key={i}
+                                    className="flex flex-row gap-[6pt]"
+                                  >
+                                    <span>•</span>
+                                    <a
+                                      href={url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-blue-600 hover:underline break-all"
+                                    >
+                                      {url}
+                                    </a>
                                   </div>
                                 ))}
                               </div>
