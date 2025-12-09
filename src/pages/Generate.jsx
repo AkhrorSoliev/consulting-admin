@@ -4,6 +4,15 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/config";
 import { FaDownload, FaArrowLeft } from "react-icons/fa";
 import toast from "react-hot-toast";
+import {
+  Document,
+  Image as PdfImage,
+  Page,
+  StyleSheet,
+  Text,
+  View,
+  pdf,
+} from "@react-pdf/renderer";
 import FormInput from "../components/FormInput";
 import ExperienceSection from "../components/ExperienceSection";
 import EducationSection from "../components/EducationSection";
@@ -23,6 +32,7 @@ function Generate() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // Local editable state (Create.jsx like)
   const initialForm = useMemo(
@@ -39,7 +49,6 @@ function Generate() {
       experience: [],
       education: [],
       skills: { softSkills: [], pcSkills: [], languages: {} },
-      attachments: { diplomas: [], languageCertificates: [] },
     }),
     []
   );
@@ -90,7 +99,6 @@ function Generate() {
       : [];
     const ausb = Array.isArray(data?.ausbildung) ? data.ausbildung : [];
     const f = data?.faehigkeiten || {};
-    const att = data?.attachments || {};
     return {
       personalInfo: {
         name: String(p.name || ""),
@@ -124,12 +132,6 @@ function Generate() {
           typeof f?.sprachen === "object" && f?.sprachen !== null
             ? f.sprachen
             : {},
-      },
-      attachments: {
-        diplomas: Array.isArray(att?.diplomas) ? att.diplomas : [],
-        languageCertificates: Array.isArray(att?.languageCertificates)
-          ? att.languageCertificates
-          : [],
       },
     };
   }
@@ -170,18 +172,286 @@ function Generate() {
         pcKenntnisse: f.skills?.pcSkills || [],
         sprachen: f.skills?.languages || {},
       },
-      attachments: {
-        diplomas: Array.isArray(f?.attachments?.diplomas)
-          ? f.attachments.diplomas
-          : [],
-        languageCertificates: Array.isArray(
-          f?.attachments?.languageCertificates
-        )
-          ? f.attachments.languageCertificates
-          : [],
-      },
     };
   }
+
+  // PDF styles for consistent export layout
+  const pdfStyles = StyleSheet.create({
+    page: {
+      padding: 44,
+      fontFamily: "Helvetica",
+      fontSize: 11,
+      color: "#0f172a",
+      lineHeight: 1.38,
+      backgroundColor: "#ffffff",
+    },
+    header: {
+      flexDirection: "column",
+      paddingBottom: 18,
+      marginBottom: 12,
+      borderBottomWidth: 0,
+    },
+    headerMainRow: {
+      flexDirection: "row",
+      gap: 22,
+    },
+    name: { fontSize: 24, fontWeight: "bold", color: "#0f172a" },
+    divider: { height: 2, backgroundColor: "#1f2937", marginVertical: 12 },
+    photo: {
+      width: 128,
+      height: 160,
+      borderWidth: 1,
+      borderColor: "#d9dee3",
+      objectFit: "cover",
+      borderRadius: 8,
+    },
+    infoCard: { padding: 2, gap: 6 },
+    infoBlock: { gap: 6, marginTop: 2 },
+    label: {
+      color: "#334155",
+      marginRight: 12,
+      fontWeight: "bold",
+      width: 110,
+      textAlign: "left",
+    },
+    value: { color: "#0f172a", flex: 1, marginLeft: 4 },
+    row: { flexDirection: "row", alignItems: "flex-start", marginBottom: 6 },
+    sectionTitle: {
+      fontSize: 13,
+      fontWeight: "bold",
+      marginTop: 20,
+      marginBottom: 8,
+      textTransform: "uppercase",
+      letterSpacing: 0.6,
+      color: "#0f172a",
+      borderBottomWidth: 1,
+      borderColor: "#e5e7eb",
+      paddingBottom: 4,
+    },
+    timelineRow: {
+      flexDirection: "row",
+      gap: 10,
+      marginBottom: 10,
+      borderLeftWidth: 2,
+      borderRightWidth: 0,
+      borderTopWidth: 0,
+      borderBottomWidth: 0,
+      borderColor: "#4b5563",
+      paddingLeft: 12,
+    },
+    timelineDate: {
+      width: 140,
+      minWidth: 140,
+      color: "#475569",
+      fontWeight: "bold",
+      flexShrink: 0,
+    },
+    itemTitle: { fontWeight: "bold", color: "#0f172a" },
+    italic: { fontStyle: "italic", color: "#475569" },
+    bulletRow: { flexDirection: "row", gap: 6, marginTop: 2 },
+    chipList: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+    chip: {
+      borderWidth: 1,
+      borderColor: "#334155",
+      color: "#0f172a",
+      paddingHorizontal: 6,
+      paddingVertical: 3,
+      borderRadius: 4,
+      fontSize: 10,
+      backgroundColor: "#eef2f7",
+    },
+    badge: {
+      backgroundColor: "#1f2937",
+      color: "#f8fafc",
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+      fontSize: 10,
+      fontWeight: "bold",
+      alignSelf: "flex-start",
+      marginBottom: 6,
+    },
+  });
+
+  const CvPdfDocument = ({ form }) => {
+    const personal = form?.personalInfo || {};
+    const fullName = String(personal.name || "").trim() || "—";
+    const address = String(personal.address || "").trim() || "—";
+    const birthDate = String(personal.birthDate || "").trim() || "—";
+    const maritalStatus = String(personal.maritalStatus || "").trim() || "—";
+    const phone = String(personal.phone || "").trim() || "—";
+    const email = String(personal.email || "").trim() || "—";
+    const photo = String(personal.photo || "").trim();
+    const experience = Array.isArray(form?.experience) ? form.experience : [];
+    const education = Array.isArray(form?.education) ? form.education : [];
+    const skills = form?.skills || {};
+    const languagesEntries = Object.entries(skills.languages || {});
+
+    return (
+      <Document>
+        <Page size="A4" style={pdfStyles.page}>
+          <View style={pdfStyles.header}>
+            <Text style={pdfStyles.name}>{fullName}</Text>
+            <View style={pdfStyles.divider} />
+            <View style={pdfStyles.headerMainRow}>
+              <View style={{ flex: 1 }}>
+                <View style={[pdfStyles.infoCard, pdfStyles.infoBlock]}>
+                  <View style={pdfStyles.row}>
+                    <Text style={pdfStyles.label}>Name</Text>
+                    <Text style={pdfStyles.value}>{fullName}</Text>
+                  </View>
+                  <View style={pdfStyles.row}>
+                    <Text style={pdfStyles.label}>Anschrift</Text>
+                    <Text style={pdfStyles.value}>{address}</Text>
+                  </View>
+                  <View style={pdfStyles.row}>
+                    <Text style={pdfStyles.label}>geb.</Text>
+                    <Text style={pdfStyles.value}>{birthDate}</Text>
+                  </View>
+                  <View style={pdfStyles.row}>
+                    <Text style={pdfStyles.label}>Familienstand</Text>
+                    <Text style={pdfStyles.value}>{maritalStatus}</Text>
+                  </View>
+                  <View style={pdfStyles.row}>
+                    <Text style={pdfStyles.label}>Tel</Text>
+                    <Text style={pdfStyles.value}>{phone}</Text>
+                  </View>
+                  <View style={pdfStyles.row}>
+                    <Text style={pdfStyles.label}>E-Mail</Text>
+                    <Text style={pdfStyles.value}>{email}</Text>
+                  </View>
+                </View>
+              </View>
+              <View>
+                {photo ? (
+                  <PdfImage style={pdfStyles.photo} src={photo} />
+                ) : (
+                  <View
+                    style={[
+                      pdfStyles.photo,
+                      {
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#777",
+                      },
+                    ]}
+                  >
+                    <Text>Foto</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          </View>
+
+          <Text style={pdfStyles.sectionTitle}>Berufliche Laufbahn</Text>
+          {experience.length === 0 ? (
+            <Text> Nicht angegeben. </Text>
+          ) : (
+            experience.map((exp, idx) => (
+              <View key={idx} style={pdfStyles.timelineRow}>
+                <Text style={pdfStyles.timelineDate}>
+                  {(exp?.startDate || "—") + " – " + (exp?.endDate || "heute")}
+                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={pdfStyles.itemTitle}>
+                    {(exp?.position || "—") +
+                      (exp?.location ? `, ${exp.location}` : "")}
+                  </Text>
+                  {exp?.company ? (
+                    <Text style={pdfStyles.italic}>{exp.company}</Text>
+                  ) : null}
+                  {Array.isArray(exp?.responsibilities) &&
+                  exp.responsibilities.length ? (
+                    <View style={{ marginTop: 4 }}>
+                      {exp.responsibilities.map((r, i) => (
+                        <View key={i} style={pdfStyles.bulletRow}>
+                          <Text>•</Text>
+                          <Text>{r}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+            ))
+          )}
+
+          <Text style={pdfStyles.sectionTitle}>Ausbildung</Text>
+          {education.length === 0 ? (
+            <Text>Nicht angegeben.</Text>
+          ) : (
+            education.map((edu, idx) => (
+              <View key={idx} style={pdfStyles.timelineRow}>
+                <Text style={pdfStyles.timelineDate}>
+                  {(edu?.startDate || "—") + " – " + (edu?.endDate || "—")}
+                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text>{edu?.institution || "—"}</Text>
+                  <Text style={pdfStyles.italic}>
+                    Abschluss: {edu?.degree || "—"}
+                  </Text>
+                </View>
+              </View>
+            ))
+          )}
+
+          <Text style={pdfStyles.sectionTitle}>Kenntnisse & Fähigkeiten</Text>
+          <View style={{ gap: 12 }}>
+            <View style={{ gap: 4 }}>
+              <Text style={{ fontWeight: "bold" }}>Fähigkeiten</Text>
+              {Array.isArray(skills.softSkills) &&
+              skills.softSkills.length > 0 ? (
+                <View style={{ gap: 3 }}>
+                  {skills.softSkills.map((s, i) => (
+                    <View key={i} style={pdfStyles.bulletRow}>
+                      <Text>•</Text>
+                      <Text>{s}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text>Nicht angegeben.</Text>
+              )}
+            </View>
+
+            <View style={{ gap: 4 }}>
+              <Text style={{ fontWeight: "bold" }}>Fremdsprachen</Text>
+              {languagesEntries.length === 0 ? (
+                <Text>Nicht angegeben.</Text>
+              ) : (
+                <View style={{ gap: 3 }}>
+                  {languagesEntries.map(([lang, level]) => (
+                    <View key={lang} style={pdfStyles.bulletRow}>
+                      <Text>•</Text>
+                      <Text>
+                        {lang} — {String(level)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            <View style={{ gap: 4 }}>
+              <Text style={{ fontWeight: "bold" }}>PC-Kenntnisse</Text>
+              {Array.isArray(skills.pcSkills) && skills.pcSkills.length ? (
+                <View style={{ gap: 3 }}>
+                  {skills.pcSkills.map((skill, i) => (
+                    <View key={i} style={pdfStyles.bulletRow}>
+                      <Text>•</Text>
+                      <Text>{skill}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : (
+                <Text>Nicht angegeben.</Text>
+              )}
+            </View>
+          </View>
+        </Page>
+      </Document>
+    );
+  };
 
   async function handlePhotoFileChange(e) {
     const file = e.target.files?.[0];
@@ -396,7 +666,27 @@ function Generate() {
     }
   }
 
-  // Download button placeholder: intentionally non-functional
+  async function handleDownloadPdf() {
+    try {
+      setIsDownloading(true);
+      const personName = String(formCv.personalInfo.name || "").trim();
+      const fileBase = personName ? `Lebenslauf ${personName}` : "Lebenslauf";
+      const safeFileName =
+        fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Lebenslauf";
+      const blob = await pdf(<CvPdfDocument form={formCv} />).toBlob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${safeFileName}.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      toast.error("PDF yaratishda xatolik yuz berdi.");
+    } finally {
+      setIsDownloading(false);
+    }
+  }
 
   const SectionTitle = ({ children }) => (
     <div className="mt-8 mb-3">
@@ -413,29 +703,6 @@ function Generate() {
   const email = String(formCv.personalInfo.email || "").trim();
   const maritalStatus = String(formCv.personalInfo.maritalStatus || "").trim();
   const photo = String(formCv.personalInfo.photo || "").trim();
-
-  // Determine which preview sections have actual content
-  const hasPersonal =
-    Boolean(String(formCv.personalInfo.name || "").trim()) ||
-    Boolean(String(formCv.personalInfo.address || "").trim()) ||
-    Boolean(String(formCv.personalInfo.birthDate || "").trim()) ||
-    Boolean(String(formCv.personalInfo.phone || "").trim()) ||
-    Boolean(String(formCv.personalInfo.email || "").trim()) ||
-    Boolean(String(formCv.personalInfo.maritalStatus || "").trim()) ||
-    Boolean(String(formCv.personalInfo.photo || "").trim());
-
-  const hasExperience = Array.isArray(formCv.experience) && formCv.experience.length > 0;
-  const hasEducation = Array.isArray(formCv.education) && formCv.education.length > 0;
-  const hasSoftSkills =
-    Array.isArray(formCv.skills?.softSkills) && formCv.skills.softSkills.length > 0;
-  const hasPcSkills =
-    Array.isArray(formCv.skills?.pcSkills) && formCv.skills.pcSkills.length > 0;
-  const hasLanguages =
-    formCv.skills && typeof formCv.skills.languages === "object"
-      ? Object.keys(formCv.skills.languages).length > 0
-      : false;
-  const hasAnySkills = hasSoftSkills || hasPcSkills || hasLanguages;
-  const hasAnyPreview = hasPersonal || hasExperience || hasEducation || hasAnySkills;
 
   return (
     <div className="p-2 sm:p-4 md:p-6 bg-base-200 min-h-screen">
@@ -456,8 +723,12 @@ function Generate() {
             </ul>
           </div>
           <div className="flex items-center gap-2">
-            <button className="btn btn-sm btn-outline">
-              <FaDownload /> Download
+            <button
+              className="btn btn-sm btn-outline"
+              onClick={handleDownloadPdf}
+              disabled={loading || notFound || isDownloading}
+            >
+              <FaDownload /> {isDownloading ? "Yuklanmoqda..." : "Download"}
             </button>
             <button
               className={`btn btn-sm btn-primary ${
@@ -659,55 +930,6 @@ function Generate() {
                   onRemoveRow={removeLanguageRow}
                 />
 
-                {/* Attachments (display only) */}
-                <div className="divider">Dokumente</div>
-                <div className="space-y-3">
-                  <div>
-                    <div className="font-medium mb-2">Diplome</div>
-                    {Array.isArray(formCv.attachments?.diplomas) &&
-                    formCv.attachments.diplomas.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
-                        {formCv.attachments.diplomas.map((u, i) => (
-                          <a
-                            key={`dip-${i}`}
-                            href={u}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="btn btn-sm btn-outline"
-                          >
-                            Diplom {i + 1}
-                          </a>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-sm opacity-70">Keine Diplome hochgeladen</div>
-                    )}
-                  </div>
-                  <div>
-                    <div className="font-medium mb-2">Sprachzertifikate</div>
-                    {Array.isArray(formCv.attachments?.languageCertificates) &&
-                    formCv.attachments.languageCertificates.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
-                        {formCv.attachments.languageCertificates.map((u, i) => (
-                          <a
-                            key={`lc-${i}`}
-                            href={u}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="btn btn-sm btn-outline"
-                          >
-                            Zertifikat {i + 1}
-                          </a>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-sm opacity-70">
-                        Keine Sprachzertifikate hochgeladen
-                      </div>
-                    )}
-                  </div>
-                </div>
-
                 <div className="divider"></div>
                 <div className="flex justify-end gap-2">
                   <button
@@ -723,194 +945,220 @@ function Generate() {
               </div>
             </section>
 
-            {/* Right: Live Preview (only if there is any data coming from backend) */}
-            {hasAnyPreview ? (
-              <section className="bg-base-100 print:bg-white rounded-lg shadow-md overflow-hidden print:shadow-none print:rounded-none flex-1 min-w-0">
-                <div className="p-8">
-                  {/* Personal section */}
-                  {hasPersonal ? (
-                    <div className="grid grid-cols-12 gap-6 items-start">
-                      <div className="col-span-12 md:col-span-9">
-                        <h1 className="text-3xl md:text-4xl font-bold">
-                          {fullName}
-                        </h1>
-                        <div className="h-[3px] mt-3 bg-base-300" />
+            {/* Right: Live Preview (WYSIWYG) */}
+            <section className="hidden lg:block flex-1 min-w-0 h-[calc(100vh-2rem)] sticky top-4">
+              <div className="bg-slate-200/50 rounded-xl border border-slate-300 shadow-inner h-full flex flex-col overflow-hidden">
+                <div className="bg-white border-b border-slate-200 px-4 py-2 flex justify-between items-center text-xs font-semibold text-slate-500 uppercase tracking-wider z-10">
+                  <span>Vorschau (A4)</span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    Live Update
+                  </span>
+                </div>
 
-                        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6 text-[15px]">
-                          <div className="grid grid-cols-[120px,1fr] gap-y-2">
-                            {String(formCv.personalInfo.name || "").trim() ? (
-                              <>
-                                <div className="opacity-80">Name</div>
-                                <div className="font-medium">{fullName}</div>
-                              </>
-                            ) : null}
-                            {address ? (
-                              <>
-                                <div className="opacity-80">Anschrift</div>
-                                <div>{address}</div>
-                              </>
-                            ) : null}
-                            {birthDate ? (
-                              <>
-                                <div className="opacity-80">geb.</div>
-                                <div>{birthDate}</div>
-                              </>
-                            ) : null}
-                          </div>
-                          <div className="grid grid-cols-[120px,1fr] gap-y-2">
-                            {maritalStatus ? (
-                              <>
-                                <div className="opacity-80">Familienstand</div>
-                                <div>{maritalStatus}</div>
-                              </>
-                            ) : null}
-                            {phone ? (
-                              <>
-                                <div className="opacity-80">Tel</div>
-                                <div>{phone}</div>
-                              </>
-                            ) : null}
-                            {email ? (
-                              <>
-                                <div className="opacity-80">E-Mail</div>
-                                <div className="break-all">{email}</div>
-                              </>
-                            ) : null}
+                <div className="flex-1 overflow-y-auto flex justify-center bg-slate-100">
+                  <div
+                    className="w-full bg-white shadow-2xl w-[210mm] min-h-[297mm] p-[44pt] text-[#0f172a] text-[11pt] leading-[1.38] origin-top"
+                    style={{ fontFamily: "Helvetica, Arial, sans-serif" }}
+                  >
+                    {/* Header */}
+                    <div className="mb-[18pt]">
+                      <h1 className="text-[24pt] font-bold text-[#0f172a] leading-tight">
+                        {fullName}
+                      </h1>
+                      <div className="h-[2pt] bg-[#1f2937] my-[12pt] w-full" />
+
+                      <div className="flex flex-row gap-[22pt]">
+                        <div className="flex-1">
+                          <div className="flex flex-col gap-[6pt] mt-1">
+                            <PreviewInfoRow label="Name" value={fullName} />
+                            <PreviewInfoRow label="Anschrift" value={address} />
+                            <PreviewInfoRow label="geb." value={birthDate} />
+                            <PreviewInfoRow
+                              label="Familienstand"
+                              value={maritalStatus}
+                            />
+                            <PreviewInfoRow label="Tel" value={phone} />
+                            <PreviewInfoRow label="E-Mail" value={email} />
                           </div>
                         </div>
-                      </div>
-                      {photo ? (
-                        <div className="col-span-12 md:col-span-3 md:justify-self-end">
-                          <div className="w-[180px] h-[220px] border border-base-300 overflow-hidden object-cover mx-auto md:mx-0">
+
+                        <div className="shrink-0">
+                          {photo ? (
                             <img
                               src={photo}
-                              alt={fullName}
-                              className="w-full h-full object-cover"
+                              alt="Foto"
+                              className="w-[128pt] h-[160pt] object-cover border border-[#d9dee3] rounded-[8pt]"
                             />
-                          </div>
+                          ) : (
+                            <div className="w-[128pt] h-[160pt] border border-[#d9dee3] rounded-[8pt] flex items-center justify-center bg-gray-50 text-gray-400 text-xs">
+                              Foto
+                            </div>
+                          )}
                         </div>
-                      ) : null}
+                      </div>
                     </div>
-                  ) : null}
 
-                  {/* Experience */}
-                  {hasExperience ? (
-                    <>
-                      <SectionTitle>Berufliche Laufbahn</SectionTitle>
-                      <div className="space-y-4">
+                    {/* Berufliche Laufbahn */}
+                    <PreviewSectionTitle>
+                      Berufliche Laufbahn
+                    </PreviewSectionTitle>
+                    {formCv.experience.length === 0 ? (
+                      <p>Nicht angegeben.</p>
+                    ) : (
+                      <div className="flex flex-col gap-[10pt]">
                         {formCv.experience.map((exp, i) => (
-                          <div key={i} className="grid grid-cols-[210px,1fr] gap-4">
-                            <div className="text-sm opacity-80">
-                              {exp?.startDate || "—"} – {exp?.endDate || "heute"}
+                          <div
+                            key={i}
+                            className="flex flex-row gap-[10pt] border-l-[2pt] border-[#4b5563] pl-[12pt]"
+                          >
+                            <div className="w-[140pt] shrink-0 font-bold text-[#475569]">
+                              {(exp.startDate || "—") +
+                                " – " +
+                                (exp.endDate || "heute")}
                             </div>
-                            <div>
-                              <div className="font-semibold">
-                                {exp?.position || "—"}
-                                {exp?.location ? `, ${exp.location}` : ""}
+                            <div className="flex-1">
+                              <div className="font-bold text-[#0f172a]">
+                                {exp.position || "—"}
+                                {exp.location ? `, ${exp.location}` : ""}
                               </div>
-                              <div className="italic opacity-80">
-                                {exp?.company || ""}
-                              </div>
-                              {Array.isArray(exp?.responsibilities) &&
-                              exp.responsibilities.length > 0 ? (
-                                <ul className="mt-2 space-y-1 text-sm">
-                                  {exp.responsibilities.map((t, k) => (
-                                    <li key={k} className="flex items-start gap-2">
-                                      <span className="mt-1">○</span>
-                                      <span className="break-words">{t}</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              ) : null}
+                              {exp.company && (
+                                <div className="italic text-[#475569]">
+                                  {exp.company}
+                                </div>
+                              )}
+                              {Array.isArray(exp.responsibilities) &&
+                                exp.responsibilities.length > 0 && (
+                                  <div className="mt-[4pt]">
+                                    {exp.responsibilities.map((r, ri) => (
+                                      <div
+                                        key={ri}
+                                        className="flex flex-row gap-[6pt]"
+                                      >
+                                        <span>•</span>
+                                        <span>{r}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                             </div>
                           </div>
                         ))}
                       </div>
-                    </>
-                  ) : null}
+                    )}
 
-                  {/* Education */}
-                  {hasEducation ? (
-                    <>
-                      <SectionTitle>Ausbildung</SectionTitle>
-                      <div className="space-y-3">
+                    {/* Ausbildung */}
+                    <PreviewSectionTitle>Ausbildung</PreviewSectionTitle>
+                    {formCv.education.length === 0 ? (
+                      <p>Nicht angegeben.</p>
+                    ) : (
+                      <div className="flex flex-col gap-[10pt]">
                         {formCv.education.map((edu, i) => (
-                          <div key={i} className="grid grid-cols-[210px,1fr] gap-4">
-                            <div className="text-sm opacity-80">
-                              {edu?.startDate || "—"} – {edu?.endDate || "—"}
+                          <div
+                            key={i}
+                            className="flex flex-row gap-[10pt] border-l-[2pt] border-[#4b5563] pl-[12pt]"
+                          >
+                            <div className="w-[140pt] shrink-0 font-bold text-[#475569]">
+                              {(edu.startDate || "—") +
+                                " – " +
+                                (edu.endDate || "—")}
                             </div>
-                            <div>
-                              <div className="opacity-90">
-                                {edu?.institution || "—"}
+                            <div className="flex-1">
+                              <div>{edu.institution || "—"}</div>
+                              <div className="italic text-[#475569]">
+                                Abschluss: {edu.degree || "—"}
                               </div>
-                              {String(edu?.degree || "").trim() ? (
-                                <div className="text-sm">
-                                  Abschluss:{" "}
-                                  <span className="italic">{edu?.degree}</span>
-                                </div>
-                              ) : null}
                             </div>
                           </div>
                         ))}
                       </div>
-                    </>
-                  ) : null}
+                    )}
 
-                  {/* Skills */}
-                  {hasAnySkills ? (
-                    <>
-                      <SectionTitle>Kenntnisse & Fähigkeiten</SectionTitle>
-                      <div className="grid md:grid-cols-2 gap-6">
-                        {hasSoftSkills ? (
-                          <div>
-                            <div className="font-medium mb-2">Fähigkeiten</div>
-                            <ul className="space-y-1">
-                              {formCv.skills.softSkills.map((s, i) => (
-                                <li key={i} className="flex gap-2">
-                                  <span>–</span>
-                                  <span className="break-words">{s}</span>
-                                </li>
-                              ))}
-                            </ul>
+                    {/* Kenntnisse & Fähigkeiten */}
+                    <PreviewSectionTitle>
+                      Kenntnisse & Fähigkeiten
+                    </PreviewSectionTitle>
+                    <div className="flex flex-col gap-[12pt]">
+                      <div className="flex flex-col gap-[4pt]">
+                        <div className="font-bold">Fähigkeiten</div>
+                        {formCv.skills.softSkills?.length > 0 ? (
+                          <div className="flex flex-col gap-[3pt]">
+                            {formCv.skills.softSkills.map((s, i) => (
+                              <div key={i} className="flex flex-row gap-[6pt]">
+                                <span>•</span>
+                                <span>{s}</span>
+                              </div>
+                            ))}
                           </div>
-                        ) : null}
-                        {(hasLanguages || hasPcSkills) ? (
-                          <div>
-                            {hasLanguages ? (
-                              <>
-                                <div className="font-medium mb-2">Fremdsprachen</div>
-                                <ul className="space-y-1">
-                                  {Object.entries(formCv.skills.languages).map(
-                                    ([lang, level]) => (
-                                      <li key={lang}>
-                                        {lang} — {String(level)}
-                                      </li>
-                                    )
-                                  )}
-                                </ul>
-                              </>
-                            ) : null}
-                            {hasPcSkills ? (
-                              <>
-                                <div className="font-medium mt-4 mb-1">PC-Kenntnisse</div>
-                                <div className="text-sm">
-                                  {formCv.skills.pcSkills.join(", ")}
-                                </div>
-                              </>
-                            ) : null}
-                          </div>
-                        ) : null}
+                        ) : (
+                          <p>Nicht angegeben.</p>
+                        )}
                       </div>
-                    </>
-                  ) : null}
+
+                      <div className="flex flex-col gap-[4pt]">
+                        <div className="font-bold">Fremdsprachen</div>
+                        {Object.entries(formCv.skills.languages || {}).length >
+                        0 ? (
+                          <div className="flex flex-col gap-[3pt]">
+                            {Object.entries(formCv.skills.languages).map(
+                              ([lang, level]) => (
+                                <div
+                                  key={lang}
+                                  className="flex flex-row gap-[6pt]"
+                                >
+                                  <span>•</span>
+                                  <span>
+                                    {lang} — {level}
+                                  </span>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        ) : (
+                          <p>Nicht angegeben.</p>
+                        )}
+                      </div>
+
+                      <div className="flex flex-col gap-[4pt]">
+                        <div className="font-bold">PC-Kenntnisse</div>
+                        {formCv.skills.pcSkills?.length > 0 ? (
+                          <div className="flex flex-col gap-[3pt]">
+                            {formCv.skills.pcSkills.map((s, i) => (
+                              <div key={i} className="flex flex-row gap-[6pt]">
+                                <span>•</span>
+                                <span>{s}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p>Nicht angegeben.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </section>
-            ) : null}
+              </div>
+            </section>
           </div>
         )}
       </div>
     </div>
   );
 }
+
+const PreviewInfoRow = ({ label, value }) => (
+  <div className="flex flex-row items-start mb-[6pt]">
+    <div className="w-[110pt] font-bold text-[#334155] shrink-0">{label}</div>
+    <div className="flex-1 text-[#0f172a] ml-[4pt]">{value || "—"}</div>
+  </div>
+);
+
+const PreviewSectionTitle = ({ children }) => (
+  <div className="mt-[20pt] mb-[8pt] pb-[4pt] border-b border-[#e5e7eb]">
+    <h3 className="text-[13pt] font-bold uppercase tracking-[0.6px] text-[#0f172a]">
+      {children}
+    </h3>
+  </div>
+);
 
 export default Generate;

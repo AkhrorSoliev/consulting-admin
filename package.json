@@ -10,10 +10,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@react-pdf/renderer": "^4.3.1",
     "@reduxjs/toolkit": "^2.11.0",
     "@tailwindcss/vite": "^4.1.17",
     "chart.js": "^4.5.1",
     "firebase": "^12.6.0",
+    "html2pdf.js": "^0.12.1",
     "react": "^19.1.1",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.1.1",
