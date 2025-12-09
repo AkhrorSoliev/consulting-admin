@@ -519,7 +519,7 @@ function Create() {
                           placeholder="Name"
                           inputClassName={
                             errors?.personalInfo?.name
-                              ? "input-error border-error focus:border-error focus:ring-error"
+                              ? "input-error"
                               : ""
                           }
                           aria-invalid={
@@ -545,9 +545,9 @@ function Create() {
                             <input
                               id="personalInfo-birthDate"
                               type="date"
-                              className={`input input-bordered w-full bg-base-100 text-base-content border-base-300 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition-all duration-200 ${
+                              className={`input input-bordered w-full ${
                                 errors?.personalInfo?.birthDate
-                                  ? "input-error border-error focus:border-error focus:ring-error"
+                                  ? "input-error"
                                   : ""
                               }`}
                               aria-invalid={
@@ -576,9 +576,9 @@ function Create() {
                             </label>
                             <select
                               id="personalInfo-maritalStatus"
-                              className={`select select-bordered w-full bg-base-100 text-base-content border-base-300 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition-all duration-200 ${
+                              className={`select select-bordered w-full ${
                                 errors?.personalInfo?.maritalStatus
-                                  ? "select-error border-error focus:border-error"
+                                  ? "select-error"
                                   : ""
                               }`}
                               aria-invalid={
@@ -606,7 +606,7 @@ function Create() {
                           placeholder="Telefonnummer"
                           inputClassName={
                             errors?.personalInfo?.phone
-                              ? "input-error border-error focus:border-error focus:ring-error"
+                              ? "input-error"
                               : ""
                           }
                           aria-invalid={
@@ -632,11 +632,11 @@ function Create() {
                             label="E-Mail"
                             placeholder="E-Mail"
                             type="email"
-                            inputClassName={
-                              errors?.personalInfo?.email
-                                ? "input-error border-error focus:border-error focus:ring-error"
-                                : ""
-                            }
+                          inputClassName={
+                            errors?.personalInfo?.email
+                              ? "input-error"
+                              : ""
+                          }
                             aria-invalid={
                               errors?.personalInfo?.email ? "true" : "false"
                             }
@@ -685,9 +685,9 @@ function Create() {
                             </label>
                             <textarea
                               id="personalInfo-address"
-                              className={`textarea textarea-bordered w-full bg-base-100 text-base-content border-base-300 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition-all duration-200 ${
+                              className={`textarea textarea-bordered w-full ${
                                 errors?.personalInfo?.address
-                                  ? "textarea-error border-error focus:border-error focus:ring-error"
+                                  ? "textarea-error"
                                   : ""
                               }`}
                               placeholder="Adresse"

@@ -12,7 +12,35 @@ import {
   Text,
   View,
   pdf,
+  Font,
 } from "@react-pdf/renderer";
+
+Font.register({
+  family: "Mulish",
+  fonts: [
+    {
+      src: "https://fonts.gstatic.com/s/mulish/v18/1Ptyg83HX_SGhgqO0yLcmjzUAuWexZNRwaA.ttf",
+      fontWeight: 400,
+    },
+    {
+      src: "https://fonts.gstatic.com/s/mulish/v18/1Ptwg83HX_SGhgqk2hAjQlW_mEuZ0FsSKeOvHg.ttf",
+      fontWeight: 400,
+      fontStyle: "italic",
+    },
+    {
+      src: "https://fonts.gstatic.com/s/mulish/v18/1Ptyg83HX_SGhgqO0yLcmjzUAuWexaFRwaA.ttf",
+      fontWeight: 500,
+    },
+    {
+      src: "https://fonts.gstatic.com/s/mulish/v18/1Ptyg83HX_SGhgqO0yLcmjzUAuWexU1WwaA.ttf",
+      fontWeight: 600,
+    },
+    {
+      src: "https://fonts.gstatic.com/s/mulish/v18/1Ptyg83HX_SGhgqO0yLcmjzUAuWexXRWwaA.ttf",
+      fontWeight: 700,
+    },
+  ],
+});
 import FormInput from "../components/FormInput";
 import ExperienceSection from "../components/ExperienceSection";
 import EducationSection from "../components/EducationSection";
@@ -179,7 +207,7 @@ function Generate() {
   const pdfStyles = StyleSheet.create({
     page: {
       padding: 44,
-      fontFamily: "Helvetica",
+      fontFamily: "Mulish",
       fontSize: 11,
       color: "#0f172a",
       lineHeight: 1.38,
@@ -196,7 +224,12 @@ function Generate() {
       gap: 22,
     },
     name: { fontSize: 24, fontWeight: "bold", color: "#0f172a" },
-    divider: { height: 2, backgroundColor: "#1f2937", marginVertical: 12 },
+    divider: {
+      height: 2,
+      backgroundColor: "#1f2937",
+      marginTop: 17,
+      marginBottom: 12,
+    },
     photo: {
       width: 128,
       height: 160,
@@ -232,12 +265,9 @@ function Generate() {
       flexDirection: "row",
       gap: 10,
       marginBottom: 10,
-      borderLeftWidth: 2,
       borderRightWidth: 0,
       borderTopWidth: 0,
       borderBottomWidth: 0,
-      borderColor: "#4b5563",
-      paddingLeft: 12,
     },
     timelineDate: {
       width: 140,
@@ -343,111 +373,116 @@ function Generate() {
             </View>
           </View>
 
-          <Text style={pdfStyles.sectionTitle}>Berufliche Laufbahn</Text>
-          {experience.length === 0 ? (
-            <Text> Nicht angegeben. </Text>
-          ) : (
-            experience.map((exp, idx) => (
-              <View key={idx} style={pdfStyles.timelineRow}>
-                <Text style={pdfStyles.timelineDate}>
-                  {(exp?.startDate || "—") + " – " + (exp?.endDate || "heute")}
-                </Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={pdfStyles.itemTitle}>
-                    {(exp?.position || "—") +
-                      (exp?.location ? `, ${exp.location}` : "")}
+          {experience.length > 0 && (
+            <>
+              <Text style={pdfStyles.sectionTitle}>Berufliche Laufbahn</Text>
+              {experience.map((exp, idx) => (
+                <View key={idx} style={pdfStyles.timelineRow}>
+                  <Text style={pdfStyles.timelineDate}>
+                    {(exp?.startDate || "—") +
+                      " – " +
+                      (exp?.endDate || "heute")}
                   </Text>
-                  {exp?.company ? (
-                    <Text style={pdfStyles.italic}>{exp.company}</Text>
-                  ) : null}
-                  {Array.isArray(exp?.responsibilities) &&
-                  exp.responsibilities.length ? (
-                    <View style={{ marginTop: 4 }}>
-                      {exp.responsibilities.map((r, i) => (
+                  <View style={{ flex: 1 }}>
+                    <Text style={pdfStyles.itemTitle}>
+                      {(exp?.position || "—") +
+                        (exp?.location ? `, ${exp.location}` : "")}
+                    </Text>
+                    {exp?.company ? (
+                      <Text style={pdfStyles.italic}>{exp.company}</Text>
+                    ) : null}
+                    {Array.isArray(exp?.responsibilities) &&
+                    exp.responsibilities.length ? (
+                      <View style={{ marginTop: 4 }}>
+                        {exp.responsibilities.map((r, i) => (
+                          <View key={i} style={pdfStyles.bulletRow}>
+                            <Text>•</Text>
+                            <Text>{r}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+              ))}
+            </>
+          )}
+
+          {education.length > 0 && (
+            <>
+              <Text style={pdfStyles.sectionTitle}>Ausbildung</Text>
+              {education.map((edu, idx) => (
+                <View key={idx} style={pdfStyles.timelineRow}>
+                  <Text style={pdfStyles.timelineDate}>
+                    {(edu?.startDate || "—") + " – " + (edu?.endDate || "—")}
+                  </Text>
+                  <View style={{ flex: 1 }}>
+                    <Text>{edu?.institution || "—"}</Text>
+                    <Text style={pdfStyles.italic}>
+                      Abschluss: {edu?.degree || "—"}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </>
+          )}
+
+          {(Array.isArray(skills.softSkills) && skills.softSkills.length > 0) ||
+          (Array.isArray(skills.pcSkills) && skills.pcSkills.length > 0) ||
+          languagesEntries.length > 0 ? (
+            <>
+              <Text style={pdfStyles.sectionTitle}>
+                Kenntnisse & Fähigkeiten
+              </Text>
+              <View style={{ gap: 12 }}>
+                {Array.isArray(skills.softSkills) &&
+                skills.softSkills.length > 0 ? (
+                  <View style={{ gap: 4 }}>
+                    <Text style={{ fontWeight: "bold" }}>Fähigkeiten</Text>
+                    <View style={{ gap: 3 }}>
+                      {skills.softSkills.map((s, i) => (
                         <View key={i} style={pdfStyles.bulletRow}>
                           <Text>•</Text>
-                          <Text>{r}</Text>
+                          <Text>{s}</Text>
                         </View>
                       ))}
                     </View>
-                  ) : null}
-                </View>
+                  </View>
+                ) : null}
+
+                {languagesEntries.length > 0 ? (
+                  <View style={{ gap: 4 }}>
+                    <Text style={{ fontWeight: "bold" }}>Fremdsprachen</Text>
+                    <View style={{ gap: 3 }}>
+                      {languagesEntries.map(([lang, level]) => (
+                        <View key={lang} style={pdfStyles.bulletRow}>
+                          <Text>•</Text>
+                          <Text>
+                            {lang} — {String(level)}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
+
+                {Array.isArray(skills.pcSkills) &&
+                skills.pcSkills.length > 0 ? (
+                  <View style={{ gap: 4 }}>
+                    <Text style={{ fontWeight: "bold" }}>PC-Kenntnisse</Text>
+                    <View style={{ gap: 3 }}>
+                      {skills.pcSkills.map((skill, i) => (
+                        <View key={i} style={pdfStyles.bulletRow}>
+                          <Text>•</Text>
+                          <Text>{skill}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
               </View>
-            ))
-          )}
-
-          <Text style={pdfStyles.sectionTitle}>Ausbildung</Text>
-          {education.length === 0 ? (
-            <Text>Nicht angegeben.</Text>
-          ) : (
-            education.map((edu, idx) => (
-              <View key={idx} style={pdfStyles.timelineRow}>
-                <Text style={pdfStyles.timelineDate}>
-                  {(edu?.startDate || "—") + " – " + (edu?.endDate || "—")}
-                </Text>
-                <View style={{ flex: 1 }}>
-                  <Text>{edu?.institution || "—"}</Text>
-                  <Text style={pdfStyles.italic}>
-                    Abschluss: {edu?.degree || "—"}
-                  </Text>
-                </View>
-              </View>
-            ))
-          )}
-
-          <Text style={pdfStyles.sectionTitle}>Kenntnisse & Fähigkeiten</Text>
-          <View style={{ gap: 12 }}>
-            <View style={{ gap: 4 }}>
-              <Text style={{ fontWeight: "bold" }}>Fähigkeiten</Text>
-              {Array.isArray(skills.softSkills) &&
-              skills.softSkills.length > 0 ? (
-                <View style={{ gap: 3 }}>
-                  {skills.softSkills.map((s, i) => (
-                    <View key={i} style={pdfStyles.bulletRow}>
-                      <Text>•</Text>
-                      <Text>{s}</Text>
-                    </View>
-                  ))}
-                </View>
-              ) : (
-                <Text>Nicht angegeben.</Text>
-              )}
-            </View>
-
-            <View style={{ gap: 4 }}>
-              <Text style={{ fontWeight: "bold" }}>Fremdsprachen</Text>
-              {languagesEntries.length === 0 ? (
-                <Text>Nicht angegeben.</Text>
-              ) : (
-                <View style={{ gap: 3 }}>
-                  {languagesEntries.map(([lang, level]) => (
-                    <View key={lang} style={pdfStyles.bulletRow}>
-                      <Text>•</Text>
-                      <Text>
-                        {lang} — {String(level)}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-            </View>
-
-            <View style={{ gap: 4 }}>
-              <Text style={{ fontWeight: "bold" }}>PC-Kenntnisse</Text>
-              {Array.isArray(skills.pcSkills) && skills.pcSkills.length ? (
-                <View style={{ gap: 3 }}>
-                  {skills.pcSkills.map((skill, i) => (
-                    <View key={i} style={pdfStyles.bulletRow}>
-                      <Text>•</Text>
-                      <Text>{skill}</Text>
-                    </View>
-                  ))}
-                </View>
-              ) : (
-                <Text>Nicht angegeben.</Text>
-              )}
-            </View>
-          </View>
+            </>
+          ) : null}
         </Page>
       </Document>
     );
@@ -704,6 +739,15 @@ function Generate() {
   const maritalStatus = String(formCv.personalInfo.maritalStatus || "").trim();
   const photo = String(formCv.personalInfo.photo || "").trim();
 
+  // Shared DaisyUI input styles for the edit form
+  const inputBase = "input input-bordered w-full";
+  const selectBase = "select select-bordered w-full";
+  const textareaBase = "textarea textarea-bordered w-full";
+  const fileInputBase =
+    "file-input file-input-bordered file-input-primary w-full";
+
+  // Style overrides for FormInput component
+
   return (
     <div className="p-2 sm:p-4 md:p-6 bg-base-200 min-h-screen">
       <div className="w-full">
@@ -754,9 +798,9 @@ function Generate() {
             </p>
           </div>
         ) : (
-          <div className="flex flex-col lg:flex-row gap-6 items-start">
-            <section className="card bg-base-100 shadow w-full lg:max-w-[600px] shrink-0 h-screen overflow-y-auto">
-              <div className="card-body">
+          <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-stretch">
+            <section className="card bg-base-100 shadow-2xl border border-base-300 rounded-2xl w-full lg:max-w-[640px] shrink-0 max-h-[calc(100vh-2rem)] lg:sticky lg:top-2 overflow-y-auto">
+              <div className="card-body space-y-3">
                 <h2 className="card-title text-2xl font-bold">
                   Daten bearbeiten
                 </h2>
@@ -777,33 +821,27 @@ function Generate() {
                       }))
                     }
                   />
-                  <div>
-                    <label className="label" htmlFor="g-birthdate">
-                      <span className="label-text">Geburtsdatum</span>
-                    </label>
-                    <input
-                      id="g-birthdate"
-                      type="date"
-                      className="input input-bordered w-full bg-base-100 text-base-content border-base-300 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition-all duration-200"
-                      value={toInputDate(formCv.personalInfo.birthDate)}
-                      onChange={(e) =>
-                        setFormCv((prev) => ({
-                          ...prev,
-                          personalInfo: {
-                            ...prev.personalInfo,
-                            birthDate: fromInputDate(e.target.value),
-                          },
-                        }))
-                      }
-                    />
-                  </div>
-                  <div>
+                  <FormInput
+                    label="Geburtsdatum"
+                    type="date"
+                    value={toInputDate(formCv.personalInfo.birthDate)}
+                    onChange={(e) =>
+                      setFormCv((prev) => ({
+                        ...prev,
+                        personalInfo: {
+                          ...prev.personalInfo,
+                          birthDate: fromInputDate(e.target.value),
+                        },
+                      }))
+                    }
+                  />
+                  <div className="form-control w-full">
                     <label className="label" htmlFor="g-marital">
                       <span className="label-text">Familienstand</span>
                     </label>
                     <select
                       id="g-marital"
-                      className="select select-bordered w-full bg-base-100 text-base-content border-base-300 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition-all duration-200"
+                      className={selectBase}
                       value={formCv.personalInfo.maritalStatus}
                       onChange={(e) =>
                         setFormCv((prev) => ({
@@ -850,9 +888,9 @@ function Generate() {
                     }
                   />
 
-                  <div className="md:col-span-2">
-                    <label className="label" htmlFor="g-photo-file">
-                      <span className="label-text">
+                  <div className="md:col-span-2 form-control w-full">
+                    <label className="label pb-1" htmlFor="g-photo-file">
+                      <span className="label-text font-medium">
                         Foto hochladen (JPEG/PNG)
                       </span>
                     </label>
@@ -860,18 +898,18 @@ function Generate() {
                       id="g-photo-file"
                       type="file"
                       accept="image/*"
-                      className="file-input file-input-bordered w-full"
+                      className={fileInputBase}
                       onChange={handlePhotoFileChange}
                     />
                   </div>
 
-                  <div className="md:col-span-2">
-                    <label className="label" htmlFor="g-address">
-                      <span className="label-text">Adresse</span>
+                  <div className="md:col-span-2 form-control w-full">
+                    <label className="label pb-1" htmlFor="g-address">
+                      <span className="label-text font-medium">Adresse</span>
                     </label>
                     <textarea
                       id="g-address"
-                      className="textarea textarea-bordered w-full bg-base-100 text-base-content border-base-300 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition-all duration-200"
+                      className={textareaBase}
                       placeholder="Adresse"
                       rows={2}
                       value={formCv.personalInfo.address}
@@ -959,14 +997,16 @@ function Generate() {
                 <div className="flex-1 overflow-y-auto flex justify-center bg-slate-100">
                   <div
                     className="w-full bg-white shadow-2xl w-[210mm] min-h-[297mm] p-[44pt] text-[#0f172a] text-[11pt] leading-[1.38] origin-top"
-                    style={{ fontFamily: "Helvetica, Arial, sans-serif" }}
+                    style={{
+                      fontFamily: "Mulish, Helvetica, Arial, sans-serif",
+                    }}
                   >
                     {/* Header */}
                     <div className="mb-[18pt]">
                       <h1 className="text-[24pt] font-bold text-[#0f172a] leading-tight">
                         {fullName}
                       </h1>
-                      <div className="h-[2pt] bg-[#1f2937] my-[12pt] w-full" />
+                      <div className="h-[2pt] bg-[#1f2937] mt-[17pt] mb-[12pt] w-full" />
 
                       <div className="flex flex-row gap-[22pt]">
                         <div className="flex-1">
@@ -1000,141 +1040,142 @@ function Generate() {
                     </div>
 
                     {/* Berufliche Laufbahn */}
-                    <PreviewSectionTitle>
-                      Berufliche Laufbahn
-                    </PreviewSectionTitle>
-                    {formCv.experience.length === 0 ? (
-                      <p>Nicht angegeben.</p>
-                    ) : (
-                      <div className="flex flex-col gap-[10pt]">
-                        {formCv.experience.map((exp, i) => (
-                          <div
-                            key={i}
-                            className="flex flex-row gap-[10pt] border-l-[2pt] border-[#4b5563] pl-[12pt]"
-                          >
-                            <div className="w-[140pt] shrink-0 font-bold text-[#475569]">
-                              {(exp.startDate || "—") +
-                                " – " +
-                                (exp.endDate || "heute")}
-                            </div>
-                            <div className="flex-1">
-                              <div className="font-bold text-[#0f172a]">
-                                {exp.position || "—"}
-                                {exp.location ? `, ${exp.location}` : ""}
+                    {formCv.experience.length > 0 && (
+                      <>
+                        <PreviewSectionTitle>
+                          Berufliche Laufbahn
+                        </PreviewSectionTitle>
+                        <div className="flex flex-col gap-[10pt]">
+                          {formCv.experience.map((exp, i) => (
+                            <div key={i} className="flex flex-row gap-[10pt]">
+                              <div className="w-[140pt] shrink-0 font-bold text-[#475569]">
+                                {(exp.startDate || "—") +
+                                  " – " +
+                                  (exp.endDate || "heute")}
                               </div>
-                              {exp.company && (
-                                <div className="italic text-[#475569]">
-                                  {exp.company}
+                              <div className="flex-1">
+                                <div className="font-bold text-[#0f172a]">
+                                  {exp.position || "—"}
+                                  {exp.location ? `, ${exp.location}` : ""}
                                 </div>
-                              )}
-                              {Array.isArray(exp.responsibilities) &&
-                                exp.responsibilities.length > 0 && (
-                                  <div className="mt-[4pt]">
-                                    {exp.responsibilities.map((r, ri) => (
-                                      <div
-                                        key={ri}
-                                        className="flex flex-row gap-[6pt]"
-                                      >
-                                        <span>•</span>
-                                        <span>{r}</span>
-                                      </div>
-                                    ))}
+                                {exp.company && (
+                                  <div className="italic text-[#475569]">
+                                    {exp.company}
                                   </div>
                                 )}
+                                {Array.isArray(exp.responsibilities) &&
+                                  exp.responsibilities.length > 0 && (
+                                    <div className="mt-[4pt]">
+                                      {exp.responsibilities.map((r, ri) => (
+                                        <div
+                                          key={ri}
+                                          className="flex flex-row gap-[6pt]"
+                                        >
+                                          <span>•</span>
+                                          <span>{r}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      </>
                     )}
 
                     {/* Ausbildung */}
-                    <PreviewSectionTitle>Ausbildung</PreviewSectionTitle>
-                    {formCv.education.length === 0 ? (
-                      <p>Nicht angegeben.</p>
-                    ) : (
-                      <div className="flex flex-col gap-[10pt]">
-                        {formCv.education.map((edu, i) => (
-                          <div
-                            key={i}
-                            className="flex flex-row gap-[10pt] border-l-[2pt] border-[#4b5563] pl-[12pt]"
-                          >
-                            <div className="w-[140pt] shrink-0 font-bold text-[#475569]">
-                              {(edu.startDate || "—") +
-                                " – " +
-                                (edu.endDate || "—")}
-                            </div>
-                            <div className="flex-1">
-                              <div>{edu.institution || "—"}</div>
-                              <div className="italic text-[#475569]">
-                                Abschluss: {edu.degree || "—"}
+                    {formCv.education.length > 0 && (
+                      <>
+                        <PreviewSectionTitle>Ausbildung</PreviewSectionTitle>
+                        <div className="flex flex-col gap-[10pt]">
+                          {formCv.education.map((edu, i) => (
+                            <div key={i} className="flex flex-row gap-[10pt]">
+                              <div className="w-[140pt] shrink-0 font-bold text-[#475569]">
+                                {(edu.startDate || "—") +
+                                  " – " +
+                                  (edu.endDate || "—")}
+                              </div>
+                              <div className="flex-1">
+                                <div>{edu.institution || "—"}</div>
+                                <div className="italic text-[#475569]">
+                                  Abschluss: {edu.degree || "—"}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      </>
                     )}
 
                     {/* Kenntnisse & Fähigkeiten */}
-                    <PreviewSectionTitle>
-                      Kenntnisse & Fähigkeiten
-                    </PreviewSectionTitle>
-                    <div className="flex flex-col gap-[12pt]">
-                      <div className="flex flex-col gap-[4pt]">
-                        <div className="font-bold">Fähigkeiten</div>
-                        {formCv.skills.softSkills?.length > 0 ? (
-                          <div className="flex flex-col gap-[3pt]">
-                            {formCv.skills.softSkills.map((s, i) => (
-                              <div key={i} className="flex flex-row gap-[6pt]">
-                                <span>•</span>
-                                <span>{s}</span>
+                    {(formCv.skills.softSkills?.length > 0 ||
+                      Object.entries(formCv.skills.languages || {}).length >
+                        0 ||
+                      formCv.skills.pcSkills?.length > 0) && (
+                      <>
+                        <PreviewSectionTitle>
+                          Kenntnisse & Fähigkeiten
+                        </PreviewSectionTitle>
+                        <div className="flex flex-col gap-[12pt]">
+                          {formCv.skills.softSkills?.length > 0 && (
+                            <div className="flex flex-col gap-[4pt]">
+                              <div className="font-bold">Fähigkeiten</div>
+                              <div className="flex flex-col gap-[3pt]">
+                                {formCv.skills.softSkills.map((s, i) => (
+                                  <div
+                                    key={i}
+                                    className="flex flex-row gap-[6pt]"
+                                  >
+                                    <span>•</span>
+                                    <span>{s}</span>
+                                  </div>
+                                ))}
                               </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p>Nicht angegeben.</p>
-                        )}
-                      </div>
+                            </div>
+                          )}
 
-                      <div className="flex flex-col gap-[4pt]">
-                        <div className="font-bold">Fremdsprachen</div>
-                        {Object.entries(formCv.skills.languages || {}).length >
-                        0 ? (
-                          <div className="flex flex-col gap-[3pt]">
-                            {Object.entries(formCv.skills.languages).map(
-                              ([lang, level]) => (
-                                <div
-                                  key={lang}
-                                  className="flex flex-row gap-[6pt]"
-                                >
-                                  <span>•</span>
-                                  <span>
-                                    {lang} — {level}
-                                  </span>
-                                </div>
-                              )
-                            )}
-                          </div>
-                        ) : (
-                          <p>Nicht angegeben.</p>
-                        )}
-                      </div>
-
-                      <div className="flex flex-col gap-[4pt]">
-                        <div className="font-bold">PC-Kenntnisse</div>
-                        {formCv.skills.pcSkills?.length > 0 ? (
-                          <div className="flex flex-col gap-[3pt]">
-                            {formCv.skills.pcSkills.map((s, i) => (
-                              <div key={i} className="flex flex-row gap-[6pt]">
-                                <span>•</span>
-                                <span>{s}</span>
+                          {Object.entries(formCv.skills.languages || {})
+                            .length > 0 && (
+                            <div className="flex flex-col gap-[4pt]">
+                              <div className="font-bold">Fremdsprachen</div>
+                              <div className="flex flex-col gap-[3pt]">
+                                {Object.entries(formCv.skills.languages).map(
+                                  ([lang, level]) => (
+                                    <div
+                                      key={lang}
+                                      className="flex flex-row gap-[6pt]"
+                                    >
+                                      <span>•</span>
+                                      <span>
+                                        {lang} — {level}
+                                      </span>
+                                    </div>
+                                  )
+                                )}
                               </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p>Nicht angegeben.</p>
-                        )}
-                      </div>
-                    </div>
+                            </div>
+                          )}
+
+                          {formCv.skills.pcSkills?.length > 0 && (
+                            <div className="flex flex-col gap-[4pt]">
+                              <div className="font-bold">PC-Kenntnisse</div>
+                              <div className="flex flex-col gap-[3pt]">
+                                {formCv.skills.pcSkills.map((s, i) => (
+                                  <div
+                                    key={i}
+                                    className="flex flex-row gap-[6pt]"
+                                  >
+                                    <span>•</span>
+                                    <span>{s}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

@@ -34,7 +34,7 @@ function MajorModal() {
             id="major-name"
             type="text"
             placeholder="Hier eingeben"
-            className="input w-full"
+            className="input input-bordered w-full"
             value={input}
             onChange={(e) => setInput(e.target.value)}
           />

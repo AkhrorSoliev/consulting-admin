@@ -10,21 +10,27 @@ function ExperienceSection({
   onAddResponsibility,
   onRemoveResponsibility,
 }) {
+  const fieldInput =
+    "input input-bordered w-full";
+
   return (
     <div className="space-y-6">
       {experience.map((exp, idx) => (
-        <div key={idx} className="p-4 rounded-lg border border-base-300">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold">Berufserfahrung #{idx + 1}</h3>
+        <div
+          key={idx}
+          className="p-4 sm:p-5 rounded-xl border border-base-300 bg-base-100 shadow-sm space-y-3 ring-1 ring-base-200/80"
+        >
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="font-semibold text-base">Berufserfahrung #{idx + 1}</h3>
             <button
               type="button"
-              className="btn btn-ghost btn-xs text-error"
+              className="btn btn-ghost btn-xs text-error hover:bg-error/10"
               onClick={() => onRemoveExperience(idx)}
             >
               Entfernen
             </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="label" htmlFor={`exp-${idx}-startDate`}>
                 <span className="label-text">Startdatum</span>
@@ -32,7 +38,7 @@ function ExperienceSection({
               <input
                 id={`exp-${idx}-startDate`}
                 type="date"
-                className="input input-bordered w-full bg-base-100 text-base-content border-base-300 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition-all duration-200"
+                className={fieldInput}
                 value={toInputDate(exp.startDate)}
                 onChange={(e) =>
                   onUpdateExperience(idx, "startDate", fromInputDate(e.target.value))
@@ -47,7 +53,7 @@ function ExperienceSection({
                 <input
                   id={`exp-${idx}-endDate`}
                   type="date"
-                  className="input input-bordered w-full bg-base-100 text-base-content border-base-300 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition-all duration-200"
+                  className={fieldInput}
                   disabled={exp.endDate === "bis heute"}
                   value={exp.endDate === "bis heute" ? "" : toInputDate(exp.endDate)}
                   onChange={(e) =>

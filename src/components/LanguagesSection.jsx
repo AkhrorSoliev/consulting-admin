@@ -4,19 +4,25 @@ function LanguagesSection({
   onUpdateRow,
   onRemoveRow,
 }) {
+  const fieldInput = "input input-bordered w-full";
+  const selectInput = "select select-bordered w-full";
+
   return (
     <div className="space-y-3">
       {languageRows.map((row, idx) => (
-        <div key={idx} className="grid grid-cols-12 gap-2">
+        <div
+          key={idx}
+          className="grid grid-cols-12 gap-3 p-3 rounded-xl border border-base-300 bg-base-100 shadow-sm ring-1 ring-base-200/80"
+        >
           <input
-            className="input input-bordered bg-base-100 text-base-content border-base-300 focus:outline-none focus:border-primary col-span-6"
+            className={`${fieldInput} col-span-6`}
             placeholder="Name der Sprache (z. B. Deutsch)"
             aria-label="Sprache"
             value={row.name}
             onChange={(e) => onUpdateRow(idx, "name", e.target.value)}
           />
           <select
-            className="select select-bordered bg-base-100 text-base-content border-base-300 focus:outline-none focus:border-primary col-span-5"
+            className={`${selectInput} col-span-5`}
             aria-label="Niveau"
             value={row.level}
             onChange={(e) => onUpdateRow(idx, "level", e.target.value)}

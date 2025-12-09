@@ -15,9 +15,15 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+
+// Analytics throws if mandatory config (e.g., projectId) is missing or when not in the browser.
+const analytics =
+  typeof window !== "undefined" && firebaseConfig?.projectId
+    ? getAnalytics(app)
+    : null;
+
 const auth = getAuth(app);
-const db = getFirestore();
+const db = getFirestore(app);
 
 // Export the initialized Firebase app and auth
 export { auth, db };

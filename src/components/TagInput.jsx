@@ -60,7 +60,6 @@ function TagInput({
             <span key={idx} className="badge badge-neutral gap-2">
               {tag}
               <button
-                type="button"
                 className="btn btn-ghost btn-xs"
                 onClick={() => onRemove(idx)}
               >
@@ -72,9 +71,9 @@ function TagInput({
       )}
       {!hideInput &&
         (inputMode === "textarea" ? (
-          <div className="flex flex-col gap-2 p-2 border border-base-300 rounded-lg bg-base-100">
+          <div className="flex flex-col gap-2">
             <textarea
-              className="textarea textarea-bordered w-full bg-base-100 text-base-content border-base-300 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary focus:ring-opacity-50 transition-all duration-200"
+              className="textarea textarea-bordered w-full"
               rows={3}
               placeholder={
                 placeholder ||
@@ -100,9 +99,9 @@ function TagInput({
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2 p-2 border border-base-300 rounded-lg bg-base-100">
+          <div className="join w-full">
             <input
-              className="grow min-w-[160px] bg-transparent outline-none"
+              className="input input-bordered join-item w-full"
               placeholder={placeholder}
               aria-label={placeholder}
               value={value}
@@ -112,7 +111,7 @@ function TagInput({
             />
             <button
               type="button"
-              className="btn btn-primary btn-sm"
+              className="btn btn-primary join-item"
               aria-label="Hinzufügen"
               title="Hinzufügen"
               onClick={commit}
