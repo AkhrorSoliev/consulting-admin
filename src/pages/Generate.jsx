@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, NavLink, useParams } from "react-router-dom";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/config";
-import { FaDownload, FaArrowLeft } from "react-icons/fa";
 import toast from "react-hot-toast";
 import {
   Document,
@@ -19,18 +18,56 @@ import EducationSection from "../components/EducationSection";
 import SkillsSection from "../components/SkillsSection";
 import LanguagesSection from "../components/LanguagesSection";
 import {
-  imageFileToBase64,
-  toInputDate,
-  fromInputDate,
-  generateSkills,
-  updateDocument,
-} from "../utils";
+  NativeSelect,
+  NativeSelectOption,
+} from "../components/ui/native-select";
+import Fieldset from "../components/Fieldset";
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
+
+const pdfSafeFonts = [
+  "Arial",
+  "Helvetica",
+  "Times New Roman",
+  "Courier New",
+  "Georgia",
+  "Verdana",
+  "Tahoma",
+];
+
+const order = {
+  personalData: [
+    "name",
+    "geburtsdatum",
+    "familienstand",
+    "adresse",
+    "email",
+    "telefon",
+  ],
+};
+
+const maritalStatus = ["ledig", "verheiratet", "geschieden", "verwitwet"];
 
 function Generate() {
   const { major, id } = useParams();
-  const [docCv, setDocCv] = useState(null);
+
+  // JSON.parse(localStorage.getItem("content")) ||
+
+  const contentRef = useRef(null);
+  const [editMode, setEditMode] = useState(false);
+  const [generatedSettings, setGeneratedSettings] = useState({
+    fontFamily: "Georgia",
+    theme: {
+      title: "Light",
+      value: {
+        backgroundColor: "white",
+        color: "black",
+      },
+    },
+  });
+
   const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+  const [error, setError] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
 
@@ -58,11 +95,74 @@ function Generate() {
   const [recentlyAdded, setRecentlyAdded] = useState({ soft: [], pc: [] });
   const [formInitialized, setFormInitialized] = useState(false);
 
+  async function handleSave() {
+    const col = String(major || "").trim();
+    const docId = String(id || "").trim();
+    if (!col || !docId) return;
+    try {
+      setIsSaving(true);
+      await updateDocument(col, docId, cv);
+      toast.success("Änderungen wurden gespeichert.");
+    } catch (e) {
+      console.error(e);
+      toast.error("Fehler beim Speichern.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function updatePersonalData(key, value) {
+    const clone = structuredClone(cv);
+    clone.persoenlicheDaten = { ...cv.persoenlicheDaten, [key]: value };
+    setCv(clone);
+  }
+
+  function download(blob, fileName) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function generate() {
+    if (editMode) return false;
+
+    const name = prompt("Dateiname eingeben (ohne .pdf):", "Lebenslauf");
+
+    // https://masako-numerous-loretta.ngrok-free.dev
+    // http://localhost:3000
+
+    setIsDownloading(true);
+    fetch("http://localhost:3030/save-as-pdf", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        html: contentRef?.current.outerHTML,
+      }),
+    })
+      .then((res) => {
+        return res.blob();
+      })
+      .then((res) => {
+        download(res, (name.trim() || "Lebenslauf") + ".pdf");
+      })
+      .catch(() => {
+        setError("Etwas ist schiefgelaufen (");
+      })
+      .finally(() => {
+        setIsDownloading(false);
+      });
+  }
+
   useEffect(() => {
     const col = String(major || "").trim();
     const docId = String(id || "").trim();
     if (!col || !docId) {
-      setNotFound(true);
+      setError(true);
       setLoading(false);
       return;
     }
@@ -71,21 +171,19 @@ function Generate() {
       ref,
       (snap) => {
         if (!snap.exists()) {
-          setNotFound(true);
-          setDocCv(null);
+          setError(true);
         } else {
           const data = snap.data() || null;
-          setDocCv(data);
-          setNotFound(false);
+          setError(false);
           if (!formInitialized) {
-            setFormCv(mapDocToForm(data));
+            setCv(data);
             setFormInitialized(true);
           }
         }
         setLoading(false);
       },
       () => {
-        setNotFound(true);
+        setError(true);
         setLoading(false);
       }
     );
@@ -741,6 +839,7 @@ function Generate() {
             </button>
           </div>
         </div>
+      </div>
 
         {loading ? (
           <div className="grid place-items-center py-16">
