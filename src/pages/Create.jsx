@@ -50,6 +50,7 @@ function Create() {
   const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [existingMajor, setExistingMajor] = useState("");
+  const [enteredEmail, setEnteredEmail] = useState("");
   const [searchParams] = useSearchParams();
   const [diplomaFiles, setDiplomaFiles] = useState([]);
   const [langCertFiles, setLangCertFiles] = useState([]);
@@ -451,6 +452,7 @@ function Create() {
       const { exists, data } = await checkGlobalEmail(email);
       if (exists) {
         setExistingMajor(data?.major || "Unbekannt");
+        setEnteredEmail(email);
         setIsEmailModalOpen(true);
         return;
       }
@@ -1146,7 +1148,8 @@ function Create() {
             <div className="bg-base-100 text-base-content rounded-box shadow-xl p-6 text-center">
               <h3 className="text-xl font-bold text-error mb-4">Achtung!</h3>
               <p className="mb-6">
-                Sie haben sich bereits für den Bereich{" "}
+                Sie haben sich mit der E-Mail-Adresse{" "}
+                <strong>{enteredEmail}</strong> bereits für den Bereich{" "}
                 <strong>„{existingMajor}“</strong> beworben.
               </p>
               <button
