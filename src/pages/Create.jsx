@@ -48,6 +48,8 @@ function Create() {
   const [recentlyAdded, setRecentlyAdded] = useState({ soft: [], pc: [] });
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [existingMajor, setExistingMajor] = useState("");
   const [searchParams] = useSearchParams();
   const [diplomaFiles, setDiplomaFiles] = useState([]);
   const [langCertFiles, setLangCertFiles] = useState([]);
@@ -448,11 +450,8 @@ function Create() {
     try {
       const { exists, data } = await checkGlobalEmail(email);
       if (exists) {
-        toast.error(
-          `Sie haben sich bereits für den Bereich „${
-            data?.major || "Unbekannt"
-          }“ beworben.`
-        );
+        setExistingMajor(data?.major || "Unbekannt");
+        setIsEmailModalOpen(true);
         return;
       }
     } catch (error) {
@@ -1128,6 +1127,34 @@ function Create() {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isEmailModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-base-content/50 backdrop-blur-sm"
+            onClick={() => setIsEmailModalOpen(false)}
+          />
+          <div
+            className="relative w-full max-w-sm mx-4"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="bg-base-100 text-base-content rounded-box shadow-xl p-6 text-center">
+              <h3 className="text-xl font-bold text-error mb-4">Achtung!</h3>
+              <p className="mb-6">
+                Sie haben sich bereits für den Bereich{" "}
+                <strong>„{existingMajor}“</strong> beworben.
+              </p>
+              <button
+                className="btn btn-primary w-full"
+                onClick={() => setIsEmailModalOpen(false)}
+              >
+                Verstanden
+              </button>
             </div>
           </div>
         </div>
