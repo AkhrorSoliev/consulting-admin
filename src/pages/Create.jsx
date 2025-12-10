@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
 import toast from "react-hot-toast";
+import ReCAPTCHA from "react-google-recaptcha";
 import { addDocument } from "../utils";
 import FormInput from "../components/FormInput";
 import ExperienceSection from "../components/ExperienceSection";
@@ -51,6 +52,7 @@ function Create() {
   const [isUploading, setIsUploading] = useState(false);
   const [noDiploma, setNoDiploma] = useState(false);
   const [noLangCert, setNoLangCert] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState(null);
 
   function uniqueKey(file) {
     return `${file?.name || ""}__${file?.size || 0}__${file?.lastModified || 0}`;
@@ -381,6 +383,11 @@ function Create() {
   }
 
   async function onSubmit(formData) {
+    if (!captchaToken) {
+      toast.error("Bitte bestätigen Sie, dass Sie kein Roboter sind.");
+      return;
+    }
+
     const final = {
       ...cv,
       personalInfo: {
@@ -951,6 +958,12 @@ function Create() {
                     </div>
                   </div>
                   <div className="divider"></div>
+                  <div className="flex justify-center mb-4">
+                    <ReCAPTCHA
+                      sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY || "6LdEVycsAAAAAJ11zB8ovl-uNIQPPI06t8Rhwow8"}
+                      onChange={setCaptchaToken}
+                    />
+                  </div>
                   <div className="flex justify-end">
                     <button
                       type="submit"

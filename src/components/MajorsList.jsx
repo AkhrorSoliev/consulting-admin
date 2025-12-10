@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { subscribeToCollections, deleteCollectionByName } from "../utils";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { FaLink, FaTrash } from "react-icons/fa";
 import toast from "react-hot-toast";
 
 export default function MajorsList() {
   const [majors, setMajors] = useState([]);
-
+  const navigate = useNavigate();
   const handleCopyLink = (major) => {
-    const link = `http://localhost:5173/create?major=${major}`;
+    const link = `https://admin.consultinguz.de/create?major=${major}`;
     navigator.clipboard
       .writeText(link)
       .then(() => {
@@ -23,6 +23,7 @@ export default function MajorsList() {
     if (window.confirm(`Möchten Sie „${major}“ wirklich löschen?`)) {
       try {
         await deleteCollectionByName(major);
+        navigate(`/`);
       } catch (error) {}
     }
   };
