@@ -88,6 +88,43 @@ export async function deleteCollectionByName(name) {
   }
 }
 
+// Check if email already exists in the global 'all_emails' collection
+export async function checkGlobalEmail(email) {
+  try {
+    if (!email) return { exists: false };
+    const docRef = doc(db, "all_emails", email);
+    const snapshot = await getDoc(docRef);
+    if (snapshot.exists()) {
+      return { exists: true, data: snapshot.data() };
+    }
+    return { exists: false };
+  } catch (error) {
+    console.error("checkGlobalEmail error:", error);
+    throw error;
+  }
+}
+
+// Register an email in the global 'all_emails' collection
+export async function registerGlobalEmail(email, major) {
+  const safeEmail = String(email || "").trim();
+  if (!safeEmail) {
+    console.error("registerGlobalEmail: Email is empty");
+    return;
+  }
+  
+  try {
+    const docRef = doc(db, "all_emails", safeEmail);
+    await setDoc(docRef, {
+      email: safeEmail,
+      major,
+      createdAt: Date.now(),
+    });
+  } catch (error) {
+    console.error("registerGlobalEmail error:", error);
+    throw error;
+  }
+}
+
 // Convert an image File to a high-quality Base64 data URL.
 // Options:
 // - maxWidth/maxHeight: downscale large images while preserving aspect ratio

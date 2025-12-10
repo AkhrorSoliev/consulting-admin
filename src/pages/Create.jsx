@@ -15,6 +15,8 @@ import {
   fromInputDate,
   generateSkills,
   uploadFilesToConsulting,
+  checkGlobalEmail,
+  registerGlobalEmail,
 } from "../utils";
 
 function Create() {
@@ -55,7 +57,9 @@ function Create() {
   const [captchaToken, setCaptchaToken] = useState(null);
 
   function uniqueKey(file) {
-    return `${file?.name || ""}__${file?.size || 0}__${file?.lastModified || 0}`;
+    return `${file?.name || ""}__${file?.size || 0}__${
+      file?.lastModified || 0
+    }`;
   }
 
   function mergeFiles(existing, incoming) {
@@ -440,12 +444,33 @@ function Create() {
       return;
     }
 
+    const email = (formData.personalInfo.email || "").trim();
+    try {
+      const { exists, data } = await checkGlobalEmail(email);
+      if (exists) {
+        toast.error(
+          `Sie haben sich bereits für den Bereich „${
+            data?.major || "Unbekannt"
+          }“ beworben.`
+        );
+        return;
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error(
+        "Fehler bei der Überprüfung der E-Mail-Adresse. Bitte versuchen Sie es erneut."
+      );
+      return;
+    }
+
     try {
       setIsUploading(true);
       // Upload files first and attach URLs (skip if user marked as not available)
       const [diplomaUrls, langUrls] = await Promise.all([
         noDiploma ? Promise.resolve([]) : uploadFilesToConsulting(diplomaFiles),
-        noLangCert ? Promise.resolve([]) : uploadFilesToConsulting(langCertFiles),
+        noLangCert
+          ? Promise.resolve([])
+          : uploadFilesToConsulting(langCertFiles),
       ]);
 
       const payload = {
@@ -460,6 +485,7 @@ function Create() {
       };
 
       await addDocument(major, payload);
+      await registerGlobalEmail(email, major);
       toast.success("Daten erfolgreich gesendet!");
       try {
         localStorage.setItem("createCvSubmitted", "true");
@@ -525,9 +551,7 @@ function Create() {
                           label="Name"
                           placeholder="Name"
                           inputClassName={
-                            errors?.personalInfo?.name
-                              ? "input-error"
-                              : ""
+                            errors?.personalInfo?.name ? "input-error" : ""
                           }
                           aria-invalid={
                             errors?.personalInfo?.name ? "true" : "false"
@@ -612,9 +636,7 @@ function Create() {
                           label="Telefonnummer"
                           placeholder="Telefonnummer"
                           inputClassName={
-                            errors?.personalInfo?.phone
-                              ? "input-error"
-                              : ""
+                            errors?.personalInfo?.phone ? "input-error" : ""
                           }
                           aria-invalid={
                             errors?.personalInfo?.phone ? "true" : "false"
@@ -639,11 +661,9 @@ function Create() {
                             label="E-Mail"
                             placeholder="E-Mail"
                             type="email"
-                          inputClassName={
-                            errors?.personalInfo?.email
-                              ? "input-error"
-                              : ""
-                          }
+                            inputClassName={
+                              errors?.personalInfo?.email ? "input-error" : ""
+                            }
                             aria-invalid={
                               errors?.personalInfo?.email ? "true" : "false"
                             }
@@ -757,9 +777,12 @@ function Create() {
                     <div>
                       <div className="flex items-center justify-between">
                         <label className="label" htmlFor="doc-diplomas">
-                          <span className="label-text">Diplome (mehrere möglich)</span>
+                          <span className="label-text">
+                            Diplome (mehrere möglich)
+                          </span>
                         </label>
-                        {Array.isArray(diplomaFiles) && diplomaFiles.length > 0 ? (
+                        {Array.isArray(diplomaFiles) &&
+                        diplomaFiles.length > 0 ? (
                           <button
                             type="button"
                             className="btn btn-ghost btn-xs"
@@ -795,7 +818,8 @@ function Create() {
                           const raw = Array.from(e.target.files || []);
                           const pdfs = raw.filter(
                             (f) =>
-                              String(f.type).toLowerCase() === "application/pdf" ||
+                              String(f.type).toLowerCase() ===
+                                "application/pdf" ||
                               /\.pdf$/i.test(String(f.name || ""))
                           );
                           const invalid = raw.length - pdfs.length;
@@ -807,14 +831,20 @@ function Create() {
                           e.target.value = "";
                         }}
                       />
-                      {Array.isArray(diplomaFiles) && diplomaFiles.length > 0 ? (
+                      {Array.isArray(diplomaFiles) &&
+                      diplomaFiles.length > 0 ? (
                         <div className="mt-2">
                           <div className="text-xs opacity-70 mb-1">Nur PDF</div>
                           <ul className="space-y-2">
                             {diplomaFiles.map((f, i) => (
-                              <li key={uniqueKey(f)} className="flex items-center justify-between gap-2 rounded-box border border-base-300 px-3 py-2">
+                              <li
+                                key={uniqueKey(f)}
+                                className="flex items-center justify-between gap-2 rounded-box border border-base-300 px-3 py-2"
+                              >
                                 <div className="min-w-0">
-                                  <div className="truncate font-medium">{f.name}</div>
+                                  <div className="truncate font-medium">
+                                    {f.name}
+                                  </div>
                                   <div className="text-xs opacity-70">
                                     {(f.size / 1024).toFixed(1)} KB
                                   </div>
@@ -823,7 +853,9 @@ function Create() {
                                   type="button"
                                   className="btn btn-ghost btn-xs"
                                   onClick={() =>
-                                    setDiplomaFiles((prev) => removeFileAt(prev, i))
+                                    setDiplomaFiles((prev) =>
+                                      removeFileAt(prev, i)
+                                    )
                                   }
                                   aria-label="Entfernen"
                                 >
@@ -842,7 +874,8 @@ function Create() {
                             Sprachzertifikate (mehrere möglich)
                           </span>
                         </label>
-                        {Array.isArray(langCertFiles) && langCertFiles.length > 0 ? (
+                        {Array.isArray(langCertFiles) &&
+                        langCertFiles.length > 0 ? (
                           <button
                             type="button"
                             className="btn btn-ghost btn-xs"
@@ -878,7 +911,8 @@ function Create() {
                           const raw = Array.from(e.target.files || []);
                           const pdfs = raw.filter(
                             (f) =>
-                              String(f.type).toLowerCase() === "application/pdf" ||
+                              String(f.type).toLowerCase() ===
+                                "application/pdf" ||
                               /\.pdf$/i.test(String(f.name || ""))
                           );
                           const invalid = raw.length - pdfs.length;
@@ -889,14 +923,20 @@ function Create() {
                           e.target.value = "";
                         }}
                       />
-                      {Array.isArray(langCertFiles) && langCertFiles.length > 0 ? (
+                      {Array.isArray(langCertFiles) &&
+                      langCertFiles.length > 0 ? (
                         <div className="mt-2">
                           <div className="text-xs opacity-70 mb-1">Nur PDF</div>
                           <ul className="space-y-2">
                             {langCertFiles.map((f, i) => (
-                              <li key={uniqueKey(f)} className="flex items-center justify-between gap-2 rounded-box border border-base-300 px-3 py-2">
+                              <li
+                                key={uniqueKey(f)}
+                                className="flex items-center justify-between gap-2 rounded-box border border-base-300 px-3 py-2"
+                              >
                                 <div className="min-w-0">
-                                  <div className="truncate font-medium">{f.name}</div>
+                                  <div className="truncate font-medium">
+                                    {f.name}
+                                  </div>
                                   <div className="text-xs opacity-70">
                                     {(f.size / 1024).toFixed(1)} KB
                                   </div>
@@ -905,7 +945,9 @@ function Create() {
                                   type="button"
                                   className="btn btn-ghost btn-xs"
                                   onClick={() =>
-                                    setLangCertFiles((prev) => removeFileAt(prev, i))
+                                    setLangCertFiles((prev) =>
+                                      removeFileAt(prev, i)
+                                    )
                                   }
                                   aria-label="Entfernen"
                                 >
@@ -929,7 +971,11 @@ function Create() {
                             errors?.agreePrivacy ? "checkbox-error" : ""
                           }`}
                           aria-invalid={errors?.agreePrivacy ? "true" : "false"}
-                          aria-describedby={errors?.agreePrivacy ? "agreePrivacy-error" : undefined}
+                          aria-describedby={
+                            errors?.agreePrivacy
+                              ? "agreePrivacy-error"
+                              : undefined
+                          }
                           {...register("agreePrivacy", { required: true })}
                         />
                         <div className="min-w-0">
@@ -937,7 +983,8 @@ function Create() {
                             htmlFor="agreePrivacy"
                             className="font-medium leading-6 cursor-pointer"
                           >
-                            Ich habe die Datenschutzerklärung gelesen und stimme zu.
+                            Ich habe die Datenschutzerklärung gelesen und stimme
+                            zu.
                           </label>
                           <div className="mt-1 text-sm text-base-content/80 flex flex-wrap items-center gap-2">
                             <button
@@ -949,8 +996,12 @@ function Create() {
                             </button>
                           </div>
                           {errors?.agreePrivacy ? (
-                            <p id="agreePrivacy-error" className="text-error text-sm mt-2">
-                              Bitte stimmen Sie der Datenschutzerklärung zu, um fortzufahren.
+                            <p
+                              id="agreePrivacy-error"
+                              className="text-error text-sm mt-2"
+                            >
+                              Bitte stimmen Sie der Datenschutzerklärung zu, um
+                              fortzufahren.
                             </p>
                           ) : null}
                         </div>
@@ -960,7 +1011,10 @@ function Create() {
                   <div className="divider"></div>
                   <div className="flex justify-center mb-4">
                     <ReCAPTCHA
-                      sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY || "6LdEVycsAAAAAJ11zB8ovl-uNIQPPI06t8Rhwow8"}
+                      sitekey={
+                        import.meta.env.VITE_RECAPTCHA_SITE_KEY ||
+                        "6LdEVycsAAAAAJ11zB8ovl-uNIQPPI06t8Rhwow8"
+                      }
                       onChange={setCaptchaToken}
                     />
                   </div>
@@ -994,7 +1048,10 @@ function Create() {
             <div className="bg-base-100 text-base-content rounded-box shadow-xl flex flex-col max-h-[85vh] overflow-hidden">
               <div className="sticky top-0 z-10 px-6 py-4 border-b border-base-300 bg-base-100/95 backdrop-blur">
                 <div className="flex items-center justify-between gap-3">
-                  <h3 id="privacy-title" className="text-xl md:text-2xl font-bold truncate">
+                  <h3
+                    id="privacy-title"
+                    className="text-xl md:text-2xl font-bold truncate"
+                  >
                     Datenschutzrichtlinie
                   </h3>
                   <div className="flex items-center gap-2">
@@ -1012,38 +1069,51 @@ function Create() {
               <div className="px-6 py-4 overflow-y-auto">
                 <div className="space-y-4 text-sm leading-7">
                   <p>
-                    Auf der Plattform <strong>Consultinguz</strong> gelten alle eingegebenen
-                    personenbezogenen Daten (Name, Kontaktdaten, Berufserfahrung,
-                    Ausbildung, Lebenslauf u. a.) als vertraulich und werden gemäß den
-                    geltenden gesetzlichen Bestimmungen sowie unseren internen
-                    Sicherheitsrichtlinien geschützt.
+                    Auf der Plattform <strong>Consultinguz</strong> gelten alle
+                    eingegebenen personenbezogenen Daten (Name, Kontaktdaten,
+                    Berufserfahrung, Ausbildung, Lebenslauf u. a.) als
+                    vertraulich und werden gemäß den geltenden gesetzlichen
+                    Bestimmungen sowie unseren internen Sicherheitsrichtlinien
+                    geschützt.
                   </p>
                   <p>
-                    Wir verwenden die von Nutzerinnen und Nutzern übermittelten Daten
-                    ausschließlich zu einem Zweck – <strong>die Qualifikation und Erfahrung
-                    der Kandidatinnen und Kandidaten zu prüfen und sie passenden
-                    Arbeitgebern zu empfehlen</strong>.
+                    Wir verwenden die von Nutzerinnen und Nutzern übermittelten
+                    Daten ausschließlich zu einem Zweck –{" "}
+                    <strong>
+                      die Qualifikation und Erfahrung der Kandidatinnen und
+                      Kandidaten zu prüfen und sie passenden Arbeitgebern zu
+                      empfehlen
+                    </strong>
+                    .
                   </p>
                   <ul className="list-disc pl-6 space-y-2">
                     <li>
-                      Ihre Daten werden <strong>niemals an Dritte verkauft oder frei
-                      weitergegeben</strong>.
+                      Ihre Daten werden{" "}
+                      <strong>
+                        niemals an Dritte verkauft oder frei weitergegeben
+                      </strong>
+                      .
                     </li>
                     <li>
-                      Informationen über eine Kandidatin oder einen Kandidaten werden{" "}
-                      <strong>nur in dem für den Arbeitgeber erforderlichen Umfang</strong>{" "}
-                      und <strong>auf Grundlage Ihrer Einwilligung</strong> bereitgestellt.
+                      Informationen über eine Kandidatin oder einen Kandidaten
+                      werden{" "}
+                      <strong>
+                        nur in dem für den Arbeitgeber erforderlichen Umfang
+                      </strong>{" "}
+                      und <strong>auf Grundlage Ihrer Einwilligung</strong>{" "}
+                      bereitgestellt.
                     </li>
                     <li>
-                      Alle Daten werden auf sicheren Servern gespeichert und sind vor
-                      unbefugtem Zugriff geschützt.
+                      Alle Daten werden auf sicheren Servern gespeichert und
+                      sind vor unbefugtem Zugriff geschützt.
                     </li>
                   </ul>
                   <p>
-                    Sie können Ihre Daten jederzeit aktualisieren, löschen oder die
-                    Verarbeitung einschränken, indem Sie sich an <strong>Consultinguz</strong>{" "}
-                    wenden. Wir schätzen Ihr Vertrauen und verarbeiten Ihre Daten
-                    sorgfältig und ausschließlich, um Ihnen bei der Jobsuche zu helfen.
+                    Sie können Ihre Daten jederzeit aktualisieren, löschen oder
+                    die Verarbeitung einschränken, indem Sie sich an{" "}
+                    <strong>Consultinguz</strong> wenden. Wir schätzen Ihr
+                    Vertrauen und verarbeiten Ihre Daten sorgfältig und
+                    ausschließlich, um Ihnen bei der Jobsuche zu helfen.
                   </p>
                 </div>
               </div>
