@@ -24,6 +24,8 @@ function Create() {
     () => ({
       personalInfo: {
         name: "",
+        lastName: "",
+        gender: "",
         address: "",
         birthDate: "",
         maritalStatus: "",
@@ -109,6 +111,8 @@ function Create() {
     defaultValues: {
       personalInfo: {
         name: initialCv.personalInfo.name,
+        lastName: initialCv.personalInfo.lastName,
+        gender: initialCv.personalInfo.gender,
         address: initialCv.personalInfo.address,
         birthDate: toInputDate(initialCv.personalInfo.birthDate),
         maritalStatus: initialCv.personalInfo.maritalStatus,
@@ -163,6 +167,8 @@ function Create() {
   function onInvalid(formErrors) {
     const requiredOrder = [
       "personalInfo.name",
+      "personalInfo.lastName",
+      "personalInfo.gender",
       "personalInfo.birthDate",
       "personalInfo.maritalStatus",
       "personalInfo.phone",
@@ -171,7 +177,9 @@ function Create() {
       "personalInfo.address",
     ];
     const labelMap = {
-      "personalInfo.name": "Name",
+      "personalInfo.name": "Vorname",
+      "personalInfo.lastName": "Nachname",
+      "personalInfo.gender": "Geschlecht",
       "personalInfo.birthDate": "Geburtsdatum",
       "personalInfo.maritalStatus": "Familienstand",
       "personalInfo.phone": "Telefonnummer",
@@ -406,6 +414,8 @@ function Create() {
     const lebenslauf = {
       persoenlicheDaten: {
         name: final.personalInfo.name,
+        nachname: final.personalInfo.lastName,
+        geschlecht: final.personalInfo.gender,
         adresse: final.personalInfo.address,
         geburtsdatum: final.personalInfo.birthDate,
         familienstand: final.personalInfo.maritalStatus,
@@ -546,11 +556,11 @@ function Create() {
                     <Controller
                       control={control}
                       name="personalInfo.name"
-                      rules={{ required: "Name ist erforderlich" }}
+                      rules={{ required: "Vorname ist erforderlich" }}
                       render={({ field, fieldState }) => (
                         <FormInput
-                          label="Name"
-                          placeholder="Name"
+                          label="Vorname"
+                          placeholder="Vorname"
                           inputClassName={
                             errors?.personalInfo?.name ? "input-error" : ""
                           }
@@ -561,6 +571,58 @@ function Create() {
                         />
                       )}
                     />
+                    <Controller
+                      control={control}
+                      name="personalInfo.lastName"
+                      rules={{ required: "Nachname ist erforderlich" }}
+                      render={({ field, fieldState }) => (
+                        <FormInput
+                          label="Nachname"
+                          placeholder="Nachname"
+                          inputClassName={
+                            errors?.personalInfo?.lastName ? "input-error" : ""
+                          }
+                          aria-invalid={
+                            errors?.personalInfo?.lastName ? "true" : "false"
+                          }
+                          {...field}
+                        />
+                      )}
+                    />
+                    <div className="md:col-span-2">
+                      <label className="label">
+                        <span className="label-text">Geschlecht</span>
+                      </label>
+                      <div className="flex gap-6">
+                        <label className="cursor-pointer flex items-center gap-2">
+                          <input
+                            type="radio"
+                            value="Männlich"
+                            className="radio radio-primary"
+                            {...register("personalInfo.gender", {
+                              required: "Bitte Geschlecht auswählen",
+                            })}
+                          />
+                          <span>Männlich</span>
+                        </label>
+                        <label className="cursor-pointer flex items-center gap-2">
+                          <input
+                            type="radio"
+                            value="Weiblich"
+                            className="radio radio-primary"
+                            {...register("personalInfo.gender", {
+                              required: "Bitte Geschlecht auswählen",
+                            })}
+                          />
+                          <span>Weiblich</span>
+                        </label>
+                      </div>
+                      {errors?.personalInfo?.gender && (
+                        <p className="text-error text-sm mt-1">
+                          {errors.personalInfo.gender.message}
+                        </p>
+                      )}
+                    </div>
                     <div>
                       <Controller
                         control={control}

@@ -68,6 +68,8 @@ function Generate() {
     () => ({
       personalInfo: {
         name: "",
+        lastName: "",
+        gender: "",
         address: "",
         birthDate: "",
         maritalStatus: "",
@@ -150,6 +152,8 @@ function Generate() {
     return {
       personalInfo: {
         name: String(p.name || ""),
+        lastName: String(p.nachname || ""),
+        gender: String(p.geschlecht || ""),
         address: String(p.adresse || ""),
         birthDate: String(p.geburtsdatum || ""),
         maritalStatus: String(p.familienstand || ""),
@@ -192,6 +196,8 @@ function Generate() {
     return {
       persoenlicheDaten: {
         name: f.personalInfo.name,
+        nachname: f.personalInfo.lastName,
+        geschlecht: f.personalInfo.gender,
         adresse: f.personalInfo.address,
         geburtsdatum: f.personalInfo.birthDate,
         familienstand: f.personalInfo.maritalStatus,
@@ -333,7 +339,9 @@ function Generate() {
 
   const CvPdfDocument = ({ form, showDocuments }) => {
     const personal = form?.personalInfo || {};
-    const fullName = String(personal.name || "").trim() || "—";
+    const firstName = String(personal.name || "").trim();
+    const lastName = String(personal.lastName || "").trim();
+    const fullName = [firstName, lastName].filter(Boolean).join(" ") || "—";
     const address = String(personal.address || "").trim() || "—";
     const birthDate = String(personal.birthDate || "").trim() || "—";
     const maritalStatus = String(personal.maritalStatus || "").trim() || "—";
@@ -770,6 +778,20 @@ function Generate() {
     const col = String(major || "").trim();
     const docId = String(id || "").trim();
     if (!col || !docId) return;
+
+    if (!formCv.personalInfo.name?.trim()) {
+      toast.error("Vorname ist erforderlich.");
+      return;
+    }
+    if (!formCv.personalInfo.lastName?.trim()) {
+      toast.error("Nachname ist erforderlich.");
+      return;
+    }
+    if (!formCv.personalInfo.gender) {
+      toast.error("Bitte Geschlecht auswählen.");
+      return;
+    }
+
     try {
       setIsSaving(true);
       const payload = mapFormToDoc(formCv);
@@ -813,7 +835,9 @@ function Generate() {
   );
 
   // Preview data from form state
-  const fullName = String(formCv.personalInfo.name || "").trim() || "—";
+  const firstName = String(formCv.personalInfo.name || "").trim();
+  const lastName = String(formCv.personalInfo.lastName || "").trim();
+  const fullName = [firstName, lastName].filter(Boolean).join(" ") || "—";
   const address = String(formCv.personalInfo.address || "").trim();
   const birthDate = String(formCv.personalInfo.birthDate || "").trim();
   const phone = String(formCv.personalInfo.phone || "").trim();
@@ -890,8 +914,8 @@ function Generate() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormInput
-                    label="Name"
-                    placeholder="Name"
+                    label="Vorname"
+                    placeholder="Vorname"
                     value={formCv.personalInfo.name}
                     onChange={(e) =>
                       setFormCv((prev) => ({
@@ -903,6 +927,63 @@ function Generate() {
                       }))
                     }
                   />
+                  <FormInput
+                    label="Nachname"
+                    placeholder="Nachname"
+                    value={formCv.personalInfo.lastName}
+                    onChange={(e) =>
+                      setFormCv((prev) => ({
+                        ...prev,
+                        personalInfo: {
+                          ...prev.personalInfo,
+                          lastName: e.target.value,
+                        },
+                      }))
+                    }
+                  />
+                  <div className="md:col-span-2">
+                    <label className="label">
+                      <span className="label-text">Geschlecht</span>
+                    </label>
+                    <div className="flex gap-6">
+                      <label className="cursor-pointer flex items-center gap-2">
+                        <input
+                          type="radio"
+                          value="Männlich"
+                          className="radio radio-primary"
+                          checked={formCv.personalInfo.gender === "Männlich"}
+                          onChange={(e) =>
+                            setFormCv((prev) => ({
+                              ...prev,
+                              personalInfo: {
+                                ...prev.personalInfo,
+                                gender: e.target.value,
+                              },
+                            }))
+                          }
+                        />
+                        <span>Männlich</span>
+                      </label>
+                      <label className="cursor-pointer flex items-center gap-2">
+                        <input
+                          type="radio"
+                          value="Weiblich"
+                          className="radio radio-primary"
+                          checked={formCv.personalInfo.gender === "Weiblich"}
+                          onChange={(e) =>
+                            setFormCv((prev) => ({
+                              ...prev,
+                              personalInfo: {
+                                ...prev.personalInfo,
+                                gender: e.target.value,
+                              },
+                            }))
+                          }
+                        />
+                        <span>Weiblich</span>
+                      </label>
+                    </div>
+                  </div>
                   <FormInput
                     label="Geburtsdatum"
                     type="date"

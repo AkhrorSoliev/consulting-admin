@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { db } from "../firebase/config";
 import { collection, getDocs } from "firebase/firestore";
 import { subscribeToCollections } from "../utils";
-import { Bar, Pie } from "react-chartjs-2";
+import { Bar, Pie, Doughnut } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -28,11 +28,20 @@ function Home() {
   const [collectionNames, setCollectionNames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  
+  // Stats
   const [perCollectionCounts, setPerCollectionCounts] = useState([]);
   const [ageBuckets, setAgeBuckets] = useState([]);
   const [levelCounts, setLevelCounts] = useState([]);
   const [topLanguages, setTopLanguages] = useState([]);
   const [avgAge, setAvgAge] = useState(null);
+  
+  // New Stats
+  const [diplomaStats, setDiplomaStats] = useState({ has: 0, none: 0 });
+  const [certStats, setCertStats] = useState({ has: 0, none: 0 });
+  const [maritalStats, setMaritalStats] = useState({ single: 0, married: 0 });
+  const [experienceBuckets, setExperienceBuckets] = useState([]);
+  const [genderStats, setGenderStats] = useState({ male: 0, female: 0, unknown: 0 });
 
   useEffect(() => {
     const unsub = subscribeToCollections((names) => {
@@ -73,7 +82,7 @@ function Home() {
         // Flatten all docs to aggregate stats
         const allDocs = allDocsByCollection.flatMap((c) => c.docs);
 
-        // Age helpers
+        // --- Age Calculation ---
         const toAge = (ddmmyyyy) => {
           try {
             if (!ddmmyyyy || typeof ddmmyyyy !== "string") return null;
@@ -98,7 +107,6 @@ function Home() {
           }
         };
 
-        // Build age list
         const ages = allDocs
           .map((d) => toAge(d?.persoenlicheDaten?.geburtsdatum))
           .filter((n) => typeof n === "number");
@@ -110,7 +118,6 @@ function Home() {
               ) / 10
             : null;
 
-        // Age buckets
         const bucketDefs = [
           { label: "18-24", from: 18, to: 24 },
           { label: "25-34", from: 25, to: 34 },
@@ -131,14 +138,25 @@ function Home() {
           count: bucketMap.get(b.label) || 0,
         }));
 
-        // Language level counts (A1..C2)
+        // --- Languages ---
         const levels = ["A1", "A2", "B1", "B2", "C1", "C2"];
         const levelMap = new Map(levels.map((l) => [l, 0]));
+        const langMap = new Map();
 
-        // Language popularity counts by name
-        const langMap = new Map(); // name -> count
+        // --- New Metrics Containers ---
+        let hasDiploma = 0;
+        let noDiplomaCount = 0;
+        let hasCert = 0;
+        let noCertCount = 0;
+        let single = 0;
+        let married = 0;
+        let male = 0;
+        let female = 0;
+        let unknownGender = 0;
+        const expBuckets = { "0-1 Jahr": 0, "1-3 Jahre": 0, "3-5 Jahre": 0, "5+ Jahre": 0 };
 
         allDocs.forEach((d) => {
+          // Languages
           const sprachen = d?.faehigkeiten?.sprachen || {};
           Object.entries(sprachen).forEach(([langName, level]) => {
             const ln = String(langName || "").trim();
@@ -152,8 +170,73 @@ function Home() {
               levelMap.set(lv, (levelMap.get(lv) || 0) + 1);
             }
           });
+
+          // Attachments (Diploma/Certs)
+          const att = d?.attachments || {};
+          // Check diploma: explicit array or not marked as 'noDiploma'
+          if (att.noDiploma) {
+            noDiplomaCount++;
+          } else if (Array.isArray(att.diplomas) && att.diplomas.length > 0) {
+            hasDiploma++;
+          } else {
+            // If strictly neither, count as none for stats? Or if it was optional... 
+            // Let's assume 'noDiploma' is the definitive flag, but if files exist, they have it.
+            // If neither flag nor files, treat as 'Keine Info' or 'Nein' -> 'Nein' mostly.
+            noDiplomaCount++;
+          }
+
+          if (att.noLanguageCertificate) {
+            noCertCount++;
+          } else if (Array.isArray(att.languageCertificates) && att.languageCertificates.length > 0) {
+            hasCert++;
+          } else {
+            noCertCount++;
+          }
+
+          // Marital Status
+          const mStatus = (d?.persoenlicheDaten?.familienstand || "").toLowerCase();
+          if (mStatus.includes("ledig")) single++;
+          else if (mStatus.includes("verheiratet")) married++;
+
+          // Gender Inference (based on Last Name suffix)
+          const fullName = (d?.persoenlicheDaten?.name || "").trim();
+          if (fullName) {
+            const parts = fullName.split(/\s+/);
+            const lastName = parts[parts.length - 1].toLowerCase();
+            // Basic heuristic for Uzbek/Russian names: 
+            // -va -> Female
+            // -v -> Male (if not -va)
+            if (lastName.endsWith("va")) {
+              female++;
+            } else if (lastName.endsWith("v")) {
+              male++;
+            } else {
+              unknownGender++;
+            }
+          } else {
+            unknownGender++;
+          }
+
+          // Experience Calculation
+          const expList = d?.berufserfahrung || [];
+          let totalMonths = 0;
+          expList.forEach(exp => {
+             const start = new Date(exp.beginn);
+             const end = exp.ende ? new Date(exp.ende) : new Date(); // If current job
+             if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+                // simple diff in months
+                const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+                if (months > 0) totalMonths += months;
+             }
+          });
+          const years = totalMonths / 12;
+          if (years <= 1) expBuckets["0-1 Jahr"]++;
+          else if (years <= 3) expBuckets["1-3 Jahre"]++;
+          else if (years <= 5) expBuckets["3-5 Jahre"]++;
+          else expBuckets["5+ Jahre"]++;
         });
 
+        // Format stats
         const levelData = levels.map((l) => ({
           level: l,
           count: levelMap.get(l) || 0,
@@ -163,6 +246,8 @@ function Home() {
           .map(([name, count]) => ({ name, count }))
           .sort((a, b) => b.count - a.count)
           .slice(0, 10);
+        
+        const expData = Object.entries(expBuckets).map(([bucket, count]) => ({ bucket, count }));
 
         if (cancelled) return;
         setPerCollectionCounts(counts);
@@ -170,6 +255,13 @@ function Home() {
         setLevelCounts(levelData);
         setTopLanguages(languagesData);
         setAvgAge(avg);
+        
+        setDiplomaStats({ has: hasDiploma, none: noDiplomaCount });
+        setCertStats({ has: hasCert, none: noCertCount });
+        setMaritalStats({ single, married });
+        setGenderStats({ male, female, unknown: unknownGender });
+        setExperienceBuckets(expData);
+
         setLoading(false);
       } catch (e) {
         if (cancelled) return;
@@ -190,193 +282,261 @@ function Home() {
   );
 
   const COLORS = [
-    "#6366F1",
-    "#22C55E",
-    "#EAB308",
-    "#F97316",
-    "#EF4444",
-    "#06B6D4",
-    "#A855F7",
-    "#84CC16",
+    "#6366F1", "#22C55E", "#EAB308", "#F97316", 
+    "#EF4444", "#06B6D4", "#A855F7", "#84CC16",
   ];
 
-  // Build Chart.js datasets
-  const perCollectionBarData = useMemo(() => {
-    const labels = (perCollectionCounts || []).map((c) => c.name);
-    const data = (perCollectionCounts || []).map((c) => c.count || 0);
-    return {
-      labels,
-      datasets: [
-        {
-          label: "Anzahl",
-          data,
-          backgroundColor: "#6366F1",
-          borderRadius: 6,
-        },
-      ],
-    };
-  }, [perCollectionCounts]);
+  // --- Chart Data Memoization ---
 
-  const ageBucketsBarData = useMemo(() => {
-    const labels = (ageBuckets || []).map((b) => b.bucket);
-    const data = (ageBuckets || []).map((b) => b.count || 0);
-    return {
-      labels,
-      datasets: [
-        {
-          label: "Anzahl",
-          data,
-          backgroundColor: "#22C55E",
-          borderRadius: 6,
-        },
-      ],
-    };
-  }, [ageBuckets]);
+  const perCollectionBarData = useMemo(() => ({
+    labels: (perCollectionCounts || []).map((c) => c.name),
+    datasets: [{
+      label: "Nutzer",
+      data: (perCollectionCounts || []).map((c) => c.count || 0),
+      backgroundColor: "#6366F1",
+      borderRadius: 6,
+    }],
+  }), [perCollectionCounts]);
 
-  const levelCountsBarData = useMemo(() => {
-    const labels = (levelCounts || []).map((l) => l.level);
-    const data = (levelCounts || []).map((l) => l.count || 0);
-    return {
-      labels,
-      datasets: [
-        {
-          label: "Anzahl",
-          data,
-          backgroundColor: "#F59E0B",
-          borderRadius: 6,
-        },
-      ],
-    };
-  }, [levelCounts]);
+  const ageBucketsBarData = useMemo(() => ({
+    labels: (ageBuckets || []).map((b) => b.bucket),
+    datasets: [{
+      label: "Anzahl",
+      data: (ageBuckets || []).map((b) => b.count || 0),
+      backgroundColor: "#22C55E",
+      borderRadius: 6,
+    }],
+  }), [ageBuckets]);
 
-  const topLanguagesPieData = useMemo(() => {
-    const labels = (topLanguages || []).map((l) => l.name);
-    const data = (topLanguages || []).map((l) => l.count || 0);
-    return {
-      labels,
-      datasets: [
-        {
-          label: "Anzahl",
-          data,
-          backgroundColor: labels.map((_, i) => COLORS[i % COLORS.length]),
-          borderWidth: 1,
-        },
-      ],
-    };
-  }, [topLanguages]);
+  const levelCountsBarData = useMemo(() => ({
+    labels: (levelCounts || []).map((l) => l.level),
+    datasets: [{
+      label: "Anzahl",
+      data: (levelCounts || []).map((l) => l.count || 0),
+      backgroundColor: "#F59E0B",
+      borderRadius: 6,
+    }],
+  }), [levelCounts]);
+
+  const topLanguagesPieData = useMemo(() => ({
+    labels: (topLanguages || []).map((l) => l.name),
+    datasets: [{
+      label: "Anzahl",
+      data: (topLanguages || []).map((l) => l.count || 0),
+      backgroundColor: (topLanguages || []).map((_, i) => COLORS[i % COLORS.length]),
+      borderWidth: 1,
+    }],
+  }), [topLanguages, COLORS]);
+
+  const diplomaDoughnutData = useMemo(() => ({
+    labels: ["Mit Diplom", "Ohne Diplom"],
+    datasets: [{
+        data: [diplomaStats.has, diplomaStats.none],
+        backgroundColor: ["#3B82F6", "#9CA3AF"],
+        hoverOffset: 4
+    }]
+  }), [diplomaStats]);
+
+  const certDoughnutData = useMemo(() => ({
+    labels: ["Zertifikat vorhanden", "Kein Zertifikat"],
+    datasets: [{
+        data: [certStats.has, certStats.none],
+        backgroundColor: ["#10B981", "#D1D5DB"],
+        hoverOffset: 4
+    }]
+  }), [certStats]);
+
+  const maritalPieData = useMemo(() => ({
+    labels: ["Ledig", "Verheiratet"],
+    datasets: [{
+        data: [maritalStats.single, maritalStats.married],
+        backgroundColor: ["#8B5CF6", "#EC4899"],
+        hoverOffset: 4
+    }]
+  }), [maritalStats]);
+
+  const genderPieData = useMemo(() => ({
+    labels: ["Männlich", "Weiblich", "Unbekannt"],
+    datasets: [{
+        data: [genderStats.male, genderStats.female, genderStats.unknown],
+        backgroundColor: ["#3B82F6", "#EC4899", "#9CA3AF"],
+        hoverOffset: 4
+    }]
+  }), [genderStats]);
+
+  const experienceBarData = useMemo(() => ({
+    labels: experienceBuckets.map(b => b.bucket),
+    datasets: [{
+        label: "Nutzer",
+        data: experienceBuckets.map(b => b.count),
+        backgroundColor: "#0EA5E9",
+        borderRadius: 6
+    }]
+  }), [experienceBuckets]);
 
   const defaultBarOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { display: false }, title: { display: false } },
+    plugins: { legend: { display: false } },
     scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
   };
 
   const pieOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { legend: { position: "bottom" }, title: { display: false } },
+    plugins: { legend: { position: "bottom" } },
   };
 
   return (
-    <div className="p-4 md:p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold">Statistiken</h1>
-        <p className="text-sm opacity-70">
-          Statistiken basierend auf allen Sammlungen und Nutzern.
+    <div className="p-4 md:p-6 bg-base-200/30 min-h-screen">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold mb-2">Dashboard & Statistiken</h1>
+        <p className="text-base opacity-70">
+          Umfassende Analyse aller Bewerberdaten, Fähigkeiten und Qualifikationen.
         </p>
       </div>
 
       {loading ? (
-        <div className="grid place-items-center py-24">
+        <div className="grid place-items-center py-32">
           <span className="loading loading-spinner loading-lg text-primary"></span>
         </div>
       ) : error ? (
-        <div role="alert" className="alert alert-error">
+        <div role="alert" className="alert alert-error max-w-lg mx-auto">
           <span>{error}</span>
         </div>
       ) : totalUsers === 0 ? (
-        <div className="grid place-items-center py-24">
-          <div className="text-center opacity-80">
-            <p className="text-lg font-medium">
-              Derzeit keine Daten vorhanden.
-            </p>
-            <p className="text-sm">
-              Sobald Daten hinzugefügt werden, erscheinen hier die Statistiken.
-            </p>
-          </div>
+        <div className="text-center py-24 opacity-70">
+            <h3 className="text-xl font-medium">Keine Daten verfügbar</h3>
+            <p>Es wurden noch keine Bewerbungen eingereicht.</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {/* KPI cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="card bg-base-100 border border-base-300/60">
+        <div className="space-y-8">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="stat bg-base-100 shadow rounded-box border border-base-200">
+              <div className="stat-figure text-primary">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="inline-block w-8 h-8 stroke-current"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+              </div>
+              <div className="stat-title">Nutzer Gesamt</div>
+              <div className="stat-value text-primary">{totalUsers}</div>
+              <div className="stat-desc">Über alle Bereiche</div>
+            </div>
+            
+            <div className="stat bg-base-100 shadow rounded-box border border-base-200">
+              <div className="stat-figure text-secondary">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="inline-block w-8 h-8 stroke-current"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+              </div>
+              <div className="stat-title">Sammlungen</div>
+              <div className="stat-value text-secondary">{totalCollections}</div>
+              <div className="stat-desc">Aktive Kategorien</div>
+            </div>
+
+            <div className="stat bg-base-100 shadow rounded-box border border-base-200">
+              <div className="stat-figure text-accent">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="inline-block w-8 h-8 stroke-current"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              </div>
+              <div className="stat-title">Ø Alter</div>
+              <div className="stat-value text-accent">{avgAge ?? "-"}</div>
+              <div className="stat-desc">Jahre</div>
+            </div>
+
+            <div className="stat bg-base-100 shadow rounded-box border border-base-200">
+               <div className="stat-figure text-info">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="inline-block w-8 h-8 stroke-current"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+              </div>
+              <div className="stat-title">Mit Diplom</div>
+              <div className="stat-value text-info">{diplomaStats.has}</div>
+              <div className="stat-desc">({((diplomaStats.has / totalUsers) * 100).toFixed(0)}%)</div>
+            </div>
+          </div>
+
+          {/* Row 1: Collection & Experience */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="card bg-base-100 shadow border border-base-200">
               <div className="card-body">
-                <p className="text-sm opacity-70">Gesamtzahl der Sammlungen</p>
-                <p className="text-2xl font-bold">{totalCollections}</p>
+                <h2 className="card-title text-lg mb-4">Verteilung nach Berufsfeld</h2>
+                <div className="h-64 md:h-80">
+                  <Bar data={perCollectionBarData} options={defaultBarOptions} />
+                </div>
               </div>
             </div>
-            <div className="card bg-base-100 border border-base-300/60">
+            <div className="card bg-base-100 shadow border border-base-200">
               <div className="card-body">
-                <p className="text-sm opacity-70">Gesamtzahl der Nutzer</p>
-                <p className="text-2xl font-bold">{totalUsers}</p>
-              </div>
-            </div>
-            <div className="card bg-base-100 border border-base-300/60">
-              <div className="card-body">
-                <p className="text-sm opacity-70">Durchschnittsalter</p>
-                <p className="text-2xl font-bold">{avgAge ?? "-"}</p>
+                <h2 className="card-title text-lg mb-4">Berufserfahrung (Jahre)</h2>
+                <div className="h-64 md:h-80">
+                  <Bar data={experienceBarData} options={defaultBarOptions} />
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Charts grid */}
+          {/* Row 2: Demographics & Education */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="card bg-base-100 shadow border border-base-200">
+              <div className="card-body items-center text-center">
+                <h2 className="card-title text-base mb-2">Diplom-Status</h2>
+                <div className="h-48 w-full max-w-xs">
+                  <Doughnut data={diplomaDoughnutData} options={pieOptions} />
+                </div>
+              </div>
+            </div>
+            <div className="card bg-base-100 shadow border border-base-200">
+              <div className="card-body items-center text-center">
+                <h2 className="card-title text-base mb-2">Sprachzertifikate</h2>
+                <div className="h-48 w-full max-w-xs">
+                  <Doughnut data={certDoughnutData} options={pieOptions} />
+                </div>
+              </div>
+            </div>
+            <div className="card bg-base-100 shadow border border-base-200">
+              <div className="card-body items-center text-center">
+                <h2 className="card-title text-base mb-2">Familienstand</h2>
+                <div className="h-48 w-full max-w-xs">
+                  <Pie data={maritalPieData} options={pieOptions} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 3: Skills & Gender */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Per-collection counts */}
-            <div className="card bg-base-100 border border-base-300/60">
+             <div className="card bg-base-100 shadow border border-base-200">
               <div className="card-body">
-                <h2 className="card-title text-lg">Nutzer pro Sammlung</h2>
-                <div className="w-full h-72">
-                  <Bar
-                    data={perCollectionBarData}
-                    options={defaultBarOptions}
-                  />
+                <h2 className="card-title text-lg mb-4">Geschlechterverteilung (geschätzt)</h2>
+                <div className="h-64 md:h-80 flex justify-center">
+                  <Pie data={genderPieData} options={pieOptions} />
                 </div>
               </div>
             </div>
-
-            {/* Age buckets */}
-            <div className="card bg-base-100 border border-base-300/60">
+            <div className="card bg-base-100 shadow border border-base-200">
               <div className="card-body">
-                <h2 className="card-title text-lg">Altersverteilung</h2>
-                <div className="w-full h-72">
-                  <Bar data={ageBucketsBarData} options={defaultBarOptions} />
-                </div>
-              </div>
-            </div>
-
-            {/* Language levels */}
-            <div className="card bg-base-100 border border-base-300/60">
-              <div className="card-body">
-                <h2 className="card-title text-lg">Sprachniveaus (A1–C2)</h2>
-                <div className="w-full h-72">
-                  <Bar data={levelCountsBarData} options={defaultBarOptions} />
-                </div>
-              </div>
-            </div>
-
-            {/* Top languages */}
-            <div className="card bg-base-100 border border-base-300/60">
-              <div className="card-body">
-                <h2 className="card-title text-lg">
-                  Häufigste Sprachen (Top 10)
-                </h2>
-                <div className="w-full h-72">
+                <h2 className="card-title text-lg mb-4">Top 10 Sprachen</h2>
+                <div className="h-64 md:h-80 flex justify-center">
                   <Pie data={topLanguagesPieData} options={pieOptions} />
                 </div>
               </div>
             </div>
           </div>
+          
+          {/* Row 4: Age & Language Levels */}
+           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+             <div className="card bg-base-100 shadow border border-base-200">
+              <div className="card-body">
+                <h2 className="card-title text-lg mb-4">Altersgruppen</h2>
+                <div className="h-64 md:h-80">
+                  <Bar data={ageBucketsBarData} options={defaultBarOptions} />
+                </div>
+              </div>
+            </div>
+             <div className="card bg-base-100 shadow border border-base-200">
+              <div className="card-body">
+                <h2 className="card-title text-lg mb-4">Sprachniveaus</h2>
+                <div className="h-64 md:h-80">
+                  <Bar data={levelCountsBarData} options={defaultBarOptions} />
+                </div>
+              </div>
+            </div>
+           </div>
         </div>
       )}
     </div>
