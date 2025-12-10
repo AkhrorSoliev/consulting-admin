@@ -83,7 +83,7 @@ function Generate() {
     []
   );
   const [formCv, setFormCv] = useState(initialForm);
-  const [showDocuments, setShowDocuments] = useState(true);
+  const [showDocuments, setShowDocuments] = useState(false);
   const [isGeneratingSoft, setIsGeneratingSoft] = useState(false);
   const [isGeneratingPc, setIsGeneratingPc] = useState(false);
   const [recentlyAdded, setRecentlyAdded] = useState({ soft: [], pc: [] });
