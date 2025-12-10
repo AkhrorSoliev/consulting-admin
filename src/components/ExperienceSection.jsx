@@ -1,6 +1,6 @@
 import FormInput from "./FormInput";
 import TagInput from "./TagInput";
-import { toInputDate, fromInputDate } from "../utils";
+import { toInputMonth, fromInputMonth } from "../utils";
 
 function ExperienceSection({
   experience,
@@ -37,27 +37,27 @@ function ExperienceSection({
               </label>
               <input
                 id={`exp-${idx}-startDate`}
-                type="date"
+                type="month"
                 className={fieldInput}
-                value={toInputDate(exp.startDate)}
+                value={toInputMonth(exp.startDate)}
                 onChange={(e) =>
-                  onUpdateExperience(idx, "startDate", fromInputDate(e.target.value))
+                  onUpdateExperience(idx, "startDate", fromInputMonth(e.target.value))
                 }
               />
             </div>
-            <div className="flex items-center gap-2">
-              <div className="flex-1">
-                <label className="label" htmlFor={`exp-${idx}-endDate`}>
-                  <span className="label-text">Enddatum</span>
-                </label>
+            <div>
+              <label className="label" htmlFor={`exp-${idx}-endDate`}>
+                <span className="label-text">Enddatum</span>
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2">
                 <input
                   id={`exp-${idx}-endDate`}
-                  type="date"
+                  type="month"
                   className={fieldInput}
                   disabled={exp.endDate === "bis heute"}
-                  value={exp.endDate === "bis heute" ? "" : toInputDate(exp.endDate)}
+                  value={exp.endDate === "bis heute" ? "" : toInputMonth(exp.endDate)}
                   onChange={(e) =>
-                    onUpdateExperience(idx, "endDate", fromInputDate(e.target.value))
+                    onUpdateExperience(idx, "endDate", fromInputMonth(e.target.value))
                   }
                 />
               </div>
@@ -120,5 +120,3 @@ function ExperienceSection({
 }
 
 export default ExperienceSection;
-
-

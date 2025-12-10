@@ -1,5 +1,5 @@
 import FormInput from "./FormInput";
-import { toInputDate, fromInputDate } from "../utils";
+import { toInputMonth, fromInputMonth } from "../utils";
 
 function EducationSection({
   education,
@@ -34,41 +34,27 @@ function EducationSection({
               </label>
               <input
                 id={`edu-${idx}-startDate`}
-                type="date"
+                type="month"
                 className={fieldInput}
-                value={toInputDate(edu.startDate)}
+                value={toInputMonth(edu.startDate)}
                 onChange={(e) =>
-                  onUpdateEducation(idx, "startDate", fromInputDate(e.target.value))
+                  onUpdateEducation(idx, "startDate", fromInputMonth(e.target.value))
                 }
               />
             </div>
-            <div className="flex items-center gap-2">
-              <div className="flex-1">
-                <label className="label" htmlFor={`edu-${idx}-endDate`}>
-                  <span className="label-text">Enddatum</span>
-                </label>
-                <input
-                  id={`edu-${idx}-endDate`}
-                  type="date"
-                  className={fieldInput}
-                  disabled={edu.endDate === "bis heute"}
-                  value={edu.endDate === "bis heute" ? "" : toInputDate(edu.endDate)}
-                  onChange={(e) =>
-                    onUpdateEducation(idx, "endDate", fromInputDate(e.target.value))
-                  }
-                />
-              </div>
-              <label className="label cursor-pointer gap-2">
-                <span className="label-text">Bis heute</span>
-                <input
-                  type="checkbox"
-                  className="checkbox checkbox-sm"
-                  checked={edu.endDate === "bis heute"}
-                  onChange={(e) =>
-                    onUpdateEducation(idx, "endDate", e.target.checked ? "bis heute" : "")
-                  }
-                />
+            <div>
+              <label className="label" htmlFor={`edu-${idx}-endDate`}>
+                <span className="label-text">Enddatum</span>
               </label>
+              <input
+                id={`edu-${idx}-endDate`}
+                type="month"
+                className={fieldInput}
+                value={toInputMonth(edu.endDate)}
+                onChange={(e) =>
+                  onUpdateEducation(idx, "endDate", fromInputMonth(e.target.value))
+                }
+              />
             </div>
             <FormInput
               className="md:col-span-2"
@@ -99,5 +85,3 @@ function EducationSection({
 }
 
 export default EducationSection;
-
-

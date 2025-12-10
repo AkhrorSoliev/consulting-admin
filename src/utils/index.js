@@ -166,6 +166,33 @@ export function fromInputDate(yyyymmdd) {
   return `${dd}.${mm}.${yyyy}`;
 }
 
+// Convert "dd.mm.yyyy" or "mm.yyyy" -> "yyyy-mm" for <input type="month">
+export function toInputMonth(dateStr) {
+  if (!dateStr || typeof dateStr !== "string") return "";
+  // Try dd.mm.yyyy
+  let m = dateStr.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (m) {
+    const [, , mm, yyyy] = m;
+    return `${yyyy}-${mm}`;
+  }
+  // Try mm.yyyy
+  m = dateStr.match(/^(\d{2})\.(\d{4})$/);
+  if (m) {
+    const [, mm, yyyy] = m;
+    return `${yyyy}-${mm}`;
+  }
+  return "";
+}
+
+// Convert "yyyy-mm" -> "mm.yyyy" for display/storage
+export function fromInputMonth(yyyymm) {
+  if (!yyyymm || typeof yyyymm !== "string") return "";
+  const m = yyyymm.match(/^(\d{4})-(\d{2})$/);
+  if (!m) return yyyymm;
+  const [, yyyy, mm] = m;
+  return `${mm}.${yyyy}`;
+}
+
 // Generate soft/pc skills based on provided CV context
 export function generateSkills(cv, kind) {
   const lowerIncludes = (text, sub) =>

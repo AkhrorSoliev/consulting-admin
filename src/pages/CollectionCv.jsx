@@ -170,11 +170,11 @@ function CollectionCv() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6">
             {filteredItems.map((item) => (
               <div
                 key={item.id}
-                className="card relative group bg-base-100 border border-base-300/60 rounded-xl shadow-sm hover:shadow-md transition-all cursor-pointer"
+                className="card bg-base-100 border border-base-300 shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer h-full flex flex-col"
                 onClick={() => navigate(`/generate/${major}/${item.id}`)}
                 role="button"
                 tabIndex={0}
@@ -184,74 +184,91 @@ function CollectionCv() {
                   }
                 }}
               >
-                <div className="card-body">
-                  <button
-                    className="btn btn-circle btn-ghost btn-xs text-error absolute right-2 top-2 opacity-70 hover:opacity-100 hover:bg-error/10 transition-opacity"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDelete(item.id, item.name);
-                    }}
-                    disabled={deletingId === item.id}
-                    title="Löschen"
-                    aria-label="Löschen"
-                  >
-                    {deletingId === item.id ? (
-                      <span className="loading loading-spinner loading-xs" />
-                    ) : (
-                      <FaTrash className="text-xl" />
-                    )}
-                  </button>
-                  <div className="flex items-start gap-4">
+                <div className="card-body p-5 flex flex-col h-full">
+                  <div className="absolute top-2 right-2">
+                    <button
+                      className="btn btn-ghost btn-circle btn-sm text-error/70 hover:text-error hover:bg-error/10"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(item.id, item.name);
+                      }}
+                      disabled={deletingId === item.id}
+                      title="Löschen"
+                    >
+                      {deletingId === item.id ? (
+                        <span className="loading loading-spinner loading-xs" />
+                      ) : (
+                        <FaTrash size={16} />
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col items-center text-center gap-3 mb-4">
                     <div className="avatar">
-                      <div className="w-16 h-16 rounded-full ring ring-primary/20 ring-offset-base-100 ring-offset-2 overflow-hidden">
+                      <div className="w-24 h-24 rounded-full ring-2 ring-primary/20 ring-offset-base-100 ring-offset-2 overflow-hidden shadow-sm">
                         {item.photo ? (
-                          <img src={item.photo} alt={item.name || "Foto"} />
+                          <img
+                            src={item.photo}
+                            alt={item.name || "Foto"}
+                            className="object-cover w-full h-full"
+                          />
                         ) : (
-                          <div className="w-full h-full bg-base-300 grid place-items-center text-base-content/60 text-sm">
+                          <div className="w-full h-full bg-base-200 flex items-center justify-center text-base-content/50 text-xs font-medium">
                             Kein Foto
                           </div>
                         )}
                       </div>
                     </div>
-                    <div className="min-w-0 flex flex-col gap-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h2 className="card-title text-base md:text-lg leading-tight">
-                          {item.name || "Ohne Namen"}
-                        </h2>
-                      </div>
-                      <div>
-                        {typeof item.age === "number" && item.age >= 1 ? (
-                          <span className="badge badge-primary badge-outline">
-                            {item.age} Jahre
-                          </span>
-                        ) : null}
-                      </div>
+                    
+                    <div className="w-full space-y-1">
+                      <h2 
+                        className="font-bold text-lg leading-tight truncate px-2" 
+                        title={item.name || "Ohne Namen"}
+                      >
+                        {item.name || "Ohne Namen"}
+                      </h2>
+                      {typeof item.age === "number" && item.age >= 1 && (
+                        <div className="badge badge-primary badge-outline badge-sm">
+                          {item.age} Jahre
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  <div className="mt-4 grid grid-cols-1 gap-2 text-sm">
-                    {item.phone ? (
-                      <div className="flex items-center gap-2">
-                        <FaPhone className="opacity-70" />
-                        <span className="font-medium">{item.phone}</span>
+                  <div className="mt-auto space-y-2 text-sm w-full bg-base-200/50 p-3 rounded-lg">
+                    {item.phone && (
+                      <div className="flex items-center gap-3 text-base-content/80 overflow-hidden">
+                        <FaPhone className="flex-shrink-0 text-primary w-4" />
+                        <span className="truncate font-medium" title={item.phone}>
+                          {item.phone}
+                        </span>
                       </div>
-                    ) : null}
-                    {item.email ? (
-                      <div className="flex items-center gap-2">
-                        <FaEnvelope className="opacity-70" />
-                        <span className="font-medium break-all">
+                    )}
+                    
+                    {item.email && (
+                      <div className="flex items-center gap-3 text-base-content/80 overflow-hidden">
+                        <FaEnvelope className="flex-shrink-0 text-primary w-4" />
+                        <span className="truncate font-medium" title={item.email}>
                           {item.email}
                         </span>
                       </div>
-                    ) : null}
-                    {item.maritalStatus ? (
-                      <div className="flex items-center gap-2">
-                        <FaRing className="opacity-70" />
-                        <span className="font-medium">
+                    )}
+                    
+                    {item.maritalStatus && (
+                      <div className="flex items-center gap-3 text-base-content/80 overflow-hidden">
+                        <FaRing className="flex-shrink-0 text-primary w-4" />
+                        <span className="truncate font-medium" title={item.maritalStatus}>
                           {item.maritalStatus}
                         </span>
                       </div>
-                    ) : null}
+                    )}
+                    
+                    {/* Agar ma'lumotlar bo'lmasa bo'sh joy ko'rsatmaslik uchun */}
+                    {!item.phone && !item.email && !item.maritalStatus && (
+                       <div className="text-center text-xs text-base-content/40 py-2">
+                         Keine Kontaktdaten
+                       </div>
+                    )}
                   </div>
                 </div>
               </div>

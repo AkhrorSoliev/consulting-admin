@@ -2,11 +2,13 @@ import { useState } from "react";
 import FormInput from "../components/FormInput";
 import useLogin from "../hooks/useLogin";
 import ReCAPTCHA from "react-google-recaptcha";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 function Login() {
   const { loginUser, isPending, error } = useLogin();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [captchaToken, setCaptchaToken] = useState(null);
 
@@ -50,14 +52,27 @@ function Login() {
               if (emailError) setEmailError("");
             }}
           />
-          <FormInput
-            label="Passwort"
-            placeholder="Passwort"
-            name="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
+          <div className="form-control w-full">
+            <label className="label">
+              <span className="label-text">Passwort</span>
+            </label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                placeholder="Passwort"
+                className="input input-bordered w-full pr-10"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <button
+                type="button"
+                className="absolute inset-y-0 right-0 pr-3 flex items-center cursor-pointer text-base-content/70 hover:text-base-content z-10"
+                onClick={() => setShowPassword(!showPassword)}
+              >
+                {showPassword ? <FaEyeSlash size={20} /> : <FaEye size={20} />}
+              </button>
+            </div>
+          </div>
 
           <div className="flex justify-center">
             <ReCAPTCHA
