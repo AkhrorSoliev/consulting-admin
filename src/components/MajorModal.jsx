@@ -1,15 +1,22 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { createCollection } from "../utils";
+import { useUserRole } from "../hooks/useUserRole";
 
 function MajorModal() {
   const [input, setInput] = useState("");
+  const { role } = useUserRole();
+  const isLimitedAdmin = useMemo(() => role === "limited_admin", [role]);
   const closeModal = () => {
     document.getElementById("my_modal_5").close();
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isLimitedAdmin) {
+      toast.error("Sie haben keine Berechtigung, Berufsfelder hinzuzufügen.");
+      return;
+    }
     const raw = String(input || "").trim();
     if (!raw) {
       toast.error("Der Name des Berufsfelds wurde nicht eingegeben.");
@@ -35,12 +42,15 @@ function MajorModal() {
             type="text"
             placeholder="Hier eingeben"
             className="input input-bordered w-full"
+            disabled={isLimitedAdmin}
             value={input}
             onChange={(e) => setInput(e.target.value)}
           />
 
           <div className="modal-action">
-            <button className="btn btn-secondary">Hinzufügen</button>
+            <button className="btn btn-secondary" disabled={isLimitedAdmin}>
+              Hinzufügen
+            </button>
             <button type="button" onClick={closeModal} className="btn">
               Schließen
             </button>

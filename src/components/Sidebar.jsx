@@ -7,11 +7,14 @@ import MajorsList from "./MajorsList";
 import { LuPanelLeftClose } from "react-icons/lu";
 import { FaHome } from "react-icons/fa";
 import { useTheme } from "../hooks/useTheme";
+import { useUserRole } from "../hooks/useUserRole";
 
 function Sidebar({ onClose }) {
   const { isPending, logoutUser } = useLogout();
   const { theme, toggleTheme } = useTheme();
   const isDracula = theme === "dracula";
+  const { role } = useUserRole();
+  const isLimitedAdmin = role === "limited_admin";
 
   const addMajor = () => {
     document.getElementById("my_modal_5").showModal();
@@ -46,12 +49,14 @@ function Sidebar({ onClose }) {
           </div>
 
           <div>
-            <button
-              onClick={addMajor}
-              className="btn btn-outline btn-primary btn-block mb-4"
-            >
-              <IoMdAddCircle className="mr-2 text-xl" /> Neues Berufsfeld
-            </button>
+            {!isLimitedAdmin && (
+              <button
+                onClick={addMajor}
+                className="btn btn-outline btn-primary btn-block mb-4"
+              >
+                <IoMdAddCircle className="mr-2 text-xl" /> Neues Berufsfeld
+              </button>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto">

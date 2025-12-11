@@ -1,14 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { subscribeToCollections, deleteCollectionByName } from "../utils";
 import { Link, useNavigate } from "react-router-dom";
 import { FaLink, FaTrash } from "react-icons/fa";
 import toast from "react-hot-toast";
+import { useUserRole } from "../hooks/useUserRole";
 
 export default function MajorsList() {
   const [majors, setMajors] = useState([]);
   const navigate = useNavigate();
+  const { role } = useUserRole();
+  const isLimitedAdmin = useMemo(() => role === "limited_admin", [role]);
   const handleCopyLink = (major) => {
-    const link = `http://localhost:5173/create?major=${major}`;
+    const link = `https://consulting-admin.vercel.app/create?major=${major}`;
     navigator.clipboard
       .writeText(link)
       .then(() => {
@@ -20,6 +23,10 @@ export default function MajorsList() {
   };
 
   const handleDeleteMajor = async (major) => {
+    if (isLimitedAdmin) {
+      toast.error("Sie haben keine Berechtigung, Berufsfelder zu löschen.");
+      return;
+    }
     if (window.confirm(`Möchten Sie „${major}“ wirklich löschen?`)) {
       try {
         await deleteCollectionByName(major);
@@ -51,13 +58,15 @@ export default function MajorsList() {
               key={major}
               className="flex w-full items-center gap-2 rounded-lg border border-base-200 p-2 hover:bg-base-200/50 transition-colors"
             >
-              <button
-                onClick={() => handleDeleteMajor(major)}
-                className="btn btn-sm btn-error"
-                aria-label={`„${major}“ löschen`}
-              >
-                <FaTrash />
-              </button>
+              {!isLimitedAdmin && (
+                <button
+                  onClick={() => handleDeleteMajor(major)}
+                  className="btn btn-sm btn-error"
+                  aria-label={`„${major}“ löschen`}
+                >
+                  <FaTrash />
+                </button>
+              )}
               <button
                 onClick={() => handleCopyLink(major)}
                 className="btn btn-sm btn-neutral"

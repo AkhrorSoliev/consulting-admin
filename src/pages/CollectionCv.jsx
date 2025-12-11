@@ -5,6 +5,7 @@ import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import toast from "react-hot-toast";
 import { FaEnvelope, FaPhone, FaRing, FaTrash } from "react-icons/fa";
 import { deleteDocumentById } from "../utils";
+import { useUserRole } from "../hooks/useUserRole";
 
 function CollectionCv() {
   const { major } = useParams();
@@ -13,6 +14,8 @@ function CollectionCv() {
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const { role } = useUserRole();
+  const isLimitedAdmin = role === "limited_admin";
 
   function calculateAgeFromDDMMYYYY(value) {
     try {
@@ -67,7 +70,9 @@ function CollectionCv() {
         const list = snap.docs.map((d) => {
           const data = d.data() || {};
           const pd = data.persoenlicheDaten || {};
-          const fullName = pd.name || "";
+          const firstName = String(pd.name || "").trim();
+          const lastName = String(pd.nachname || "").trim();
+          const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
           const age = calculateAgeFromDDMMYYYY(pd.geburtsdatum);
           return {
             id: d.id,
@@ -93,6 +98,10 @@ function CollectionCv() {
   }, [major]);
 
   async function handleDelete(itemId, displayName) {
+    if (isLimitedAdmin) {
+      toast.error("Sie haben keine Berechtigung, Kandidaten zu löschen.");
+      return;
+    }
     const colName = String(major || "").trim();
     if (!colName || !itemId) return;
     const ok = window.confirm(
@@ -185,23 +194,25 @@ function CollectionCv() {
                 }}
               >
                 <div className="card-body p-5 flex flex-col h-full">
-                  <div className="absolute top-2 right-2">
-                    <button
-                      className="btn btn-ghost btn-circle btn-sm text-error/70 hover:text-error hover:bg-error/10"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(item.id, item.name);
-                      }}
-                      disabled={deletingId === item.id}
-                      title="Löschen"
-                    >
-                      {deletingId === item.id ? (
-                        <span className="loading loading-spinner loading-xs" />
-                      ) : (
-                        <FaTrash size={16} />
-                      )}
-                    </button>
-                  </div>
+                  {!isLimitedAdmin && (
+                    <div className="absolute top-2 right-2">
+                      <button
+                        className="btn btn-ghost btn-circle btn-sm text-error/70 hover:text-error hover:bg-error/10"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(item.id, item.name);
+                        }}
+                        disabled={deletingId === item.id}
+                        title="Löschen"
+                      >
+                        {deletingId === item.id ? (
+                          <span className="loading loading-spinner loading-xs" />
+                        ) : (
+                          <FaTrash size={16} />
+                        )}
+                      </button>
+                    </div>
+                  )}
 
                   <div className="flex flex-col items-center text-center gap-3 mb-4">
                     <div className="avatar">
@@ -219,10 +230,10 @@ function CollectionCv() {
                         )}
                       </div>
                     </div>
-                    
+
                     <div className="w-full space-y-1">
-                      <h2 
-                        className="font-bold text-lg leading-tight truncate px-2" 
+                      <h2
+                        className="font-bold text-lg leading-tight truncate px-2"
                         title={item.name || "Ohne Namen"}
                       >
                         {item.name || "Ohne Namen"}
@@ -239,35 +250,44 @@ function CollectionCv() {
                     {item.phone && (
                       <div className="flex items-center gap-3 text-base-content/80 overflow-hidden">
                         <FaPhone className="flex-shrink-0 text-primary w-4" />
-                        <span className="truncate font-medium" title={item.phone}>
+                        <span
+                          className="truncate font-medium"
+                          title={item.phone}
+                        >
                           {item.phone}
                         </span>
                       </div>
                     )}
-                    
+
                     {item.email && (
                       <div className="flex items-center gap-3 text-base-content/80 overflow-hidden">
                         <FaEnvelope className="flex-shrink-0 text-primary w-4" />
-                        <span className="truncate font-medium" title={item.email}>
+                        <span
+                          className="truncate font-medium"
+                          title={item.email}
+                        >
                           {item.email}
                         </span>
                       </div>
                     )}
-                    
+
                     {item.maritalStatus && (
                       <div className="flex items-center gap-3 text-base-content/80 overflow-hidden">
                         <FaRing className="flex-shrink-0 text-primary w-4" />
-                        <span className="truncate font-medium" title={item.maritalStatus}>
+                        <span
+                          className="truncate font-medium"
+                          title={item.maritalStatus}
+                        >
                           {item.maritalStatus}
                         </span>
                       </div>
                     )}
-                    
+
                     {/* Agar ma'lumotlar bo'lmasa bo'sh joy ko'rsatmaslik uchun */}
                     {!item.phone && !item.email && !item.maritalStatus && (
-                       <div className="text-center text-xs text-base-content/40 py-2">
-                         Keine Kontaktdaten
-                       </div>
+                      <div className="text-center text-xs text-base-content/40 py-2">
+                        Keine Kontaktdaten
+                      </div>
                     )}
                   </div>
                 </div>
