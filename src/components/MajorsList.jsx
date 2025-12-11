@@ -11,7 +11,7 @@ export default function MajorsList() {
   const { role } = useUserRole();
   const isLimitedAdmin = useMemo(() => role === "limited_admin", [role]);
   const handleCopyLink = (major) => {
-    const link = `https://admin.consulting.de/create?major=${major}`;
+    const link = `https://admin.consultinguz.de/create?major=${major}`;
     navigator.clipboard
       .writeText(link)
       .then(() => {
