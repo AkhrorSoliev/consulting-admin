@@ -61,6 +61,14 @@ function Create() {
   const [noLangCert, setNoLangCert] = useState(false);
   const [captchaToken, setCaptchaToken] = useState(null);
 
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = "Consultinguz | Bewerbungsformular";
+    return () => {
+      document.title = previousTitle;
+    };
+  }, []);
+
   function uniqueKey(file) {
     return `${file?.name || ""}__${file?.size || 0}__${
       file?.lastModified || 0
