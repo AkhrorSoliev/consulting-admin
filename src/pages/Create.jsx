@@ -15,8 +15,8 @@ import {
   fromInputDate,
   generateSkills,
   uploadFilesToConsulting,
-  checkGlobalEmail,
-  registerGlobalEmail,
+  checkEmailRemote,
+  registerEmailRemote,
 } from "../utils";
 
 function Create() {
@@ -398,115 +398,120 @@ function Create() {
   }
 
   async function onSubmit(formData) {
-    if (!captchaToken) {
-      toast.error("Bitte bestätigen Sie, dass Sie kein Roboter sind.");
-      return;
-    }
-
-    const final = {
-      ...cv,
-      personalInfo: {
-        ...formData.personalInfo,
-        birthDate: fromInputDate(formData.personalInfo.birthDate),
-      },
-    };
-
-    const lebenslauf = {
-      persoenlicheDaten: {
-        name: final.personalInfo.name,
-        nachname: final.personalInfo.lastName,
-        geschlecht: final.personalInfo.gender,
-        adresse: final.personalInfo.address,
-        geburtsdatum: final.personalInfo.birthDate,
-        familienstand: final.personalInfo.maritalStatus,
-        telefon: final.personalInfo.phone,
-        email: final.personalInfo.email,
-        foto: final.personalInfo.photo,
-      },
-      berufserfahrung: Array.isArray(final.experience)
-        ? final.experience.map((exp) => ({
-            beginn: exp.startDate,
-            ende: exp.endDate,
-            position: exp.position,
-            unternehmen: exp.company,
-            ort: exp.location,
-            aufgaben: Array.isArray(exp.responsibilities)
-              ? exp.responsibilities
-              : [],
-          }))
-        : [],
-      ausbildung: Array.isArray(final.education)
-        ? final.education.map((edu) => ({
-            beginn: edu.startDate,
-            ende: edu.endDate,
-            bildungseinrichtung: edu.institution,
-            abschluss: edu.degree || "",
-          }))
-        : [],
-      faehigkeiten: {
-        sozialkompetenzen: final.skills?.softSkills || [],
-        pcKenntnisse: final.skills?.pcSkills || [],
-        sprachen: final.skills?.languages || {},
-      },
-    };
-
-    const major = (searchParams.get("major") || "").trim();
-
-    if (!major) {
-      toast.error("Der URL-Parameter ?major= fehlt oder ist leer.");
-      return;
-    }
-
-    const email = (formData.personalInfo.email || "").trim();
+    // Start loading immediately to reflect click action without delay
+    setIsUploading(true);
     try {
-      const { exists, data } = await checkGlobalEmail(email);
-      if (exists) {
-        setExistingMajor(data?.major || "Unbekannt");
-        setEnteredEmail(email);
-        setIsEmailModalOpen(true);
+      if (!captchaToken) {
+        toast.error("Bitte bestätigen Sie, dass Sie kein Roboter sind.");
         return;
       }
-    } catch (error) {
-      console.error(error);
-      toast.error(
-        "Fehler bei der Überprüfung der E-Mail-Adresse. Bitte versuchen Sie es erneut."
-      );
-      return;
-    }
 
-    try {
-      setIsUploading(true);
-      // Upload files first and attach URLs (skip if user marked as not available)
-      const [diplomaUrls, langUrls] = await Promise.all([
-        noDiploma ? Promise.resolve([]) : uploadFilesToConsulting(diplomaFiles),
-        noLangCert
-          ? Promise.resolve([])
-          : uploadFilesToConsulting(langCertFiles),
-      ]);
-
-      const payload = {
-        ...lebenslauf,
-        attachments: {
-          diplomas: diplomaUrls || [],
-          languageCertificates: langUrls || [],
-          noDiploma: Boolean(noDiploma),
-          noLanguageCertificate: Boolean(noLangCert),
+      const final = {
+        ...cv,
+        personalInfo: {
+          ...formData.personalInfo,
+          birthDate: fromInputDate(formData.personalInfo.birthDate),
         },
-        createdAt: Date.now(),
       };
 
-      await addDocument(major, payload);
-      await registerGlobalEmail(email, major);
-      toast.success("Daten erfolgreich gesendet!");
-      try {
-        localStorage.setItem("createCvSubmitted", "true");
-      } catch {
-        // ignore storage errors
+      const lebenslauf = {
+        persoenlicheDaten: {
+          name: final.personalInfo.name,
+          nachname: final.personalInfo.lastName,
+          geschlecht: final.personalInfo.gender,
+          adresse: final.personalInfo.address,
+          geburtsdatum: final.personalInfo.birthDate,
+          familienstand: final.personalInfo.maritalStatus,
+          telefon: final.personalInfo.phone,
+          email: final.personalInfo.email,
+          foto: final.personalInfo.photo,
+        },
+        berufserfahrung: Array.isArray(final.experience)
+          ? final.experience.map((exp) => ({
+              beginn: exp.startDate,
+              ende: exp.endDate,
+              position: exp.position,
+              unternehmen: exp.company,
+              ort: exp.location,
+              aufgaben: Array.isArray(exp.responsibilities)
+                ? exp.responsibilities
+                : [],
+            }))
+          : [],
+        ausbildung: Array.isArray(final.education)
+          ? final.education.map((edu) => ({
+              beginn: edu.startDate,
+              ende: edu.endDate,
+              bildungseinrichtung: edu.institution,
+              abschluss: edu.degree || "",
+            }))
+          : [],
+        faehigkeiten: {
+          sozialkompetenzen: final.skills?.softSkills || [],
+          pcKenntnisse: final.skills?.pcSkills || [],
+          sprachen: final.skills?.languages || {},
+        },
+      };
+
+      const major = (searchParams.get("major") || "").trim();
+
+      if (!major) {
+        toast.error("Der URL-Parameter ?major= fehlt oder ist leer.");
+        return;
       }
-      setIsSubmitted(true);
-    } catch (error) {
-      console.error("Fehler beim Senden an Firestore:", error);
-      toast.error(`Fehler beim Senden: ${error.message}`);
+
+      const email = (formData.personalInfo.email || "").trim();
+      try {
+        const { exists, data } = await checkEmailRemote(email);
+        if (exists) {
+          setExistingMajor(data?.major || "Unbekannt");
+          setEnteredEmail(email);
+          setIsEmailModalOpen(true);
+          return;
+        }
+      } catch (error) {
+        console.error(error);
+        toast.error(
+          "Fehler bei der Überprüfung der E-Mail-Adresse. Bitte versuchen Sie es erneut."
+        );
+        return;
+      }
+
+      try {
+        // Upload files first and attach URLs (skip if user marked as not available)
+        const [diplomaUrls, langUrls] = await Promise.all([
+          noDiploma
+            ? Promise.resolve([])
+            : uploadFilesToConsulting(diplomaFiles),
+          noLangCert
+            ? Promise.resolve([])
+            : uploadFilesToConsulting(langCertFiles),
+        ]);
+
+        const payload = {
+          ...lebenslauf,
+          attachments: {
+            diplomas: diplomaUrls || [],
+            languageCertificates: langUrls || [],
+            noDiploma: Boolean(noDiploma),
+            noLanguageCertificate: Boolean(noLangCert),
+          },
+          createdAt: Date.now(),
+        };
+
+        await addDocument(major, payload);
+        await registerEmailRemote(email, major);
+        toast.success("Daten erfolgreich gesendet!");
+        try {
+          localStorage.setItem("createCvSubmitted", "true");
+        } catch {
+          // ignore storage errors
+        }
+        setIsSubmitted(true);
+      } catch (error) {
+        console.error("Fehler beim Senden an Firestore:", error);
+        toast.error(`Fehler beim Senden: ${error.message}`);
+      }
     } finally {
       setIsUploading(false);
     }

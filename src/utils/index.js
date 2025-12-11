@@ -88,43 +88,6 @@ export async function deleteCollectionByName(name) {
   }
 }
 
-// Check if email already exists in the global 'all_emails' collection
-export async function checkGlobalEmail(email) {
-  try {
-    if (!email) return { exists: false };
-    const docRef = doc(db, "all_emails", email);
-    const snapshot = await getDoc(docRef);
-    if (snapshot.exists()) {
-      return { exists: true, data: snapshot.data() };
-    }
-    return { exists: false };
-  } catch (error) {
-    console.error("checkGlobalEmail error:", error);
-    throw error;
-  }
-}
-
-// Register an email in the global 'all_emails' collection
-export async function registerGlobalEmail(email, major) {
-  const safeEmail = String(email || "").trim();
-  if (!safeEmail) {
-    console.error("registerGlobalEmail: Email is empty");
-    return;
-  }
-  
-  try {
-    const docRef = doc(db, "all_emails", safeEmail);
-    await setDoc(docRef, {
-      email: safeEmail,
-      major,
-      createdAt: Date.now(),
-    });
-  } catch (error) {
-    console.error("registerGlobalEmail error:", error);
-    throw error;
-  }
-}
-
 // Convert an image File to a high-quality Base64 data URL.
 // Options:
 // - maxWidth/maxHeight: downscale large images while preserving aspect ratio
@@ -355,7 +318,9 @@ export async function uploadFileToConsulting(file) {
   if (!response.ok) {
     throw new Error(`Upload failed: ${response.status}`);
   }
-  const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+  const contentType = String(
+    response.headers.get("content-type") || ""
+  ).toLowerCase();
   const rawText = await response.text();
   let parsed;
   if (contentType.includes("application/json")) {
@@ -378,8 +343,10 @@ export async function uploadFileToConsulting(file) {
     else if (typeof parsed.link === "string") urlCandidate = parsed.link;
     else if (parsed.data) {
       if (typeof parsed.data === "string") urlCandidate = parsed.data;
-      else if (typeof parsed.data?.url === "string") urlCandidate = parsed.data.url;
-      else if (typeof parsed.data?.link === "string") urlCandidate = parsed.data.link;
+      else if (typeof parsed.data?.url === "string")
+        urlCandidate = parsed.data.url;
+      else if (typeof parsed.data?.link === "string")
+        urlCandidate = parsed.data.link;
     } else if (Array.isArray(parsed)) {
       const firstUrl = parsed.find(
         (v) => typeof v === "string" && /^https?:\/\//.test(v)
@@ -430,4 +397,51 @@ export async function deleteDocumentById(collectionName, id) {
   const docRef = doc(db, collectionName, id);
   await deleteDoc(docRef);
   return { id };
+}
+
+// ---- External email API helpers ----
+const EMAIL_API_BASE = "https://json-api.uz/api/project/consultinguz";
+
+export async function checkEmailRemote(email) {
+  const safeEmail = String(email || "")
+    .trim()
+    .toLowerCase();
+  if (!safeEmail) return { exists: false };
+
+  const url = `${EMAIL_API_BASE}/all_Emails?email=${encodeURIComponent(
+    safeEmail
+  )}`;
+  const res = await fetch(url, { method: "GET" });
+  if (!res.ok) {
+    throw new Error(`E-Mail Prüfung fehlgeschlagen: ${res.status}`);
+  }
+  const json = await res.json();
+  const list = Array.isArray(json?.data) ? json.data : [];
+  const match =
+    list.find(
+      (item) =>
+        String(item?.email || "")
+          .trim()
+          .toLowerCase() === safeEmail
+    ) || null;
+  if (match) return { exists: true, data: match };
+  return { exists: false };
+}
+
+export async function registerEmailRemote(email, major) {
+  const safeEmail = String(email || "").trim();
+  if (!safeEmail) return;
+
+  const res = await fetch(`${EMAIL_API_BASE}/all_Emails`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email: safeEmail,
+      major: String(major || "").trim() || null,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`E-Mail Registrierung fehlgeschlagen: ${res.status}`);
+  }
+  return res.json().catch(() => ({}));
 }

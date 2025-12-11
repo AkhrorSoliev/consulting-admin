@@ -17,28 +17,32 @@ import {
 } from "@react-pdf/renderer";
 
 Font.register({
-  family: "Mulish",
+  family: "Inter",
   fonts: [
     {
-      src: "https://fonts.gstatic.com/s/mulish/v18/1Ptyg83HX_SGhgqO0yLcmjzUAuWexZNRwaA.ttf",
+      src: "https://github.com/google/fonts/raw/main/ofl/inter/Inter%5Bwght%5D.ttf",
       fontWeight: 400,
+      fontStyle: "normal",
     },
     {
-      src: "https://fonts.gstatic.com/s/mulish/v18/1Ptwg83HX_SGhgqk2hAjQlW_mEuZ0FsSKeOvHg.ttf",
+      src: "https://github.com/google/fonts/raw/main/ofl/inter/Inter%5Bwght%5D.ttf",
+      fontWeight: 500,
+      fontStyle: "normal",
+    },
+    {
+      src: "https://github.com/google/fonts/raw/main/ofl/inter/Inter%5Bwght%5D.ttf",
+      fontWeight: 600,
+      fontStyle: "normal",
+    },
+    {
+      src: "https://github.com/google/fonts/raw/main/ofl/inter/Inter%5Bwght%5D.ttf",
+      fontWeight: 700,
+      fontStyle: "normal",
+    },
+    {
+      src: "https://github.com/google/fonts/raw/main/ofl/inter/Inter-Italic%5Bwght%5D.ttf",
       fontWeight: 400,
       fontStyle: "italic",
-    },
-    {
-      src: "https://fonts.gstatic.com/s/mulish/v18/1Ptyg83HX_SGhgqO0yLcmjzUAuWexaFRwaA.ttf",
-      fontWeight: 500,
-    },
-    {
-      src: "https://fonts.gstatic.com/s/mulish/v18/1Ptyg83HX_SGhgqO0yLcmjzUAuWexU1WwaA.ttf",
-      fontWeight: 600,
-    },
-    {
-      src: "https://fonts.gstatic.com/s/mulish/v18/1Ptyg83HX_SGhgqO0yLcmjzUAuWexXRWwaA.ttf",
-      fontWeight: 700,
     },
   ],
 });
@@ -241,7 +245,7 @@ function Generate() {
   const pdfStyles = StyleSheet.create({
     page: {
       padding: 44,
-      fontFamily: "Mulish",
+      fontFamily: "Inter",
       fontSize: 11,
       color: "#0f172a",
       lineHeight: 1.38,
@@ -1245,7 +1249,7 @@ function Generate() {
                   <div
                     className="w-full bg-white shadow-2xl w-[210mm] min-h-[297mm] p-[44pt] text-[#0f172a] text-[11pt] leading-[1.38] origin-top"
                     style={{
-                      fontFamily: "Mulish, Helvetica, Arial, sans-serif",
+                      fontFamily: "Inter, Helvetica, Arial, sans-serif",
                     }}
                   >
                     {/* Header */}

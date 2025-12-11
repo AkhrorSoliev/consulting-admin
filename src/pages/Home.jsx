@@ -198,21 +198,22 @@ function Home() {
           if (mStatus.includes("ledig")) single++;
           else if (mStatus.includes("verheiratet")) married++;
 
-          // Gender Inference (based on Last Name suffix)
-          const fullName = (d?.persoenlicheDaten?.name || "").trim();
-          if (fullName) {
-            const parts = fullName.split(/\s+/);
-            const lastName = parts[parts.length - 1].toLowerCase();
-            // Basic heuristic for Uzbek/Russian names: 
-            // -va -> Female
-            // -v -> Male (if not -va)
-            if (lastName.endsWith("va")) {
-              female++;
-            } else if (lastName.endsWith("v")) {
-              male++;
-            } else {
-              unknownGender++;
-            }
+          // Gender from stored value (prefer explicit field over heuristics)
+          const genderValue = (
+            d?.persoenlicheDaten?.geschlecht ||
+            d?.geschlecht ||
+            ""
+          )
+            .toString()
+            .trim()
+            .toLowerCase();
+
+          if (["männlich", "maennlich", "m", "male"].includes(genderValue)) {
+            male++;
+          } else if (
+            ["weiblich", "w", "female", "f"].includes(genderValue)
+          ) {
+            female++;
           } else {
             unknownGender++;
           }
