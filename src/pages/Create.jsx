@@ -9,6 +9,7 @@ import ExperienceSection from "../components/ExperienceSection";
 import EducationSection from "../components/EducationSection";
 import SkillsSection from "../components/SkillsSection";
 import LanguagesSection from "../components/LanguagesSection";
+import RequiredLabel from "../components/RequiredLabel";
 import {
   imageFileToBase64,
   toInputDate,
@@ -58,9 +59,13 @@ function Create() {
   const [diplomaFiles, setDiplomaFiles] = useState([]);
   const [langCertFiles, setLangCertFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [noDiploma, setNoDiploma] = useState(false);
+  const [diplomaError, setDiplomaError] = useState(false);
   const [noLangCert, setNoLangCert] = useState(false);
   const [captchaToken, setCaptchaToken] = useState(null);
+  const [showEducationWarning, setShowEducationWarning] = useState(false);
+  const [showExperienceWarning, setShowExperienceWarning] = useState(false);
+  const [educationErrors, setEducationErrors] = useState([]);
+  const [experienceErrors, setExperienceErrors] = useState([]);
 
   useEffect(() => {
     const previousTitle = document.title;
@@ -89,6 +94,46 @@ function Create() {
     return (files || []).filter((_, i) => i !== idx);
   }
 
+  function isEducationEntryFilled(edu) {
+    const hasStart = Boolean((edu?.startDate || "").trim());
+    const hasEnd =
+      edu?.endDate === "bis heute" || Boolean((edu?.endDate || "").trim());
+    const hasInstitution = Boolean((edu?.institution || "").trim());
+    const hasDegree = Boolean((edu?.degree || "").trim());
+    return hasStart && hasEnd && hasInstitution && hasDegree;
+  }
+
+  function isExperienceEntryFilled(exp) {
+    const hasStart = Boolean((exp?.startDate || "").trim());
+    const hasEnd =
+      exp?.endDate === "bis heute" || Boolean((exp?.endDate || "").trim());
+    const hasPosition = Boolean((exp?.position || "").trim());
+    const hasCompany = Boolean((exp?.company || "").trim());
+    const hasLocation = Boolean((exp?.location || "").trim());
+    return hasStart && hasEnd && hasPosition && hasCompany && hasLocation;
+  }
+
+  function getEducationErrors(entries) {
+    if (!Array.isArray(entries)) return [];
+    return entries.map((edu) => ({
+      startDate: !(edu?.startDate || "").trim(),
+      endDate: !(edu?.endDate === "bis heute" || (edu?.endDate || "").trim()),
+      institution: !(edu?.institution || "").trim(),
+      degree: !(edu?.degree || "").trim(),
+    }));
+  }
+
+  function getExperienceErrors(entries) {
+    if (!Array.isArray(entries)) return [];
+    return entries.map((exp) => ({
+      startDate: !(exp?.startDate || "").trim(),
+      endDate: !(exp?.endDate === "bis heute" || (exp?.endDate || "").trim()),
+      position: !(exp?.position || "").trim(),
+      company: !(exp?.company || "").trim(),
+      location: !(exp?.location || "").trim(),
+    }));
+  }
+
   useEffect(() => {
     try {
       const v = localStorage.getItem("createCvSubmitted");
@@ -110,6 +155,27 @@ function Create() {
     }
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isPrivacyOpen, isGuideOpen]);
+
+  useEffect(() => {
+    const hasCompleteEducation =
+      Array.isArray(cv.education) &&
+      cv.education.length > 0 &&
+      cv.education.every((edu) => isEducationEntryFilled(edu));
+    if (hasCompleteEducation) {
+      setShowEducationWarning(false);
+      setEducationErrors([]);
+    }
+  }, [cv.education]);
+
+  useEffect(() => {
+    const hasIncompleteExperience =
+      Array.isArray(cv.experience) &&
+      cv.experience.some((exp) => !isExperienceEntryFilled(exp));
+    if (!hasIncompleteExperience) {
+      setShowExperienceWarning(false);
+      setExperienceErrors([]);
+    }
+  }, [cv.experience]);
 
   const {
     register,
@@ -418,6 +484,41 @@ function Create() {
         return;
       }
 
+      const hasEducation =
+        Array.isArray(cv.education) &&
+        cv.education.length > 0 &&
+        cv.education.every((edu) => isEducationEntryFilled(edu));
+      if (!hasEducation) {
+        setShowEducationWarning(true);
+        setEducationErrors(getEducationErrors(cv.education));
+        toast.error(
+          "Bitte fügen Sie mindestens eine vollständige Ausbildungsstation hinzu (mindestens Schule) und füllen Sie alle Felder aus."
+        );
+        return;
+      }
+
+      const hasIncompleteExperience =
+        Array.isArray(cv.experience) &&
+        cv.experience.some((exp) => !isExperienceEntryFilled(exp));
+      if (hasIncompleteExperience) {
+        setShowExperienceWarning(true);
+        setExperienceErrors(getExperienceErrors(cv.experience));
+        toast.error(
+          "Bitte füllen Sie alle Felder in jeder Berufserfahrung aus oder entfernen Sie unvollständige Einträge."
+        );
+        return;
+      }
+
+      if (!Array.isArray(diplomaFiles) || diplomaFiles.length === 0) {
+        setDiplomaError(true);
+        toast.error(
+          "Bitte laden Sie mindestens ein Diplom/Schulzeugnis als PDF hoch."
+        );
+        return;
+      } else {
+        setDiplomaError(false);
+      }
+
       const final = {
         ...cv,
         personalInfo: {
@@ -490,11 +591,9 @@ function Create() {
       }
 
       try {
-        // Upload files first and attach URLs (skip if user marked as not available)
+        // Upload files first and attach URLs (language certificates optional)
         const [diplomaUrls, langUrls] = await Promise.all([
-          noDiploma
-            ? Promise.resolve([])
-            : uploadFilesToConsulting(diplomaFiles),
+          uploadFilesToConsulting(diplomaFiles),
           noLangCert
             ? Promise.resolve([])
             : uploadFilesToConsulting(langCertFiles),
@@ -505,7 +604,6 @@ function Create() {
           attachments: {
             diplomas: diplomaUrls || [],
             languageCertificates: langUrls || [],
-            noDiploma: Boolean(noDiploma),
             noLanguageCertificate: Boolean(noLangCert),
           },
           createdAt: Date.now(),
@@ -593,7 +691,7 @@ function Create() {
                       rules={{ required: "Vorname ist erforderlich" }}
                       render={({ field, fieldState }) => (
                         <FormInput
-                          label="Vorname"
+                          label={<RequiredLabel>Vorname</RequiredLabel>}
                           placeholder="Vorname"
                           inputClassName={
                             errors?.personalInfo?.name ? "input-error" : ""
@@ -611,7 +709,7 @@ function Create() {
                       rules={{ required: "Nachname ist erforderlich" }}
                       render={({ field, fieldState }) => (
                         <FormInput
-                          label="Nachname"
+                          label={<RequiredLabel>Nachname</RequiredLabel>}
                           placeholder="Nachname"
                           inputClassName={
                             errors?.personalInfo?.lastName ? "input-error" : ""
@@ -625,7 +723,9 @@ function Create() {
                     />
                     <div className="md:col-span-2">
                       <label className="label">
-                        <span className="label-text">Geschlecht</span>
+                        <RequiredLabel className="label-text">
+                          Geschlecht
+                        </RequiredLabel>
                       </label>
                       <div className="flex gap-6">
                         <label className="cursor-pointer flex items-center gap-2">
@@ -668,7 +768,9 @@ function Create() {
                               className="label"
                               htmlFor="personalInfo-birthDate"
                             >
-                              <span className="label-text">Geburtsdatum</span>
+                              <RequiredLabel className="label-text">
+                                Geburtsdatum
+                              </RequiredLabel>
                             </label>
                             <input
                               id="personalInfo-birthDate"
@@ -700,7 +802,9 @@ function Create() {
                               className="label"
                               htmlFor="personalInfo-maritalStatus"
                             >
-                              <span className="label-text">Familienstand</span>
+                              <RequiredLabel className="label-text">
+                                Familienstand
+                              </RequiredLabel>
                             </label>
                             <select
                               id="personalInfo-maritalStatus"
@@ -730,7 +834,7 @@ function Create() {
                       rules={{ required: "Telefonnummer ist erforderlich" }}
                       render={({ field, fieldState }) => (
                         <FormInput
-                          label="Telefonnummer"
+                          label={<RequiredLabel>Telefonnummer</RequiredLabel>}
                           placeholder="Telefonnummer"
                           inputClassName={
                             errors?.personalInfo?.phone ? "input-error" : ""
@@ -755,7 +859,7 @@ function Create() {
                         }}
                         render={({ field, fieldState }) => (
                           <FormInput
-                            label="E-Mail"
+                            label={<RequiredLabel>E-Mail</RequiredLabel>}
                             placeholder="E-Mail"
                             type="email"
                             inputClassName={
@@ -774,9 +878,9 @@ function Create() {
                         className="label"
                         htmlFor="personalInfo-photo-file"
                       >
-                        <span className="label-text">
+                        <RequiredLabel className="label-text">
                           Foto hochladen (JPEG/PNG)
-                        </span>
+                        </RequiredLabel>
                       </label>
                       <input
                         type="hidden"
@@ -805,7 +909,9 @@ function Create() {
                               className="label"
                               htmlFor="personalInfo-address"
                             >
-                              <span className="label-text">Adresse</span>
+                              <RequiredLabel className="label-text">
+                                Adresse
+                              </RequiredLabel>
                             </label>
                             <textarea
                               id="personalInfo-address"
@@ -835,6 +941,8 @@ function Create() {
                     onRemoveExperience={removeExperience}
                     onAddResponsibility={addResponsibility}
                     onRemoveResponsibility={removeResponsibility}
+                    showRequiredWarning={showExperienceWarning}
+                    errors={experienceErrors}
                   />
 
                   <div className="divider">Ausbildung</div>
@@ -843,6 +951,8 @@ function Create() {
                     onAddEducation={addEducation}
                     onUpdateEducation={updateEducation}
                     onRemoveEducation={removeEducation}
+                    showRequiredWarning={showEducationWarning}
+                    errors={educationErrors}
                   />
 
                   <div className="divider">Fähigkeiten</div>
@@ -874,9 +984,9 @@ function Create() {
                     <div>
                       <div className="flex items-center justify-between">
                         <label className="label" htmlFor="doc-diplomas">
-                          <span className="label-text">
-                            Diplome (mehrere möglich)
-                          </span>
+                          <RequiredLabel className="label-text">
+                            Diplome (PDF, mindestens Schulzeugnis)
+                          </RequiredLabel>
                         </label>
                         {Array.isArray(diplomaFiles) &&
                         diplomaFiles.length > 0 ? (
@@ -889,28 +999,19 @@ function Create() {
                           </button>
                         ) : null}
                       </div>
-                      <div className="form-control mb-2">
-                        <label className="cursor-pointer flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            className="checkbox checkbox-sm"
-                            checked={noDiploma}
-                            onChange={(e) => {
-                              const v = e.target.checked;
-                              setNoDiploma(v);
-                              if (v) setDiplomaFiles([]);
-                            }}
-                          />
-                          <span className="text-sm">Kein Diplom</span>
-                        </label>
-                      </div>
+                      <p className="text-xs text-base-content/70 mb-2">
+                        Pflicht: Laden Sie mindestens Ihr Schulzeugnis als PDF
+                        hoch.
+                      </p>
                       <input
                         id="doc-diplomas"
                         type="file"
                         multiple
                         accept=".pdf,application/pdf"
-                        className="file-input file-input-bordered w-full"
-                        disabled={noDiploma}
+                        className={`file-input file-input-bordered w-full ${
+                          diplomaError ? "file-input-error" : ""
+                        }`}
+                        aria-invalid={diplomaError ? "true" : "false"}
                         onChange={(e) => {
                           const raw = Array.from(e.target.files || []);
                           const pdfs = raw.filter(
@@ -923,11 +1024,20 @@ function Create() {
                           if (invalid > 0) {
                             toast.error("Nur PDF-Dateien sind erlaubt.");
                           }
+                          if (pdfs.length > 0) {
+                            setDiplomaError(false);
+                          }
                           setDiplomaFiles((prev) => mergeFiles(prev, pdfs));
                           // reset value to allow picking the same file again if needed
                           e.target.value = "";
                         }}
                       />
+                      {diplomaError ? (
+                        <p className="text-error text-sm mt-1">
+                          Mindestens ein Diplom bzw. Schulzeugnis (PDF)
+                          erforderlich.
+                        </p>
+                      ) : null}
                       {Array.isArray(diplomaFiles) &&
                       diplomaFiles.length > 0 ? (
                         <div className="mt-2">
@@ -1244,7 +1354,10 @@ function Create() {
           >
             <div className="bg-base-100 text-base-content rounded-box shadow-xl overflow-hidden">
               <div className="flex items-center justify-between px-4 py-3 border-b border-base-300">
-                <h3 id="guide-title" className="text-lg md:text-xl font-semibold">
+                <h3
+                  id="guide-title"
+                  className="text-lg md:text-xl font-semibold"
+                >
                   Video-Guide: Formular ausfüllen
                 </h3>
                 <button

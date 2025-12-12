@@ -9,6 +9,8 @@ function ExperienceSection({
   onRemoveExperience,
   onAddResponsibility,
   onRemoveResponsibility,
+  showRequiredWarning = false,
+  errors = [],
 }) {
   const fieldInput =
     "input input-bordered w-full";
@@ -35,15 +37,17 @@ function ExperienceSection({
               <label className="label" htmlFor={`exp-${idx}-startDate`}>
                 <span className="label-text">Startdatum</span>
               </label>
-              <input
-                id={`exp-${idx}-startDate`}
-                type="month"
-                className={fieldInput}
-                value={toInputMonth(exp.startDate)}
-                onChange={(e) =>
-                  onUpdateExperience(idx, "startDate", fromInputMonth(e.target.value))
-                }
-              />
+            <input
+              id={`exp-${idx}-startDate`}
+              type="month"
+              className={`${fieldInput} ${
+                errors[idx]?.startDate ? "input-error" : ""
+              }`}
+              value={toInputMonth(exp.startDate)}
+              onChange={(e) =>
+                onUpdateExperience(idx, "startDate", fromInputMonth(e.target.value))
+              }
+            />
             </div>
             <div>
               <label className="label" htmlFor={`exp-${idx}-endDate`}>
@@ -53,7 +57,9 @@ function ExperienceSection({
                 <input
                   id={`exp-${idx}-endDate`}
                   type="month"
-                  className={fieldInput}
+                  className={`${fieldInput} ${
+                    errors[idx]?.endDate ? "input-error" : ""
+                  }`}
                   disabled={exp.endDate === "bis heute"}
                   value={exp.endDate === "bis heute" ? "" : toInputMonth(exp.endDate)}
                   onChange={(e) =>
@@ -77,12 +83,14 @@ function ExperienceSection({
               label="Position"
               placeholder="Position"
               value={exp.position}
+              inputClassName={errors[idx]?.position ? "input-error" : ""}
               onChange={(e) => onUpdateExperience(idx, "position", e.target.value)}
             />
             <FormInput
               label="Unternehmen"
               placeholder="Unternehmen"
               value={exp.company}
+              inputClassName={errors[idx]?.company ? "input-error" : ""}
               onChange={(e) => onUpdateExperience(idx, "company", e.target.value)}
             />
             <FormInput
@@ -90,6 +98,7 @@ function ExperienceSection({
               label="Ort (Stadt, Land)"
               placeholder="Ort (Stadt, Land)"
               value={exp.location}
+              inputClassName={errors[idx]?.location ? "input-error" : ""}
               onChange={(e) => onUpdateExperience(idx, "location", e.target.value)}
             />
           </div>
@@ -110,11 +119,18 @@ function ExperienceSection({
       ))}
       <button
         type="button"
-        className="btn btn-outline btn-sm"
+        className={`btn btn-outline btn-sm ${
+          showRequiredWarning ? "btn-error border-error/60 text-error" : ""
+        }`}
         onClick={onAddExperience}
       >
         + Berufserfahrung hinzufügen
       </button>
+      {showRequiredWarning ? (
+        <div className="mt-2 alert alert-warning text-sm">
+          Bitte füllen Sie alle Felder in jeder Berufserfahrung aus oder entfernen Sie unvollständige Einträge.
+        </div>
+      ) : null}
     </div>
   );
 }
