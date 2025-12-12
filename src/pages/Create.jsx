@@ -50,6 +50,7 @@ function Create() {
   const [recentlyAdded, setRecentlyAdded] = useState({ soft: [], pc: [] });
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [existingMajor, setExistingMajor] = useState("");
   const [enteredEmail, setEnteredEmail] = useState("");
@@ -99,13 +100,16 @@ function Create() {
 
   useEffect(() => {
     function onKeyDown(e) {
-      if (e.key === "Escape") setIsPrivacyOpen(false);
+      if (e.key === "Escape") {
+        setIsPrivacyOpen(false);
+        setIsGuideOpen(false);
+      }
     }
-    if (isPrivacyOpen) {
+    if (isPrivacyOpen || isGuideOpen) {
       window.addEventListener("keydown", onKeyDown);
     }
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isPrivacyOpen]);
+  }, [isPrivacyOpen, isGuideOpen]);
 
   const {
     register,
@@ -552,6 +556,23 @@ function Create() {
               </div>
             ) : (
               <>
+                <div className="w-full">
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4 rounded-box border border-base-300 bg-base-200/60 p-3">
+                    <div className="space-y-1">
+                      <p className="text-sm font-semibold">Video-Guide</p>
+                      <p className="text-sm text-base-content/70">
+                        Kurze Anleitung zum Ausfüllen des Formulars.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-primary btn-sm"
+                      onClick={() => setIsGuideOpen(true)}
+                    >
+                      Video ansehen
+                    </button>
+                  </div>
+                </div>
                 <div className="w-full flex justify-center">
                   <h2 className="card-title text-3xl font-bold text-center">
                     Persönliche Daten
@@ -1202,6 +1223,50 @@ function Create() {
                   >
                     Schließen
                   </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isGuideOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-base-content/50 backdrop-blur-sm"
+            onClick={() => setIsGuideOpen(false)}
+          />
+          <div
+            className="relative w-full max-w-4xl mx-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="guide-title"
+          >
+            <div className="bg-base-100 text-base-content rounded-box shadow-xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-base-300">
+                <h3 id="guide-title" className="text-lg md:text-xl font-semibold">
+                  Video-Guide: Formular ausfüllen
+                </h3>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setIsGuideOpen(false)}
+                  aria-label="Schließen"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-4 bg-base-200/40">
+                <div className="w-full aspect-video rounded-box overflow-hidden border border-base-300">
+                  <iframe
+                    className="w-full h-full"
+                    src="https://www.youtube-nocookie.com/embed/sx3I8o5yJA4?si=VcZUufcpOgByVRwX"
+                    title="Video-Guide"
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    referrerPolicy="strict-origin-when-cross-origin"
+                    allowFullScreen
+                  />
                 </div>
               </div>
             </div>
