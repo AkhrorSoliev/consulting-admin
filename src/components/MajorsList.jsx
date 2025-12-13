@@ -10,6 +10,7 @@ export default function MajorsList() {
   const navigate = useNavigate();
   const { role } = useUserRole();
   const isLimitedAdmin = useMemo(() => role === "limited_admin", [role]);
+  const isDeleteDisabled = true; // temporarily disable deleting majors
   const handleCopyLink = (major) => {
     const link = `https://admin.consultinguz.de/create?major=${major}`;
     // const link = `http://localhost:5173/create?major=${major}`;
@@ -24,6 +25,10 @@ export default function MajorsList() {
   };
 
   const handleDeleteMajor = async (major) => {
+    if (isDeleteDisabled) {
+      toast.error("Löschen von Berufsfeldern ist vorübergehend deaktiviert.");
+      return;
+    }
     if (isLimitedAdmin) {
       toast.error("Sie haben keine Berechtigung, Berufsfelder zu löschen.");
       return;
@@ -62,7 +67,8 @@ export default function MajorsList() {
               {!isLimitedAdmin && (
                 <button
                   onClick={() => handleDeleteMajor(major)}
-                  className="btn btn-sm btn-error"
+                  className="btn btn-sm btn-error btn-disabled"
+                  disabled
                   aria-label={`„${major}“ löschen`}
                 >
                   <FaTrash />

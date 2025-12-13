@@ -5,7 +5,7 @@ import { IoMdAddCircle } from "react-icons/io";
 import MajorModal from "./MajorModal";
 import MajorsList from "./MajorsList";
 import { LuPanelLeftClose } from "react-icons/lu";
-import { FaHome } from "react-icons/fa";
+import { FaHome, FaUserCircle } from "react-icons/fa";
 import { useTheme } from "../hooks/useTheme";
 import { useUserRole } from "../hooks/useUserRole";
 
@@ -66,6 +66,14 @@ function Sidebar({ onClose }) {
           </div>
 
           <div className="pt-4 mt-auto space-y-2">
+            <Link
+              to="/profile"
+              className="btn btn-outline w-full justify-center"
+              aria-label="Profil sahifasiga o'tish"
+            >
+              <FaUserCircle className="text-xl mr-2" />
+              Profil
+            </Link>
             <button
               type="button"
               onClick={toggleTheme}

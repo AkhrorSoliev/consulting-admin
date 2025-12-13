@@ -445,3 +445,19 @@ export async function registerEmailRemote(email, major) {
   }
   return res.json().catch(() => ({}));
 }
+
+export async function deleteEmailRemote(email) {
+  const safeEmail = String(email || "")
+    .trim()
+    .toLowerCase();
+  if (!safeEmail) return;
+
+  const url = `${EMAIL_API_BASE}/all_Emails/by-property?property=email&value=${encodeURIComponent(
+    safeEmail
+  )}&all=false`;
+  const res = await fetch(url, { method: "DELETE" });
+  if (!res.ok) {
+    throw new Error(`E-Mail Löschung fehlgeschlagen: ${res.status}`);
+  }
+  return res.json().catch(() => ({}));
+}

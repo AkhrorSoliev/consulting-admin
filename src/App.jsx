@@ -15,6 +15,7 @@ import { auth } from "./firebase/config";
 import { login, setAuthReady } from "./features/authSlice";
 import Create from "./pages/Create";
 import Generate from "./pages/Generate";
+import Profile from "./pages/Profile";
 
 function App() {
   const dispatch = useDispatch();
@@ -31,6 +32,10 @@ function App() {
         {
           index: true,
           element: <Home />,
+        },
+        {
+          path: "/profile",
+          element: <Profile />,
         },
         {
           path: "/collectionCv/:major",

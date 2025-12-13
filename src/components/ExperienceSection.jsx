@@ -40,6 +40,7 @@ function ExperienceSection({
             <input
               id={`exp-${idx}-startDate`}
               type="month"
+              placeholder="YYYY-MM"
               className={`${fieldInput} ${
                 errors[idx]?.startDate ? "input-error" : ""
               }`}
@@ -57,6 +58,7 @@ function ExperienceSection({
                 <input
                   id={`exp-${idx}-endDate`}
                   type="month"
+                  placeholder="YYYY-MM"
                   className={`${fieldInput} ${
                     errors[idx]?.endDate ? "input-error" : ""
                   }`}

@@ -4,7 +4,7 @@ import { db } from "../firebase/config";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import toast from "react-hot-toast";
 import { FaEnvelope, FaPhone, FaRing, FaTrash } from "react-icons/fa";
-import { deleteDocumentById } from "../utils";
+import { deleteDocumentById, deleteEmailRemote } from "../utils";
 import { useUserRole } from "../hooks/useUserRole";
 
 function CollectionCv() {
@@ -112,6 +112,16 @@ function CollectionCv() {
     if (!ok) return;
     try {
       setDeletingId(itemId);
+
+      // 1) Delete candidate email from external API
+      const targetEmail = String(
+        filteredItems.find((it) => it.id === itemId)?.email || ""
+      ).trim();
+      if (targetEmail) {
+        await deleteEmailRemote(targetEmail);
+      }
+
+      // 2) Delete from Firestore
       await deleteDocumentById(colName, itemId);
       toast.success("Kandidat erfolgreich gelöscht.");
     } catch (err) {
@@ -183,7 +193,7 @@ function CollectionCv() {
             {filteredItems.map((item) => (
               <div
                 key={item.id}
-                className="card bg-base-100 border border-base-300 shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer h-full flex flex-col"
+                className="card bg-base-100 border border-base-300 shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer h-full flex flex-col relative overflow-hidden"
                 onClick={() => navigate(`/generate/${major}/${item.id}`)}
                 role="button"
                 tabIndex={0}
@@ -291,6 +301,11 @@ function CollectionCv() {
                     )}
                   </div>
                 </div>
+                {deletingId === item.id && (
+                  <div className="absolute inset-0 bg-base-100/80 backdrop-blur-[1px] grid place-items-center z-20">
+                    <span className="loading loading-spinner loading-md text-primary" />
+                  </div>
+                )}
               </div>
             ))}
           </div>

@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
 import toast from "react-hot-toast";
 import ReCAPTCHA from "react-google-recaptcha";
+import { FaPaperPlane, FaTelegramPlane, FaVideo } from "react-icons/fa";
 import { addDocument } from "../utils";
 import FormInput from "../components/FormInput";
 import ExperienceSection from "../components/ExperienceSection";
@@ -19,6 +20,10 @@ import {
   checkEmailRemote,
   registerEmailRemote,
 } from "../utils";
+import {
+  CANDIDATE_STATUS_DEFAULT,
+  candidateStatusMap,
+} from "../constants/candidateStatus";
 
 function Create() {
   const initialCv = useMemo(
@@ -66,6 +71,17 @@ function Create() {
   const [showExperienceWarning, setShowExperienceWarning] = useState(false);
   const [educationErrors, setEducationErrors] = useState([]);
   const [experienceErrors, setExperienceErrors] = useState([]);
+  const [showLanguageWarning, setShowLanguageWarning] = useState(false);
+  const [languageErrors, setLanguageErrors] = useState([]);
+
+  const languageRows = useMemo(
+    () =>
+      Object.entries(cv.skills.languages).map(([name, level]) => ({
+        name,
+        level,
+      })),
+    [cv.skills.languages]
+  );
 
   useEffect(() => {
     const previousTitle = document.title;
@@ -134,6 +150,42 @@ function Create() {
     }));
   }
 
+  function isLanguageEntryFilled(row) {
+    const hasName = Boolean((row?.name || "").trim());
+    const hasLevel = Boolean((row?.level || "").trim());
+    return hasName && hasLevel;
+  }
+
+  function getLanguageErrors(entries) {
+    if (!Array.isArray(entries)) return [];
+    return entries.map((row) => ({
+      name: !(row?.name || "").trim(),
+      level: !(row?.level || "").trim(),
+    }));
+  }
+
+  const PHONE_PREFIX = "+998";
+  const TELEGRAM_SUPPORT_URL = "https://t.me/consultinguz_kundensupport";
+
+  function formatUzPhoneBody(raw) {
+    const digits = String(raw || "").replace(/\D/g, "");
+    const withoutPrefix = digits.startsWith("998")
+      ? digits.slice(3)
+      : digits.startsWith("0")
+      ? digits.slice(1)
+      : digits;
+    const capped = withoutPrefix.slice(0, 9);
+    const groups = [2, 3, 2, 2];
+    const parts = [];
+    let idx = 0;
+    for (const g of groups) {
+      if (idx >= capped.length) break;
+      parts.push(capped.slice(idx, idx + g));
+      idx += g;
+    }
+    return parts.join(" ");
+  }
+
   useEffect(() => {
     try {
       const v = localStorage.getItem("createCvSubmitted");
@@ -176,6 +228,19 @@ function Create() {
       setExperienceErrors([]);
     }
   }, [cv.experience]);
+
+  useEffect(() => {
+    const rows =
+      Array.isArray(languageRows) && languageRows.length > 0
+        ? languageRows
+        : [];
+    const hasCompleteLanguages =
+      rows.length > 0 && rows.every((row) => isLanguageEntryFilled(row));
+    if (hasCompleteLanguages) {
+      setShowLanguageWarning(false);
+      setLanguageErrors([]);
+    }
+  }, [languageRows]);
 
   const {
     register,
@@ -422,15 +487,6 @@ function Create() {
     }
   }
 
-  const languageRows = useMemo(
-    () =>
-      Object.entries(cv.skills.languages).map(([name, level]) => ({
-        name,
-        level,
-      })),
-    [cv.skills.languages]
-  );
-
   function addLanguageRow() {
     setCv((prev) => ({
       ...prev,
@@ -505,6 +561,21 @@ function Create() {
         setExperienceErrors(getExperienceErrors(cv.experience));
         toast.error(
           "Bitte füllen Sie alle Felder in jeder Berufserfahrung aus oder entfernen Sie unvollständige Einträge."
+        );
+        return;
+      }
+
+      const rows =
+        Array.isArray(languageRows) && languageRows.length > 0
+          ? languageRows
+          : [];
+      const hasLanguages =
+        rows.length > 0 && rows.every((row) => isLanguageEntryFilled(row));
+      if (!hasLanguages) {
+        setShowLanguageWarning(true);
+        setLanguageErrors(getLanguageErrors(rows));
+        toast.error(
+          "Bitte fügen Sie mindestens eine Sprache mit Niveau hinzu."
         );
         return;
       }
@@ -606,6 +677,12 @@ function Create() {
             languageCertificates: langUrls || [],
             noLanguageCertificate: Boolean(noLangCert),
           },
+          status: {
+            value: CANDIDATE_STATUS_DEFAULT,
+            label: candidateStatusMap[CANDIDATE_STATUS_DEFAULT].label,
+            updatedAt: Date.now(),
+            updatedBy: "system",
+          },
           createdAt: Date.now(),
         };
 
@@ -628,7 +705,19 @@ function Create() {
   }
 
   return (
-    <div className="min-h-screen p-6 bg-base-200">
+    <div className="min-h-screen bg-base-200">
+      {isUploading ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-base-content/40 backdrop-blur-sm">
+          <div
+            className="card bg-base-100 shadow-2xl p-6 flex items-center gap-3"
+            role="status"
+            aria-live="polite"
+          >
+            <span className="loading loading-spinner loading-lg text-primary" />
+            <div className="text-sm font-medium">Wird hochgeladen...</div>
+          </div>
+        </div>
+      ) : null}
       <div
         className={
           isSubmitted
@@ -636,10 +725,12 @@ function Create() {
             : "max-w-3xl mx-auto"
         }
       >
-        <section className="card bg-base-100 shadow w-full max-w-lg mx-auto">
+        <section className="card bg-base-100 shadow w-full max-w-lg mx-auto py-10">
           <div
             className={
-              isSubmitted ? "card-body items-center text-center" : "card-body"
+              isSubmitted
+                ? "card-body items-center text-center !p-[0.7rem]"
+                : "card-body !p-[0.7rem]"
             }
           >
             {isSubmitted ? (
@@ -654,23 +745,6 @@ function Create() {
               </div>
             ) : (
               <>
-                <div className="w-full">
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4 rounded-box border border-base-300 bg-base-200/60 p-3">
-                    <div className="space-y-1">
-                      <p className="text-sm font-semibold">Video-Guide</p>
-                      <p className="text-sm text-base-content/70">
-                        Kurze Anleitung zum Ausfüllen des Formulars.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      className="btn btn-outline btn-primary btn-sm"
-                      onClick={() => setIsGuideOpen(true)}
-                    >
-                      Video ansehen
-                    </button>
-                  </div>
-                </div>
                 <div className="w-full flex justify-center">
                   <h2 className="card-title text-3xl font-bold text-center">
                     Persönliche Daten
@@ -775,6 +849,7 @@ function Create() {
                             <input
                               id="personalInfo-birthDate"
                               type="date"
+                              placeholder="YYYY-MM-DD"
                               className={`input input-bordered w-full ${
                                 errors?.personalInfo?.birthDate
                                   ? "input-error"
@@ -832,19 +907,58 @@ function Create() {
                       control={control}
                       name="personalInfo.phone"
                       rules={{ required: "Telefonnummer ist erforderlich" }}
-                      render={({ field, fieldState }) => (
-                        <FormInput
-                          label={<RequiredLabel>Telefonnummer</RequiredLabel>}
-                          placeholder="Telefonnummer"
-                          inputClassName={
-                            errors?.personalInfo?.phone ? "input-error" : ""
-                          }
-                          aria-invalid={
-                            errors?.personalInfo?.phone ? "true" : "false"
-                          }
-                          {...field}
-                        />
-                      )}
+                      render={({ field }) => {
+                        const bodyValue = formatUzPhoneBody(field.value);
+                        return (
+                          <div className="form-control">
+                            <label className="label">
+                              <RequiredLabel className="label-text">
+                                Telefonnummer
+                              </RequiredLabel>
+                            </label>
+                            <div className="join w-full">
+                              <span
+                                className={`join-item flex items-center justify-center px-3 text-sm bg-base-200 text-base-content/70 border border-base-300 ${
+                                  errors?.personalInfo?.phone
+                                    ? "border-error text-error"
+                                    : ""
+                                }`}
+                              >
+                                {PHONE_PREFIX}
+                              </span>
+                              <input
+                                type="tel"
+                                inputMode="tel"
+                                autoComplete="tel"
+                                className={`join-item input input-bordered w-full ${
+                                  errors?.personalInfo?.phone
+                                    ? "input-error"
+                                    : ""
+                                }`}
+                                placeholder="00 000 00 00"
+                                aria-invalid={
+                                  errors?.personalInfo?.phone ? "true" : "false"
+                                }
+                                value={bodyValue}
+                                onChange={(e) => {
+                                  const body = formatUzPhoneBody(
+                                    e.target.value
+                                  );
+                                  const next = body
+                                    ? `${PHONE_PREFIX} ${body}`
+                                    : "";
+                                  field.onChange(next);
+                                }}
+                              />
+                            </div>
+                            {errors?.personalInfo?.phone ? (
+                              <p className="text-error text-sm mt-1">
+                                {errors.personalInfo.phone.message}
+                              </p>
+                            ) : null}
+                          </div>
+                        );
+                      }}
                     />
                     <div>
                       <Controller
@@ -875,12 +989,15 @@ function Create() {
                     </div>
                     <div className="md:col-span-2">
                       <label
-                        className="label"
+                        className="label flex-col items-start gap-1"
                         htmlFor="personalInfo-photo-file"
                       >
                         <RequiredLabel className="label-text">
                           Foto hochladen (JPEG/PNG)
                         </RequiredLabel>
+                        <span className="label-text-alt text-xs text-base-content/70">
+                          Bis 250 KB
+                        </span>
                       </label>
                       <input
                         type="hidden"
@@ -977,6 +1094,8 @@ function Create() {
                     onAddRow={addLanguageRow}
                     onUpdateRow={updateLanguageRow}
                     onRemoveRow={removeLanguageRow}
+                    showRequiredWarning={showLanguageWarning}
+                    errors={languageErrors}
                   />
 
                   <div className="divider">Dokumente</div>
@@ -1231,7 +1350,14 @@ function Create() {
                       className="btn btn-primary"
                       disabled={!watch("agreePrivacy") || isUploading}
                     >
-                      {isUploading ? "Hochladen..." : "Absenden"}
+                      {isUploading ? (
+                        "Hochladen..."
+                      ) : (
+                        <>
+                          <FaPaperPlane className="inline-block mr-2" />
+                          Absenden
+                        </>
+                      )}
                     </button>
                   </div>
                 </form>
@@ -1339,6 +1465,29 @@ function Create() {
           </div>
         </div>
       ) : null}
+
+      <div className="fixed bottom-20 right-4 z-40 flex flex-col gap-3">
+        <button
+          type="button"
+          className="btn btn-primary btn-circle shadow-lg"
+          aria-label="Video-Guide öffnen"
+          onClick={() => setIsGuideOpen(true)}
+        >
+          <FaVideo className="text-xl" />
+          <span className="sr-only">Video-Guide</span>
+        </button>
+        <button
+          type="button"
+          className="btn btn-secondary btn-circle shadow-lg"
+          aria-label="Support via Telegram"
+          onClick={() =>
+            window.open(TELEGRAM_SUPPORT_URL, "_blank", "noopener,noreferrer")
+          }
+        >
+          <FaTelegramPlane className="text-xl" />
+          <span className="sr-only">Support Chat</span>
+        </button>
+      </div>
 
       {isGuideOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center">

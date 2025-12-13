@@ -3,10 +3,16 @@ import { useSelector } from "react-redux";
 import { Link, useParams } from "react-router-dom";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/config";
-import { FaDownload, FaArrowLeft, FaExternalLinkAlt } from "react-icons/fa";
+import {
+  FaDownload,
+  FaArrowLeft,
+  FaExternalLinkAlt,
+  FaSave,
+} from "react-icons/fa";
 import toast from "react-hot-toast";
 import {
   Document,
+  Font,
   Image as PdfImage,
   Page,
   StyleSheet,
@@ -27,6 +33,17 @@ import {
   generateSkills,
   updateDocument,
 } from "../utils";
+import CandidateStatusStepper from "../components/CandidateStatusStepper";
+import {
+  CANDIDATE_STATUS_DEFAULT,
+  CANDIDATE_STATUS_OPTIONS,
+  getCandidateStatus,
+} from "../constants/candidateStatus";
+import { buildStatusEmailTemplate } from "../utils/statusEmail";
+import { sendBrevoEmail } from "../utils/brevo";
+
+const EMPLOYER_INTERVIEW_STATUS = "employer_interview_scheduled";
+const EMPLOYER_DECISION_STATUS = "employer_decision";
 
 function Generate() {
   const { major, id } = useParams();
@@ -35,6 +52,26 @@ function Generate() {
   const [notFound, setNotFound] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [statusValue, setStatusValue] = useState(CANDIDATE_STATUS_DEFAULT);
+  const [statusUpdatedAt, setStatusUpdatedAt] = useState(null);
+  const [statusUpdatedBy, setStatusUpdatedBy] = useState("");
+  const [isSavingStatus, setIsSavingStatus] = useState(false);
+  const [sendingStepValue, setSendingStepValue] = useState(null);
+  const [isInterviewModalOpen, setIsInterviewModalOpen] = useState(false);
+  const [pendingInterviewStep, setPendingInterviewStep] = useState(null);
+  const [interviewForm, setInterviewForm] = useState({
+    dateTime: "",
+    location: "",
+    items: "",
+  });
+  const [isDecisionModalOpen, setIsDecisionModalOpen] = useState(false);
+  const [pendingDecisionStep, setPendingDecisionStep] = useState(null);
+  const [decisionForm, setDecisionForm] = useState({
+    decision: "accepted",
+    note: "",
+  });
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+  const [photoModalSrc, setPhotoModalSrc] = useState("");
 
   // Local editable state (Create.jsx like)
   const initialForm = useMemo(
@@ -107,6 +144,10 @@ function Generate() {
           setDocCv(null);
         } else {
           const data = snap.data() || null;
+          const status = data?.status || {};
+          setStatusValue(status?.value || CANDIDATE_STATUS_DEFAULT);
+          setStatusUpdatedAt(status?.updatedAt || null);
+          setStatusUpdatedBy(status?.updatedBy || "");
           setDocCv(data);
           setNotFound(false);
           if (!formInitialized) {
@@ -242,7 +283,7 @@ function Generate() {
   const pdfStyles = StyleSheet.create({
     page: {
       padding: 44,
-      fontFamily: "Helvetica",
+      fontFamily: "Mulish",
       fontSize: 11,
       color: "#0f172a",
       lineHeight: 1.38,
@@ -336,6 +377,39 @@ function Generate() {
       alignSelf: "flex-start",
       marginBottom: 6,
     },
+  });
+
+  Font.register({
+    family: "Mulish",
+    fonts: [
+      {
+        src: "https://fonts.gstatic.com/s/mulish/v18/1Ptyg83HX_SGhgqO0yLcmjzUAuWexZNRwaA.ttf",
+        fontWeight: 400,
+      },
+      {
+        src: "https://fonts.gstatic.com/s/mulish/v18/1Ptyg83HX_SGhgqO0yLcmjzUAuWexU1WwaA.ttf",
+        fontWeight: 600,
+      },
+      {
+        src: "https://fonts.gstatic.com/s/mulish/v18/1Ptyg83HX_SGhgqO0yLcmjzUAuWexXRWwaA.ttf",
+        fontWeight: 700,
+      },
+      {
+        src: "https://fonts.gstatic.com/s/mulish/v18/1Ptwg83HX_SGhgqk2hAjQlW_mEuZ0FsSKeOvHg.ttf",
+        fontWeight: 400,
+        fontStyle: "italic",
+      },
+      {
+        src: "https://fonts.gstatic.com/s/mulish/v18/1Ptwg83HX_SGhgqk2hAjQlW_mEuZ0FsS9-SvHg.ttf",
+        fontWeight: 600,
+        fontStyle: "italic",
+      },
+      {
+        src: "https://fonts.gstatic.com/s/mulish/v18/1Ptwg83HX_SGhgqk2hAjQlW_mEuZ0FsSzuSvHg.ttf",
+        fontWeight: 700,
+        fontStyle: "italic",
+      },
+    ],
   });
 
   const CvPdfDocument = ({ form, showDocuments }) => {
@@ -522,58 +596,59 @@ function Generate() {
             </>
           ) : null}
 
-          {(showDocuments && (documents?.diplomas?.length > 0 ||
-            documents?.certificates?.length > 0)) && (
-            <>
-              <Text style={pdfStyles.sectionTitle}>Dokumente</Text>
-              <View style={{ gap: 8 }}>
-                {documents.diplomas?.length > 0 && (
-                  <View style={{ gap: 2 }}>
-                    <Text style={{ fontWeight: "bold", fontSize: 10 }}>
-                      Diplome
-                    </Text>
-                    {documents.diplomas.map((url, i) => (
-                      <View key={i} style={pdfStyles.bulletRow}>
-                        <Text>•</Text>
-                        <PdfLink
-                          src={url}
-                          style={{
-                            fontSize: 10,
-                            color: "#2563eb",
-                            textDecoration: "none",
-                          }}
-                        >
-                          {url}
-                        </PdfLink>
-                      </View>
-                    ))}
-                  </View>
-                )}
-                {documents.certificates?.length > 0 && (
-                  <View style={{ gap: 2 }}>
-                    <Text style={{ fontWeight: "bold", fontSize: 10 }}>
-                      Zertifikate
-                    </Text>
-                    {documents.certificates.map((url, i) => (
-                      <View key={i} style={pdfStyles.bulletRow}>
-                        <Text>•</Text>
-                        <PdfLink
-                          src={url}
-                          style={{
-                            fontSize: 10,
-                            color: "#2563eb",
-                            textDecoration: "none",
-                          }}
-                        >
-                          {url}
-                        </PdfLink>
-                      </View>
-                    ))}
-                  </View>
-                )}
-              </View>
-            </>
-          )}
+          {showDocuments &&
+            (documents?.diplomas?.length > 0 ||
+              documents?.certificates?.length > 0) && (
+              <>
+                <Text style={pdfStyles.sectionTitle}>Dokumente</Text>
+                <View style={{ gap: 8 }}>
+                  {documents.diplomas?.length > 0 && (
+                    <View style={{ gap: 2 }}>
+                      <Text style={{ fontWeight: "bold", fontSize: 10 }}>
+                        Diplome
+                      </Text>
+                      {documents.diplomas.map((url, i) => (
+                        <View key={i} style={pdfStyles.bulletRow}>
+                          <Text>•</Text>
+                          <PdfLink
+                            src={url}
+                            style={{
+                              fontSize: 10,
+                              color: "#2563eb",
+                              textDecoration: "none",
+                            }}
+                          >
+                            {url}
+                          </PdfLink>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                  {documents.certificates?.length > 0 && (
+                    <View style={{ gap: 2 }}>
+                      <Text style={{ fontWeight: "bold", fontSize: 10 }}>
+                        Zertifikate
+                      </Text>
+                      {documents.certificates.map((url, i) => (
+                        <View key={i} style={pdfStyles.bulletRow}>
+                          <Text>•</Text>
+                          <PdfLink
+                            src={url}
+                            style={{
+                              fontSize: 10,
+                              color: "#2563eb",
+                              textDecoration: "none",
+                            }}
+                          >
+                            {url}
+                          </PdfLink>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </View>
+              </>
+            )}
         </Page>
       </Document>
     );
@@ -790,6 +865,204 @@ function Generate() {
     });
   }
 
+  async function persistStatus(targetValue, { silent = false } = {}) {
+    if (isLimitedAdmin) {
+      toast.error("Sizda status o'zgartirish huquqi yo'q.");
+      return false;
+    }
+    const col = String(major || "").trim();
+    const docId = String(id || "").trim();
+    if (!col || !docId) return false;
+
+    try {
+      setIsSavingStatus(true);
+      const now = Date.now();
+      const statusMeta = getCandidateStatus(targetValue);
+      await updateDocument(col, docId, {
+        status: {
+          value: targetValue,
+          label: statusMeta.label,
+          updatedAt: now,
+          updatedBy: user?.email || user?.uid || "admin",
+        },
+      });
+      setStatusValue(targetValue);
+      setStatusUpdatedAt(now);
+      setStatusUpdatedBy(user?.email || user?.uid || "admin");
+      if (!silent) {
+        toast.success("Status saqlandi.");
+      }
+      return true;
+    } catch (err) {
+      console.error(err);
+      if (!silent) {
+        toast.error("Statusni saqlashda xato.");
+      }
+      return false;
+    } finally {
+      setIsSavingStatus(false);
+    }
+  }
+
+  async function handleStatusSave() {
+    await persistStatus(statusValue, { silent: false });
+  }
+
+  function getNextStepValue(value) {
+    const steps = CANDIDATE_STATUS_OPTIONS;
+    const idx = steps.findIndex((s) => s.value === value);
+    if (idx === -1) return null;
+    return steps[idx + 1]?.value || null;
+  }
+
+  async function sendStatusEmail(
+    stepValue,
+    { interviewDetails, employerDecision, decisionNote } = {}
+  ) {
+    if (isLimitedAdmin) {
+      toast.error("Sizda email yuborish huquqi yo'q.");
+      return;
+    }
+    if (stepValue !== statusValue) {
+      toast.error("Faqat joriy bosqich uchun email yuborish mumkin.");
+      return;
+    }
+    if (stepValue === EMPLOYER_DECISION_STATUS && !employerDecision) {
+      toast.error("Qarorni (qabul yoki rad) tanlang.");
+      return;
+    }
+    const col = String(major || "").trim();
+    const docId = String(id || "").trim();
+    if (!col || !docId) return;
+
+    const recipientEmail = String(formCv.personalInfo.email || "").trim();
+    if (!recipientEmail) {
+      toast.error("Kandidat email manzili topilmadi.");
+      return;
+    }
+
+    setSendingStepValue(stepValue);
+
+    try {
+      const { subject, message, htmlContent } = buildStatusEmailTemplate({
+        statusValue: stepValue,
+        firstName: formCv.personalInfo.name,
+        lastName: formCv.personalInfo.lastName,
+        interviewDetails,
+        employerDecision,
+        decisionNote,
+      });
+      const res = await sendBrevoEmail({
+        to: recipientEmail,
+        subject,
+        message,
+        htmlContent,
+      });
+      if (res?.success === false) {
+        throw new Error("Email yuborilmadi (success=false).");
+      }
+
+      toast.success("Status bo'yicha email yuborildi.");
+
+      const nextValue = getNextStepValue(stepValue) || stepValue;
+      await persistStatus(nextValue, { silent: true });
+      setStatusValue(nextValue);
+
+      if (stepValue === EMPLOYER_INTERVIEW_STATUS) {
+        setInterviewForm({ dateTime: "", location: "", items: "" });
+        setPendingInterviewStep(null);
+        setIsInterviewModalOpen(false);
+      }
+      if (stepValue === EMPLOYER_DECISION_STATUS) {
+        setDecisionForm({ decision: "accepted", note: "" });
+        setPendingDecisionStep(null);
+        setIsDecisionModalOpen(false);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Email yuborishda xato. Keyinroq qayta urinib ko'ring.");
+    } finally {
+      setSendingStepValue(null);
+    }
+  }
+
+  function handleSendStatusEmail(stepValue) {
+    if (isLimitedAdmin) {
+      toast.error("Sizda email yuborish huquqi yo'q.");
+      return;
+    }
+    if (stepValue !== statusValue) {
+      toast.error("Faqat joriy bosqich uchun email yuborish mumkin.");
+      return;
+    }
+    if (stepValue === EMPLOYER_INTERVIEW_STATUS) {
+      setPendingInterviewStep(stepValue);
+      setIsInterviewModalOpen(true);
+      return;
+    }
+    if (stepValue === EMPLOYER_DECISION_STATUS) {
+      setPendingDecisionStep(stepValue);
+      setIsDecisionModalOpen(true);
+      return;
+    }
+    sendStatusEmail(stepValue);
+  }
+
+  function closeInterviewModal() {
+    if (sendingStepValue === EMPLOYER_INTERVIEW_STATUS) return;
+    setIsInterviewModalOpen(false);
+    setPendingInterviewStep(null);
+  }
+
+  async function handleInterviewSubmit(e) {
+    e?.preventDefault();
+    if (!pendingInterviewStep) {
+      setIsInterviewModalOpen(false);
+      return;
+    }
+    const dateTime = String(interviewForm.dateTime || "").trim();
+    const location = String(interviewForm.location || "").trim();
+    const items = String(interviewForm.items || "").trim();
+
+    if (!dateTime) {
+      toast.error("Suhbat sanasi va vaqtini kiriting.");
+      return;
+    }
+    if (!location) {
+      toast.error("Suhbat manzilini kiriting.");
+      return;
+    }
+    if (!items) {
+      toast.error("Nima olib kelish kerakligini kiriting.");
+      return;
+    }
+
+    await sendStatusEmail(pendingInterviewStep, {
+      interviewDetails: { dateTime, location, items },
+    });
+  }
+
+  function closeDecisionModal() {
+    if (sendingStepValue === EMPLOYER_DECISION_STATUS) return;
+    setIsDecisionModalOpen(false);
+    setPendingDecisionStep(null);
+  }
+
+  async function handleDecisionSubmit(e) {
+    e?.preventDefault();
+    if (!pendingDecisionStep) {
+      setIsDecisionModalOpen(false);
+      return;
+    }
+    const selectedDecision =
+      decisionForm.decision === "rejected" ? "rejected" : "accepted";
+
+    await sendStatusEmail(pendingDecisionStep, {
+      employerDecision: selectedDecision,
+      decisionNote: String(decisionForm.note || "").trim(),
+    });
+  }
+
   async function handleSave() {
     const col = String(major || "").trim();
     const docId = String(id || "").trim();
@@ -836,11 +1109,17 @@ function Generate() {
     }
     try {
       setIsDownloading(true);
-      const personName = String(formCv.personalInfo.name || "").trim();
-      const fileBase = personName ? `Lebenslauf ${personName}` : "Lebenslauf";
+      const firstName = String(formCv.personalInfo.name || "").trim();
+      const lastName = String(formCv.personalInfo.lastName || "").trim();
+      const candidateName = [firstName, lastName].filter(Boolean).join(" ");
+      const fileBase = candidateName
+        ? `Lebenslauf ${candidateName}`
+        : "Lebenslauf";
       const safeFileName =
         fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Lebenslauf";
-      const blob = await pdf(<CvPdfDocument form={formCv} showDocuments={showDocuments} />).toBlob();
+      const blob = await pdf(
+        <CvPdfDocument form={formCv} showDocuments={showDocuments} />
+      ).toBlob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -873,6 +1152,17 @@ function Generate() {
   const maritalStatus = String(formCv.personalInfo.maritalStatus || "").trim();
   const photo = String(formCv.personalInfo.photo || "").trim();
 
+  function openPhotoModal() {
+    if (!photo) return;
+    setPhotoModalSrc(photo);
+    setIsPhotoModalOpen(true);
+  }
+
+  function closePhotoModal() {
+    setIsPhotoModalOpen(false);
+    setPhotoModalSrc("");
+  }
+
   // Shared DaisyUI input styles for the edit form
   const inputBase = "input input-bordered w-full";
   const selectBase = "select select-bordered w-full";
@@ -882,13 +1172,20 @@ function Generate() {
 
   // Style overrides for FormInput component
 
-  const layoutClass = isLimitedAdmin
-    ? "flex flex-col gap-6 items-stretch"
-    : "flex flex-col lg:flex-row gap-6 items-start lg:items-stretch";
+  const layoutClass =
+    "flex flex-col lg:flex-row gap-6 items-start lg:items-stretch";
 
-  const formCardClass = isLimitedAdmin
-    ? "card bg-base-100 shadow-2xl border border-base-300 rounded-2xl w-full max-w-5xl mx-auto"
-    : "card bg-base-100 shadow-2xl border border-base-300 rounded-2xl w-full lg:max-w-[640px] shrink-0 max-h-[calc(100vh-2rem)] lg:sticky lg:top-2 overflow-y-auto";
+  const formCardLimited =
+    "card bg-base-100 shadow-2xl border border-base-300 rounded-2xl w-full max-h-[calc(100vh-2rem)] overflow-y-auto";
+  const formCardAdmin =
+    "card bg-base-100 shadow-2xl border border-base-300 rounded-2xl w-full lg:max-w-[640px] shrink-0 max-h-[calc(100vh-2rem)] lg:sticky lg:top-2 overflow-y-auto";
+
+  const formSectionClass = isLimitedAdmin
+    ? `${formCardLimited} flex-1 min-w-0 lg:self-stretch lg:basis-[60%] lg:max-w-[60%] lg:flex-none`
+    : `${formCardAdmin} flex-1 min-w-0 lg:self-stretch lg:basis-[60%] lg:max-w-[60%] lg:flex-none`;
+
+  const canSaveComment =
+    Boolean(formCv.commentar?.trim()) && !isSaving && !loading && !notFound;
 
   return (
     <div className="p-2 sm:p-4 md:p-6 bg-base-200 min-h-screen">
@@ -908,27 +1205,29 @@ function Generate() {
               <li className="opacity-70">CV</li>
             </ul>
           </div>
-          <div className="flex items-center gap-2">
-            {!isLimitedAdmin && (
-              <button
-                className="btn btn-sm btn-outline"
-                onClick={handleDownloadPdf}
-                disabled={loading || notFound || isDownloading}
-              >
-                <FaDownload />{" "}
-                {isDownloading ? "Wird geladen..." : "Herunterladen"}
-              </button>
-            )}
-            <button
-              className={`btn btn-sm btn-primary ${
-                isSaving ? "btn-disabled" : ""
-              }`}
-              onClick={handleSave}
-              disabled={isSaving || loading || notFound}
-            >
-              {isSaving ? "Speichern..." : "Speichern"}
-            </button>
-          </div>
+            <div className="flex items-center gap-2">
+              {!isLimitedAdmin && (
+                <>
+                  <button
+                    className="btn btn-sm btn-outline"
+                    onClick={handleDownloadPdf}
+                    disabled={loading || notFound || isDownloading}
+                  >
+                    <FaDownload />{" "}
+                    {isDownloading ? "Wird geladen..." : "Herunterladen"}
+                  </button>
+                  <button
+                    className={`btn btn-sm btn-primary ${
+                      isSaving ? "btn-disabled" : ""
+                    }`}
+                    onClick={handleSave}
+                    disabled={isSaving || loading || notFound}
+                  >
+                    {isSaving ? "Speichern..." : "Speichern"}
+                  </button>
+                </>
+              )}
+            </div>
         </div>
 
         {loading ? (
@@ -943,638 +1242,1072 @@ function Generate() {
             </p>
           </div>
         ) : (
-          <div className={layoutClass}>
-            <section className={formCardClass}>
-              <div className="card-body space-y-4">
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="card-title text-2xl font-bold">
-                    Daten bearbeiten
-                  </h2>
-                </div>
+          <>
+            <div className={layoutClass}>
+              <section className={formSectionClass}>
+                <div className="card-body space-y-4 min-h-[calc(100vh-2rem)]">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="card-title text-2xl font-bold">
+                      Daten bearbeiten
+                    </h2>
+                  </div>
 
-                <fieldset
-                  disabled={isLimitedAdmin}
-                  className="space-y-4 disabled:opacity-70"
-                >
-                  <div className="divider mt-2">Persönliche Daten</div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormInput
-                      label="Vorname"
-                      placeholder="Vorname"
-                      value={formCv.personalInfo.name}
-                      onChange={(e) =>
-                        setFormCv((prev) => ({
-                          ...prev,
-                          personalInfo: {
-                            ...prev.personalInfo,
-                            name: e.target.value,
-                          },
-                        }))
-                      }
-                    />
-                    <FormInput
-                      label="Nachname"
-                      placeholder="Nachname"
-                      value={formCv.personalInfo.lastName}
-                      onChange={(e) =>
-                        setFormCv((prev) => ({
-                          ...prev,
-                          personalInfo: {
-                            ...prev.personalInfo,
-                            lastName: e.target.value,
-                          },
-                        }))
-                      }
-                    />
-                    <div className="md:col-span-2">
-                      <label className="label">
-                        <span className="label-text">Geschlecht</span>
-                      </label>
-                      <div className="flex gap-6">
-                        <label className="cursor-pointer flex items-center gap-2">
-                          <input
-                            type="radio"
-                            value="Männlich"
-                            className="radio radio-primary"
-                            checked={formCv.personalInfo.gender === "Männlich"}
-                            onChange={(e) =>
-                              setFormCv((prev) => ({
-                                ...prev,
-                                personalInfo: {
-                                  ...prev.personalInfo,
-                                  gender: e.target.value,
-                                },
-                              }))
-                            }
-                          />
-                          <span>Männlich</span>
-                        </label>
-                        <label className="cursor-pointer flex items-center gap-2">
-                          <input
-                            type="radio"
-                            value="Weiblich"
-                            className="radio radio-primary"
-                            checked={formCv.personalInfo.gender === "Weiblich"}
-                            onChange={(e) =>
-                              setFormCv((prev) => ({
-                                ...prev,
-                                personalInfo: {
-                                  ...prev.personalInfo,
-                                  gender: e.target.value,
-                                },
-                              }))
-                            }
-                          />
-                          <span>Weiblich</span>
-                        </label>
+                  {isLimitedAdmin && (
+                    <div className="flex justify-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <p className="text-xs uppercase tracking-[0.2em] text-base-content/60">
+                          Profil rasmi
+                        </p>
+                        {photo ? (
+                          <button
+                            type="button"
+                            className="rounded-md border border-base-300 overflow-hidden shadow-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                            onClick={openPhotoModal}
+                          >
+                            <img
+                              src={photo}
+                              alt="Kandidat foto"
+                              className="w-[128pt] h-[160pt] object-cover"
+                            />
+                          </button>
+                        ) : (
+                          <div className="w-[128pt] h-[160pt] border border-dashed border-base-300 rounded-md bg-base-200 flex items-center justify-center text-xs uppercase tracking-wide text-base-content/60">
+                            Foto mavjud emas
+                          </div>
+                        )}
+                        {photo && (
+                          <button
+                            type="button"
+                            className="btn btn-xs btn-primary"
+                            onClick={openPhotoModal}
+                          >
+                            Katta ko‘rish
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <FormInput
-                      label="Geburtsdatum"
-                      type="date"
-                      value={toInputDate(formCv.personalInfo.birthDate)}
-                      onChange={(e) =>
-                        setFormCv((prev) => ({
-                          ...prev,
-                          personalInfo: {
-                            ...prev.personalInfo,
-                            birthDate: fromInputDate(e.target.value),
-                          },
-                        }))
-                      }
-                    />
-                    <div className="form-control w-full">
-                      <label className="label" htmlFor="g-marital">
-                        <span className="label-text">Familienstand</span>
-                      </label>
-                      <select
-                        id="g-marital"
-                        className={selectBase}
-                        value={formCv.personalInfo.maritalStatus}
-                        onChange={(e) =>
-                          setFormCv((prev) => ({
-                            ...prev,
-                            personalInfo: {
-                              ...prev.personalInfo,
-                              maritalStatus: e.target.value,
-                            },
-                          }))
-                        }
-                      >
-                        <option value="">Bitte auswählen</option>
-                        <option value="ledig">ledig</option>
-                        <option value="verheiratet">verheiratet</option>
-                      </select>
-                    </div>
-                    <FormInput
-                      label="Telefonnummer"
-                      placeholder="Telefonnummer"
-                      value={formCv.personalInfo.phone}
-                      onChange={(e) =>
-                        setFormCv((prev) => ({
-                          ...prev,
-                          personalInfo: {
-                            ...prev.personalInfo,
-                            phone: e.target.value,
-                          },
-                        }))
-                      }
-                    />
-                    <FormInput
-                      label="E-Mail"
-                      placeholder="E-Mail"
-                      type="email"
-                      value={formCv.personalInfo.email}
-                      onChange={(e) =>
-                        setFormCv((prev) => ({
-                          ...prev,
-                          personalInfo: {
-                            ...prev.personalInfo,
-                            email: e.target.value,
-                          },
-                        }))
-                      }
-                    />
+                  )}
 
-                    <div className="md:col-span-2 form-control w-full">
-                      <label className="label pb-1" htmlFor="g-photo-file">
-                        <span className="label-text font-medium">
-                          Foto hochladen (JPEG/PNG)
-                        </span>
-                      </label>
-                      <input
-                        id="g-photo-file"
-                        type="file"
-                        accept="image/*"
-                        className={fileInputBase}
-                        onChange={handlePhotoFileChange}
-                      />
-                    </div>
-
-                    <div className="md:col-span-2 form-control w-full">
-                      <label className="label pb-1" htmlFor="g-address">
-                        <span className="label-text font-medium">Adresse</span>
-                      </label>
-                      <textarea
-                        id="g-address"
-                        className={textareaBase}
-                        placeholder="Adresse"
-                        rows={2}
-                        value={formCv.personalInfo.address}
-                        onChange={(e) =>
-                          setFormCv((prev) => ({
-                            ...prev,
-                            personalInfo: {
-                              ...prev.personalInfo,
-                              address: e.target.value,
-                            },
-                          }))
-                        }
-                      />
-                    </div>
-                  </div>
-
-                  <div className="divider">Berufserfahrung</div>
-                  <ExperienceSection
-                    experience={formCv.experience}
-                    onAddExperience={addExperience}
-                    onUpdateExperience={updateExperience}
-                    onRemoveExperience={removeExperience}
-                    onAddResponsibility={addResponsibility}
-                    onRemoveResponsibility={removeResponsibility}
-                  />
-
-                  <div className="divider">Ausbildung</div>
-                  <EducationSection
-                    education={formCv.education}
-                    onAddEducation={addEducation}
-                    onUpdateEducation={updateEducation}
-                    onRemoveEducation={removeEducation}
-                  />
-
-                  <div className="divider">Fähigkeiten</div>
-                  <SkillsSection
-                    softSkills={formCv.skills.softSkills}
-                    pcSkills={formCv.skills.pcSkills}
-                    onAddSoft={(val) => addTag(["skills", "softSkills"], val)}
-                    onRemoveSoft={(i) => removeTag(["skills", "softSkills"], i)}
-                    onAddPc={(val) => addTag(["skills", "pcSkills"], val)}
-                    onRemovePc={(i) => removeTag(["skills", "pcSkills"], i)}
-                    onAutoAddSoft={() => autoAddSkills("soft")}
-                    onAutoAddPc={() => autoAddSkills("pc")}
-                    isGeneratingSoft={isGeneratingSoft}
-                    isGeneratingPc={isGeneratingPc}
-                    recentlyAddedSoft={recentlyAdded.soft}
-                    recentlyAddedPc={recentlyAdded.pc}
-                  />
-
-                  <div className="divider">Sprachen</div>
-                  <LanguagesSection
-                    languageRows={languageRows}
-                    onAddRow={addLanguageRow}
-                    onUpdateRow={updateLanguageRow}
-                    onRemoveRow={removeLanguageRow}
-                  />
-
-                  <div className="divider">Dokumente</div>
-
-                  <div className="form-control mb-4">
-                    <label className="label cursor-pointer justify-start gap-3">
-                      <span className="label-text font-semibold">
-                        Dokumente im PDF anzeigen
-                      </span>
-                      <input
-                        type="checkbox"
-                        className="toggle toggle-primary"
-                        checked={showDocuments}
-                        onChange={(e) => setShowDocuments(e.target.checked)}
-                      />
-                    </label>
-                  </div>
-
-                  {/* Diplomas */}
-                  <div className="mb-6">
-                    <h4 className="font-semibold mb-2 text-sm uppercase tracking-wide opacity-80">
-                      Diplome
-                    </h4>
-                    <div className="flex flex-col gap-2">
-                      {!formCv.documents?.diplomas ||
-                      formCv.documents.diplomas.length === 0 ? (
-                        <div className="p-3 bg-base-200 rounded text-sm text-center opacity-60 italic border border-dashed border-base-300">
-                          Keine Diplome vorhanden.
-                        </div>
-                      ) : (
-                        formCv.documents.diplomas.map((url, i) => (
-                          <div
-                            key={i}
-                            className="flex gap-2 items-center p-2 bg-base-100 border rounded"
-                          >
-                            <a
-                              href={url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="link link-primary text-sm truncate flex-1"
-                            >
-                              {url}
-                            </a>
-                            <a
-                              href={url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="btn btn-square btn-sm btn-ghost text-primary"
-                              title="Link öffnen"
-                            >
-                              <FaExternalLinkAlt />
-                            </a>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Certificates */}
-                  <div className="mb-2">
-                    <h4 className="font-semibold mb-2 text-sm uppercase tracking-wide opacity-80">
-                      Zertifikate
-                    </h4>
-                    <div className="flex flex-col gap-2">
-                      {!formCv.documents?.certificates ||
-                      formCv.documents.certificates.length === 0 ? (
-                        <div className="p-3 bg-base-200 rounded text-sm text-center opacity-60 italic border border-dashed border-base-300">
-                          Keine Zertifikate vorhanden.
-                        </div>
-                      ) : (
-                        formCv.documents.certificates.map((url, i) => (
-                          <div
-                            key={i}
-                            className="flex gap-2 items-center p-2 bg-base-100 border rounded"
-                          >
-                            <a
-                              href={url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="link link-primary text-sm truncate flex-1"
-                            >
-                              {url}
-                            </a>
-                            <a
-                              href={url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="btn btn-square btn-sm btn-ghost text-primary"
-                              title="Link öffnen"
-                            >
-                              <FaExternalLinkAlt />
-                            </a>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                </fieldset>
-
-                <div className="divider mt-1">Kommentar</div>
-                <div className="form-control">
-                  <label className="label" htmlFor="limited-comment">
-                    <span className="label-text font-medium">
-                      Allgemeiner Kommentar (Kandidat haqida)
-                    </span>
-                  </label>
-                  <textarea
-                    id="limited-comment"
-                    className={textareaBase}
-                    rows={3}
-                    placeholder='Umumiy fikr: "Kandidat juda mos, faqat foto yangilansin"'
-                    value={formCv.commentar}
-                    onChange={(e) =>
-                      setFormCv((prev) => ({
-                        ...prev,
-                        commentar: e.target.value,
-                      }))
-                    }
-                  />
-                </div>
-
-                <div className="divider"></div>
-                <div className="flex justify-end gap-2">
-                  <button
-                    className={`btn btn-primary ${
-                      isSaving ? "btn-disabled" : ""
-                    }`}
-                    onClick={handleSave}
-                    disabled={isSaving || loading || notFound}
+                  <fieldset
+                    disabled={isLimitedAdmin}
+                    className="space-y-4 disabled:opacity-70"
                   >
-                    {isSaving
-                      ? isLimitedAdmin
-                        ? "Kommentar wird gespeichert..."
-                        : "Speichern..."
-                      : isLimitedAdmin
-                      ? "Kommentar speichern"
-                      : "Speichern"}
-                  </button>
+                    <div className="divider mt-2">Persönliche Daten</div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormInput
+                        label="Vorname"
+                        placeholder="Vorname"
+                        value={formCv.personalInfo.name}
+                        onChange={(e) =>
+                          setFormCv((prev) => ({
+                            ...prev,
+                            personalInfo: {
+                              ...prev.personalInfo,
+                              name: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                      <FormInput
+                        label="Nachname"
+                        placeholder="Nachname"
+                        value={formCv.personalInfo.lastName}
+                        onChange={(e) =>
+                          setFormCv((prev) => ({
+                            ...prev,
+                            personalInfo: {
+                              ...prev.personalInfo,
+                              lastName: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                      <div className="md:col-span-2">
+                        <label className="label">
+                          <span className="label-text">Geschlecht</span>
+                        </label>
+                        <div className="flex gap-6">
+                          <label className="cursor-pointer flex items-center gap-2">
+                            <input
+                              type="radio"
+                              value="Männlich"
+                              className="radio radio-primary"
+                              checked={
+                                formCv.personalInfo.gender === "Männlich"
+                              }
+                              onChange={(e) =>
+                                setFormCv((prev) => ({
+                                  ...prev,
+                                  personalInfo: {
+                                    ...prev.personalInfo,
+                                    gender: e.target.value,
+                                  },
+                                }))
+                              }
+                            />
+                            <span>Männlich</span>
+                          </label>
+                          <label className="cursor-pointer flex items-center gap-2">
+                            <input
+                              type="radio"
+                              value="Weiblich"
+                              className="radio radio-primary"
+                              checked={
+                                formCv.personalInfo.gender === "Weiblich"
+                              }
+                              onChange={(e) =>
+                                setFormCv((prev) => ({
+                                  ...prev,
+                                  personalInfo: {
+                                    ...prev.personalInfo,
+                                    gender: e.target.value,
+                                  },
+                                }))
+                              }
+                            />
+                            <span>Weiblich</span>
+                          </label>
+                        </div>
+                      </div>
+                      <FormInput
+                        label="Geburtsdatum"
+                        type="date"
+                        placeholder="YYYY-MM-DD"
+                        value={toInputDate(formCv.personalInfo.birthDate)}
+                        onChange={(e) =>
+                          setFormCv((prev) => ({
+                            ...prev,
+                            personalInfo: {
+                              ...prev.personalInfo,
+                              birthDate: fromInputDate(e.target.value),
+                            },
+                          }))
+                        }
+                      />
+                      <div className="form-control w-full">
+                        <label className="label" htmlFor="g-marital">
+                          <span className="label-text">Familienstand</span>
+                        </label>
+                        <select
+                          id="g-marital"
+                          className={selectBase}
+                          value={formCv.personalInfo.maritalStatus}
+                          onChange={(e) =>
+                            setFormCv((prev) => ({
+                              ...prev,
+                              personalInfo: {
+                                ...prev.personalInfo,
+                                maritalStatus: e.target.value,
+                              },
+                            }))
+                          }
+                        >
+                          <option value="">Bitte auswählen</option>
+                          <option value="ledig">ledig</option>
+                          <option value="verheiratet">verheiratet</option>
+                        </select>
+                      </div>
+                      <FormInput
+                        label="Telefonnummer"
+                        placeholder="Telefonnummer"
+                        value={formCv.personalInfo.phone}
+                        onChange={(e) =>
+                          setFormCv((prev) => ({
+                            ...prev,
+                            personalInfo: {
+                              ...prev.personalInfo,
+                              phone: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                      <FormInput
+                        label="E-Mail"
+                        placeholder="E-Mail"
+                        type="email"
+                        value={formCv.personalInfo.email}
+                        onChange={(e) =>
+                          setFormCv((prev) => ({
+                            ...prev,
+                            personalInfo: {
+                              ...prev.personalInfo,
+                              email: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+
+                      <div className="md:col-span-2 form-control w-full">
+                        <label
+                          className="label pb-1 flex-col items-start gap-1"
+                          htmlFor="g-photo-file"
+                        >
+                          <span className="label-text font-medium">
+                            Foto hochladen (JPEG/PNG)
+                          </span>
+                          <span className="label-text-alt text-xs text-base-content/70">
+                            Bis 250 KB
+                          </span>
+                        </label>
+                        <input
+                          id="g-photo-file"
+                          type="file"
+                          accept="image/*"
+                          className={fileInputBase}
+                          onChange={handlePhotoFileChange}
+                        />
+                      </div>
+
+                      <div className="md:col-span-2 form-control w-full">
+                        <label className="label pb-1" htmlFor="g-address">
+                          <span className="label-text font-medium">
+                            Adresse
+                          </span>
+                        </label>
+                        <textarea
+                          id="g-address"
+                          className={textareaBase}
+                          placeholder="Adresse"
+                          rows={2}
+                          value={formCv.personalInfo.address}
+                          onChange={(e) =>
+                            setFormCv((prev) => ({
+                              ...prev,
+                              personalInfo: {
+                                ...prev.personalInfo,
+                                address: e.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div className="divider">Berufserfahrung</div>
+                    <ExperienceSection
+                      experience={formCv.experience}
+                      onAddExperience={addExperience}
+                      onUpdateExperience={updateExperience}
+                      onRemoveExperience={removeExperience}
+                      onAddResponsibility={addResponsibility}
+                      onRemoveResponsibility={removeResponsibility}
+                    />
+
+                    <div className="divider">Ausbildung</div>
+                    <EducationSection
+                      education={formCv.education}
+                      onAddEducation={addEducation}
+                      onUpdateEducation={updateEducation}
+                      onRemoveEducation={removeEducation}
+                    />
+
+                    <div className="divider">Fähigkeiten</div>
+                    <SkillsSection
+                      softSkills={formCv.skills.softSkills}
+                      pcSkills={formCv.skills.pcSkills}
+                      onAddSoft={(val) => addTag(["skills", "softSkills"], val)}
+                      onRemoveSoft={(i) =>
+                        removeTag(["skills", "softSkills"], i)
+                      }
+                      onAddPc={(val) => addTag(["skills", "pcSkills"], val)}
+                      onRemovePc={(i) => removeTag(["skills", "pcSkills"], i)}
+                      onAutoAddSoft={() => autoAddSkills("soft")}
+                      onAutoAddPc={() => autoAddSkills("pc")}
+                      isGeneratingSoft={isGeneratingSoft}
+                      isGeneratingPc={isGeneratingPc}
+                      recentlyAddedSoft={recentlyAdded.soft}
+                      recentlyAddedPc={recentlyAdded.pc}
+                    />
+
+                    <div className="divider">Sprachen</div>
+                    <LanguagesSection
+                      languageRows={languageRows}
+                      onAddRow={addLanguageRow}
+                      onUpdateRow={updateLanguageRow}
+                      onRemoveRow={removeLanguageRow}
+                    />
+
+                    <div className="divider">Dokumente</div>
+
+                    <div className="form-control mb-4">
+                      <label className="label cursor-pointer justify-start gap-3">
+                        <span className="label-text font-semibold">
+                          Dokumente im PDF anzeigen
+                        </span>
+                        <input
+                          type="checkbox"
+                          className="toggle toggle-primary"
+                          checked={showDocuments}
+                          onChange={(e) => setShowDocuments(e.target.checked)}
+                        />
+                      </label>
+                    </div>
+
+                    {/* Diplomas */}
+                    <div className="mb-6">
+                      <h4 className="font-semibold mb-2 text-sm uppercase tracking-wide opacity-80">
+                        Diplome
+                      </h4>
+                      <div className="flex flex-col gap-2">
+                        {!formCv.documents?.diplomas ||
+                        formCv.documents.diplomas.length === 0 ? (
+                          <div className="p-3 bg-base-200 rounded text-sm text-center opacity-60 italic border border-dashed border-base-300">
+                            Keine Diplome vorhanden.
+                          </div>
+                        ) : (
+                          formCv.documents.diplomas.map((url, i) => (
+                            <div
+                              key={i}
+                              className="flex gap-2 items-center p-2 bg-base-100 border rounded"
+                            >
+                              <a
+                                href={url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="link link-primary text-sm truncate flex-1"
+                              >
+                                {url}
+                              </a>
+                              <a
+                                href={url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="btn btn-square btn-sm btn-ghost text-primary"
+                                title="Link öffnen"
+                              >
+                                <FaExternalLinkAlt />
+                              </a>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Certificates */}
+                    <div className="mb-2">
+                      <h4 className="font-semibold mb-2 text-sm uppercase tracking-wide opacity-80">
+                        Zertifikate
+                      </h4>
+                      <div className="flex flex-col gap-2">
+                        {!formCv.documents?.certificates ||
+                        formCv.documents.certificates.length === 0 ? (
+                          <div className="p-3 bg-base-200 rounded text-sm text-center opacity-60 italic border border-dashed border-base-300">
+                            Keine Zertifikate vorhanden.
+                          </div>
+                        ) : (
+                          formCv.documents.certificates.map((url, i) => (
+                            <div
+                              key={i}
+                              className="flex gap-2 items-center p-2 bg-base-100 border rounded"
+                            >
+                              <a
+                                href={url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="link link-primary text-sm truncate flex-1"
+                              >
+                                {url}
+                              </a>
+                              <a
+                                href={url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="btn btn-square btn-sm btn-ghost text-primary"
+                                title="Link öffnen"
+                              >
+                                <FaExternalLinkAlt />
+                              </a>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </fieldset>
+
+                  {!isLimitedAdmin && (
+                    <>
+                      <div className="divider mt-1">Kommentar</div>
+                      <div className="form-control">
+                        <label className="label" htmlFor="comment-admin">
+                          <span className="label-text font-medium">
+                            Allgemeiner Kommentar (Kandidat haqida)
+                          </span>
+                        </label>
+                        <textarea
+                          id="comment-admin"
+                          className={textareaBase}
+                          rows={3}
+                          placeholder='Umumiy fikr: "Kandidat juda mos, faqat foto yangilansin"'
+                          value={formCv.commentar}
+                          onChange={(e) =>
+                            setFormCv((prev) => ({
+                              ...prev,
+                              commentar: e.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {!isLimitedAdmin && (
+                    <>
+                      <div className="divider"></div>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          className={`btn btn-primary ${
+                            isSaving ? "btn-disabled" : ""
+                          }`}
+                          onClick={handleSave}
+                          disabled={isSaving || loading || notFound}
+                        >
+                          {isSaving ? "Speichern..." : "Speichern"}
+                        </button>
+                      </div>
+                    </>
+                  )}
                 </div>
-              </div>
-            </section>
+              </section>
 
-            {/* Right: Live Preview (WYSIWYG) */}
-            {!isLimitedAdmin && (
-              <section className="hidden lg:block flex-1 min-w-0 h-[calc(100vh-2rem)] sticky top-4">
-                <div className="bg-slate-200/50 rounded-xl border border-slate-300 shadow-inner h-full flex flex-col overflow-hidden">
-                  <div className="bg-white border-b border-slate-200 px-4 py-2 flex justify-between items-center text-xs font-semibold text-slate-500 uppercase tracking-wider z-10">
-                    <span>Vorschau (A4)</span>
-                    <span className="flex items-center gap-1">
-                      <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                      Live-Aktualisierung
-                    </span>
-                  </div>
+              {isLimitedAdmin && (
+                <>
+                  {/* Right: Kommentar (sticky) */}
+                  <aside className="w-full lg:basis-[40%] lg:max-w-[40%] shrink-0 lg:sticky lg:top-4 lg:self-start lg:h-[90vh] flex">
+                    <div className="card bg-base-100 border border-base-300 shadow-2xl w-full h-full flex flex-col">
+                      <div className="card-body space-y-3 flex-1 flex flex-col">
+                        <div>
+                          <h3 className="card-title text-lg mb-1">Kommentar</h3>
+                          <p className="text-xs uppercase tracking-[0.2em] text-base-content/60">
+                            Kandidat haqida eslatma
+                          </p>
+                        </div>
+                        <textarea
+                          id="limited-comment"
+                          className={`${textareaBase} flex-1 resize-none min-h-[200px]`}
+                          rows={8}
+                          placeholder='Umumiy fikr: "Kandidat juda mos, faqat foto yangilansin"'
+                          value={formCv.commentar}
+                          onChange={(e) =>
+                            setFormCv((prev) => ({
+                              ...prev,
+                              commentar: e.target.value,
+                            }))
+                          }
+                        />
+                        <div className="pt-2">
+                          <button
+                            type="button"
+                            className={`btn btn-primary w-full ${
+                              !canSaveComment ? "btn-disabled" : ""
+                            }`}
+                            onClick={handleSave}
+                            disabled={!canSaveComment}
+                          >
+                            {isSaving ? (
+                              <>
+                                <span className="loading loading-spinner loading-sm" />
+                                Saqlanmoqda...
+                              </>
+                            ) : (
+                              <>
+                                <FaSave />
+                                <span>Kommentar speichern</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </aside>
+                </>
+              )}
 
-                  <div className="flex-1 overflow-y-auto flex justify-center bg-slate-100">
-                    <div
-                      className="w-full bg-white shadow-2xl w-[210mm] min-h-[297mm] p-[44pt] text-[#0f172a] text-[11pt] leading-[1.38] origin-top"
-                      style={{
-                        fontFamily: "Inter, Helvetica, Arial, sans-serif",
-                      }}
-                    >
-                      {/* Header */}
-                      <div className="mb-[18pt]">
-                        <h1 className="text-[24pt] font-bold text-[#0f172a] leading-tight">
-                          {fullName}
-                        </h1>
-                        <div className="h-[2pt] bg-[#1f2937] mt-[17pt] mb-[12pt] w-full" />
+              {/* Right: Live Preview (WYSIWYG) */}
+              {!isLimitedAdmin && (
+                <section className="hidden lg:block flex-1 min-w-0 h-[calc(100vh-2rem)] sticky top-4">
+                  <div className="bg-slate-200/50 rounded-xl border border-slate-300 shadow-inner h-full flex flex-col overflow-hidden">
+                    <div className="bg-white border-b border-slate-200 px-4 py-2 flex justify-between items-center text-xs font-semibold text-slate-500 uppercase tracking-wider z-10">
+                      <span>Vorschau (A4)</span>
+                      <span className="flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                        Live-Aktualisierung
+                      </span>
+                    </div>
 
-                        <div className="flex flex-row gap-[22pt]">
-                          <div className="flex-1">
-                            <div className="flex flex-col gap-[6pt] mt-1">
-                              <PreviewInfoRow label="Name" value={fullName} />
-                              <PreviewInfoRow label="Anschrift" value={address} />
-                              <PreviewInfoRow label="geb." value={birthDate} />
-                              <PreviewInfoRow
-                                label="Familienstand"
-                                value={maritalStatus}
-                              />
-                              <PreviewInfoRow label="Tel" value={phone} />
-                              <PreviewInfoRow label="E-Mail" value={email} />
+                    <div className="flex-1 overflow-y-auto flex justify-center bg-slate-100">
+                      <div
+                        className="bg-white shadow-2xl w-full h-[297mm] max-h-[297mm] overflow-hidden p-[44pt] text-[#0f172a] text-[11pt] leading-[1.38] origin-top shrink-0"
+                        style={{
+                          fontFamily: "Inter, Helvetica, Arial, sans-serif",
+                        }}
+                      >
+                        <div className="flex flex-col gap-[18pt] h-full overflow-hidden">
+                          {/* Header */}
+                          <div className="mb-[18pt]">
+                            <h1 className="text-[24pt] font-bold text-[#0f172a] leading-tight">
+                              {fullName}
+                            </h1>
+                            <div className="h-[2pt] bg-[#1f2937] mt-[17pt] mb-[12pt] w-full" />
+
+                            <div className="flex flex-row gap-[22pt]">
+                              <div className="flex-1">
+                                <div className="flex flex-col gap-[6pt] mt-1">
+                                  <PreviewInfoRow label="Name" value={fullName} />
+                                  <PreviewInfoRow label="Anschrift" value={address} />
+                                  <PreviewInfoRow label="geb." value={birthDate} />
+                                  <PreviewInfoRow label="Familienstand" value={maritalStatus} />
+                                  <PreviewInfoRow label="Tel" value={phone} />
+                                  <PreviewInfoRow label="E-Mail" value={email} />
+                                </div>
+                              </div>
+
+                              <div className="shrink-0">
+                                {photo ? (
+                                  <img
+                                    src={photo}
+                                    alt="Foto"
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={openPhotoModal}
+                                    onKeyDown={(e) => {
+                                      if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault();
+                                        openPhotoModal();
+                                      }
+                                    }}
+                                    className="w-[128pt] h-[160pt] object-cover border border-[#d9dee3] rounded-[8pt] cursor-zoom-in transition-transform hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/50"
+                                  />
+                                ) : (
+                                  <div className="w-[128pt] h-[160pt] border border-[#d9dee3] rounded-[8pt] flex items-center justify-center bg-gray-50 text-gray-400 text-xs">
+                                    Foto
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
 
-                          <div className="shrink-0">
-                            {photo ? (
-                              <img
-                                src={photo}
-                                alt="Foto"
-                                className="w-[128pt] h-[160pt] object-cover border border-[#d9dee3] rounded-[8pt]"
-                              />
-                            ) : (
-                              <div className="w-[128pt] h-[160pt] border border-[#d9dee3] rounded-[8pt] flex items-center justify-center bg-gray-50 text-gray-400 text-xs">
-                                Foto
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Berufliche Laufbahn */}
-                      {formCv.experience.length > 0 && (
-                        <>
-                          <PreviewSectionTitle>
-                            Berufliche Laufbahn
-                          </PreviewSectionTitle>
-                          <div className="flex flex-col gap-[10pt]">
-                            {formCv.experience.map((exp, i) => (
-                              <div key={i} className="flex flex-row gap-[10pt]">
-                                <div className="w-[140pt] shrink-0 font-bold text-[#475569]">
-                                  {(exp.startDate || "—") +
-                                    " – " +
-                                    (exp.endDate || "heute")}
-                                </div>
-                                <div className="flex-1">
-                                  <div className="font-bold text-[#0f172a]">
-                                    {exp.position || "—"}
-                                    {exp.location ? `, ${exp.location}` : ""}
-                                  </div>
-                                  {exp.company && (
-                                    <div className="italic text-[#475569]">
-                                      {exp.company}
+                          <div className="flex-1 overflow-y-auto pr-[6pt]">
+                            {/* Berufliche Laufbahn */}
+                            {formCv.experience.length > 0 && (
+                              <>
+                                <PreviewSectionTitle>
+                                  Berufliche Laufbahn
+                                </PreviewSectionTitle>
+                                <div className="flex flex-col gap-[10pt]">
+                                  {formCv.experience.map((exp, i) => (
+                                    <div
+                                      key={i}
+                                      className="flex flex-row gap-[10pt]"
+                                    >
+                                      <div className="w-[140pt] shrink-0 font-bold text-[#475569]">
+                                        {(exp.startDate || "—") +
+                                          " – " +
+                                          (exp.endDate || "heute")}
+                                      </div>
+                                      <div className="flex-1">
+                                        <div className="font-bold text-[#0f172a]">
+                                          {exp.position || "—"}
+                                          {exp.location ? `, ${exp.location}` : ""}
+                                        </div>
+                                        {exp.company && (
+                                          <div className="italic text-[#475569]">
+                                            {exp.company}
+                                          </div>
+                                        )}
+                                        {Array.isArray(exp.responsibilities) &&
+                                          exp.responsibilities.length > 0 && (
+                                            <div className="mt-[4pt]">
+                                              {exp.responsibilities.map((r, ri) => (
+                                                <div
+                                                  key={ri}
+                                                  className="flex flex-row gap-[6pt]"
+                                                >
+                                                  <span>•</span>
+                                                  <span>{r}</span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          )}
+                                      </div>
                                     </div>
-                                  )}
-                                  {Array.isArray(exp.responsibilities) &&
-                                    exp.responsibilities.length > 0 && (
-                                      <div className="mt-[4pt]">
-                                        {exp.responsibilities.map((r, ri) => (
+                                  ))}
+                                </div>
+                              </>
+                            )}
+
+                            {/* Ausbildung */}
+                            {formCv.education.length > 0 && (
+                              <>
+                                <PreviewSectionTitle>
+                                  Ausbildung
+                                </PreviewSectionTitle>
+                                <div className="flex flex-col gap-[10pt]">
+                                  {formCv.education.map((edu, i) => (
+                                    <div
+                                      key={i}
+                                      className="flex flex-row gap-[10pt]"
+                                    >
+                                      <div className="w-[140pt] shrink-0 font-bold text-[#475569]">
+                                        {(edu.startDate || "—") +
+                                          " – " +
+                                          (edu.endDate || "—")}
+                                      </div>
+                                      <div className="flex-1">
+                                        <div>{edu.institution || "—"}</div>
+                                        <div className="italic text-[#475569]">
+                                          Abschluss: {edu.degree || "—"}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </>
+                            )}
+
+                            {/* Kenntnisse & Fähigkeiten */}
+                            {(formCv.skills.softSkills?.length > 0 ||
+                              Object.entries(formCv.skills.languages || {}).length >
+                                0 ||
+                              formCv.skills.pcSkills?.length > 0) && (
+                              <>
+                                <PreviewSectionTitle>
+                                  Kenntnisse & Fähigkeiten
+                                </PreviewSectionTitle>
+                                <div className="flex flex-col gap-[12pt]">
+                                  {formCv.skills.softSkills?.length > 0 && (
+                                    <div className="flex flex-col gap-[4pt]">
+                                      <div className="font-bold">Fähigkeiten</div>
+                                      <div className="flex flex-col gap-[3pt]">
+                                        {formCv.skills.softSkills.map((s, i) => (
                                           <div
-                                            key={ri}
+                                            key={i}
                                             className="flex flex-row gap-[6pt]"
                                           >
                                             <span>•</span>
-                                            <span>{r}</span>
+                                            <span>{s}</span>
                                           </div>
                                         ))}
                                       </div>
-                                    )}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </>
-                      )}
-
-                      {/* Ausbildung */}
-                      {formCv.education.length > 0 && (
-                        <>
-                          <PreviewSectionTitle>Ausbildung</PreviewSectionTitle>
-                          <div className="flex flex-col gap-[10pt]">
-                            {formCv.education.map((edu, i) => (
-                              <div key={i} className="flex flex-row gap-[10pt]">
-                                <div className="w-[140pt] shrink-0 font-bold text-[#475569]">
-                                  {(edu.startDate || "—") +
-                                    " – " +
-                                    (edu.endDate || "—")}
-                                </div>
-                                <div className="flex-1">
-                                  <div>{edu.institution || "—"}</div>
-                                  <div className="italic text-[#475569]">
-                                    Abschluss: {edu.degree || "—"}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </>
-                      )}
-
-                      {/* Kenntnisse & Fähigkeiten */}
-                      {(formCv.skills.softSkills?.length > 0 ||
-                        Object.entries(formCv.skills.languages || {}).length >
-                          0 ||
-                        formCv.skills.pcSkills?.length > 0) && (
-                        <>
-                          <PreviewSectionTitle>
-                            Kenntnisse & Fähigkeiten
-                          </PreviewSectionTitle>
-                          <div className="flex flex-col gap-[12pt]">
-                            {formCv.skills.softSkills?.length > 0 && (
-                              <div className="flex flex-col gap-[4pt]">
-                                <div className="font-bold">Fähigkeiten</div>
-                                <div className="flex flex-col gap-[3pt]">
-                                  {formCv.skills.softSkills.map((s, i) => (
-                                    <div
-                                      key={i}
-                                      className="flex flex-row gap-[6pt]"
-                                    >
-                                      <span>•</span>
-                                      <span>{s}</span>
                                     </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
+                                  )}
 
-                            {Object.entries(formCv.skills.languages || {})
-                              .length > 0 && (
-                              <div className="flex flex-col gap-[4pt]">
-                                <div className="font-bold">Fremdsprachen</div>
-                                <div className="flex flex-col gap-[3pt]">
-                                  {Object.entries(formCv.skills.languages).map(
-                                    ([lang, level]) => (
-                                      <div
-                                        key={lang}
-                                        className="flex flex-row gap-[6pt]"
-                                      >
-                                        <span>•</span>
-                                        <span>
-                                          {lang} — {level}
-                                        </span>
+                                  {Object.entries(formCv.skills.languages || {})
+                                    .length > 0 && (
+                                    <div className="flex flex-col gap-[4pt]">
+                                      <div className="font-bold">Fremdsprachen</div>
+                                      <div className="flex flex-col gap-[3pt]">
+                                        {Object.entries(formCv.skills.languages).map(
+                                          ([lang, level]) => (
+                                            <div
+                                              key={lang}
+                                              className="flex flex-row gap-[6pt]"
+                                            >
+                                              <span>•</span>
+                                              <span>
+                                                {lang} — {level}
+                                              </span>
+                                            </div>
+                                          )
+                                        )}
                                       </div>
-                                    )
+                                    </div>
+                                  )}
+
+                                  {formCv.skills.pcSkills?.length > 0 && (
+                                    <div className="flex flex-col gap-[4pt]">
+                                      <div className="font-bold">PC-Kenntnisse</div>
+                                      <div className="flex flex-col gap-[3pt]">
+                                        {formCv.skills.pcSkills.map((s, i) => (
+                                          <div
+                                            key={i}
+                                            className="flex flex-row gap-[6pt]"
+                                          >
+                                            <span>•</span>
+                                            <span>{s}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
                                   )}
                                 </div>
-                              </div>
+                              </>
                             )}
 
-                            {formCv.skills.pcSkills?.length > 0 && (
-                              <div className="flex flex-col gap-[4pt]">
-                                <div className="font-bold">PC-Kenntnisse</div>
-                                <div className="flex flex-col gap-[3pt]">
-                                  {formCv.skills.pcSkills.map((s, i) => (
-                                    <div
-                                      key={i}
-                                      className="flex flex-row gap-[6pt]"
-                                    >
-                                      <span>•</span>
-                                      <span>{s}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
+                            {/* Dokumente */}
+                            {showDocuments &&
+                              (formCv.documents?.diplomas?.length > 0 ||
+                                formCv.documents?.certificates?.length > 0) && (
+                                <>
+                                  <PreviewSectionTitle>
+                                    Dokumente
+                                  </PreviewSectionTitle>
+                                  <div className="flex flex-col gap-[12pt]">
+                                    {formCv.documents.diplomas?.length > 0 && (
+                                      <div className="flex flex-col gap-[4pt]">
+                                        <div className="font-bold">Diplome</div>
+                                        <div className="flex flex-col gap-[3pt]">
+                                          {formCv.documents.diplomas.map((url, i) => (
+                                            <div
+                                              key={i}
+                                              className="flex flex-row gap-[6pt]"
+                                            >
+                                              <span>•</span>
+                                              <a
+                                                href={url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-blue-600 hover:underline break-all"
+                                              >
+                                                {url}
+                                              </a>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {formCv.documents.certificates?.length > 0 && (
+                                      <div className="flex flex-col gap-[4pt]">
+                                        <div className="font-bold">Zertifikate</div>
+                                        <div className="flex flex-col gap-[3pt]">
+                                          {formCv.documents.certificates.map(
+                                            (url, i) => (
+                                              <div
+                                                key={i}
+                                                className="flex flex-row gap-[6pt]"
+                                              >
+                                                <span>•</span>
+                                                <a
+                                                  href={url}
+                                                  target="_blank"
+                                                  rel="noreferrer"
+                                                  className="text-blue-600 hover:underline break-all"
+                                                >
+                                                  {url}
+                                                </a>
+                                              </div>
+                                            )
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                </>
+                              )}
                           </div>
-                        </>
-                      )}
-
-                      {/* Dokumente */}
-                      {(showDocuments && (formCv.documents?.diplomas?.length > 0 ||
-                        formCv.documents?.certificates?.length > 0)) && (
-                        <>
-                          <PreviewSectionTitle>Dokumente</PreviewSectionTitle>
-                          <div className="flex flex-col gap-[12pt]">
-                            {formCv.documents.diplomas?.length > 0 && (
-                              <div className="flex flex-col gap-[4pt]">
-                                <div className="font-bold">Diplome</div>
-                                <div className="flex flex-col gap-[3pt]">
-                                  {formCv.documents.diplomas.map((url, i) => (
-                                    <div
-                                      key={i}
-                                      className="flex flex-row gap-[6pt]"
-                                    >
-                                      <span>•</span>
-                                      <a
-                                        href={url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-blue-600 hover:underline break-all"
-                                      >
-                                        {url}
-                                      </a>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            {formCv.documents.certificates?.length > 0 && (
-                              <div className="flex flex-col gap-[4pt]">
-                                <div className="font-bold">Zertifikate</div>
-                                <div className="flex flex-col gap-[3pt]">
-                                  {formCv.documents.certificates.map((url, i) => (
-                                    <div
-                                      key={i}
-                                      className="flex flex-row gap-[6pt]"
-                                    >
-                                      <span>•</span>
-                                      <a
-                                        href={url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="text-blue-600 hover:underline break-all"
-                                      >
-                                        {url}
-                                      </a>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </>
-                      )}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </section>
-            )}
-          </div>
+                </section>
+              )}
+            </div>
+          </>
         )}
       </div>
+
+      {/* Stepper should be below the form & preview */}
+      {!isLimitedAdmin && !loading && !notFound && (
+        <div className="mt-6">
+          <CandidateStatusStepper
+            currentValue={statusValue}
+            onSendEmail={handleSendStatusEmail}
+            sendingValue={sendingStepValue}
+            disabled={isLimitedAdmin}
+          />
+          <div className="text-xs opacity-60 mt-2">
+            Oxirgi yangilanish:{" "}
+            {statusUpdatedAt
+              ? new Date(statusUpdatedAt).toLocaleString("de-DE")
+              : "—"}
+            {statusUpdatedBy ? ` • Kim: ${statusUpdatedBy}` : ""}
+          </div>
+        </div>
+      )}
+
+      {isPhotoModalOpen && photoModalSrc ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center print:hidden">
+          <div
+            className="absolute inset-0 bg-base-content/50 backdrop-blur-sm"
+            onClick={closePhotoModal}
+          />
+          <div className="relative w-full max-w-4xl mx-4">
+            <div className="bg-base-100 text-base-content rounded-box shadow-2xl border border-base-300 p-4 sm:p-6 space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-bold">Foto ko&apos;rinishi</h3>
+                  <p className="text-sm opacity-70">
+                    Live Preview dagi rasmni kattalashtirilgan holda
+                    ko&apos;rish.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={closePhotoModal}
+                  aria-label="Modalni yopish"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="bg-base-200 rounded-lg border border-base-300 p-2 sm:p-3 max-h-[80vh] overflow-auto">
+                <img
+                  src={photoModalSrc}
+                  alt="Foto"
+                  className="w-full max-h-[72vh] object-contain rounded-md bg-base-100"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isInterviewModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center print:hidden">
+          <div
+            className="absolute inset-0 bg-base-content/50 backdrop-blur-sm"
+            onClick={closeInterviewModal}
+          />
+          <div className="relative w-full max-w-lg mx-4">
+            <div className="bg-base-100 text-base-content rounded-box shadow-2xl border border-base-300 p-6 space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-bold">
+                    Suhbat tafsilotlarini yuborish
+                  </h3>
+                  <p className="text-sm opacity-70">
+                    Suhbat sanasi/vaqti, manzil va olib kelish kerak
+                    bo&apos;lgan narsalarni kiriting.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={closeInterviewModal}
+                  disabled={sendingStepValue === EMPLOYER_INTERVIEW_STATUS}
+                  aria-label="Modalni yopish"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form className="space-y-4" onSubmit={handleInterviewSubmit}>
+                <div className="form-control">
+                  <label className="label" htmlFor="interview-date-time">
+                    <span className="label-text font-medium">
+                      Suhbat sanasi va vaqti
+                    </span>
+                  </label>
+                  <input
+                    id="interview-date-time"
+                    type="datetime-local"
+                    className="input input-bordered w-full"
+                    value={interviewForm.dateTime}
+                    onChange={(e) =>
+                      setInterviewForm((prev) => ({
+                        ...prev,
+                        dateTime: e.target.value,
+                      }))
+                    }
+                    disabled={sendingStepValue === EMPLOYER_INTERVIEW_STATUS}
+                  />
+                </div>
+
+                <div className="form-control">
+                  <label className="label" htmlFor="interview-location">
+                    <span className="label-text font-medium">Manzil</span>
+                  </label>
+                  <input
+                    id="interview-location"
+                    type="text"
+                    className="input input-bordered w-full"
+                    placeholder="Masalan: Tashkent, Amir Temur 12, 3-qavat"
+                    value={interviewForm.location}
+                    onChange={(e) =>
+                      setInterviewForm((prev) => ({
+                        ...prev,
+                        location: e.target.value,
+                      }))
+                    }
+                    disabled={sendingStepValue === EMPLOYER_INTERVIEW_STATUS}
+                  />
+                </div>
+
+                <div className="form-control">
+                  <label className="label" htmlFor="interview-items">
+                    <span className="label-text font-medium">
+                      Nimalarni olib kelish kerak
+                    </span>
+                  </label>
+                  <textarea
+                    id="interview-items"
+                    className="textarea textarea-bordered w-full"
+                    rows={3}
+                    placeholder="Masalan: pasport, CV nusxasi, diplomlar"
+                    value={interviewForm.items}
+                    onChange={(e) =>
+                      setInterviewForm((prev) => ({
+                        ...prev,
+                        items: e.target.value,
+                      }))
+                    }
+                    disabled={sendingStepValue === EMPLOYER_INTERVIEW_STATUS}
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={closeInterviewModal}
+                    disabled={sendingStepValue === EMPLOYER_INTERVIEW_STATUS}
+                  >
+                    Bekor qilish
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={sendingStepValue === EMPLOYER_INTERVIEW_STATUS}
+                  >
+                    {sendingStepValue === EMPLOYER_INTERVIEW_STATUS ? (
+                      <span className="loading loading-spinner loading-sm" />
+                    ) : (
+                      "Jo'natish"
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isDecisionModalOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center print:hidden">
+          <div
+            className="absolute inset-0 bg-base-content/50 backdrop-blur-sm"
+            onClick={closeDecisionModal}
+          />
+          <div className="relative w-full max-w-3xl mx-4">
+            <div className="bg-base-100 text-base-content rounded-box shadow-2xl border border-base-300 p-6 space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-bold">
+                    Ish beruvchining qarorini yuborish
+                  </h3>
+                  <p className="text-sm opacity-70">
+                    Nomzodga qaror (qabul yoki rad) haqida muloyim tarzda xabar
+                    bering.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={closeDecisionModal}
+                  disabled={sendingStepValue === EMPLOYER_DECISION_STATUS}
+                  aria-label="Modalni yopish"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form className="space-y-4" onSubmit={handleDecisionSubmit}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label
+                    className={`card border transition cursor-pointer ${
+                      decisionForm.decision === "accepted"
+                        ? "border-success bg-success/5"
+                        : "border-base-300 hover:border-success/60"
+                    }`}
+                  >
+                    <div className="card-body p-4 gap-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="employer-decision"
+                          className="radio radio-success"
+                          value="accepted"
+                          checked={decisionForm.decision === "accepted"}
+                          onChange={() =>
+                            setDecisionForm((prev) => ({
+                              ...prev,
+                              decision: "accepted",
+                            }))
+                          }
+                          disabled={
+                            sendingStepValue === EMPLOYER_DECISION_STATUS
+                          }
+                        />
+                        <div className="font-semibold">Qabul qilindi</div>
+                      </div>
+                      <p className="text-sm opacity-70">
+                        Hujjatlarni tayyorlash uchun @consultinguz_chat bilan
+                        bog&apos;laning.
+                      </p>
+                    </div>
+                  </label>
+
+                  <label
+                    className={`card border transition cursor-pointer ${
+                      decisionForm.decision === "rejected"
+                        ? "border-error bg-error/5"
+                        : "border-base-300 hover:border-error/60"
+                    }`}
+                  >
+                    <div className="card-body p-4 gap-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="employer-decision"
+                          className="radio radio-error"
+                          value="rejected"
+                          checked={decisionForm.decision === "rejected"}
+                          onChange={() =>
+                            setDecisionForm((prev) => ({
+                              ...prev,
+                              decision: "rejected",
+                            }))
+                          }
+                          disabled={
+                            sendingStepValue === EMPLOYER_DECISION_STATUS
+                          }
+                        />
+                        <div className="font-semibold">Rad etildi</div>
+                      </div>
+                      <p className="text-sm opacity-70">
+                        Jarayon boshqa yo&apos;nalishda davom etadi. Mos
+                        vakansiyalar bo&apos;lsa, xabardor qilamiz.
+                      </p>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={closeDecisionModal}
+                    disabled={sendingStepValue === EMPLOYER_DECISION_STATUS}
+                  >
+                    Bekor qilish
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={sendingStepValue === EMPLOYER_DECISION_STATUS}
+                  >
+                    {sendingStepValue === EMPLOYER_DECISION_STATUS ? (
+                      <span className="loading loading-spinner loading-sm" />
+                    ) : (
+                      "Jo'natish"
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
