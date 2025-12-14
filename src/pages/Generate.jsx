@@ -41,6 +41,7 @@ import {
 } from "../constants/candidateStatus";
 import { buildStatusEmailTemplate } from "../utils/statusEmail";
 import { sendBrevoEmail } from "../utils/brevo";
+import RichTextEditor from "../components/RichTextEditor";
 
 const EMPLOYER_INTERVIEW_STATUS = "employer_interview_scheduled";
 const EMPLOYER_DECISION_STATUS = "employer_decision";
@@ -103,6 +104,80 @@ function Generate() {
   const [formInitialized, setFormInitialized] = useState(false);
   const { user } = useSelector((state) => state.auth);
   const [userRole, setUserRole] = useState(null);
+  const [isCommentEditorOpen, setIsCommentEditorOpen] = useState(false);
+  const [commentBaseline, setCommentBaseline] = useState("");
+  const [commentMeta, setCommentMeta] = useState({
+    updatedAt: null,
+    updatedByName: "",
+    updatedByPhoto: "",
+    updatedByUid: "",
+  });
+
+  function normalizeForm(form) {
+    const safe = form || initialForm;
+    const langEntries = Object.entries(safe?.skills?.languages || {}).filter(
+      ([key]) => key !== undefined && key !== null
+    );
+    langEntries.sort(([a], [b]) =>
+      String(a || "").localeCompare(String(b || ""), undefined, {
+        sensitivity: "base",
+      })
+    );
+
+    return {
+      personalInfo: {
+        name: String(safe?.personalInfo?.name || ""),
+        lastName: String(safe?.personalInfo?.lastName || ""),
+        gender: String(safe?.personalInfo?.gender || ""),
+        address: String(safe?.personalInfo?.address || ""),
+        birthDate: String(safe?.personalInfo?.birthDate || ""),
+        maritalStatus: String(safe?.personalInfo?.maritalStatus || ""),
+        phone: String(safe?.personalInfo?.phone || ""),
+        email: String(safe?.personalInfo?.email || ""),
+        photo: String(safe?.personalInfo?.photo || ""),
+      },
+      experience: Array.isArray(safe?.experience)
+        ? safe.experience.map((exp) => ({
+            startDate: String(exp?.startDate || ""),
+            endDate: String(exp?.endDate || ""),
+            position: String(exp?.position || ""),
+            company: String(exp?.company || ""),
+            location: String(exp?.location || ""),
+            responsibilities: Array.isArray(exp?.responsibilities)
+              ? exp.responsibilities.map((r) => String(r || ""))
+              : [],
+          }))
+        : [],
+      education: Array.isArray(safe?.education)
+        ? safe.education.map((edu) => ({
+            startDate: String(edu?.startDate || ""),
+            endDate: String(edu?.endDate || ""),
+            institution: String(edu?.institution || ""),
+            degree: String(edu?.degree || ""),
+          }))
+        : [],
+      skills: {
+        softSkills: Array.isArray(safe?.skills?.softSkills)
+          ? safe.skills.softSkills.map((s) => String(s || ""))
+          : [],
+        pcSkills: Array.isArray(safe?.skills?.pcSkills)
+          ? safe.skills.pcSkills.map((s) => String(s || ""))
+          : [],
+        languages: Object.fromEntries(
+          langEntries.map(([k, v]) => [String(k), v])
+        ),
+      },
+      documents: {
+        diplomas: Array.isArray(safe?.documents?.diplomas)
+          ? safe.documents.diplomas.map((d) => String(d || ""))
+          : [],
+        certificates: Array.isArray(safe?.documents?.certificates)
+          ? safe.documents.certificates.map((c) => String(c || ""))
+          : [],
+      },
+      commentar: String(safe?.commentar || ""),
+    };
+  }
 
   useEffect(() => {
     let active = true;
@@ -126,6 +201,38 @@ function Generate() {
   }, [user]);
 
   const isLimitedAdmin = userRole === "limited_admin";
+  const hasComment = useMemo(
+    () => hasRichTextContent(formCv.commentar),
+    [formCv.commentar]
+  );
+  const commentChanged = useMemo(
+    () => String(formCv.commentar || "") !== String(commentBaseline || ""),
+    [formCv.commentar, commentBaseline]
+  );
+
+  const normalizedDocForm = useMemo(() => {
+    if (!docCv) return null;
+    return normalizeForm(mapDocToForm(docCv));
+  }, [docCv]);
+
+  const normalizedCurrentForm = useMemo(() => normalizeForm(formCv), [formCv]);
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (!normalizedDocForm) return false;
+    return (
+      JSON.stringify(normalizedDocForm) !==
+      JSON.stringify(normalizedCurrentForm)
+    );
+  }, [normalizedDocForm, normalizedCurrentForm]);
+
+  function handleCancel() {
+    if (!docCv) return;
+    const mapped = mapDocToForm(docCv);
+    setFormCv(mapped);
+    setCommentBaseline(mapped.commentar || "");
+    setIsCommentEditorOpen(false);
+    setRecentlyAdded({ soft: [], pc: [] });
+  }
 
   useEffect(() => {
     const col = String(major || "").trim();
@@ -149,9 +256,17 @@ function Generate() {
           setStatusUpdatedAt(status?.updatedAt || null);
           setStatusUpdatedBy(status?.updatedBy || "");
           setDocCv(data);
+          const cMeta = data?.commentarMeta || {};
+          setCommentMeta({
+            updatedAt: cMeta?.updatedAt || null,
+            updatedByName: cMeta?.updatedByName || "",
+            updatedByPhoto: cMeta?.updatedByPhoto || "",
+            updatedByUid: cMeta?.updatedByUid || "",
+          });
           setNotFound(false);
           if (!formInitialized) {
-            setFormCv(mapDocToForm(data));
+            const mapped = mapDocToForm(data);
+            setFormCv(mapped);
             setFormInitialized(true);
           }
         }
@@ -277,6 +392,14 @@ function Generate() {
       },
       commentar: String(f.commentar || ""),
     };
+  }
+
+  function hasRichTextContent(value) {
+    return Boolean(
+      String(value || "")
+        .replace(/<[^>]*>/g, "")
+        .trim()
+    );
   }
 
   // PDF styles for consistent export layout
@@ -1067,6 +1190,20 @@ function Generate() {
     const col = String(major || "").trim();
     const docId = String(id || "").trim();
     if (!col || !docId) return;
+    const commentHasContent = hasRichTextContent(formCv.commentar);
+    const originalComment = String(docCv?.commentar || "");
+    const isCommentUpdated =
+      String(formCv.commentar || "") !== String(originalComment || "");
+
+    const nextCommentMeta = isCommentUpdated
+      ? {
+          updatedAt: Date.now(),
+          updatedByUid: user?.uid || "",
+          updatedByName:
+            user?.displayName || user?.email || user?.phoneNumber || "Nomaʼlum",
+          updatedByPhoto: user?.photoURL || "",
+        }
+      : null;
 
     if (!isLimitedAdmin) {
       if (!formCv.personalInfo.name?.trim()) {
@@ -1088,12 +1225,24 @@ function Generate() {
       const payload = isLimitedAdmin
         ? { commentar: String(formCv.commentar || "") }
         : mapFormToDoc(formCv);
+      if (nextCommentMeta) {
+        payload.commentarMeta = nextCommentMeta;
+      }
       await updateDocument(col, docId, payload);
       toast.success(
         isLimitedAdmin
           ? "Kommentar wurde gespeichert."
           : "Änderungen wurden gespeichert."
       );
+      if (isLimitedAdmin) {
+        setCommentBaseline(formCv.commentar || "");
+      }
+      if (nextCommentMeta) {
+        setCommentMeta(nextCommentMeta);
+      }
+      if (commentHasContent) {
+        setIsCommentEditorOpen(false);
+      }
     } catch (e) {
       console.error(e);
       toast.error("Fehler beim Speichern.");
@@ -1184,14 +1333,95 @@ function Generate() {
     ? `${formCardLimited} flex-1 min-w-0 lg:self-stretch lg:basis-[60%] lg:max-w-[60%] lg:flex-none`
     : `${formCardAdmin} flex-1 min-w-0 lg:self-stretch lg:basis-[60%] lg:max-w-[60%] lg:flex-none`;
 
-  const canSaveComment =
-    Boolean(formCv.commentar?.trim()) && !isSaving && !loading && !notFound;
+  const canSaveComment = commentChanged && !isSaving && !loading && !notFound;
+  const showCommentPreview = !isCommentEditorOpen;
+  const commentActionLabel = !isCommentEditorOpen ? "Qo'shish" : "Bekor qilish";
+  const showLimitedCommentSaveButton =
+    isLimitedAdmin &&
+    isCommentEditorOpen &&
+    commentChanged &&
+    !loading &&
+    !notFound;
+
+  function formatCommentDate(val) {
+    if (!val) return "";
+    try {
+      if (val?.seconds)
+        return new Date(val.seconds * 1000).toLocaleString("de-DE");
+      if (typeof val === "number") return new Date(val).toLocaleString("de-DE");
+      const parsed = new Date(val);
+      if (!Number.isNaN(parsed.getTime()))
+        return parsed.toLocaleString("de-DE");
+    } catch (err) {
+      console.error("formatCommentDate error:", err);
+    }
+    return "";
+  }
+
+  const renderCommentPreview = (extraClassName = "") => (
+    <div
+      className={`rounded-lg border border-base-300 bg-base-100 p-3 max-h-60 overflow-auto ${extraClassName}`}
+    >
+      {hasComment ? (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              {commentMeta?.updatedByPhoto ? (
+                <img
+                  src={commentMeta.updatedByPhoto}
+                  alt={commentMeta?.updatedByName || "Kommentator"}
+                  className="w-8 h-8 rounded-full object-cover border border-base-300"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-base-300 text-base-content/70 flex items-center justify-center text-xs font-semibold">
+                  {(commentMeta?.updatedByName || "U")
+                    .slice(0, 1)
+                    .toUpperCase()}
+                </div>
+              )}
+              <div className="leading-tight">
+                <div className="text-sm font-semibold text-base-content">
+                  {commentMeta?.updatedByName || "Nomaʼlum foydalanuvchi"}
+                </div>
+                {commentMeta?.updatedAt && (
+                  <div className="text-[11px] text-base-content/60">
+                    Yangilandi: {formatCommentDate(commentMeta.updatedAt)}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          <div
+            className="prose prose-sm max-w-none text-base-content"
+            dangerouslySetInnerHTML={{ __html: formCv.commentar }}
+          />
+        </div>
+      ) : (
+        <p className="text-sm text-base-content/60 italic">
+          Kommentariya yo&apos;q.
+        </p>
+      )}
+    </div>
+  );
+
+  function openCommentEditor() {
+    setCommentBaseline(formCv.commentar || "");
+    setIsCommentEditorOpen(true);
+  }
+
+  function handleCommentPrimaryAction() {
+    if (!isCommentEditorOpen) {
+      openCommentEditor();
+      return;
+    }
+    setIsCommentEditorOpen(false);
+  }
 
   return (
     <div className="p-2 sm:p-4 md:p-6 bg-base-200 min-h-screen">
       <div className="w-full">
         {/* Controls (hidden on print) */}
-          <div className="flex items-center justify-between mb-4 print:hidden">
+        <div className="flex items-center justify-between mb-6 pb-2 md:pb-3 print:hidden">
           <div className="breadcrumbs text-sm">
             <ul>
               <li>
@@ -1205,29 +1435,39 @@ function Generate() {
               <li className="opacity-70">CV</li>
             </ul>
           </div>
-            <div className="flex items-center gap-2">
-              {!isLimitedAdmin && (
-                <>
-                  <button
-                    className="btn btn-sm btn-outline"
-                    onClick={handleDownloadPdf}
-                    disabled={loading || notFound || isDownloading}
-                  >
-                    <FaDownload />{" "}
-                    {isDownloading ? "Wird geladen..." : "Herunterladen"}
-                  </button>
-                  <button
-                    className={`btn btn-sm btn-primary ${
-                      isSaving ? "btn-disabled" : ""
-                    }`}
-                    onClick={handleSave}
-                    disabled={isSaving || loading || notFound}
-                  >
-                    {isSaving ? "Speichern..." : "Speichern"}
-                  </button>
-                </>
-              )}
-            </div>
+          <div className="flex items-center gap-2">
+            {!isLimitedAdmin && (
+              <>
+                <button
+                  className="btn btn-sm btn-primary"
+                  onClick={handleSave}
+                  disabled={
+                    isSaving || loading || notFound || !hasUnsavedChanges
+                  }
+                >
+                  <FaSave />
+                  <span>Saqlash</span>
+                </button>
+                <button
+                  className="btn btn-sm"
+                  onClick={handleCancel}
+                  disabled={
+                    isSaving || loading || notFound || !hasUnsavedChanges
+                  }
+                >
+                  Bekor qilish
+                </button>
+                <button
+                  className="btn btn-sm btn-outline"
+                  onClick={handleDownloadPdf}
+                  disabled={loading || notFound || isDownloading}
+                >
+                  <FaDownload />{" "}
+                  {isDownloading ? "Wird geladen..." : "Herunterladen"}
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         {loading ? (
@@ -1628,25 +1868,35 @@ function Generate() {
                   {!isLimitedAdmin && (
                     <>
                       <div className="divider mt-1">Kommentar</div>
-                      <div className="form-control">
+                      <div className="form-control gap-3">
                         <label className="label" htmlFor="comment-admin">
                           <span className="label-text font-medium">
                             Allgemeiner Kommentar (Kandidat haqida)
                           </span>
                         </label>
-                        <textarea
-                          id="comment-admin"
-                          className={textareaBase}
-                          rows={3}
-                          placeholder='Umumiy fikr: "Kandidat juda mos, faqat foto yangilansin"'
-                          value={formCv.commentar}
-                          onChange={(e) =>
-                            setFormCv((prev) => ({
-                              ...prev,
-                              commentar: e.target.value,
-                            }))
-                          }
-                        />
+                        {showCommentPreview && renderCommentPreview()}
+                        {isCommentEditorOpen && (
+                          <RichTextEditor
+                            value={formCv.commentar}
+                            onChange={(val) =>
+                              setFormCv((prev) => ({
+                                ...prev,
+                                commentar: val,
+                              }))
+                            }
+                            placeholder='Umumiy fikr: "Kandidat juda mos, faqat foto yangilansin"'
+                          />
+                        )}
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline"
+                            onClick={handleCommentPrimaryAction}
+                            disabled={isSaving || loading || notFound}
+                          >
+                            {commentActionLabel}
+                          </button>
+                        </div>
                       </div>
                     </>
                   )}
@@ -1654,17 +1904,7 @@ function Generate() {
                   {!isLimitedAdmin && (
                     <>
                       <div className="divider"></div>
-                      <div className="flex justify-end gap-2">
-                        <button
-                          className={`btn btn-primary ${
-                            isSaving ? "btn-disabled" : ""
-                          }`}
-                          onClick={handleSave}
-                          disabled={isSaving || loading || notFound}
-                        >
-                          {isSaving ? "Speichern..." : "Speichern"}
-                        </button>
-                      </div>
+                      <div className="flex justify-end gap-2"></div>
                     </>
                   )}
                 </div>
@@ -1682,40 +1922,61 @@ function Generate() {
                             Kandidat haqida eslatma
                           </p>
                         </div>
-                        <textarea
-                          id="limited-comment"
-                          className={`${textareaBase} flex-1 resize-none min-h-[200px]`}
-                          rows={8}
-                          placeholder='Umumiy fikr: "Kandidat juda mos, faqat foto yangilansin"'
-                          value={formCv.commentar}
-                          onChange={(e) =>
-                            setFormCv((prev) => ({
-                              ...prev,
-                              commentar: e.target.value,
-                            }))
-                          }
-                        />
-                        <div className="pt-2">
+                        {showCommentPreview && renderCommentPreview("flex-1")}
+                        {isCommentEditorOpen && (
+                          <RichTextEditor
+                            value={formCv.commentar}
+                            onChange={(val) =>
+                              setFormCv((prev) => ({ ...prev, commentar: val }))
+                            }
+                            placeholder='Umumiy fikr: "Kandidat juda mos, faqat foto yangilansin"'
+                            className="flex-1"
+                            editorClassName="min-h-[220px]"
+                          />
+                        )}
+                        <div className="flex flex-wrap gap-2 mt-2">
                           <button
                             type="button"
-                            className={`btn btn-primary w-full ${
-                              !canSaveComment ? "btn-disabled" : ""
-                            }`}
-                            onClick={handleSave}
-                            disabled={!canSaveComment}
+                            className="btn btn-sm btn-outline w-full"
+                            onClick={handleCommentPrimaryAction}
+                            disabled={isSaving || loading || notFound}
                           >
-                            {isSaving ? (
-                              <>
-                                <span className="loading loading-spinner loading-sm" />
-                                Saqlanmoqda...
-                              </>
-                            ) : (
-                              <>
-                                <FaSave />
-                                <span>Kommentar speichern</span>
-                              </>
-                            )}
+                            {commentActionLabel}
                           </button>
+                        </div>
+                        <div className="pt-2">
+                          {showLimitedCommentSaveButton && (
+                            <div className="flex flex-col gap-2">
+                              <button
+                                type="button"
+                                className={`btn btn-primary w-full ${
+                                  !canSaveComment ? "btn-disabled" : ""
+                                }`}
+                                onClick={handleSave}
+                                disabled={!canSaveComment}
+                              >
+                                {isSaving ? (
+                                  <>
+                                    <span className="loading loading-spinner loading-sm" />
+                                    Saqlanmoqda...
+                                  </>
+                                ) : (
+                                  <>
+                                    <FaSave />
+                                    <span>Saqlash</span>
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                className="btn w-full"
+                                onClick={handleCancel}
+                                disabled={!hasUnsavedChanges || isSaving}
+                              >
+                                Bekor qilish
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1735,14 +1996,14 @@ function Generate() {
                       </span>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto flex justify-center bg-slate-100">
+                    <div className="flex-1 overflow-y-auto w-full flex justify-center items-start bg-slate-100">
                       <div
-                        className="bg-white shadow-2xl w-full h-[297mm] max-h-[297mm] overflow-hidden p-[44pt] text-[#0f172a] text-[11pt] leading-[1.38] origin-top shrink-0"
+                        className="bg-white shadow-2xl w-full max-w-full min-h-[297mm] p-[44pt] text-[#0f172a] text-[11pt] leading-[1.38] origin-top shrink-0"
                         style={{
                           fontFamily: "Inter, Helvetica, Arial, sans-serif",
                         }}
                       >
-                        <div className="flex flex-col gap-[18pt] h-full overflow-hidden">
+                        <div className="flex flex-col gap-[18pt]">
                           {/* Header */}
                           <div className="mb-[18pt]">
                             <h1 className="text-[24pt] font-bold text-[#0f172a] leading-tight">
@@ -1753,12 +2014,27 @@ function Generate() {
                             <div className="flex flex-row gap-[22pt]">
                               <div className="flex-1">
                                 <div className="flex flex-col gap-[6pt] mt-1">
-                                  <PreviewInfoRow label="Name" value={fullName} />
-                                  <PreviewInfoRow label="Anschrift" value={address} />
-                                  <PreviewInfoRow label="geb." value={birthDate} />
-                                  <PreviewInfoRow label="Familienstand" value={maritalStatus} />
+                                  <PreviewInfoRow
+                                    label="Name"
+                                    value={fullName}
+                                  />
+                                  <PreviewInfoRow
+                                    label="Anschrift"
+                                    value={address}
+                                  />
+                                  <PreviewInfoRow
+                                    label="geb."
+                                    value={birthDate}
+                                  />
+                                  <PreviewInfoRow
+                                    label="Familienstand"
+                                    value={maritalStatus}
+                                  />
                                   <PreviewInfoRow label="Tel" value={phone} />
-                                  <PreviewInfoRow label="E-Mail" value={email} />
+                                  <PreviewInfoRow
+                                    label="E-Mail"
+                                    value={email}
+                                  />
                                 </div>
                               </div>
 
@@ -1787,7 +2063,7 @@ function Generate() {
                             </div>
                           </div>
 
-                          <div className="flex-1 overflow-y-auto pr-[6pt]">
+                          <div className="flex-1 pr-[6pt]">
                             {/* Berufliche Laufbahn */}
                             {formCv.experience.length > 0 && (
                               <>
@@ -1808,7 +2084,9 @@ function Generate() {
                                       <div className="flex-1">
                                         <div className="font-bold text-[#0f172a]">
                                           {exp.position || "—"}
-                                          {exp.location ? `, ${exp.location}` : ""}
+                                          {exp.location
+                                            ? `, ${exp.location}`
+                                            : ""}
                                         </div>
                                         {exp.company && (
                                           <div className="italic text-[#475569]">
@@ -1818,15 +2096,17 @@ function Generate() {
                                         {Array.isArray(exp.responsibilities) &&
                                           exp.responsibilities.length > 0 && (
                                             <div className="mt-[4pt]">
-                                              {exp.responsibilities.map((r, ri) => (
-                                                <div
-                                                  key={ri}
-                                                  className="flex flex-row gap-[6pt]"
-                                                >
-                                                  <span>•</span>
-                                                  <span>{r}</span>
-                                                </div>
-                                              ))}
+                                              {exp.responsibilities.map(
+                                                (r, ri) => (
+                                                  <div
+                                                    key={ri}
+                                                    className="flex flex-row gap-[6pt]"
+                                                  >
+                                                    <span>•</span>
+                                                    <span>{r}</span>
+                                                  </div>
+                                                )
+                                              )}
                                             </div>
                                           )}
                                       </div>
@@ -1867,8 +2147,8 @@ function Generate() {
 
                             {/* Kenntnisse & Fähigkeiten */}
                             {(formCv.skills.softSkills?.length > 0 ||
-                              Object.entries(formCv.skills.languages || {}).length >
-                                0 ||
+                              Object.entries(formCv.skills.languages || {})
+                                .length > 0 ||
                               formCv.skills.pcSkills?.length > 0) && (
                               <>
                                 <PreviewSectionTitle>
@@ -1877,36 +2157,18 @@ function Generate() {
                                 <div className="flex flex-col gap-[12pt]">
                                   {formCv.skills.softSkills?.length > 0 && (
                                     <div className="flex flex-col gap-[4pt]">
-                                      <div className="font-bold">Fähigkeiten</div>
-                                      <div className="flex flex-col gap-[3pt]">
-                                        {formCv.skills.softSkills.map((s, i) => (
-                                          <div
-                                            key={i}
-                                            className="flex flex-row gap-[6pt]"
-                                          >
-                                            <span>•</span>
-                                            <span>{s}</span>
-                                          </div>
-                                        ))}
+                                      <div className="font-bold">
+                                        Fähigkeiten
                                       </div>
-                                    </div>
-                                  )}
-
-                                  {Object.entries(formCv.skills.languages || {})
-                                    .length > 0 && (
-                                    <div className="flex flex-col gap-[4pt]">
-                                      <div className="font-bold">Fremdsprachen</div>
                                       <div className="flex flex-col gap-[3pt]">
-                                        {Object.entries(formCv.skills.languages).map(
-                                          ([lang, level]) => (
+                                        {formCv.skills.softSkills.map(
+                                          (s, i) => (
                                             <div
-                                              key={lang}
+                                              key={i}
                                               className="flex flex-row gap-[6pt]"
                                             >
                                               <span>•</span>
-                                              <span>
-                                                {lang} — {level}
-                                              </span>
+                                              <span>{s}</span>
                                             </div>
                                           )
                                         )}
@@ -1914,9 +2176,35 @@ function Generate() {
                                     </div>
                                   )}
 
+                                  {Object.entries(formCv.skills.languages || {})
+                                    .length > 0 && (
+                                    <div className="flex flex-col gap-[4pt]">
+                                      <div className="font-bold">
+                                        Fremdsprachen
+                                      </div>
+                                      <div className="flex flex-col gap-[3pt]">
+                                        {Object.entries(
+                                          formCv.skills.languages
+                                        ).map(([lang, level]) => (
+                                          <div
+                                            key={lang}
+                                            className="flex flex-row gap-[6pt]"
+                                          >
+                                            <span>•</span>
+                                            <span>
+                                              {lang} — {level}
+                                            </span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
                                   {formCv.skills.pcSkills?.length > 0 && (
                                     <div className="flex flex-col gap-[4pt]">
-                                      <div className="font-bold">PC-Kenntnisse</div>
+                                      <div className="font-bold">
+                                        PC-Kenntnisse
+                                      </div>
                                       <div className="flex flex-col gap-[3pt]">
                                         {formCv.skills.pcSkills.map((s, i) => (
                                           <div
@@ -1947,28 +2235,33 @@ function Generate() {
                                       <div className="flex flex-col gap-[4pt]">
                                         <div className="font-bold">Diplome</div>
                                         <div className="flex flex-col gap-[3pt]">
-                                          {formCv.documents.diplomas.map((url, i) => (
-                                            <div
-                                              key={i}
-                                              className="flex flex-row gap-[6pt]"
-                                            >
-                                              <span>•</span>
-                                              <a
-                                                href={url}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="text-blue-600 hover:underline break-all"
+                                          {formCv.documents.diplomas.map(
+                                            (url, i) => (
+                                              <div
+                                                key={i}
+                                                className="flex flex-row gap-[6pt]"
                                               >
-                                                {url}
-                                              </a>
-                                            </div>
-                                          ))}
+                                                <span>•</span>
+                                                <a
+                                                  href={url}
+                                                  target="_blank"
+                                                  rel="noreferrer"
+                                                  className="text-blue-600 hover:underline break-all"
+                                                >
+                                                  {url}
+                                                </a>
+                                              </div>
+                                            )
+                                          )}
                                         </div>
                                       </div>
                                     )}
-                                    {formCv.documents.certificates?.length > 0 && (
+                                    {formCv.documents.certificates?.length >
+                                      0 && (
                                       <div className="flex flex-col gap-[4pt]">
-                                        <div className="font-bold">Zertifikate</div>
+                                        <div className="font-bold">
+                                          Zertifikate
+                                        </div>
                                         <div className="flex flex-col gap-[3pt]">
                                           {formCv.documents.certificates.map(
                                             (url, i) => (
