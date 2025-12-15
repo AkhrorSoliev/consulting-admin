@@ -24,6 +24,9 @@ import {
   CANDIDATE_STATUS_DEFAULT,
   candidateStatusMap,
 } from "../constants/candidateStatus";
+import PrivacyModal from "./create/components/modals/PrivacyModal";
+import GuideModal from "./create/components/modals/GuideModal";
+import ExistingEmailModal from "./create/components/modals/ExistingEmailModal";
 
 function Create() {
   const initialCv = useMemo(
@@ -1366,105 +1369,7 @@ function Create() {
           </div>
         </section>
       </div>
-      {isPrivacyOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-base-content/50 backdrop-blur-sm"
-            onClick={() => setIsPrivacyOpen(false)}
-          />
-          <div
-            className="relative w-full max-w-3xl mx-4"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="privacy-title"
-          >
-            <div className="bg-base-100 text-base-content rounded-box shadow-xl flex flex-col max-h-[85vh] overflow-hidden">
-              <div className="sticky top-0 z-10 px-6 py-4 border-b border-base-300 bg-base-100/95 backdrop-blur">
-                <div className="flex items-center justify-between gap-3">
-                  <h3
-                    id="privacy-title"
-                    className="text-xl md:text-2xl font-bold truncate"
-                  >
-                    Datenschutzrichtlinie
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => setIsPrivacyOpen(false)}
-                      aria-label="Schließen"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div className="px-6 py-4 overflow-y-auto">
-                <div className="space-y-4 text-sm leading-7">
-                  <p>
-                    Auf der Plattform <strong>Consultinguz</strong> gelten alle
-                    eingegebenen personenbezogenen Daten (Name, Kontaktdaten,
-                    Berufserfahrung, Ausbildung, Lebenslauf u. a.) als
-                    vertraulich und werden gemäß den geltenden gesetzlichen
-                    Bestimmungen sowie unseren internen Sicherheitsrichtlinien
-                    geschützt.
-                  </p>
-                  <p>
-                    Wir verwenden die von Nutzerinnen und Nutzern übermittelten
-                    Daten ausschließlich zu einem Zweck –{" "}
-                    <strong>
-                      die Qualifikation und Erfahrung der Kandidatinnen und
-                      Kandidaten zu prüfen und sie passenden Arbeitgebern zu
-                      empfehlen
-                    </strong>
-                    .
-                  </p>
-                  <ul className="list-disc pl-6 space-y-2">
-                    <li>
-                      Ihre Daten werden{" "}
-                      <strong>
-                        niemals an Dritte verkauft oder frei weitergegeben
-                      </strong>
-                      .
-                    </li>
-                    <li>
-                      Informationen über eine Kandidatin oder einen Kandidaten
-                      werden{" "}
-                      <strong>
-                        nur in dem für den Arbeitgeber erforderlichen Umfang
-                      </strong>{" "}
-                      und <strong>auf Grundlage Ihrer Einwilligung</strong>{" "}
-                      bereitgestellt.
-                    </li>
-                    <li>
-                      Alle Daten werden auf sicheren Servern gespeichert und
-                      sind vor unbefugtem Zugriff geschützt.
-                    </li>
-                  </ul>
-                  <p>
-                    Sie können Ihre Daten jederzeit aktualisieren, löschen oder
-                    die Verarbeitung einschränken, indem Sie sich an{" "}
-                    <strong>Consultinguz</strong> wenden. Wir schätzen Ihr
-                    Vertrauen und verarbeiten Ihre Daten sorgfältig und
-                    ausschließlich, um Ihnen bei der Jobsuche zu helfen.
-                  </p>
-                </div>
-              </div>
-              <div className="sticky bottom-0 z-10 px-6 py-3 border-t border-base-300 bg-base-100/95 backdrop-blur">
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() => setIsPrivacyOpen(false)}
-                  >
-                    Schließen
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <PrivacyModal open={isPrivacyOpen} onClose={() => setIsPrivacyOpen(false)} />
 
       <div className="fixed bottom-20 right-4 z-40 flex flex-col gap-3">
         <button
@@ -1489,81 +1394,14 @@ function Create() {
         </button>
       </div>
 
-      {isGuideOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-base-content/50 backdrop-blur-sm"
-            onClick={() => setIsGuideOpen(false)}
-          />
-          <div
-            className="relative w-full max-w-4xl mx-4"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="guide-title"
-          >
-            <div className="bg-base-100 text-base-content rounded-box shadow-xl overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-base-300">
-                <h3
-                  id="guide-title"
-                  className="text-lg md:text-xl font-semibold"
-                >
-                  Video-Guide: Formular ausfüllen
-                </h3>
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => setIsGuideOpen(false)}
-                  aria-label="Schließen"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="p-4 bg-base-200/40">
-                <div className="w-full aspect-video rounded-box overflow-hidden border border-base-300">
-                  <iframe
-                    className="w-full h-full"
-                    src="https://www.youtube-nocookie.com/embed/sx3I8o5yJA4?si=VcZUufcpOgByVRwX"
-                    title="Video-Guide"
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    referrerPolicy="strict-origin-when-cross-origin"
-                    allowFullScreen
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <GuideModal open={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
 
-      {isEmailModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div
-            className="absolute inset-0 bg-base-content/50 backdrop-blur-sm"
-            onClick={() => setIsEmailModalOpen(false)}
-          />
-          <div
-            className="relative w-full max-w-sm mx-4"
-            role="dialog"
-            aria-modal="true"
-          >
-            <div className="bg-base-100 text-base-content rounded-box shadow-xl p-6 text-center">
-              <h3 className="text-xl font-bold text-error mb-4">Achtung!</h3>
-              <p className="mb-6">
-                Sie haben sich mit der E-Mail-Adresse{" "}
-                <strong>{enteredEmail}</strong> bereits für den Bereich{" "}
-                <strong>„{existingMajor}“</strong> beworben.
-              </p>
-              <button
-                className="btn btn-primary w-full"
-                onClick={() => setIsEmailModalOpen(false)}
-              >
-                Verstanden
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <ExistingEmailModal
+        open={isEmailModalOpen}
+        onClose={() => setIsEmailModalOpen(false)}
+        enteredEmail={enteredEmail}
+        existingMajor={existingMajor}
+      />
     </div>
   );
 }
