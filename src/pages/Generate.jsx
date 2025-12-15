@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
 import { Link, useParams } from "react-router-dom";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -13,6 +13,8 @@ import toast from "react-hot-toast";
 import { pdf } from "@react-pdf/renderer";
 import CvPdfDocument from "./generate/pdf/CvPdfDocument";
 import FormInput from "../components/FormInput";
+import PhoneInputWithCountry from "../components/PhoneInputWithCountry";
+import CountryNameCombobox from "../components/CountryNameCombobox";
 import ExperienceSection from "../components/ExperienceSection";
 import EducationSection from "../components/EducationSection";
 import SkillsSection from "../components/SkillsSection";
@@ -41,6 +43,82 @@ import LivePreview from "./generate/components/LivePreview";
 
 const EMPLOYER_INTERVIEW_STATUS = "employer_interview_scheduled";
 const EMPLOYER_DECISION_STATUS = "employer_decision";
+
+function formatGermanAddress(parts) {
+  const street = String(parts?.street || "").trim();
+  const houseNumber = String(parts?.houseNumber || "").trim();
+  const postalCode = String(parts?.postalCode || "").trim();
+  const city = String(parts?.city || "").trim();
+  const country = String(parts?.country || "").trim();
+
+  const streetLine = [street, houseNumber].filter(Boolean).join(" ").trim();
+  const cityLine = [postalCode, city].filter(Boolean).join(" ").trim();
+  return [streetLine, cityLine, country].filter(Boolean).join(", ").trim();
+}
+
+function parseGermanAddress(raw) {
+  const normalized = String(raw || "")
+    .replace(/\s*\n+\s*/g, ", ")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  if (!normalized) {
+    return {
+      street: "",
+      houseNumber: "",
+      postalCode: "",
+      city: "",
+      country: "",
+    };
+  }
+
+  const parts = normalized
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  let streetLine = normalized;
+  let postalCode = "";
+  let city = "";
+  let country = "";
+
+  // If we have 3 parts like: "Street 1", "12345 Berlin", "Deutschland"
+  if (parts.length >= 3) {
+    const maybeCountry = parts[parts.length - 1];
+    if (maybeCountry && !/\d/.test(maybeCountry)) {
+      country = maybeCountry;
+      streetLine = parts.slice(0, parts.length - 1).join(", ");
+    }
+  }
+
+  // Split off postal code + city at the end, if present: "... , 12345 Berlin"
+  const mPlz = normalized.match(/^(.*?)(?:,\s*)?(\d{5})\s+(.+)$/);
+  if (mPlz) {
+    streetLine = String(mPlz[1] || "").trim().replace(/,+\s*$/, "");
+    postalCode = String(mPlz[2] || "").trim();
+    city = String(mPlz[3] || "").trim();
+  }
+
+  let street = streetLine;
+  let houseNumber = "";
+  const mHouse = streetLine.match(/^(.*\D)\s+(\d+\w*)$/);
+  if (mHouse) {
+    street = String(mHouse[1] || "").trim();
+    houseNumber = String(mHouse[2] || "").trim();
+  }
+
+  return { street, houseNumber, postalCode, city, country };
+}
+
+function isGermanAddressComplete(parts) {
+  return (
+    Boolean(String(parts?.street || "").trim()) &&
+    Boolean(String(parts?.houseNumber || "").trim()) &&
+    /^\d{5}$/.test(String(parts?.postalCode || "").trim()) &&
+    Boolean(String(parts?.city || "").trim()) &&
+    Boolean(String(parts?.country || "").trim())
+  );
+}
 
 function Generate() {
   const { major, id } = useParams();
@@ -80,6 +158,10 @@ function Generate() {
         address: "",
         birthDate: "",
         maritalStatus: "",
+        childrenCount: "",
+        noChildren: false,
+        hasDrivingLicense: false,
+        drivingLicenseType: "",
         phone: "",
         email: "",
         photo: "",
@@ -109,6 +191,12 @@ function Generate() {
     updatedByUid: "",
   });
 
+  const [addressFields, setAddressFields] = useState(() =>
+    parseGermanAddress(initialForm.personalInfo.address)
+  );
+  const lastSyncedAddressRef = useRef("");
+  const internalAddressUpdateRef = useRef(false);
+
   function normalizeForm(form) {
     const safe = form || initialForm;
     const langEntries = Object.entries(safe?.skills?.languages || {}).filter(
@@ -128,6 +216,12 @@ function Generate() {
         address: String(safe?.personalInfo?.address || ""),
         birthDate: String(safe?.personalInfo?.birthDate || ""),
         maritalStatus: String(safe?.personalInfo?.maritalStatus || ""),
+        childrenCount: String(safe?.personalInfo?.childrenCount || ""),
+        noChildren: Boolean(safe?.personalInfo?.noChildren),
+        hasDrivingLicense: Boolean(safe?.personalInfo?.hasDrivingLicense),
+        drivingLicenseType: String(
+          safe?.personalInfo?.drivingLicenseType || ""
+        ).trim(),
         phone: String(safe?.personalInfo?.phone || ""),
         email: String(safe?.personalInfo?.email || ""),
         photo: String(safe?.personalInfo?.photo || ""),
@@ -210,6 +304,28 @@ function Generate() {
   }
 
   useEffect(() => {
+    const raw = String(formCv?.personalInfo?.address || "").trim();
+    if (internalAddressUpdateRef.current) {
+      internalAddressUpdateRef.current = false;
+      lastSyncedAddressRef.current = raw;
+      return;
+    }
+    if (raw === lastSyncedAddressRef.current) return;
+    lastSyncedAddressRef.current = raw;
+    setAddressFields(parseGermanAddress(raw));
+  }, [formCv?.personalInfo?.address]);
+
+  function applyAddressFields(nextFields) {
+    setAddressFields(nextFields);
+    const formatted = formatGermanAddress(nextFields);
+    internalAddressUpdateRef.current = true;
+    setFormCv((prev) => ({
+      ...prev,
+      personalInfo: { ...prev.personalInfo, address: formatted },
+    }));
+  }
+
+  useEffect(() => {
     const col = String(major || "").trim();
     const docId = String(id || "").trim();
     if (!col || !docId) {
@@ -257,6 +373,32 @@ function Generate() {
 
   function mapDocToForm(data) {
     const p = data?.persoenlicheDaten || {};
+    const rawLicense = p?.fuehrerschein;
+    const rawLicenseType = p?.fuehrerscheinTyp;
+    const licenseTypeFromLegacy =
+      typeof rawLicense === "string" &&
+      rawLicense &&
+      !["ja", "true", "nein", "false"].includes(
+        String(rawLicense).trim().toLowerCase()
+      )
+        ? String(rawLicense).trim()
+        : "";
+    const hasDrivingLicense =
+      rawLicense === true ||
+      rawLicense === 1 ||
+      String(rawLicense || "")
+        .trim()
+        .toLowerCase() === "ja" ||
+      String(rawLicense || "")
+        .trim()
+        .toLowerCase() === "true" ||
+      Boolean(String(rawLicenseType || "").trim()) ||
+      Boolean(licenseTypeFromLegacy);
+    const drivingLicenseType = String(
+      rawLicenseType || licenseTypeFromLegacy || ""
+    )
+      .trim()
+      .toUpperCase();
     const berufe = Array.isArray(data?.berufserfahrung)
       ? data.berufserfahrung
       : [];
@@ -279,6 +421,12 @@ function Generate() {
       certificates = att.languageCertificates;
     }
 
+    const rawChildrenCount = String(p.kinderAnzahl ?? "").trim();
+    const noChildrenFromDoc = Boolean(p.keinKinder);
+    const inferredNoChildren =
+      noChildrenFromDoc || rawChildrenCount === "" || rawChildrenCount === "0";
+    const childrenCount = inferredNoChildren ? "" : rawChildrenCount;
+
     return {
       personalInfo: {
         name: String(p.name || ""),
@@ -287,6 +435,10 @@ function Generate() {
         address: String(p.adresse || ""),
         birthDate: String(p.geburtsdatum || ""),
         maritalStatus: String(p.familienstand || ""),
+        childrenCount,
+        noChildren: inferredNoChildren,
+        hasDrivingLicense,
+        drivingLicenseType,
         phone: String(p.telefon || ""),
         email: String(p.email || ""),
         photo: String(p.foto || ""),
@@ -324,6 +476,7 @@ function Generate() {
   }
 
   function mapFormToDoc(f) {
+    const noChildren = Boolean(f?.personalInfo?.noChildren);
     return {
       persoenlicheDaten: {
         name: f.personalInfo.name,
@@ -332,6 +485,12 @@ function Generate() {
         adresse: f.personalInfo.address,
         geburtsdatum: f.personalInfo.birthDate,
         familienstand: f.personalInfo.maritalStatus,
+        kinderAnzahl: noChildren ? "" : String(f.personalInfo.childrenCount || ""),
+        keinKinder: noChildren,
+        fuehrerschein: Boolean(f?.personalInfo?.hasDrivingLicense),
+        fuehrerscheinTyp: String(f?.personalInfo?.drivingLicenseType || "")
+          .trim()
+          .toUpperCase(),
         telefon: f.personalInfo.phone,
         email: f.personalInfo.email,
         foto: f.personalInfo.photo,
@@ -819,6 +978,20 @@ function Generate() {
         toast.error("Bitte Geschlecht auswählen.");
         return;
       }
+      if (!isGermanAddressComplete(addressFields)) {
+        toast.error(
+          "Bitte vollständige Adresse eingeben (Straße, Hausnummer, PLZ, Ort, Land)."
+        );
+        return;
+      }
+      const noKids = Boolean(formCv.personalInfo.noChildren);
+      const kidsCount = String(formCv.personalInfo.childrenCount || "").trim();
+      if (!noKids && !kidsCount) {
+        toast.error(
+          "Bitte Kinderanzahl eingeben oder 'Keine Kinder' auswählen."
+        );
+        return;
+      }
     }
 
     try {
@@ -900,6 +1073,8 @@ function Generate() {
   const phone = String(formCv.personalInfo.phone || "").trim();
   const email = String(formCv.personalInfo.email || "").trim();
   const maritalStatus = String(formCv.personalInfo.maritalStatus || "").trim();
+  const noChildren = Boolean(formCv.personalInfo.noChildren);
+  const childrenCount = String(formCv.personalInfo.childrenCount || "").trim();
   const photo = String(formCv.personalInfo.photo || "").trim();
 
   function openPhotoModal() {
@@ -1247,22 +1422,120 @@ function Generate() {
                           <option value="">Bitte auswählen</option>
                           <option value="ledig">ledig</option>
                           <option value="verheiratet">verheiratet</option>
+                          <option value="geschieden">geschieden</option>
+                          <option value="verwitwet">verwitwet</option>
                         </select>
                       </div>
-                      <FormInput
-                        label="Telefonnummer"
-                        placeholder="Telefonnummer"
-                        value={formCv.personalInfo.phone}
-                        onChange={(e) =>
-                          setFormCv((prev) => ({
-                            ...prev,
-                            personalInfo: {
-                              ...prev.personalInfo,
-                              phone: e.target.value,
-                            },
-                          }))
-                        }
-                      />
+                      <div className="md:col-span-2 form-control w-full">
+                        <label className="label" htmlFor="g-childrenCount">
+                          <span className="label-text">Kinder *</span>
+                        </label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <input
+                            id="g-childrenCount"
+                            type="number"
+                            min={0}
+                            inputMode="numeric"
+                            className={inputBase}
+                            placeholder="0"
+                            disabled={noChildren}
+                            value={childrenCount}
+                            onChange={(e) => {
+                              const raw = String(e.target.value || "");
+                              const cleaned = raw.replace(/[^\d]/g, "");
+                              setFormCv((prev) => ({
+                                ...prev,
+                                personalInfo: {
+                                  ...prev.personalInfo,
+                                  childrenCount: cleaned,
+                                },
+                              }));
+                            }}
+                          />
+                          <label className="cursor-pointer flex items-center gap-2 mt-2 md:mt-0">
+                            <input
+                              type="checkbox"
+                              className="checkbox"
+                              checked={noChildren}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setFormCv((prev) => ({
+                                  ...prev,
+                                  personalInfo: {
+                                    ...prev.personalInfo,
+                                    noChildren: checked,
+                                    childrenCount: checked
+                                      ? ""
+                                      : String(prev.personalInfo.childrenCount || ""),
+                                  },
+                                }));
+                              }}
+                            />
+                            <span className="text-sm">Keine Kinder</span>
+                          </label>
+                        </div>
+                      </div>
+                      <div className="md:col-span-2 form-control w-full">
+                        <label className="label" htmlFor="g-driving">
+                          <span className="label-text">Führerschein</span>
+                        </label>
+                        <label className="cursor-pointer flex items-center gap-2">
+                          <input
+                            id="g-driving"
+                            type="checkbox"
+                            className="checkbox"
+                            checked={Boolean(formCv.personalInfo.hasDrivingLicense)}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setFormCv((prev) => ({
+                                ...prev,
+                                personalInfo: {
+                                  ...prev.personalInfo,
+                                  hasDrivingLicense: checked,
+                                  drivingLicenseType: checked
+                                    ? String(prev.personalInfo.drivingLicenseType || "")
+                                    : "",
+                                },
+                              }));
+                            }}
+                          />
+                          <span className="text-sm">Vorhanden</span>
+                        </label>
+                        {formCv.personalInfo.hasDrivingLicense ? (
+                          <div className="mt-3">
+                            <FormInput
+                              label="Führerschein-Klasse (z.B. B, C, CE)"
+                              placeholder="B"
+                              value={formCv.personalInfo.drivingLicenseType || ""}
+                              onChange={(e) => {
+                                const v = String(e.target.value || "")
+                                  .trimStart()
+                                  .toUpperCase();
+                                setFormCv((prev) => ({
+                                  ...prev,
+                                  personalInfo: {
+                                    ...prev.personalInfo,
+                                    drivingLicenseType: v,
+                                  },
+                                }));
+                              }}
+                            />
+                          </div>
+                        ) : null}
+                      </div>
+                      <div className="md:col-span-2">
+                        <PhoneInputWithCountry
+                          label="Telefonnummer"
+                          required
+                          value={formCv.personalInfo.phone}
+                          onChange={(next) =>
+                            setFormCv((prev) => ({
+                              ...prev,
+                              personalInfo: { ...prev.personalInfo, phone: next },
+                            }))
+                          }
+                        />
+                      </div>
                       <FormInput
                         label="E-Mail"
                         placeholder="E-Mail"
@@ -1301,27 +1574,128 @@ function Generate() {
                       </div>
 
                       <div className="md:col-span-2 form-control w-full">
-                        <label className="label pb-1" htmlFor="g-address">
+                        <label className="label pb-1" htmlFor="g-addressStreet">
                           <span className="label-text font-medium">
-                            Adresse
+                            Adresse (Deutschland)
                           </span>
                         </label>
-                        <textarea
-                          id="g-address"
-                          className={textareaBase}
-                          placeholder="Adresse"
-                          rows={2}
-                          value={formCv.personalInfo.address}
-                          onChange={(e) =>
-                            setFormCv((prev) => ({
-                              ...prev,
-                              personalInfo: {
-                                ...prev.personalInfo,
-                                address: e.target.value,
-                              },
-                            }))
-                          }
-                        />
+                        <div className="rounded-box border border-base-300 bg-base-200/40 p-4">
+                          <p className="text-xs text-base-content/70 mb-3">
+                            Format:{" "}
+                            <span className="font-mono">
+                              Musterstraße 12A, 12345 Berlin
+                            </span>
+                          </p>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label
+                                className="label"
+                                htmlFor="g-addressStreet"
+                              >
+                                <span className="label-text">Straße *</span>
+                              </label>
+                              <input
+                                id="g-addressStreet"
+                                type="text"
+                                className={inputBase}
+                                placeholder="Straße"
+                                value={addressFields.street}
+                                onChange={(e) =>
+                                  applyAddressFields({
+                                    ...addressFields,
+                                    street: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+
+                            <div>
+                              <label
+                                className="label"
+                                htmlFor="g-addressHouseNumber"
+                              >
+                                <span className="label-text">
+                                  Hausnummer *
+                                </span>
+                              </label>
+                              <input
+                                id="g-addressHouseNumber"
+                                type="text"
+                                className={inputBase}
+                                placeholder="z.B. 12A"
+                                value={addressFields.houseNumber}
+                                onChange={(e) =>
+                                  applyAddressFields({
+                                    ...addressFields,
+                                    houseNumber: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+
+                            <div>
+                              <label
+                                className="label"
+                                htmlFor="g-addressPostalCode"
+                              >
+                                <span className="label-text">PLZ *</span>
+                              </label>
+                              <input
+                                id="g-addressPostalCode"
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={5}
+                                className={inputBase}
+                                placeholder="12345"
+                                value={String(addressFields.postalCode || "")}
+                                onChange={(e) =>
+                                  applyAddressFields({
+                                    ...addressFields,
+                                    postalCode: String(e.target.value || "")
+                                      .replace(/[^\d]/g, "")
+                                      .slice(0, 5),
+                                  })
+                                }
+                              />
+                            </div>
+
+                            <div>
+                              <label className="label" htmlFor="g-addressCity">
+                                <span className="label-text">Ort *</span>
+                              </label>
+                              <input
+                                id="g-addressCity"
+                                type="text"
+                                className={inputBase}
+                                placeholder="z.B. Berlin"
+                                value={addressFields.city}
+                                onChange={(e) =>
+                                  applyAddressFields({
+                                    ...addressFields,
+                                    city: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+
+                            <div className="md:col-span-2">
+                              <CountryNameCombobox
+                                id="g-addressCountry"
+                                label="Land"
+                                required
+                                placeholder="Usbekistan"
+                                value={addressFields.country}
+                                onChange={(v) =>
+                                  applyAddressFields({
+                                    ...addressFields,
+                                    country: String(v || ""),
+                                  })
+                                }
+                              />
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
 

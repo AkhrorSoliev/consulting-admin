@@ -159,6 +159,18 @@ export const CvPdfDocument = ({ form, showDocuments }) => {
   const address = String(personal.address || "").trim() || "—";
   const birthDate = String(personal.birthDate || "").trim() || "—";
   const maritalStatus = String(personal.maritalStatus || "").trim() || "—";
+  const noChildren = Boolean(personal.noChildren);
+  const childrenCount = String(personal.childrenCount || "").trim();
+  const childrenText =
+    noChildren ? "Keine Kinder" : childrenCount ? childrenCount : "—";
+  const drivingType = String(personal.drivingLicenseType || "")
+    .trim()
+    .toUpperCase();
+  const drivingText = Boolean(personal.hasDrivingLicense)
+    ? drivingType
+      ? `Ja (${drivingType})`
+      : "Ja"
+    : "Nein";
   const phone = String(personal.phone || "").trim() || "—";
   const email = String(personal.email || "").trim() || "—";
   const photo = String(personal.photo || "").trim();
@@ -192,6 +204,14 @@ export const CvPdfDocument = ({ form, showDocuments }) => {
                 <View style={pdfStyles.row}>
                   <Text style={pdfStyles.label}>Familienstand</Text>
                   <Text style={pdfStyles.value}>{maritalStatus}</Text>
+                </View>
+                <View style={pdfStyles.row}>
+                  <Text style={pdfStyles.label}>Kinder</Text>
+                  <Text style={pdfStyles.value}>{childrenText}</Text>
+                </View>
+                <View style={pdfStyles.row}>
+                  <Text style={pdfStyles.label}>Führerschein</Text>
+                  <Text style={pdfStyles.value}>{drivingText}</Text>
                 </View>
                 <View style={pdfStyles.row}>
                   <Text style={pdfStyles.label}>Tel</Text>

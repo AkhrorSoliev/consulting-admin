@@ -11,6 +11,8 @@ import EducationSection from "../components/EducationSection";
 import SkillsSection from "../components/SkillsSection";
 import LanguagesSection from "../components/LanguagesSection";
 import RequiredLabel from "../components/RequiredLabel";
+import PhoneInputWithCountry from "../components/PhoneInputWithCountry";
+import CountryNameCombobox from "../components/CountryNameCombobox";
 import {
   imageFileToBase64,
   toInputDate,
@@ -38,6 +40,10 @@ function Create() {
         address: "",
         birthDate: "",
         maritalStatus: "",
+        childrenCount: "",
+        noChildren: false,
+        hasDrivingLicense: false,
+        drivingLicenseType: "",
         phone: "",
         email: "",
         photo: "",
@@ -93,6 +99,19 @@ function Create() {
       document.title = previousTitle;
     };
   }, []);
+
+  function formatGermanAddress(parts) {
+    const street = String(parts?.street || "").trim();
+    const houseNumber = String(parts?.houseNumber || "").trim();
+    const postalCode = String(parts?.postalCode || "").trim();
+    const city = String(parts?.city || "").trim();
+    const country = String(parts?.country || "").trim();
+
+    const streetLine = [street, houseNumber].filter(Boolean).join(" ").trim();
+    const cityLine = [postalCode, city].filter(Boolean).join(" ").trim();
+
+    return [streetLine, cityLine, country].filter(Boolean).join(", ").trim();
+  }
 
   function uniqueKey(file) {
     return `${file?.name || ""}__${file?.size || 0}__${
@@ -167,27 +186,8 @@ function Create() {
     }));
   }
 
-  const PHONE_PREFIX = "+998";
   const TELEGRAM_SUPPORT_URL = "https://t.me/consultinguz_kundensupport";
-
-  function formatUzPhoneBody(raw) {
-    const digits = String(raw || "").replace(/\D/g, "");
-    const withoutPrefix = digits.startsWith("998")
-      ? digits.slice(3)
-      : digits.startsWith("0")
-      ? digits.slice(1)
-      : digits;
-    const capped = withoutPrefix.slice(0, 9);
-    const groups = [2, 3, 2, 2];
-    const parts = [];
-    let idx = 0;
-    for (const g of groups) {
-      if (idx >= capped.length) break;
-      parts.push(capped.slice(idx, idx + g));
-      idx += g;
-    }
-    return parts.join(" ");
-  }
+  // Phone/Country dropdown options come from `src/utils/const.js` via components
 
   useEffect(() => {
     try {
@@ -260,14 +260,50 @@ function Create() {
         lastName: initialCv.personalInfo.lastName,
         gender: initialCv.personalInfo.gender,
         address: initialCv.personalInfo.address,
+        addressStreet: "",
+        addressHouseNumber: "",
+        addressPostalCode: "",
+        addressCity: "",
+        addressCountry: "",
         birthDate: toInputDate(initialCv.personalInfo.birthDate),
         maritalStatus: initialCv.personalInfo.maritalStatus,
+        childrenCount: initialCv.personalInfo.childrenCount,
+        noChildren: initialCv.personalInfo.noChildren,
+        hasDrivingLicense: initialCv.personalInfo.hasDrivingLicense,
+        drivingLicenseType: initialCv.personalInfo.drivingLicenseType,
         phone: initialCv.personalInfo.phone,
         email: initialCv.personalInfo.email,
         photo: initialCv.personalInfo.photo,
       },
     },
   });
+
+  const addressStreet = watch("personalInfo.addressStreet");
+  const addressHouseNumber = watch("personalInfo.addressHouseNumber");
+  const addressPostalCode = watch("personalInfo.addressPostalCode");
+  const addressCity = watch("personalInfo.addressCity");
+  const addressCountry = watch("personalInfo.addressCountry");
+
+  useEffect(() => {
+    const formatted = formatGermanAddress({
+      street: addressStreet,
+      houseNumber: addressHouseNumber,
+      postalCode: addressPostalCode,
+      city: addressCity,
+      country: addressCountry,
+    });
+    setValue("personalInfo.address", formatted, {
+      shouldDirty: true,
+      shouldValidate: false,
+    });
+  }, [
+    addressStreet,
+    addressHouseNumber,
+    addressPostalCode,
+    addressCity,
+    addressCountry,
+    setValue,
+  ]);
 
   async function handlePhotoFileChange(e) {
     const file = e.target.files?.[0];
@@ -317,10 +353,15 @@ function Create() {
       "personalInfo.gender",
       "personalInfo.birthDate",
       "personalInfo.maritalStatus",
+      "personalInfo.childrenCount",
       "personalInfo.phone",
       "personalInfo.email",
       "personalInfo.photo",
-      "personalInfo.address",
+      "personalInfo.addressStreet",
+      "personalInfo.addressHouseNumber",
+      "personalInfo.addressPostalCode",
+      "personalInfo.addressCity",
+      "personalInfo.addressCountry",
     ];
     const labelMap = {
       "personalInfo.name": "Vorname",
@@ -328,10 +369,15 @@ function Create() {
       "personalInfo.gender": "Geschlecht",
       "personalInfo.birthDate": "Geburtsdatum",
       "personalInfo.maritalStatus": "Familienstand",
+      "personalInfo.childrenCount": "Kinder",
       "personalInfo.phone": "Telefonnummer",
       "personalInfo.email": "E-Mail",
       "personalInfo.photo": "Foto",
-      "personalInfo.address": "Adresse",
+      "personalInfo.addressStreet": "Straße",
+      "personalInfo.addressHouseNumber": "Hausnummer",
+      "personalInfo.addressPostalCode": "PLZ",
+      "personalInfo.addressCity": "Ort",
+      "personalInfo.addressCountry": "Land",
     };
     const hasErrAt = (path) => {
       const parts = path.split(".");
@@ -601,6 +647,12 @@ function Create() {
         },
       };
 
+      const noChildrenSelected = Boolean(final.personalInfo?.noChildren);
+      const rawChildrenCount = String(final.personalInfo?.childrenCount || "")
+        .trim()
+        .replace(/[^\d]/g, "");
+      const childrenCount = noChildrenSelected ? "" : rawChildrenCount;
+
       const lebenslauf = {
         persoenlicheDaten: {
           name: final.personalInfo.name,
@@ -609,6 +661,12 @@ function Create() {
           adresse: final.personalInfo.address,
           geburtsdatum: final.personalInfo.birthDate,
           familienstand: final.personalInfo.maritalStatus,
+          kinderAnzahl: childrenCount,
+          keinKinder: noChildrenSelected,
+          fuehrerschein: Boolean(final.personalInfo?.hasDrivingLicense),
+          fuehrerscheinTyp: String(final.personalInfo?.drivingLicenseType || "")
+            .trim()
+            .toUpperCase(),
           telefon: final.personalInfo.phone,
           email: final.personalInfo.email,
           foto: final.personalInfo.photo,
@@ -901,65 +959,209 @@ function Create() {
                               <option value="">Bitte auswählen</option>
                               <option value="ledig">ledig</option>
                               <option value="verheiratet">verheiratet</option>
+                              <option value="geschieden">geschieden</option>
+                              <option value="verwitwet">verwitwet</option>
                             </select>
                           </>
                         )}
                       />
                     </div>
+                    <div className="md:col-span-2">
+                      <label
+                        className="label"
+                        htmlFor="personalInfo-hasDrivingLicense"
+                      >
+                        <span className="label-text">Führerschein</span>
+                      </label>
+                      <label className="cursor-pointer flex items-center gap-2">
+                        <input
+                          id="personalInfo-hasDrivingLicense"
+                          type="checkbox"
+                          className="checkbox"
+                          {...register("personalInfo.hasDrivingLicense")}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setValue(
+                              "personalInfo.hasDrivingLicense",
+                              checked,
+                              {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              }
+                            );
+                            if (!checked) {
+                              setValue("personalInfo.drivingLicenseType", "", {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              });
+                            }
+                          }}
+                          checked={Boolean(
+                            watch("personalInfo.hasDrivingLicense")
+                          )}
+                        />
+                        <span className="text-sm">Vorhanden</span>
+                      </label>
+                      {watch("personalInfo.hasDrivingLicense") ? (
+                        <div className="mt-3">
+                          <FormInput
+                            label="Führerschein-Klasse (z.B. B, C, CE)"
+                            placeholder="B"
+                            inputClassName={
+                              errors?.personalInfo?.drivingLicenseType
+                                ? "input-error"
+                                : ""
+                            }
+                            aria-invalid={
+                              errors?.personalInfo?.drivingLicenseType
+                                ? "true"
+                                : "false"
+                            }
+                            {...register("personalInfo.drivingLicenseType", {
+                              validate: (v) => {
+                                const has = Boolean(
+                                  watch("personalInfo.hasDrivingLicense")
+                                );
+                                if (!has) return true;
+                                const s = String(v || "").trim();
+                                if (!s)
+                                  return "Bitte Führerschein-Klasse eingeben.";
+                                return true;
+                              },
+                              setValueAs: (v) =>
+                                String(v ?? "")
+                                  .trim()
+                                  .toUpperCase(),
+                            })}
+                          />
+                          {errors?.personalInfo?.drivingLicenseType ? (
+                            <p className="text-error text-sm mt-1">
+                              {errors.personalInfo.drivingLicenseType.message}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="md:col-span-2">
+                      <label
+                        className="label"
+                        htmlFor="personalInfo-childrenCount"
+                      >
+                        <RequiredLabel className="label-text">
+                          Kinder
+                        </RequiredLabel>
+                      </label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="form-control">
+                          <input
+                            id="personalInfo-childrenCount"
+                            type="number"
+                            min={0}
+                            inputMode="numeric"
+                            placeholder="0"
+                            className={`input input-bordered w-full ${
+                              errors?.personalInfo?.childrenCount
+                                ? "input-error"
+                                : ""
+                            }`}
+                            disabled={watch("personalInfo.noChildren")}
+                            aria-invalid={
+                              errors?.personalInfo?.childrenCount
+                                ? "true"
+                                : "false"
+                            }
+                            {...register("personalInfo.childrenCount", {
+                              validate: (value) => {
+                                const noKids = Boolean(
+                                  watch("personalInfo.noChildren")
+                                );
+                                if (noKids) return true;
+                                const v = String(value || "").trim();
+                                if (!v)
+                                  return "Bitte Kinderanzahl eingeben oder 'Keine Kinder' auswählen.";
+                                const n = Number(v);
+                                if (Number.isNaN(n) || n < 0)
+                                  return "Bitte eine gültige Zahl eingeben.";
+                                return true;
+                              },
+                              setValueAs: (v) => {
+                                const s = String(v ?? "").trim();
+                                if (!s) return "";
+                                const num = Number(s);
+                                if (Number.isNaN(num)) return "";
+                                return String(Math.max(0, Math.floor(num)));
+                              },
+                            })}
+                          />
+                          {errors?.personalInfo?.childrenCount ? (
+                            <p className="text-error text-sm mt-1">
+                              {errors.personalInfo.childrenCount.message}
+                            </p>
+                          ) : null}
+                        </div>
+                        <div className="form-control">
+                          <label className="cursor-pointer flex items-center gap-2 mt-2 md:mt-0">
+                            <input
+                              type="checkbox"
+                              className="checkbox"
+                              {...register("personalInfo.noChildren")}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setValue("personalInfo.noChildren", checked, {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                });
+                                if (checked) {
+                                  setValue("personalInfo.childrenCount", "", {
+                                    shouldDirty: true,
+                                    shouldValidate: true,
+                                  });
+                                }
+                              }}
+                              checked={Boolean(
+                                watch("personalInfo.noChildren")
+                              )}
+                            />
+                            <span className="text-sm">Keine Kinder</span>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
                     <Controller
                       control={control}
                       name="personalInfo.phone"
-                      rules={{ required: "Telefonnummer ist erforderlich" }}
+                      rules={{
+                        required: "Telefonnummer ist erforderlich",
+                        validate: (v) => {
+                          const raw = String(v || "").trim();
+                          const firstSpace = raw.indexOf(" ");
+                          if (firstSpace < 0) {
+                            return "Bitte Telefonnummer vollständig eingeben.";
+                          }
+                          const body = raw.slice(firstSpace + 1);
+                          const digits = String(body || "").replace(
+                            /[^\d]/g,
+                            ""
+                          );
+                          if (digits.length !== 9) {
+                            return "Bitte Telefonnummer vollständig eingeben.";
+                          }
+                          return true;
+                        },
+                      }}
                       render={({ field }) => {
-                        const bodyValue = formatUzPhoneBody(field.value);
                         return (
-                          <div className="form-control">
-                            <label className="label">
+                          <PhoneInputWithCountry
+                            label={
                               <RequiredLabel className="label-text">
                                 Telefonnummer
                               </RequiredLabel>
-                            </label>
-                            <div className="join w-full">
-                              <span
-                                className={`join-item flex items-center justify-center px-3 text-sm bg-base-200 text-base-content/70 border border-base-300 ${
-                                  errors?.personalInfo?.phone
-                                    ? "border-error text-error"
-                                    : ""
-                                }`}
-                              >
-                                {PHONE_PREFIX}
-                              </span>
-                              <input
-                                type="tel"
-                                inputMode="tel"
-                                autoComplete="tel"
-                                className={`join-item input input-bordered w-full ${
-                                  errors?.personalInfo?.phone
-                                    ? "input-error"
-                                    : ""
-                                }`}
-                                placeholder="00 000 00 00"
-                                aria-invalid={
-                                  errors?.personalInfo?.phone ? "true" : "false"
-                                }
-                                value={bodyValue}
-                                onChange={(e) => {
-                                  const body = formatUzPhoneBody(
-                                    e.target.value
-                                  );
-                                  const next = body
-                                    ? `${PHONE_PREFIX} ${body}`
-                                    : "";
-                                  field.onChange(next);
-                                }}
-                              />
-                            </div>
-                            {errors?.personalInfo?.phone ? (
-                              <p className="text-error text-sm mt-1">
-                                {errors.personalInfo.phone.message}
-                              </p>
-                            ) : null}
-                          </div>
+                            }
+                            required
+                            value={field.value}
+                            onChange={field.onChange}
+                            error={errors?.personalInfo?.phone?.message}
+                          />
                         );
                       }}
                     />
@@ -1019,37 +1221,209 @@ function Create() {
                       />
                     </div>
                     <div className="md:col-span-2">
-                      <Controller
-                        control={control}
-                        name="personalInfo.address"
-                        rules={{ required: "Adresse ist erforderlich" }}
-                        render={({ field, fieldState }) => (
-                          <>
+                      {/* Keep a single `address` field for storage/PDF, but collect it as Germany address parts */}
+                      <input
+                        type="hidden"
+                        {...register("personalInfo.address")}
+                        aria-hidden="true"
+                      />
+
+                      <div className="rounded-box border border-base-300 bg-base-200/40 p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="font-medium">
+                              <RequiredLabel>
+                                Adresse (Deutschland)
+                              </RequiredLabel>
+                            </div>
+                            <p className="text-xs text-base-content/70 mt-1">
+                              Format: Straße + Hausnummer, PLZ Ort (z.B.{" "}
+                              <span className="font-mono">
+                                Musterstraße 12A, 12345 Berlin
+                              </span>
+                              )
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                          <div>
                             <label
                               className="label"
-                              htmlFor="personalInfo-address"
+                              htmlFor="personalInfo-addressStreet"
                             >
                               <RequiredLabel className="label-text">
-                                Adresse
+                                Straße
                               </RequiredLabel>
                             </label>
-                            <textarea
-                              id="personalInfo-address"
-                              className={`textarea textarea-bordered w-full ${
-                                errors?.personalInfo?.address
-                                  ? "textarea-error"
+                            <input
+                              id="personalInfo-addressStreet"
+                              type="text"
+                              placeholder="Straße"
+                              className={`input input-bordered w-full ${
+                                errors?.personalInfo?.addressStreet
+                                  ? "input-error"
                                   : ""
                               }`}
-                              placeholder="Adresse"
-                              rows={2}
                               aria-invalid={
-                                errors?.personalInfo?.address ? "true" : "false"
+                                errors?.personalInfo?.addressStreet
+                                  ? "true"
+                                  : "false"
                               }
-                              {...field}
+                              {...register("personalInfo.addressStreet", {
+                                required: "Straße ist erforderlich",
+                                setValueAs: (v) => String(v || "").trim(),
+                              })}
                             />
-                          </>
-                        )}
-                      />
+                            {errors?.personalInfo?.addressStreet ? (
+                              <p className="text-error text-sm mt-1">
+                                {errors.personalInfo.addressStreet.message}
+                              </p>
+                            ) : null}
+                          </div>
+
+                          <div>
+                            <label
+                              className="label"
+                              htmlFor="personalInfo-addressHouseNumber"
+                            >
+                              <RequiredLabel className="label-text">
+                                Hausnummer
+                              </RequiredLabel>
+                            </label>
+                            <input
+                              id="personalInfo-addressHouseNumber"
+                              type="text"
+                              placeholder="z.B. 12A"
+                              className={`input input-bordered w-full ${
+                                errors?.personalInfo?.addressHouseNumber
+                                  ? "input-error"
+                                  : ""
+                              }`}
+                              aria-invalid={
+                                errors?.personalInfo?.addressHouseNumber
+                                  ? "true"
+                                  : "false"
+                              }
+                              {...register("personalInfo.addressHouseNumber", {
+                                required: "Hausnummer ist erforderlich",
+                                setValueAs: (v) => String(v || "").trim(),
+                              })}
+                            />
+                            {errors?.personalInfo?.addressHouseNumber ? (
+                              <p className="text-error text-sm mt-1">
+                                {errors.personalInfo.addressHouseNumber.message}
+                              </p>
+                            ) : null}
+                          </div>
+
+                          <div>
+                            <label
+                              className="label"
+                              htmlFor="personalInfo-addressPostalCode"
+                            >
+                              <RequiredLabel className="label-text">
+                                PLZ
+                              </RequiredLabel>
+                            </label>
+                            <input
+                              id="personalInfo-addressPostalCode"
+                              type="text"
+                              inputMode="numeric"
+                              placeholder="12345"
+                              maxLength={5}
+                              className={`input input-bordered w-full ${
+                                errors?.personalInfo?.addressPostalCode
+                                  ? "input-error"
+                                  : ""
+                              }`}
+                              aria-invalid={
+                                errors?.personalInfo?.addressPostalCode
+                                  ? "true"
+                                  : "false"
+                              }
+                              {...register("personalInfo.addressPostalCode", {
+                                required: "PLZ ist erforderlich",
+                                validate: (v) =>
+                                  /^\d{5}$/.test(String(v || "").trim()) ||
+                                  "PLZ muss 5 Ziffern haben",
+                                setValueAs: (v) =>
+                                  String(v || "")
+                                    .replace(/[^\d]/g, "")
+                                    .slice(0, 5),
+                              })}
+                            />
+                            {errors?.personalInfo?.addressPostalCode ? (
+                              <p className="text-error text-sm mt-1">
+                                {errors.personalInfo.addressPostalCode.message}
+                              </p>
+                            ) : null}
+                          </div>
+
+                          <div>
+                            <label
+                              className="label"
+                              htmlFor="personalInfo-addressCity"
+                            >
+                              <RequiredLabel className="label-text">
+                                Ort
+                              </RequiredLabel>
+                            </label>
+                            <input
+                              id="personalInfo-addressCity"
+                              type="text"
+                              placeholder="z.B. Berlin"
+                              className={`input input-bordered w-full ${
+                                errors?.personalInfo?.addressCity
+                                  ? "input-error"
+                                  : ""
+                              }`}
+                              aria-invalid={
+                                errors?.personalInfo?.addressCity
+                                  ? "true"
+                                  : "false"
+                              }
+                              {...register("personalInfo.addressCity", {
+                                required: "Ort ist erforderlich",
+                                setValueAs: (v) => String(v || "").trim(),
+                              })}
+                            />
+                            {errors?.personalInfo?.addressCity ? (
+                              <p className="text-error text-sm mt-1">
+                                {errors.personalInfo.addressCity.message}
+                              </p>
+                            ) : null}
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <Controller
+                              control={control}
+                              name="personalInfo.addressCountry"
+                              rules={{ required: "Land ist erforderlich" }}
+                              render={({ field }) => (
+                                <CountryNameCombobox
+                                  id="personalInfo-addressCountry"
+                                  label={
+                                    <RequiredLabel className="label-text">
+                                      Land
+                                    </RequiredLabel>
+                                  }
+                                  required
+                                  placeholder="Usbekistan"
+                                  value={field.value}
+                                  onChange={(v) =>
+                                    field.onChange(String(v || "").trim())
+                                  }
+                                  error={
+                                    errors?.personalInfo?.addressCountry
+                                      ?.message
+                                  }
+                                />
+                              )}
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -1065,7 +1439,11 @@ function Create() {
                     errors={experienceErrors}
                   />
 
-                  <div className="divider">Ausbildung</div>
+                  <div className="divider">
+                    <span className="mx-auto">
+                      <RequiredLabel>Ausbildung</RequiredLabel>
+                    </span>
+                  </div>
                   <EducationSection
                     education={cv.education}
                     onAddEducation={addEducation}
@@ -1369,7 +1747,10 @@ function Create() {
           </div>
         </section>
       </div>
-      <PrivacyModal open={isPrivacyOpen} onClose={() => setIsPrivacyOpen(false)} />
+      <PrivacyModal
+        open={isPrivacyOpen}
+        onClose={() => setIsPrivacyOpen(false)}
+      />
 
       <div className="fixed bottom-20 right-4 z-40 flex flex-col gap-3">
         <button

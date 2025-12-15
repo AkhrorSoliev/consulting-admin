@@ -9,6 +9,21 @@ export default function LivePreview({ formCv, showDocuments, onPhotoClick }) {
   const phone = String(formCv?.personalInfo?.phone || "").trim();
   const email = String(formCv?.personalInfo?.email || "").trim();
   const maritalStatus = String(formCv?.personalInfo?.maritalStatus || "").trim();
+  const noChildren = Boolean(formCv?.personalInfo?.noChildren);
+  const childrenCount = String(formCv?.personalInfo?.childrenCount || "").trim();
+  const childrenText = noChildren
+    ? "Keine Kinder"
+    : childrenCount
+    ? childrenCount
+    : "";
+  const drivingType = String(formCv?.personalInfo?.drivingLicenseType || "")
+    .trim()
+    .toUpperCase();
+  const drivingText = Boolean(formCv?.personalInfo?.hasDrivingLicense)
+    ? drivingType
+      ? `Ja (${drivingType})`
+      : "Ja"
+    : "Nein";
   const photo = String(formCv?.personalInfo?.photo || "").trim();
 
   return (
@@ -47,6 +62,8 @@ export default function LivePreview({ formCv, showDocuments, onPhotoClick }) {
                         label="Familienstand"
                         value={maritalStatus}
                       />
+                      <PreviewInfoRow label="Kinder" value={childrenText} />
+                      <PreviewInfoRow label="Führerschein" value={drivingText} />
                       <PreviewInfoRow label="Tel" value={phone} />
                       <PreviewInfoRow label="E-Mail" value={email} />
                     </div>
