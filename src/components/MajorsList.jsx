@@ -200,15 +200,17 @@ export default function MajorsList() {
                 >
                   <FaLink />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setMetaMajor(major)}
-                  className="btn btn-sm btn-outline"
-                  aria-label={`Zusätzliche Infos für „${title}“ öffnen`}
-                  title="Zusätzliche Infos"
-                >
-                  <FaListUl />
-                </button>
+                {!isLimitedAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => setMetaMajor(major)}
+                    className="btn btn-sm btn-outline"
+                    aria-label={`Zusätzliche Infos für „${title}“ öffnen`}
+                    title="Zusätzliche Infos"
+                  >
+                    <FaListUl />
+                  </button>
+                )}
                 <div className="indicator grow min-w-0">
                   <span
                     className="indicator-item indicator-top indicator-end badge badge-sm badge-primary pointer-events-none select-none -translate-x-[20%]"

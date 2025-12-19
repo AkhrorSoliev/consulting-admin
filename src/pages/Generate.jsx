@@ -2910,6 +2910,8 @@ function Generate() {
         subtitle={
           pendingStageStep === "stage_2"
             ? "2-bosqich emailida link/vaqt yuborilmaydi."
+            : isLimitedAdmin
+            ? "Email yuborish uchun ruxsat yo'q."
             : metaLoading
             ? "Zusätzliche Infos yuklanmoqda..."
             : "Qabul qilinsa, vaqt, link yoki lokatsiya Zusätzliche Infos'dan olinadi va emailga qo'shiladi."
@@ -2921,7 +2923,9 @@ function Generate() {
         previewRows={[]}
         showPreviewWhenAccepted
         showAdditionalInfoEditor={
-          pendingStageStep !== "stage_2" && stageDecision === "accepted"
+          !isLimitedAdmin &&
+          pendingStageStep !== "stage_2" &&
+          stageDecision === "accepted"
         }
         additionalInfoForm={stageAdditionalInfoForm}
         setAdditionalInfoForm={setStageAdditionalInfoForm}

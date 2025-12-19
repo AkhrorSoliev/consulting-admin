@@ -43,6 +43,8 @@ export default function BerufsfeldMetaModal({ major, open, onClose }) {
   const dialogRef = useRef(null);
   const { role } = useUserRole();
   const isLimitedAdmin = useMemo(() => role === "limited_admin", [role]);
+  // Limited admins should not access Berufsfeld "Zusätzliche Infos" at all.
+  if (isLimitedAdmin) return null;
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
