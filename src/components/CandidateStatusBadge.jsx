@@ -7,12 +7,22 @@ const toneClass = {
   success: "badge-success text-white",
 };
 
-function CandidateStatusBadge({ value, className = "" }) {
+function CandidateStatusBadge({ value, className = "", display = "full" }) {
   const status = getCandidateStatus(value);
   const tone = status.badgeTone || "info";
-  const classes = `${toneClass[tone] || toneClass.info} badge ${className}`;
+  const classes = `${toneClass[tone] || toneClass.info} badge min-w-0 max-w-full overflow-hidden ${className}`;
 
-  return <span className={classes}>{status.label}</span>;
+  const normalized = String(value || "").trim();
+  const m = normalized.match(/^stage_(\d+)$/);
+  const stageNumber = m ? m[1] : "";
+  const displayLabel =
+    display === "stage" && stageNumber ? `${stageNumber}-bosqich` : status.label;
+
+  return (
+    <span className={classes} title={status.label}>
+      <span className="truncate">{displayLabel}</span>
+    </span>
+  );
 }
 
 export default CandidateStatusBadge;

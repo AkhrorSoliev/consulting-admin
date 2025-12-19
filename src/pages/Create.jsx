@@ -1,10 +1,9 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
 import toast from "react-hot-toast";
 import ReCAPTCHA from "react-google-recaptcha";
 import { FaPaperPlane, FaTelegramPlane, FaVideo } from "react-icons/fa";
-import { addDocument } from "../utils";
 import FormInput from "../components/FormInput";
 import ExperienceSection from "../components/ExperienceSection";
 import EducationSection from "../components/EducationSection";
@@ -18,9 +17,12 @@ import {
   toInputDate,
   fromInputDate,
   generateSkills,
+  sortTimelineItemsDesc,
   uploadFilesToConsulting,
   checkEmailRemote,
   registerEmailRemote,
+  addCandidateWithDualStats,
+  getMetaByName,
 } from "../utils";
 import {
   CANDIDATE_STATUS_DEFAULT,
@@ -31,6 +33,29 @@ import GuideModal from "./create/components/modals/GuideModal";
 import ExistingEmailModal from "./create/components/modals/ExistingEmailModal";
 
 function Create() {
+  const MAX_PDF_BYTES = 2 * 1024 * 1024; // 2MB per file
+  const MAX_PHOTO_BYTES = 250 * 1024; // 250KB per file
+  const DRIVING_LICENSE_OPTIONS = useMemo(
+    () => [
+      "AM",
+      "A1",
+      "A2",
+      "A",
+      "B",
+      "BE",
+      "C1",
+      "C1E",
+      "C",
+      "CE",
+      "D1",
+      "D1E",
+      "D",
+      "DE",
+      "T",
+    ],
+    []
+  );
+
   const initialCv = useMemo(
     () => ({
       personalInfo: {
@@ -39,11 +64,14 @@ function Create() {
         gender: "",
         address: "",
         birthDate: "",
+        birthPlace: "",
         maritalStatus: "",
         childrenCount: "",
         noChildren: false,
         hasDrivingLicense: false,
-        drivingLicenseType: "",
+        // In the form UI we allow selecting multiple license classes.
+        // We still serialize it as a comma-separated string on submit for backward compatibility.
+        drivingLicenseType: [],
         phone: "",
         email: "",
         photo: "",
@@ -74,6 +102,9 @@ function Create() {
   const [langCertFiles, setLangCertFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [diplomaError, setDiplomaError] = useState(false);
+  const [diplomaSizeError, setDiplomaSizeError] = useState(false);
+  const [langCertSizeError, setLangCertSizeError] = useState(false);
+  const [photoSizeError, setPhotoSizeError] = useState(false);
   const [noLangCert, setNoLangCert] = useState(false);
   const [captchaToken, setCaptchaToken] = useState(null);
   const [showEducationWarning, setShowEducationWarning] = useState(false);
@@ -82,6 +113,16 @@ function Create() {
   const [experienceErrors, setExperienceErrors] = useState([]);
   const [showLanguageWarning, setShowLanguageWarning] = useState(false);
   const [languageErrors, setLanguageErrors] = useState([]);
+  const [isDrivingLicenseDropdownOpen, setIsDrivingLicenseDropdownOpen] =
+    useState(false);
+  const drivingLicenseDropdownRef = useRef(null);
+  const [majorInfo, setMajorInfo] = useState({
+    collectionName: "",
+    title: "",
+    linkId: "",
+    showTitle: false,
+  });
+  const [majorLoading, setMajorLoading] = useState(false);
 
   const languageRows = useMemo(
     () =>
@@ -99,6 +140,62 @@ function Create() {
       document.title = previousTitle;
     };
   }, []);
+
+  useEffect(() => {
+    const key = String(searchParams.get("major") || "").trim();
+    let cancelled = false;
+    setMajorLoading(true);
+    (async () => {
+      try {
+        if (!key) {
+          setMajorInfo({
+            collectionName: "",
+            title: "",
+            linkId: "",
+            showTitle: false,
+          });
+          return;
+        }
+        const meta = await getMetaByName(key);
+        if (cancelled) return;
+        if (meta) {
+          const isUuidMatch = key === (meta.linkId || meta.uuid || meta.id);
+          const shouldShowTitle =
+            isUuidMatch &&
+            Boolean(meta.title) &&
+            (meta.linkId || meta.uuid || meta.id) !== meta.collectionName;
+          setMajorInfo({
+            collectionName:
+              meta.collectionName || meta.slug || meta.name || key,
+            title: meta.title || meta.collectionName || key,
+            linkId: meta.linkId || meta.uuid || meta.id || key,
+            showTitle: shouldShowTitle,
+          });
+        } else {
+          setMajorInfo({
+            collectionName: key,
+            title: key,
+            linkId: key,
+            showTitle: false,
+          });
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setMajorInfo({
+            collectionName: key,
+            title: key,
+            linkId: key,
+            showTitle: false,
+          });
+        }
+      } finally {
+        if (!cancelled) setMajorLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams]);
 
   function formatGermanAddress(parts) {
     const street = String(parts?.street || "").trim();
@@ -203,6 +300,7 @@ function Create() {
       if (e.key === "Escape") {
         setIsPrivacyOpen(false);
         setIsGuideOpen(false);
+        setIsDrivingLicenseDropdownOpen(false);
       }
     }
     if (isPrivacyOpen || isGuideOpen) {
@@ -210,6 +308,22 @@ function Create() {
     }
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isPrivacyOpen, isGuideOpen]);
+
+  useEffect(() => {
+    if (!isDrivingLicenseDropdownOpen) return;
+    function onPointerDown(e) {
+      const el = drivingLicenseDropdownRef.current;
+      if (!el) return;
+      if (el.contains(e.target)) return;
+      setIsDrivingLicenseDropdownOpen(false);
+    }
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("touchstart", onPointerDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("touchstart", onPointerDown);
+    };
+  }, [isDrivingLicenseDropdownOpen]);
 
   useEffect(() => {
     const hasCompleteEducation =
@@ -266,6 +380,7 @@ function Create() {
         addressCity: "",
         addressCountry: "",
         birthDate: toInputDate(initialCv.personalInfo.birthDate),
+        birthPlace: initialCv.personalInfo.birthPlace,
         maritalStatus: initialCv.personalInfo.maritalStatus,
         childrenCount: initialCv.personalInfo.childrenCount,
         noChildren: initialCv.personalInfo.noChildren,
@@ -308,6 +423,21 @@ function Create() {
   async function handlePhotoFileChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > MAX_PHOTO_BYTES) {
+      toast.error("Foto darf maximal 250 KB groß sein.");
+      setPhotoSizeError(true);
+      try {
+        e.target.value = "";
+      } catch {
+        // ignore reset errors
+      }
+      setValue("personalInfo.photo", "", {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      return;
+    }
+    setPhotoSizeError(false);
     try {
       const base64 = await imageFileToBase64(file, {
         maxWidth: 1200,
@@ -324,7 +454,7 @@ function Create() {
   function addExperience() {
     setCv((prev) => ({
       ...prev,
-      experience: [
+      experience: sortTimelineItemsDesc([
         ...prev.experience,
         {
           startDate: "",
@@ -334,7 +464,7 @@ function Create() {
           location: "",
           responsibilities: [],
         },
-      ],
+      ]),
     }));
   }
 
@@ -342,7 +472,7 @@ function Create() {
     setCv((prev) => {
       const next = [...prev.experience];
       next[idx] = { ...next[idx], [field]: value };
-      return { ...prev, experience: next };
+      return { ...prev, experience: sortTimelineItemsDesc(next) };
     });
   }
 
@@ -352,6 +482,7 @@ function Create() {
       "personalInfo.lastName",
       "personalInfo.gender",
       "personalInfo.birthDate",
+      "personalInfo.birthPlace",
       "personalInfo.maritalStatus",
       "personalInfo.childrenCount",
       "personalInfo.phone",
@@ -368,6 +499,7 @@ function Create() {
       "personalInfo.lastName": "Nachname",
       "personalInfo.gender": "Geschlecht",
       "personalInfo.birthDate": "Geburtsdatum",
+      "personalInfo.birthPlace": "Geburtsort",
       "personalInfo.maritalStatus": "Familienstand",
       "personalInfo.childrenCount": "Kinder",
       "personalInfo.phone": "Telefonnummer",
@@ -375,7 +507,7 @@ function Create() {
       "personalInfo.photo": "Foto",
       "personalInfo.addressStreet": "Straße",
       "personalInfo.addressHouseNumber": "Hausnummer",
-      "personalInfo.addressPostalCode": "PLZ",
+      "personalInfo.addressPostalCode": "PLZ (Postleitzahl)",
       "personalInfo.addressCity": "Ort",
       "personalInfo.addressCountry": "Land",
     };
@@ -405,7 +537,7 @@ function Create() {
   function removeExperience(idx) {
     setCv((prev) => {
       const next = prev.experience.filter((_, i) => i !== idx);
-      return { ...prev, experience: next };
+      return { ...prev, experience: sortTimelineItemsDesc(next) };
     });
   }
 
@@ -433,10 +565,10 @@ function Create() {
   function addEducation() {
     setCv((prev) => ({
       ...prev,
-      education: [
+      education: sortTimelineItemsDesc([
         ...prev.education,
         { startDate: "", endDate: "", institution: "", degree: "" },
-      ],
+      ]),
     }));
   }
 
@@ -444,14 +576,14 @@ function Create() {
     setCv((prev) => {
       const next = [...prev.education];
       next[idx] = { ...next[idx], [field]: value };
-      return { ...prev, education: next };
+      return { ...prev, education: sortTimelineItemsDesc(next) };
     });
   }
 
   function removeEducation(idx) {
     setCv((prev) => {
       const next = prev.education.filter((_, i) => i !== idx);
-      return { ...prev, education: next };
+      return { ...prev, education: sortTimelineItemsDesc(next) };
     });
   }
 
@@ -589,6 +721,11 @@ function Create() {
         return;
       }
 
+      if (majorLoading) {
+        toast.error("Berufsfeld wird geladen, bitte warten.");
+        return;
+      }
+
       const hasEducation =
         Array.isArray(cv.education) &&
         cv.education.length > 0 &&
@@ -660,13 +797,24 @@ function Create() {
           geschlecht: final.personalInfo.gender,
           adresse: final.personalInfo.address,
           geburtsdatum: final.personalInfo.birthDate,
+          geburtsort: String(final.personalInfo.birthPlace || "").trim(),
           familienstand: final.personalInfo.maritalStatus,
           kinderAnzahl: childrenCount,
           keinKinder: noChildrenSelected,
           fuehrerschein: Boolean(final.personalInfo?.hasDrivingLicense),
-          fuehrerscheinTyp: String(final.personalInfo?.drivingLicenseType || "")
-            .trim()
-            .toUpperCase(),
+          fuehrerscheinTyp: (() => {
+            const raw = final.personalInfo?.drivingLicenseType;
+            const types = Array.isArray(raw)
+              ? raw
+              : String(raw || "")
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean);
+            return types
+              .map((t) => String(t || "").trim().toUpperCase())
+              .filter(Boolean)
+              .join(", ");
+          })(),
           telefon: final.personalInfo.phone,
           email: final.personalInfo.email,
           foto: final.personalInfo.photo,
@@ -698,9 +846,8 @@ function Create() {
         },
       };
 
-      const major = (searchParams.get("major") || "").trim();
-
-      if (!major) {
+      const majorCollection = String(majorInfo?.collectionName || "").trim();
+      if (!majorCollection) {
         toast.error("Der URL-Parameter ?major= fehlt oder ist leer.");
         return;
       }
@@ -747,8 +894,10 @@ function Create() {
           createdAt: Date.now(),
         };
 
-        await addDocument(major, payload);
-        await registerEmailRemote(email, major);
+        await addCandidateWithDualStats(majorCollection, payload, {
+          majorLabel: majorInfo?.title || majorCollection,
+        });
+        await registerEmailRemote(email, majorCollection);
         toast.success("Daten erfolgreich gesendet!");
         try {
           localStorage.setItem("createCvSubmitted", "true");
@@ -790,8 +939,8 @@ function Create() {
           <div
             className={
               isSubmitted
-                ? "card-body items-center text-center !p-[0.7rem]"
-                : "card-body !p-[0.7rem]"
+                ? "card-body items-center text-center p-[0.7rem]!"
+                : "card-body p-[0.7rem]!"
             }
           >
             {isSubmitted ? (
@@ -808,7 +957,9 @@ function Create() {
               <>
                 <div className="w-full flex justify-center">
                   <h2 className="card-title text-3xl font-bold text-center">
-                    Persönliche Daten
+                    {majorInfo.showTitle
+                      ? majorInfo.title
+                      : "Persönliche Daten"}
                   </h2>
                 </div>
 
@@ -930,6 +1081,41 @@ function Create() {
                     <div>
                       <Controller
                         control={control}
+                        name="personalInfo.birthPlace"
+                        rules={{
+                          required: "Geburtsort ist erforderlich",
+                        }}
+                        render={({ field }) => (
+                          <FormInput
+                            label={<RequiredLabel>Geburtsort</RequiredLabel>}
+                            placeholder="z.B. Taschkent"
+                            inputClassName={
+                              errors?.personalInfo?.birthPlace
+                                ? "input-error"
+                                : ""
+                            }
+                            aria-invalid={
+                              errors?.personalInfo?.birthPlace ? "true" : "false"
+                            }
+                            {...field}
+                            onChange={(e) =>
+                              field.onChange(String(e.target.value || ""))
+                            }
+                            onBlur={(e) =>
+                              field.onChange(String(e.target.value || "").trim())
+                            }
+                          />
+                        )}
+                      />
+                      {errors?.personalInfo?.birthPlace ? (
+                        <p className="text-error text-sm mt-1">
+                          {errors.personalInfo.birthPlace.message}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div>
+                      <Controller
+                        control={control}
                         name="personalInfo.maritalStatus"
                         rules={{ required: "Bitte Familienstand auswählen" }}
                         render={({ field, fieldState }) => (
@@ -965,82 +1151,6 @@ function Create() {
                           </>
                         )}
                       />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label
-                        className="label"
-                        htmlFor="personalInfo-hasDrivingLicense"
-                      >
-                        <span className="label-text">Führerschein</span>
-                      </label>
-                      <label className="cursor-pointer flex items-center gap-2">
-                        <input
-                          id="personalInfo-hasDrivingLicense"
-                          type="checkbox"
-                          className="checkbox"
-                          {...register("personalInfo.hasDrivingLicense")}
-                          onChange={(e) => {
-                            const checked = e.target.checked;
-                            setValue(
-                              "personalInfo.hasDrivingLicense",
-                              checked,
-                              {
-                                shouldDirty: true,
-                                shouldValidate: true,
-                              }
-                            );
-                            if (!checked) {
-                              setValue("personalInfo.drivingLicenseType", "", {
-                                shouldDirty: true,
-                                shouldValidate: true,
-                              });
-                            }
-                          }}
-                          checked={Boolean(
-                            watch("personalInfo.hasDrivingLicense")
-                          )}
-                        />
-                        <span className="text-sm">Vorhanden</span>
-                      </label>
-                      {watch("personalInfo.hasDrivingLicense") ? (
-                        <div className="mt-3">
-                          <FormInput
-                            label="Führerschein-Klasse (z.B. B, C, CE)"
-                            placeholder="B"
-                            inputClassName={
-                              errors?.personalInfo?.drivingLicenseType
-                                ? "input-error"
-                                : ""
-                            }
-                            aria-invalid={
-                              errors?.personalInfo?.drivingLicenseType
-                                ? "true"
-                                : "false"
-                            }
-                            {...register("personalInfo.drivingLicenseType", {
-                              validate: (v) => {
-                                const has = Boolean(
-                                  watch("personalInfo.hasDrivingLicense")
-                                );
-                                if (!has) return true;
-                                const s = String(v || "").trim();
-                                if (!s)
-                                  return "Bitte Führerschein-Klasse eingeben.";
-                                return true;
-                              },
-                              setValueAs: (v) =>
-                                String(v ?? "")
-                                  .trim()
-                                  .toUpperCase(),
-                            })}
-                          />
-                          {errors?.personalInfo?.drivingLicenseType ? (
-                            <p className="text-error text-sm mt-1">
-                              {errors.personalInfo.drivingLicenseType.message}
-                            </p>
-                          ) : null}
-                        </div>
-                      ) : null}
                     </div>
                     <div className="md:col-span-2">
                       <label
@@ -1219,6 +1329,19 @@ function Create() {
                         }`}
                         onChange={handlePhotoFileChange}
                       />
+                      {photoSizeError ? (
+                        <p className="text-error text-sm mt-1">
+                          Foto ist zu groß. Komprimieren:{" "}
+                          <a
+                            className="link link-primary"
+                            href="https://imagecompressor.com/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            imagecompressor.com
+                          </a>
+                        </p>
+                      ) : null}
                     </div>
                     <div className="md:col-span-2">
                       {/* Keep a single `address` field for storage/PDF, but collect it as Germany address parts */}
@@ -1323,15 +1446,15 @@ function Create() {
                               htmlFor="personalInfo-addressPostalCode"
                             >
                               <RequiredLabel className="label-text">
-                                PLZ
+                                PLZ (Postleitzahl)
                               </RequiredLabel>
                             </label>
                             <input
                               id="personalInfo-addressPostalCode"
                               type="text"
                               inputMode="numeric"
-                              placeholder="12345"
-                              maxLength={5}
+                              placeholder="123456"
+                              maxLength={6}
                               className={`input input-bordered w-full ${
                                 errors?.personalInfo?.addressPostalCode
                                   ? "input-error"
@@ -1343,14 +1466,14 @@ function Create() {
                                   : "false"
                               }
                               {...register("personalInfo.addressPostalCode", {
-                                required: "PLZ ist erforderlich",
+                                required: "PLZ (Postleitzahl) ist erforderlich",
                                 validate: (v) =>
-                                  /^\d{5}$/.test(String(v || "").trim()) ||
-                                  "PLZ muss 5 Ziffern haben",
+                                  /^\d{6}$/.test(String(v || "").trim()) ||
+                                  "PLZ muss 6 Ziffern haben",
                                 setValueAs: (v) =>
                                   String(v || "")
                                     .replace(/[^\d]/g, "")
-                                    .slice(0, 5),
+                                    .slice(0, 6),
                               })}
                             />
                             {errors?.personalInfo?.addressPostalCode ? (
@@ -1479,6 +1602,196 @@ function Create() {
                     errors={languageErrors}
                   />
 
+                  <div className="divider">Führerschein</div>
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="md:col-span-2">
+                      <label
+                        className="label"
+                        htmlFor="personalInfo-hasDrivingLicense"
+                      >
+                        <span className="label-text">Führerschein</span>
+                      </label>
+                      <label className="cursor-pointer flex items-center gap-2">
+                        <input
+                          id="personalInfo-hasDrivingLicense"
+                          type="checkbox"
+                          className="checkbox"
+                          {...register("personalInfo.hasDrivingLicense")}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setValue(
+                              "personalInfo.hasDrivingLicense",
+                              checked,
+                              {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              }
+                            );
+                            if (!checked) {
+                              setValue(
+                                "personalInfo.drivingLicenseType",
+                                [],
+                                {
+                                  shouldDirty: true,
+                                  shouldValidate: true,
+                                }
+                              );
+                            }
+                          }}
+                          checked={Boolean(
+                            watch("personalInfo.hasDrivingLicense")
+                          )}
+                        />
+                        <span className="text-sm">Vorhanden</span>
+                      </label>
+                      {watch("personalInfo.hasDrivingLicense") ? (
+                        <div className="mt-3">
+                          <Controller
+                            control={control}
+                            name="personalInfo.drivingLicenseType"
+                            rules={{
+                              validate: (v) => {
+                                const has = Boolean(
+                                  watch("personalInfo.hasDrivingLicense")
+                                );
+                                if (!has) return true;
+                                const arr = Array.isArray(v)
+                                  ? v
+                                  : String(v || "")
+                                      .split(",")
+                                      .map((s) => s.trim())
+                                      .filter(Boolean);
+                                if (!arr.length)
+                                  return "Bitte mindestens eine Führerschein-Klasse auswählen.";
+                                return true;
+                              },
+                            }}
+                            render={({ field }) => {
+                              const selected = Array.isArray(field.value)
+                                ? field.value
+                                : String(field.value || "")
+                                    .split(",")
+                                    .map((s) => s.trim())
+                                    .filter(Boolean);
+
+                              const displayValue = selected.length
+                                ? selected.join(", ")
+                                : "Bitte auswählen";
+
+                              function toggleOption(opt) {
+                                const normalized = String(opt || "")
+                                  .trim()
+                                  .toUpperCase();
+                                const set = new Set(
+                                  selected.map((s) =>
+                                    String(s || "").trim().toUpperCase()
+                                  )
+                                );
+                                if (set.has(normalized)) {
+                                  set.delete(normalized);
+                                } else {
+                                  set.add(normalized);
+                                }
+                                field.onChange(Array.from(set));
+                              }
+
+                              return (
+                                <div
+                                  ref={drivingLicenseDropdownRef}
+                                  className={`dropdown w-full ${
+                                    isDrivingLicenseDropdownOpen
+                                      ? "dropdown-open"
+                                      : ""
+                                  }`}
+                                >
+                                  <label className="label">
+                                    <span className="label-text">
+                                      Führerschein-Klassen (mehrere möglich)
+                                    </span>
+                                  </label>
+
+                                  <button
+                                    type="button"
+                                    className={`select select-bordered w-full flex items-center justify-between gap-3 ${
+                                      errors?.personalInfo?.drivingLicenseType
+                                        ? "select-error"
+                                        : ""
+                                    }`}
+                                    aria-invalid={
+                                      errors?.personalInfo?.drivingLicenseType
+                                        ? "true"
+                                        : "false"
+                                    }
+                                    aria-haspopup="listbox"
+                                    aria-expanded={isDrivingLicenseDropdownOpen}
+                                    onClick={() =>
+                                      setIsDrivingLicenseDropdownOpen(
+                                        (p) => !p
+                                      )
+                                    }
+                                  >
+                                    <span
+                                      className={
+                                        selected.length
+                                          ? "text-base-content"
+                                          : "text-base-content/60"
+                                      }
+                                    >
+                                      {displayValue}
+                                    </span>
+                                    <span className="text-base-content/60">
+                                      ▾
+                                    </span>
+                                  </button>
+
+                                  <ul
+                                    className="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-full mt-1 max-h-72 overflow-auto z-[60]"
+                                    role="listbox"
+                                    aria-multiselectable="true"
+                                  >
+                                    {DRIVING_LICENSE_OPTIONS.map((opt) => {
+                                      const upper = String(opt || "")
+                                        .trim()
+                                        .toUpperCase();
+                                      const isSelected = selected
+                                        .map((s) =>
+                                          String(s || "")
+                                            .trim()
+                                            .toUpperCase()
+                                        )
+                                        .includes(upper);
+                                      return (
+                                        <li key={opt}>
+                                          <button
+                                            type="button"
+                                            className="flex items-center gap-2"
+                                            onClick={() => toggleOption(opt)}
+                                          >
+                                            <span className="w-5 text-center">
+                                              {isSelected ? "✓" : ""}
+                                            </span>
+                                            <span className="font-medium">
+                                              {opt}
+                                            </span>
+                                          </button>
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                </div>
+                              );
+                            }}
+                          />
+                          {errors?.personalInfo?.drivingLicenseType ? (
+                            <p className="text-error text-sm mt-1">
+                              {errors.personalInfo.drivingLicenseType.message}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+
                   <div className="divider">Dokumente</div>
                   <div className="grid grid-cols-1 gap-4">
                     <div>
@@ -1503,15 +1816,22 @@ function Create() {
                         Pflicht: Laden Sie mindestens Ihr Schulzeugnis als PDF
                         hoch.
                       </p>
+                      <p className="text-xs text-base-content/70 mb-2">
+                        Maximal 2 MB pro Datei.
+                      </p>
                       <input
                         id="doc-diplomas"
                         type="file"
                         multiple
                         accept=".pdf,application/pdf"
                         className={`file-input file-input-bordered w-full ${
-                          diplomaError ? "file-input-error" : ""
+                          diplomaError || diplomaSizeError
+                            ? "file-input-error"
+                            : ""
                         }`}
-                        aria-invalid={diplomaError ? "true" : "false"}
+                        aria-invalid={
+                          diplomaError || diplomaSizeError ? "true" : "false"
+                        }
                         onChange={(e) => {
                           const raw = Array.from(e.target.files || []);
                           const pdfs = raw.filter(
@@ -1520,14 +1840,24 @@ function Create() {
                                 "application/pdf" ||
                               /\.pdf$/i.test(String(f.name || ""))
                           );
+                          const sized = pdfs.filter(
+                            (f) => (f?.size || 0) <= MAX_PDF_BYTES
+                          );
+                          const tooBig = pdfs.length - sized.length;
                           const invalid = raw.length - pdfs.length;
                           if (invalid > 0) {
                             toast.error("Nur PDF-Dateien sind erlaubt.");
                           }
+                          if (tooBig > 0) {
+                            toast.error("PDF-Datei darf maximal 2 MB groß sein.");
+                            setDiplomaSizeError(true);
+                          } else {
+                            setDiplomaSizeError(false);
+                          }
                           if (pdfs.length > 0) {
                             setDiplomaError(false);
                           }
-                          setDiplomaFiles((prev) => mergeFiles(prev, pdfs));
+                          setDiplomaFiles((prev) => mergeFiles(prev, sized));
                           // reset value to allow picking the same file again if needed
                           e.target.value = "";
                         }}
@@ -1536,6 +1866,19 @@ function Create() {
                         <p className="text-error text-sm mt-1">
                           Mindestens ein Diplom bzw. Schulzeugnis (PDF)
                           erforderlich.
+                        </p>
+                      ) : null}
+                      {diplomaSizeError ? (
+                        <p className="text-error text-sm mt-1">
+                          Datei &gt; 2 MB. Komprimieren:{" "}
+                          <a
+                            className="link link-primary"
+                            href="https://www.ilovepdf.com/compress_pdf"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            iLovePDF
+                          </a>
                         </p>
                       ) : null}
                       {Array.isArray(diplomaFiles) &&
@@ -1601,18 +1944,27 @@ function Create() {
                             onChange={(e) => {
                               const v = e.target.checked;
                               setNoLangCert(v);
-                              if (v) setLangCertFiles([]);
+                              if (v) {
+                                setLangCertFiles([]);
+                                setLangCertSizeError(false);
+                              }
                             }}
                           />
                           <span className="text-sm">Kein Sprachzertifikat</span>
                         </label>
                       </div>
+                      <p className="text-xs text-base-content/70 mb-2">
+                        Maximal 2 MB pro Datei.
+                      </p>
                       <input
                         id="doc-langcerts"
                         type="file"
                         multiple
                         accept=".pdf,application/pdf"
-                        className="file-input file-input-bordered w-full"
+                        className={`file-input file-input-bordered w-full ${
+                          langCertSizeError ? "file-input-error" : ""
+                        }`}
+                        aria-invalid={langCertSizeError ? "true" : "false"}
                         disabled={noLangCert}
                         onChange={(e) => {
                           const raw = Array.from(e.target.files || []);
@@ -1622,14 +1974,37 @@ function Create() {
                                 "application/pdf" ||
                               /\.pdf$/i.test(String(f.name || ""))
                           );
+                          const sized = pdfs.filter(
+                            (f) => (f?.size || 0) <= MAX_PDF_BYTES
+                          );
+                          const tooBig = pdfs.length - sized.length;
                           const invalid = raw.length - pdfs.length;
                           if (invalid > 0) {
                             toast.error("Nur PDF-Dateien sind erlaubt.");
                           }
-                          setLangCertFiles((prev) => mergeFiles(prev, pdfs));
+                          if (tooBig > 0) {
+                            toast.error("PDF-Datei darf maximal 2 MB groß sein.");
+                            setLangCertSizeError(true);
+                          } else {
+                            setLangCertSizeError(false);
+                          }
+                          setLangCertFiles((prev) => mergeFiles(prev, sized));
                           e.target.value = "";
                         }}
                       />
+                      {langCertSizeError ? (
+                        <p className="text-error text-sm mt-1">
+                          Datei &gt; 2 MB. Komprimieren:{" "}
+                          <a
+                            className="link link-primary"
+                            href="https://www.ilovepdf.com/compress_pdf"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            iLovePDF
+                          </a>
+                        </p>
+                      ) : null}
                       {Array.isArray(langCertFiles) &&
                       langCertFiles.length > 0 ? (
                         <div className="mt-2">
@@ -1729,7 +2104,12 @@ function Create() {
                     <button
                       type="submit"
                       className="btn btn-primary"
-                      disabled={!watch("agreePrivacy") || isUploading}
+                      disabled={
+                        !watch("agreePrivacy") ||
+                        isUploading ||
+                        majorLoading ||
+                        !majorInfo.collectionName
+                      }
                     >
                       {isUploading ? (
                         "Hochladen..."

@@ -30,7 +30,6 @@ export default function InterviewModal({
               type="button"
               className="btn btn-ghost btn-sm"
               onClick={onClose}
-              disabled={isSending}
               aria-label="Modalni yopish"
             >
               ✕
@@ -55,7 +54,6 @@ export default function InterviewModal({
                     dateTime: e.target.value,
                   }))
                 }
-                disabled={isSending}
               />
             </div>
 
@@ -75,7 +73,6 @@ export default function InterviewModal({
                     location: e.target.value,
                   }))
                 }
-                disabled={isSending}
               />
             </div>
 
@@ -97,7 +94,6 @@ export default function InterviewModal({
                     items: e.target.value,
                   }))
                 }
-                disabled={isSending}
               />
             </div>
 
@@ -106,13 +102,15 @@ export default function InterviewModal({
                 type="button"
                 className="btn"
                 onClick={onClose}
-                disabled={isSending}
               >
                 Bekor qilish
               </button>
-              <button type="submit" className="btn btn-primary" disabled={isSending}>
+              <button type="submit" className="btn btn-primary">
                 {isSending ? (
-                  <span className="loading loading-spinner loading-sm" />
+                  <>
+                    <span className="loading loading-spinner loading-sm" />
+                    Yuborilmoqda...
+                  </>
                 ) : (
                   "Jo'natish"
                 )}

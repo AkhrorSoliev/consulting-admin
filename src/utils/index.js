@@ -11,12 +11,53 @@ import {
   getDocs,
   query,
   orderBy,
+  where,
+  limit,
 } from "firebase/firestore";
+import { incrementDirectionsTotal } from "./stats";
 
-export async function createCollection(name) {
+function generateUuid() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  // Fallback: simple random string
+  return "xxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+function normalizeMajorMeta(docSnap) {
+  const data =
+    typeof docSnap?.data === "function" ? docSnap.data() : docSnap?.data || {};
+  const id = docSnap?.id || "";
+  const collectionName =
+    data.collectionName || data.slug || data.name || id || "";
+  const uuid = data.uuid || data.id || id || "";
+  const title =
+    data.title || data.label || data.fullName || data.name || collectionName;
+  const slug = data.slug || data.name || collectionName;
+  return {
+    ...data,
+    id,
+    uuid,
+    linkId: uuid || id,
+    collectionName,
+    slug,
+    name: data.name || slug,
+    title,
+    createdAt: data.createdAt,
+    createdBy: data.createdBy,
+    raw: data,
+  };
+}
+
+export async function createCollection(name, createdBy) {
   try {
     // Normalize name defensively here as well; we only add meta now
-    const normalizedName = String(name || "")
+    const rawTitle = String(name || "").trim();
+    const normalizedName = rawTitle
       .trim()
       .toLowerCase()
       .replace(/\s+/g, "-");
@@ -26,27 +67,100 @@ export async function createCollection(name) {
       return { created: false, reason: "empty" };
     }
 
-    // Check existence in meta collection (doc id = normalizedName)
-    const metaDocRef = doc(db, "meta", normalizedName);
-    const metaDocSnap = await getDoc(metaDocRef);
-    if (metaDocSnap.exists()) {
+    // Check existence in meta collection by collectionName/slug (avoid duplicates)
+    const dupSnap = await getDocs(
+      query(
+        collection(db, "meta"),
+        where("collectionName", "==", normalizedName),
+        limit(1)
+      )
+    );
+    if (!dupSnap.empty) {
       toast.error(`„${normalizedName}“ ist bereits vorhanden.`);
       return { created: false, reason: "exists" };
     }
 
+    const uuid = generateUuid();
+    // Doc id uses uuid to decouple URL from collection name
+    const metaDocRef = doc(db, "meta", uuid);
+
     // Only add a meta document; do NOT create the actual collection here
+    const createdBySafe = String(createdBy || "").trim() || "tizim";
     await setDoc(metaDocRef, {
+      uuid,
       name: normalizedName,
+      slug: normalizedName,
+      collectionName: normalizedName,
+      title: rawTitle || normalizedName,
       createdAt: Date.now(),
+      createdBy: createdBySafe,
     });
 
-    toast.success(`„${normalizedName}“ wurde zur Meta-Liste hinzugefügt!`);
-    return { created: true, name: normalizedName };
+    // Cumulative stats: do not decrement on delete; only count creations.
+    try {
+      await incrementDirectionsTotal();
+    } catch (err) {
+      console.error("incrementDirectionsTotal failed:", err);
+      // non-blocking: major creation should still succeed
+    }
+
+    toast.success(`„${rawTitle || normalizedName}“ wurde zur Meta-Liste hinzugefügt!`);
+    return {
+      created: true,
+      name: normalizedName,
+      uuid,
+      collectionName: normalizedName,
+      title: rawTitle || normalizedName,
+    };
   } catch (error) {
     toast.error(`Fehler: ${error.message}`);
     console.error("createCollection error:", error);
     return { created: false, reason: "error", error };
   }
+}
+
+export async function getMetaByName(name) {
+  const safe = String(name || "").trim();
+  if (!safe) return null;
+
+  // 1) Try direct doc id match (uuid or legacy slug)
+  const directRef = doc(db, "meta", safe);
+  const directSnap = await getDoc(directRef);
+  if (directSnap.exists()) {
+    return normalizeMajorMeta(directSnap);
+  }
+
+  // 2) Try lookup by uuid field
+  const byUuidSnap = await getDocs(
+    query(collection(db, "meta"), where("uuid", "==", safe), limit(1))
+  );
+  if (!byUuidSnap.empty) {
+    return normalizeMajorMeta(byUuidSnap.docs[0]);
+  }
+
+  // 3) Try lookup by slug/name field (legacy)
+  const byNameSnap = await getDocs(
+    query(
+      collection(db, "meta"),
+      where("collectionName", "==", safe),
+      limit(1)
+    )
+  );
+  if (!byNameSnap.empty) {
+    return normalizeMajorMeta(byNameSnap.docs[0]);
+  }
+
+  return null;
+}
+
+export async function updateMetaByName(name, data) {
+  const safe = String(name || "").trim();
+  if (!safe) throw new Error("updateMetaByName: name is empty");
+  const resolved = await getMetaByName(safe);
+  const targetId = resolved?.id || safe;
+  const metaDocRef = doc(db, "meta", targetId);
+  await updateDoc(metaDocRef, data);
+  return { id: targetId };
 }
 
 export function subscribeToCollections(callback) {
@@ -55,10 +169,10 @@ export function subscribeToCollections(callback) {
     const metaColRef = collection(db, "meta");
     const q = query(metaColRef, orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const names = snapshot.docs
-        .map((d) => d.data()?.name)
-        .filter((n) => typeof n === "string" && n.trim().length > 0);
-      callback(names);
+      const list = snapshot.docs
+        .map((d) => normalizeMajorMeta(d))
+        .filter((n) => typeof n.collectionName === "string" && n.collectionName.trim().length > 0);
+      callback(list);
     });
 
     return unsubscribe;
@@ -69,19 +183,22 @@ export function subscribeToCollections(callback) {
 
 export async function deleteCollectionByName(name) {
   try {
-    const colRef = collection(db, name);
+    const meta = await getMetaByName(name);
+    const colName = meta?.collectionName || name;
+    const metaId = meta?.id || name;
+    const colRef = collection(db, colName);
     const docsSnapshot = await getDocs(colRef);
 
     const deletePromises = docsSnapshot.docs.map((d) =>
-      deleteDoc(doc(db, name, d.id))
+      deleteDoc(doc(db, colName, d.id))
     );
     await Promise.all(deletePromises);
 
     // Remove meta document entry
-    const metaDocRef = doc(db, "meta", name);
+    const metaDocRef = doc(db, "meta", metaId);
     await deleteDoc(metaDocRef);
 
-    toast.success(`Sammlung „${name}“ wurde gelöscht!`);
+    toast.success(`Sammlung „${colName}“ wurde gelöscht!`);
   } catch (error) {
     toast.error(`Fehler: ${error.message}`);
     console.error("deleteCollectionByName error:", error);
@@ -191,6 +308,72 @@ export function fromInputMonth(yyyymm) {
   if (!m) return yyyymm;
   const [, yyyy, mm] = m;
   return `${mm}.${yyyy}`;
+}
+
+function monthYearToSortKey(dateStr) {
+  const raw = String(dateStr || "").trim();
+  if (!raw) return null;
+  if (raw.toLowerCase() === "bis heute") return Number.POSITIVE_INFINITY;
+
+  // dd.mm.yyyy
+  let m = raw.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (m) {
+    const [, , mm, yyyy] = m;
+    const month = Number(mm);
+    const year = Number(yyyy);
+    if (month >= 1 && month <= 12) return year * 12 + (month - 1);
+    return null;
+  }
+
+  // mm.yyyy
+  m = raw.match(/^(\d{2})\.(\d{4})$/);
+  if (m) {
+    const [, mm, yyyy] = m;
+    const month = Number(mm);
+    const year = Number(yyyy);
+    if (month >= 1 && month <= 12) return year * 12 + (month - 1);
+    return null;
+  }
+
+  // yyyy-mm (sometimes comes from inputs)
+  m = raw.match(/^(\d{4})-(\d{2})$/);
+  if (m) {
+    const [, yyyy, mm] = m;
+    const month = Number(mm);
+    const year = Number(yyyy);
+    if (month >= 1 && month <= 12) return year * 12 + (month - 1);
+    return null;
+  }
+
+  return null;
+}
+
+function timelineItemSortKey(item) {
+  const endKey = monthYearToSortKey(item?.endDate);
+  if (endKey !== null) return endKey;
+  const startKey = monthYearToSortKey(item?.startDate);
+  if (startKey !== null) return startKey;
+  return Number.NEGATIVE_INFINITY;
+}
+
+// Sort timeline arrays (experience/education) so the most recent entry is first.
+// Uses endDate first (supports "bis heute"), falls back to startDate, and keeps a stable order for ties.
+export function sortTimelineItemsDesc(items) {
+  if (!Array.isArray(items) || items.length <= 1)
+    return Array.isArray(items) ? items : [];
+  return items
+    .map((item, idx) => ({
+      item,
+      idx,
+      key: timelineItemSortKey(item),
+      startKey: monthYearToSortKey(item?.startDate) ?? Number.NEGATIVE_INFINITY,
+    }))
+    .sort((a, b) => {
+      if (b.key !== a.key) return b.key - a.key;
+      if (b.startKey !== a.startKey) return b.startKey - a.startKey;
+      return a.idx - b.idx;
+    })
+    .map((x) => x.item);
 }
 
 // Generate soft/pc skills based on provided CV context
@@ -399,8 +582,19 @@ export async function deleteDocumentById(collectionName, id) {
   return { id };
 }
 
+// Read a document by id (returns plain data or null)
+export async function getDocumentDataById(collectionName, id) {
+  const safeCol = String(collectionName || "").trim();
+  const safeId = String(id || "").trim();
+  if (!safeCol || !safeId) return null;
+  const docRef = doc(db, safeCol, safeId);
+  const snap = await getDoc(docRef);
+  return snap.exists() ? snap.data() : null;
+}
+
 // ---- External email API helpers ----
 const EMAIL_API_BASE = "https://json-api.uz/api/project/consultinguz";
+const UPLOAD_DELETE_ENDPOINT = `${EMAIL_API_BASE}/upload/delete`;
 
 export async function checkEmailRemote(email) {
   const safeEmail = String(email || "")
@@ -461,3 +655,113 @@ export async function deleteEmailRemote(email) {
   }
   return res.json().catch(() => ({}));
 }
+
+// ---- External upload delete helpers ----
+export async function deleteUploadedFileRemote(fileUrl) {
+  const safeUrl = String(fileUrl || "").trim();
+  if (!safeUrl) return;
+
+  const res = await fetch(UPLOAD_DELETE_ENDPOINT, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url: safeUrl }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Upload delete failed: ${res.status}`);
+  }
+
+  return res.json().catch(() => ({}));
+}
+
+export async function deleteUploadedFilesRemote(urls) {
+  const list = Array.isArray(urls) ? urls : [];
+  const unique = Array.from(
+    new Set(
+      list
+        .map((u) => String(u || "").trim())
+        .filter((u) => /^https?:\/\//.test(u))
+    )
+  );
+  if (unique.length === 0) return [];
+  return Promise.all(unique.map((u) => deleteUploadedFileRemote(u)));
+}
+
+// Update an existing email in the external API (best-effort).
+// Strategy:
+// 1) Try to locate record by oldEmail via GET /all_Emails?email=...
+// 2) If an id exists, attempt PATCH /all_Emails/:id
+// 3) Fallback: delete old + create new (known supported endpoints in this codebase)
+export async function updateEmailRemote(oldEmail, newEmail, major) {
+  const oldSafe = String(oldEmail || "")
+    .trim()
+    .toLowerCase();
+  const nextSafe = String(newEmail || "")
+    .trim()
+    .toLowerCase();
+  if (!oldSafe || !nextSafe) return;
+  if (oldSafe === nextSafe) return;
+
+  // Try direct PATCH by id if API returns one
+  try {
+    const { exists, data } = await checkEmailRemote(oldSafe);
+    if (exists && data && typeof data === "object") {
+      const id =
+        data.id ?? data._id ?? data.uuid ?? data.key ?? data.docId ?? null;
+      if (id !== null && id !== undefined && String(id).trim() !== "") {
+        const res = await fetch(
+          `${EMAIL_API_BASE}/all_Emails/${encodeURIComponent(String(id))}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: String(newEmail || "").trim(),
+              major: String(major || "").trim() || null,
+            }),
+          }
+        );
+        if (res.ok) return res.json().catch(() => ({}));
+      }
+    }
+  } catch {
+    // ignore and fallback
+  }
+
+  // Fallback to known supported endpoints (delete + re-create)
+  // If delete fails because record doesn't exist, we still try to register new email.
+  try {
+    await deleteEmailRemote(oldSafe);
+  } catch {
+    // ignore delete failure
+  }
+  return registerEmailRemote(String(newEmail || "").trim(), major);
+}
+
+// ---- Kommentar helpers (shared across Generate / Live Preview / PDF) ----
+export {
+  DEFAULT_COMMENT_TEMPLATE_HTML,
+  hasRichTextContent,
+  getCommentHtmlOrDefault,
+  commentHtmlToPlainText,
+} from "./commentar";
+
+export {
+  addCandidateWithStats,
+  addCandidateWithDualStats,
+  buildCandidateStatsIncrements,
+  buildCandidateStatsIncrementsWithFactor,
+  deleteCandidateWithCurrentStats,
+  updateCandidateWithCurrentStats,
+  rebuildGlobalStatsFromExistingData,
+  rebuildCurrentStatsFromExistingData,
+  rebuildStatsDocsFromExistingData,
+  seedBothStatsFromExistingData,
+  ensureStatsDocAtLeast,
+  subscribeToGlobalStats,
+  subscribeToCurrentStats,
+  subscribeToStatsDoc,
+  STATS_COLLECTION,
+  GLOBAL_STATS_DOC_ID,
+  CURRENT_STATS_DOC_ID,
+  statsDocRef,
+} from "./stats";

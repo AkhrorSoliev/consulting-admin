@@ -30,7 +30,6 @@ export default function DecisionModal({
               type="button"
               className="btn btn-ghost btn-sm"
               onClick={onClose}
-              disabled={isSending}
               aria-label="Modalni yopish"
             >
               ✕
@@ -60,7 +59,6 @@ export default function DecisionModal({
                           decision: "accepted",
                         }))
                       }
-                      disabled={isSending}
                     />
                     <div className="font-semibold">Qabul qilindi</div>
                   </div>
@@ -92,7 +90,6 @@ export default function DecisionModal({
                           decision: "rejected",
                         }))
                       }
-                      disabled={isSending}
                     />
                     <div className="font-semibold">Rad etildi</div>
                   </div>
@@ -109,13 +106,15 @@ export default function DecisionModal({
                 type="button"
                 className="btn"
                 onClick={onClose}
-                disabled={isSending}
               >
                 Bekor qilish
               </button>
-              <button type="submit" className="btn btn-primary" disabled={isSending}>
+              <button type="submit" className="btn btn-primary">
                 {isSending ? (
-                  <span className="loading loading-spinner loading-sm" />
+                  <>
+                    <span className="loading loading-spinner loading-sm" />
+                    Yuborilmoqda...
+                  </>
                 ) : (
                   "Jo'natish"
                 )}

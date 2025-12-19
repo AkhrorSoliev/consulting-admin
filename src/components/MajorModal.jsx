@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
+import { useSelector } from "react-redux";
 import toast from "react-hot-toast";
 import { createCollection } from "../utils";
 import { useUserRole } from "../hooks/useUserRole";
 
 function MajorModal() {
   const [input, setInput] = useState("");
+  const { user } = useSelector((state) => state.auth);
   const { role } = useUserRole();
   const isLimitedAdmin = useMemo(() => role === "limited_admin", [role]);
   const closeModal = () => {
@@ -22,7 +24,9 @@ function MajorModal() {
       toast.error("Der Name des Berufsfelds wurde nicht eingegeben.");
       return;
     }
-    const { created } = await createCollection(raw);
+    const createdBy =
+      user?.email || user?.displayName || user?.uid || user?.phoneNumber || "";
+    const { created } = await createCollection(raw, createdBy);
     if (created) {
       setInput("");
       closeModal();

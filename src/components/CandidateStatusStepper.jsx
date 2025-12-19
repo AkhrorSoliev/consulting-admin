@@ -19,8 +19,8 @@ function CandidateStatusStepper({
         <div className="flex flex-col gap-1">
           <h3 className="text-lg font-semibold">Kandidat bosqichlari</h3>
           <p className="text-sm opacity-70">
-            Har bir bosqich bo&apos;yicha email yuboring. Keyingi bosqich faqat
-            oldingisi yakunlangandan so&apos;ng ochiladi.
+            Har bir bosqich bo&apos;yicha email yuboring. Email yuborishda
+            qabul/rad tanlanadi. Qabul qilinganda keyingi bosqich ochiladi.
           </p>
         </div>
 
@@ -40,10 +40,13 @@ function CandidateStatusStepper({
                   <button
                     className="btn btn-sm btn-outline"
                     onClick={() => onSendEmail?.(step.value)}
-                    disabled={disabled || !isCurrent || isSending}
+                    disabled={disabled || !isCurrent}
                   >
                     {isSending ? (
-                      <span className="loading loading-spinner loading-sm" />
+                      <>
+                        <span className="loading loading-spinner loading-sm" />
+                        Yuborilmoqda...
+                      </>
                     ) : (
                       "Email yuborish"
                     )}

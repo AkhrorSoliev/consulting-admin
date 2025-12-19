@@ -1,61 +1,115 @@
 import { Outlet, useLocation, Link } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Sidebar from "../components/Sidebar";
-import { LuPanelLeftClose } from "react-icons/lu";
-import { FaHome } from "react-icons/fa";
+import Navbar from "../components/Navbar";
+import { FaHome, FaUserCircle } from "react-icons/fa";
+import { MdDarkMode, MdLightMode, MdOutlineLogout } from "react-icons/md";
+import { useLogout } from "../hooks/useLogut";
+import { useTheme } from "../hooks/useTheme";
 
 function MainLayout() {
-  const [isDrawerOpen, setIsDrawerOpen] = useState(true);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const location = useLocation();
+  const { logoutUser, isPending } = useLogout();
+  const { theme, toggleTheme } = useTheme();
+  const isDracula = theme === "dracula";
+  const sidebarRef = useRef(null);
 
   useEffect(() => {
-    const path = String(location.pathname || "");
-    const isGenerate = /^\/generate\//.test(path);
-    setIsDrawerOpen(!isGenerate);
+    setIsDrawerOpen(false);
   }, [location.pathname]);
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (!isDrawerOpen) return;
+      if (!sidebarRef.current) return;
+      if (
+        sidebarRef.current.contains(event.target) ||
+        event.target.closest("[data-sidebar-toggle]")
+      ) {
+        return;
+      }
+      setIsDrawerOpen(false);
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [isDrawerOpen]);
+
   return (
-    <div className={`drawer ${isDrawerOpen ? "drawer-open" : ""} h-screen`}>
-      <input
-        id="app-drawer"
-        type="checkbox"
-        className="drawer-toggle"
-        checked={isDrawerOpen}
-        onChange={(e) => setIsDrawerOpen(e.target.checked)}
-      />
-      <div
-        className={`drawer-content flex flex-col transition-all duration-200 ${
-          isDrawerOpen ? "ml-80" : ""
-        }`}
+    <div className="relative min-h-screen bg-base-200">
+      <Navbar
+        isSidebarOpen={isDrawerOpen}
+        onToggleSidebar={() => setIsDrawerOpen((prev) => !prev)}
       >
-        {!isDrawerOpen && (
-          <div className="fixed bottom-4 left-4 z-50 flex gap-2">
-            <Link
-              to="/"
-              aria-label="Zur Startseite"
-              title="Startseite"
-              className="btn btn-ghost btn-circle"
-            >
-              <FaHome className="text-2xl" />
-            </Link>
-            <button
-              type="button"
-              aria-label="Seitenleiste öffnen"
-              title="Seitenleiste öffnen"
-              onClick={() => setIsDrawerOpen(true)}
-              className="btn btn-primary btn-circle"
-            >
-              <LuPanelLeftClose className="text-2xl" />
-            </button>
-          </div>
-        )}
-        <div className="grow overflow-y-auto">
-          <Outlet />
-        </div>
-      </div>
-      <div className="drawer-side">
-        <Sidebar onClose={() => setIsDrawerOpen(false)} />
-      </div>
+        <Link
+          to="/"
+          className="btn btn-ghost gap-2 hidden sm:inline-flex"
+          aria-label="Zur Startseite"
+          data-sidebar-toggle
+        >
+          <FaHome className="text-xl" />
+          <span className="font-medium">Home</span>
+        </Link>
+        <Link
+          to="/profile"
+          className="btn btn-ghost gap-2 hidden sm:inline-flex"
+          aria-label="Profil"
+          data-sidebar-toggle
+        >
+          <FaUserCircle className="text-xl" />
+          <span className="font-medium">Profil</span>
+        </Link>
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="btn btn-ghost btn-square"
+          aria-label="Theme wechseln"
+          data-sidebar-toggle
+        >
+          {isDracula ? <MdLightMode className="text-xl" /> : <MdDarkMode className="text-xl" />}
+        </button>
+        <button
+          type="button"
+          onClick={logoutUser}
+          disabled={isPending}
+          className="btn btn-outline btn-secondary gap-2"
+          aria-label="Abmelden"
+          data-sidebar-toggle
+        >
+          {isPending ? (
+            "Abmelden..."
+          ) : (
+            <>
+              <MdOutlineLogout className="text-xl" />
+              <span className="hidden sm:inline">Abmelden</span>
+            </>
+          )}
+        </button>
+      </Navbar>
+      <main className="flex-1 overflow-y-auto px-4 py-4 lg:px-6">
+        <Outlet />
+      </main>
+
+      {isDrawerOpen && (
+        <button
+          type="button"
+          aria-label="Overlay to close sidebar"
+          className="fixed inset-0 z-30 bg-black/30 backdrop-blur-[1px]"
+          onClick={() => setIsDrawerOpen(false)}
+        />
+      )}
+
+      <Sidebar
+        ref={sidebarRef}
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+      />
     </div>
   );
 }

@@ -1,33 +1,45 @@
-export const CANDIDATE_STATUS_DEFAULT = "received";
+export const CANDIDATE_STATUS_DEFAULT = "stage_1";
+
+const LEGACY_STATUS_MAP = {
+  received: "stage_1",
+  internal_interview_passed: "stage_2",
+  employer_interview_scheduled: "stage_3",
+  employer_decision: "stage_4",
+};
+
+export function normalizeCandidateStatusValue(value) {
+  const raw = String(value || "").trim();
+  return LEGACY_STATUS_MAP[raw] || raw;
+}
 
 export const CANDIDATE_STATUS_OPTIONS = [
   {
-    value: "received",
-    label: "Ma'lumotlaringiz qabul qilindi",
-    badgeTone: "info",
-    emailBody:
-      "Arizangizni qabul qildik va ko'rib chiqishni boshladik. Qo'shimcha ma'lumot kerak bo'lsa, siz bilan aloqaga chiqamiz.",
-  },
-  {
-    value: "internal_interview_passed",
-    label: "Ichki suhbatdan o'tdingiz",
+    value: "stage_1",
+    label: "1-bosqich kutilmoqda",
     badgeTone: "primary",
     emailBody:
-      "Ichki suhbatdan muvaffaqiyatli o'tdingiz. Keyingi bosqichlarga tayyorlanishingizni so'raymiz.",
+      "1-bosqich (ichki suhbat) bo'yicha qaror yuboriladi (qabul yoki rad).",
   },
   {
-    value: "employer_interview_scheduled",
-    label: "Ish beruvchi bilan suhbat belgilanadi",
+    value: "stage_2",
+    label: "1-bosqich yakunlandi",
+    badgeTone: "info",
+    emailBody:
+      "Ichki suhbat natijasi yuboriladi: ichki suhbatdan o'tdi yoki rad etildi.",
+  },
+  {
+    value: "stage_3",
+    label: "Ish beruvchi bilan suhbatga taklif",
     badgeTone: "warning",
     emailBody:
-      "Ish beruvchi bilan suhbat belgilanmoqda. Aniq sana va vaqt bilan tez orada siz bilan bog'lanamiz.",
+      "Ish beruvchi bilan suhbatga taklif yoki qaror yuboriladi.",
   },
   {
-    value: "employer_decision",
-    label: "Ish beruvchining qarori (qabul/ rad)",
+    value: "stage_4",
+    label: "Ish beruvchi qarori",
     badgeTone: "success",
     emailBody:
-      "Ish beruvchi bilan suhbat yakunlandi. Qaror (qabul qilindi yoki rad etildi) haqida alohida xabarnoma jo'natiladi.",
+      "Ish beruvchi rad qildi yoki qabul qildi degan qaror yuboriladi.",
   },
 ];
 
@@ -36,7 +48,9 @@ export const candidateStatusMap = Object.fromEntries(
 );
 
 export function getCandidateStatus(value) {
+  const normalized = normalizeCandidateStatusValue(value);
   return (
-    candidateStatusMap[value] || candidateStatusMap[CANDIDATE_STATUS_DEFAULT]
+    candidateStatusMap[normalized] ||
+    candidateStatusMap[CANDIDATE_STATUS_DEFAULT]
   );
 }

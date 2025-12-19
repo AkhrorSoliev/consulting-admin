@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
-import { Link, useParams } from "react-router-dom";
-import { doc, onSnapshot } from "firebase/firestore";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { doc, increment, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/config";
 import {
   FaDownload,
@@ -19,30 +19,89 @@ import ExperienceSection from "../components/ExperienceSection";
 import EducationSection from "../components/EducationSection";
 import SkillsSection from "../components/SkillsSection";
 import LanguagesSection from "../components/LanguagesSection";
+import CollapsibleSection from "../components/CollapsibleSection";
 import {
+  deleteCandidateWithCurrentStats,
+  deleteEmailRemote,
+  deleteUploadedFilesRemote,
+  getDocumentDataById,
   imageFileToBase64,
   toInputDate,
   fromInputDate,
   generateSkills,
+  sortTimelineItemsDesc,
   updateDocument,
+  updateCandidateWithCurrentStats,
+  updateEmailRemote,
+  getMetaByName,
+  hasRichTextContent,
+  commentHtmlToPlainText,
+  DEFAULT_COMMENT_TEMPLATE_HTML,
 } from "../utils";
 import CandidateStatusStepper from "../components/CandidateStatusStepper";
 import {
   CANDIDATE_STATUS_DEFAULT,
   CANDIDATE_STATUS_OPTIONS,
   getCandidateStatus,
+  normalizeCandidateStatusValue,
 } from "../constants/candidateStatus";
-import { buildStatusEmailTemplate } from "../utils/statusEmail";
+import {
+  buildStatusEmailTemplate,
+  getStatusEmailCopy,
+} from "../utils/statusEmail";
 import { sendBrevoEmail } from "../utils/brevo";
 import RichTextEditor from "../components/RichTextEditor";
 import { useUserRole } from "../hooks/useUserRole";
+import DeleteCandidateModal from "../components/DeleteCandidateModal";
 import PhotoModal from "./generate/components/modals/PhotoModal";
-import InterviewModal from "./generate/components/modals/InterviewModal";
-import DecisionModal from "./generate/components/modals/DecisionModal";
+import StageEmailModal from "./generate/components/modals/StageEmailModal";
+import CustomEmailModal from "./generate/components/modals/CustomEmailModal";
 import LivePreview from "./generate/components/LivePreview";
 
-const EMPLOYER_INTERVIEW_STATUS = "employer_interview_scheduled";
-const EMPLOYER_DECISION_STATUS = "employer_decision";
+function toDateTimeLocalString(value) {
+  if (!value) return "";
+  if (typeof value === "string") {
+    const s = value.trim();
+    if (!s) return "";
+    // datetime-local: yyyy-mm-ddThh:mm
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s)) return s.slice(0, 16);
+    // yyyy-mm-dd -> yyyy-mm-ddT00:00
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return `${s}T00:00`;
+    // dd.mm.yyyy -> yyyy-mm-ddT00:00
+    const m = s.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    if (m) {
+      const [, dd, mm, yyyy] = m;
+      return `${yyyy}-${mm}-${dd}T00:00`;
+    }
+    return "";
+  }
+  if (typeof value === "number") {
+    try {
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return "";
+      return d.toISOString().slice(0, 16);
+    } catch {
+      return "";
+    }
+  }
+  return "";
+}
+
+function inferLinkType(link, fallback = "zoom") {
+  const raw = String(link || "").toLowerCase();
+  if (raw.includes("t.me/") || raw.includes("telegram")) return "telegram";
+  return fallback;
+}
+
+function createEmptyStageInfo() {
+  return {
+    dateTime: "",
+    link: "",
+    linkType: "zoom",
+    locationName: "",
+    locationUrl: "",
+  };
+}
 
 function formatGermanAddress(parts) {
   const street = String(parts?.street || "").trim();
@@ -92,7 +151,7 @@ function parseGermanAddress(raw) {
   }
 
   // Split off postal code + city at the end, if present: "... , 12345 Berlin"
-  const mPlz = normalized.match(/^(.*?)(?:,\s*)?(\d{5})\s+(.+)$/);
+  const mPlz = streetLine.match(/^(.*?)(?:,\s*)?(\d{5})\s+(.+)$/);
   if (mPlz) {
     streetLine = String(mPlz[1] || "").trim().replace(/,+\s*$/, "");
     postalCode = String(mPlz[2] || "").trim();
@@ -122,6 +181,27 @@ function isGermanAddressComplete(parts) {
 
 function Generate() {
   const { major, id } = useParams();
+  const navigate = useNavigate();
+  const DRIVING_LICENSE_OPTIONS = useMemo(
+    () => [
+      "AM",
+      "A1",
+      "A2",
+      "A",
+      "B",
+      "BE",
+      "C1",
+      "C1E",
+      "C",
+      "CE",
+      "D1",
+      "D1E",
+      "D",
+      "DE",
+      "T",
+    ],
+    []
+  );
   const [docCv, setDocCv] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -132,21 +212,62 @@ function Generate() {
   const [statusUpdatedBy, setStatusUpdatedBy] = useState("");
   const [isSavingStatus, setIsSavingStatus] = useState(false);
   const [sendingStepValue, setSendingStepValue] = useState(null);
-  const [isInterviewModalOpen, setIsInterviewModalOpen] = useState(false);
-  const [pendingInterviewStep, setPendingInterviewStep] = useState(null);
-  const [interviewForm, setInterviewForm] = useState({
-    dateTime: "",
-    location: "",
-    items: "",
+  const sendingEmailLockRef = useRef(false);
+
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [isDeletingCandidate, setIsDeletingCandidate] = useState(false);
+
+  const [metaInfo, setMetaInfo] = useState(null);
+  const [metaLoading, setMetaLoading] = useState(false);
+  const [resolvedMajor, setResolvedMajor] = useState({
+    collectionName: "",
+    title: "",
+    linkId: "",
   });
-  const [isDecisionModalOpen, setIsDecisionModalOpen] = useState(false);
-  const [pendingDecisionStep, setPendingDecisionStep] = useState(null);
-  const [decisionForm, setDecisionForm] = useState({
-    decision: "accepted",
-    note: "",
+
+  const [isStageEmailModalOpen, setIsStageEmailModalOpen] = useState(false);
+  const [pendingStageStep, setPendingStageStep] = useState(null);
+  const [stageDecision, setStageDecision] = useState("accepted");
+  const [stageAdditionalInfoForm, setStageAdditionalInfoForm] = useState(
+    createEmptyStageInfo
+  );
+  useEffect(() => {
+    if (stageDecision === "rejected") {
+      // Clear extra info when switching to rejection to avoid leaking previous data
+      setStageAdditionalInfoForm(createEmptyStageInfo());
+    }
+  }, [stageDecision]);
+
+  const [isCustomEmailModalOpen, setIsCustomEmailModalOpen] = useState(false);
+  const [customEmailForm, setCustomEmailForm] = useState({
+    to: "",
+    emailTitle: "Ariza holati yangilandi",
+    subject: "",
+    bodyText: "",
   });
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [photoModalSrc, setPhotoModalSrc] = useState("");
+
+  const [isDrivingLicenseDropdownOpen, setIsDrivingLicenseDropdownOpen] =
+    useState(false);
+  const drivingLicenseDropdownRef = useRef(null);
+
+  useEffect(() => {
+    if (!isDrivingLicenseDropdownOpen) return;
+    function onPointerDown(e) {
+      const el = drivingLicenseDropdownRef.current;
+      if (!el) return;
+      if (el.contains(e.target)) return;
+      setIsDrivingLicenseDropdownOpen(false);
+    }
+    window.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("touchstart", onPointerDown);
+    return () => {
+      window.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("touchstart", onPointerDown);
+    };
+  }, [isDrivingLicenseDropdownOpen]);
 
   // Local editable state (Create.jsx like)
   const initialForm = useMemo(
@@ -157,6 +278,7 @@ function Generate() {
         gender: "",
         address: "",
         birthDate: "",
+        birthPlace: "",
         maritalStatus: "",
         childrenCount: "",
         noChildren: false,
@@ -176,6 +298,8 @@ function Generate() {
   );
   const [formCv, setFormCv] = useState(initialForm);
   const [showDocuments, setShowDocuments] = useState(false);
+  const [showComment, setShowComment] = useState(true);
+  const [showCommentDate, setShowCommentDate] = useState(true);
   const [isGeneratingSoft, setIsGeneratingSoft] = useState(false);
   const [isGeneratingPc, setIsGeneratingPc] = useState(false);
   const [recentlyAdded, setRecentlyAdded] = useState({ soft: [], pc: [] });
@@ -215,6 +339,7 @@ function Generate() {
         gender: String(safe?.personalInfo?.gender || ""),
         address: String(safe?.personalInfo?.address || ""),
         birthDate: String(safe?.personalInfo?.birthDate || ""),
+        birthPlace: String(safe?.personalInfo?.birthPlace || ""),
         maritalStatus: String(safe?.personalInfo?.maritalStatus || ""),
         childrenCount: String(safe?.personalInfo?.childrenCount || ""),
         noChildren: Boolean(safe?.personalInfo?.noChildren),
@@ -226,26 +351,30 @@ function Generate() {
         email: String(safe?.personalInfo?.email || ""),
         photo: String(safe?.personalInfo?.photo || ""),
       },
-      experience: Array.isArray(safe?.experience)
-        ? safe.experience.map((exp) => ({
-            startDate: String(exp?.startDate || ""),
-            endDate: String(exp?.endDate || ""),
-            position: String(exp?.position || ""),
-            company: String(exp?.company || ""),
-            location: String(exp?.location || ""),
-            responsibilities: Array.isArray(exp?.responsibilities)
-              ? exp.responsibilities.map((r) => String(r || ""))
-              : [],
-          }))
-        : [],
-      education: Array.isArray(safe?.education)
-        ? safe.education.map((edu) => ({
-            startDate: String(edu?.startDate || ""),
-            endDate: String(edu?.endDate || ""),
-            institution: String(edu?.institution || ""),
-            degree: String(edu?.degree || ""),
-          }))
-        : [],
+      experience: sortTimelineItemsDesc(
+        Array.isArray(safe?.experience)
+          ? safe.experience.map((exp) => ({
+              startDate: String(exp?.startDate || ""),
+              endDate: String(exp?.endDate || ""),
+              position: String(exp?.position || ""),
+              company: String(exp?.company || ""),
+              location: String(exp?.location || ""),
+              responsibilities: Array.isArray(exp?.responsibilities)
+                ? exp.responsibilities.map((r) => String(r || ""))
+                : [],
+            }))
+          : []
+      ),
+      education: sortTimelineItemsDesc(
+        Array.isArray(safe?.education)
+          ? safe.education.map((edu) => ({
+              startDate: String(edu?.startDate || ""),
+              endDate: String(edu?.endDate || ""),
+              institution: String(edu?.institution || ""),
+              degree: String(edu?.degree || ""),
+            }))
+          : []
+      ),
       skills: {
         softSkills: Array.isArray(safe?.skills?.softSkills)
           ? safe.skills.softSkills.map((s) => String(s || ""))
@@ -297,7 +426,7 @@ function Generate() {
   function handleCancel() {
     if (!docCv) return;
     const mapped = mapDocToForm(docCv);
-    setFormCv(mapped);
+    setFormCv(normalizeForm(mapped));
     setCommentBaseline(mapped.commentar || "");
     setIsCommentEditorOpen(false);
     setRecentlyAdded({ soft: [], pc: [] });
@@ -326,12 +455,61 @@ function Generate() {
   }
 
   useEffect(() => {
-    const col = String(major || "").trim();
+    const key = String(major || "").trim();
+    let cancelled = false;
+    setMetaLoading(true);
+    (async () => {
+      try {
+        if (!key) {
+          setResolvedMajor({ collectionName: "", title: "", linkId: "" });
+          setMetaInfo(null);
+          setNotFound(true);
+          setLoading(false);
+          return;
+        }
+        const data = await getMetaByName(key);
+        if (cancelled) return;
+        if (data) {
+          setResolvedMajor({
+            collectionName:
+              data.collectionName || data.slug || data.name || key,
+            title: data.title || data.collectionName || key,
+            linkId: data.linkId || data.uuid || data.id || key,
+          });
+          setMetaInfo(data || null);
+        } else {
+          setResolvedMajor({
+            collectionName: key,
+            title: key,
+            linkId: key,
+          });
+          setMetaInfo(null);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setResolvedMajor({
+            collectionName: key,
+            title: key,
+            linkId: key,
+          });
+          setMetaInfo(null);
+        }
+      } finally {
+        if (!cancelled) setMetaLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [major]);
+
+  useEffect(() => {
+    const col = String(resolvedMajor?.collectionName || "").trim();
     const docId = String(id || "").trim();
     if (!col || !docId) {
       setNotFound(true);
       setLoading(false);
-      return;
+      return undefined;
     }
     const ref = doc(db, col, docId);
     const unsub = onSnapshot(
@@ -343,7 +521,11 @@ function Generate() {
         } else {
           const data = snap.data() || null;
           const status = data?.status || {};
-          setStatusValue(status?.value || CANDIDATE_STATUS_DEFAULT);
+          setStatusValue(
+            normalizeCandidateStatusValue(
+              status?.value || CANDIDATE_STATUS_DEFAULT
+            ) || CANDIDATE_STATUS_DEFAULT
+          );
           setStatusUpdatedAt(status?.updatedAt || null);
           setStatusUpdatedBy(status?.updatedBy || "");
           setDocCv(data);
@@ -357,7 +539,7 @@ function Generate() {
           setNotFound(false);
           if (!formInitialized) {
             const mapped = mapDocToForm(data);
-            setFormCv(mapped);
+            setFormCv(normalizeForm(mapped));
             setFormInitialized(true);
           }
         }
@@ -369,7 +551,7 @@ function Generate() {
       }
     );
     return () => unsub();
-  }, [major, id, formInitialized]);
+  }, [resolvedMajor.collectionName, id, formInitialized]);
 
   function mapDocToForm(data) {
     const p = data?.persoenlicheDaten || {};
@@ -434,6 +616,7 @@ function Generate() {
         gender: String(p.geschlecht || ""),
         address: String(p.adresse || ""),
         birthDate: String(p.geburtsdatum || ""),
+        birthPlace: String(p.geburtsort || ""),
         maritalStatus: String(p.familienstand || ""),
         childrenCount,
         noChildren: inferredNoChildren,
@@ -484,6 +667,7 @@ function Generate() {
         geschlecht: f.personalInfo.gender,
         adresse: f.personalInfo.address,
         geburtsdatum: f.personalInfo.birthDate,
+        geburtsort: String(f?.personalInfo?.birthPlace || "").trim(),
         familienstand: f.personalInfo.maritalStatus,
         kinderAnzahl: noChildren ? "" : String(f.personalInfo.childrenCount || ""),
         keinKinder: noChildren,
@@ -528,13 +712,6 @@ function Generate() {
     };
   }
 
-  function hasRichTextContent(value) {
-    return Boolean(
-      String(value || "")
-        .replace(/<[^>]*>/g, "")
-        .trim()
-    );
-  }
   // PDF export UI/logic extracted to `src/pages/generate/pdf/CvPdfDocument.jsx`
 
   async function handlePhotoFileChange(e) {
@@ -560,10 +737,9 @@ function Generate() {
   // Experience handlers
   function addExperience() {
     if (isLimitedAdmin) return;
-    setFormCv((prev) => ({
-      ...prev,
-      experience: [
-        ...prev.experience,
+    setFormCv((prev) => {
+      const next = [
+        ...(Array.isArray(prev.experience) ? prev.experience : []),
         {
           startDate: "",
           endDate: "",
@@ -572,23 +748,24 @@ function Generate() {
           location: "",
           responsibilities: [],
         },
-      ],
-    }));
+      ];
+      return { ...prev, experience: sortTimelineItemsDesc(next) };
+    });
   }
   function updateExperience(idx, field, value) {
     if (isLimitedAdmin) return;
     setFormCv((prev) => {
       const next = [...prev.experience];
       next[idx] = { ...next[idx], [field]: value };
-      return { ...prev, experience: next };
+      return { ...prev, experience: sortTimelineItemsDesc(next) };
     });
   }
   function removeExperience(idx) {
     if (isLimitedAdmin) return;
-    setFormCv((prev) => ({
-      ...prev,
-      experience: prev.experience.filter((_, i) => i !== idx),
-    }));
+    setFormCv((prev) => {
+      const next = prev.experience.filter((_, i) => i !== idx);
+      return { ...prev, experience: sortTimelineItemsDesc(next) };
+    });
   }
   function addResponsibility(expIdx, text) {
     if (isLimitedAdmin) return;
@@ -615,28 +792,28 @@ function Generate() {
   // Education handlers
   function addEducation() {
     if (isLimitedAdmin) return;
-    setFormCv((prev) => ({
-      ...prev,
-      education: [
-        ...prev.education,
+    setFormCv((prev) => {
+      const next = [
+        ...(Array.isArray(prev.education) ? prev.education : []),
         { startDate: "", endDate: "", institution: "", degree: "" },
-      ],
-    }));
+      ];
+      return { ...prev, education: sortTimelineItemsDesc(next) };
+    });
   }
   function updateEducation(idx, field, value) {
     if (isLimitedAdmin) return;
     setFormCv((prev) => {
       const next = [...prev.education];
       next[idx] = { ...next[idx], [field]: value };
-      return { ...prev, education: next };
+      return { ...prev, education: sortTimelineItemsDesc(next) };
     });
   }
   function removeEducation(idx) {
     if (isLimitedAdmin) return;
-    setFormCv((prev) => ({
-      ...prev,
-      education: prev.education.filter((_, i) => i !== idx),
-    }));
+    setFormCv((prev) => {
+      const next = prev.education.filter((_, i) => i !== idx);
+      return { ...prev, education: sortTimelineItemsDesc(next) };
+    });
   }
 
   // Skills handlers
@@ -709,6 +886,16 @@ function Generate() {
       })),
     [formCv.skills.languages]
   );
+  const experienceCount = Array.isArray(formCv.experience)
+    ? formCv.experience.length
+    : 0;
+  const educationCount = Array.isArray(formCv.education) ? formCv.education.length : 0;
+  const languagesCount = Array.isArray(languageRows) ? languageRows.length : 0;
+  const documentsCount =
+    (Array.isArray(formCv.documents?.diplomas) ? formCv.documents.diplomas.length : 0) +
+    (Array.isArray(formCv.documents?.certificates)
+      ? formCv.documents.certificates.length
+      : 0);
   function addLanguageRow() {
     if (isLimitedAdmin) return;
     setFormCv((prev) => ({
@@ -753,7 +940,7 @@ function Generate() {
       toast.error("Sizda status o'zgartirish huquqi yo'q.");
       return false;
     }
-    const col = String(major || "").trim();
+    const col = String(resolvedMajor?.collectionName || "").trim();
     const docId = String(id || "").trim();
     if (!col || !docId) return false;
 
@@ -800,7 +987,7 @@ function Generate() {
 
   async function sendStatusEmail(
     stepValue,
-    { interviewDetails, employerDecision, decisionNote } = {}
+    { stageDecision: decisionRaw, decisionNote, additionalInfo } = {}
   ) {
     if (isLimitedAdmin) {
       toast.error("Sizda email yuborish huquqi yo'q.");
@@ -810,11 +997,7 @@ function Generate() {
       toast.error("Faqat joriy bosqich uchun email yuborish mumkin.");
       return;
     }
-    if (stepValue === EMPLOYER_DECISION_STATUS && !employerDecision) {
-      toast.error("Qarorni (qabul yoki rad) tanlang.");
-      return;
-    }
-    const col = String(major || "").trim();
+    const col = String(resolvedMajor?.collectionName || "").trim();
     const docId = String(id || "").trim();
     if (!col || !docId) return;
 
@@ -824,16 +1007,46 @@ function Generate() {
       return;
     }
 
+    if (sendingEmailLockRef.current) {
+      toast("Email yuborilmoqda, biroz kuting...");
+      return;
+    }
+
+    sendingEmailLockRef.current = true;
     setSendingStepValue(stepValue);
 
     try {
+      const normalizedDecision =
+        decisionRaw === "rejected" ? "rejected" : "accepted";
+
+      const emailSentAt = Date.now();
+      const info =
+        normalizedDecision === "accepted"
+          ? stepValue === "stage_2"
+            ? createEmptyStageInfo()
+            : normalizeStageFormInfo(additionalInfo)
+          : createEmptyStageInfo();
+
+      if (normalizedDecision === "accepted" && stepValue !== "stage_2") {
+        const hasLink = Boolean(info.link);
+        const hasLocation = Boolean(info.locationName || info.locationUrl);
+        if (!info.dateTime) {
+          toast.error("Vaqt ko'rsatilmagan.");
+          return;
+        }
+        if (!hasLink && !hasLocation) {
+          toast.error("Link yoki lokatsiya kiritilishi kerak.");
+          return;
+        }
+      }
+
       const { subject, message, htmlContent } = buildStatusEmailTemplate({
         statusValue: stepValue,
         firstName: formCv.personalInfo.name,
         lastName: formCv.personalInfo.lastName,
-        interviewDetails,
-        employerDecision,
+        stageDecision: normalizedDecision,
         decisionNote,
+        additionalInfo: info,
       });
       const res = await sendBrevoEmail({
         to: recipientEmail,
@@ -847,26 +1060,330 @@ function Generate() {
 
       toast.success("Status bo'yicha email yuborildi.");
 
-      const nextValue = getNextStepValue(stepValue) || stepValue;
-      await persistStatus(nextValue, { silent: true });
-      setStatusValue(nextValue);
-
-      if (stepValue === EMPLOYER_INTERVIEW_STATUS) {
-        setInterviewForm({ dateTime: "", location: "", items: "" });
-        setPendingInterviewStep(null);
-        setIsInterviewModalOpen(false);
+      // Best-effort: store email send counters for list view (CollectionCv)
+      try {
+        const stageBase = `stageMeta.${stepValue}`;
+        await updateDocument(col, docId, {
+          "emailMeta.count": increment(1),
+          "emailMeta.lastSentAt": emailSentAt,
+          "emailMeta.lastSentBy": user?.email || user?.uid || "admin",
+          "emailMeta.lastSentType": "status",
+          "emailMeta.lastSentStage": stepValue,
+          "emailMeta.lastSentDecision": normalizedDecision,
+          [`${stageBase}.decision`]: normalizedDecision,
+          [`${stageBase}.decidedAt`]: emailSentAt,
+          [`${stageBase}.decidedBy`]: user?.email || user?.uid || "admin",
+          [`${stageBase}.decisionNote`]: String(decisionNote || "").trim(),
+        });
+      } catch (e) {
+        console.error("emailMeta update failed:", e);
       }
-      if (stepValue === EMPLOYER_DECISION_STATUS) {
-        setDecisionForm({ decision: "accepted", note: "" });
-        setPendingDecisionStep(null);
-        setIsDecisionModalOpen(false);
+
+      if (normalizedDecision === "accepted") {
+        const nextValue = getNextStepValue(stepValue) || stepValue;
+        await persistStatus(nextValue, { silent: true });
+        setStatusValue(nextValue);
+      }
+
+      setPendingStageStep(null);
+      setIsStageEmailModalOpen(false);
+
+      if (normalizedDecision === "rejected") {
+        const itemId = String(id || "").trim();
+        const targetEmail = String(formCv?.personalInfo?.email || "").trim();
+        const firstName = String(formCv?.personalInfo?.name || "").trim();
+        const lastName = String(formCv?.personalInfo?.lastName || "").trim();
+        const targetName = [firstName, lastName].filter(Boolean).join(" ").trim();
+        if (itemId) {
+          setDeleteTarget({
+            id: itemId,
+            email: targetEmail,
+            name: targetName,
+          });
+          setDeleteModalOpen(true);
+        }
       }
     } catch (err) {
       console.error(err);
       toast.error("Email yuborishda xato. Keyinroq qayta urinib ko'ring.");
     } finally {
       setSendingStepValue(null);
+      sendingEmailLockRef.current = false;
     }
+  }
+
+  function closeDeleteModal() {
+    if (isDeletingCandidate) return;
+    setDeleteModalOpen(false);
+    setDeleteTarget(null);
+  }
+
+  async function confirmDeleteCandidate() {
+    if (isLimitedAdmin) {
+      toast.error("Sizda kandidatni o'chirish huquqi yo'q.");
+      return;
+    }
+    const colName = String(resolvedMajor?.collectionName || "").trim();
+    const itemId = String(deleteTarget?.id || "").trim();
+    if (!colName || !itemId) return;
+    try {
+      setIsDeletingCandidate(true);
+
+      // 0) Load full candidate doc so we can delete uploaded documents as well
+      const full = await getDocumentDataById(colName, itemId);
+      const att = full?.attachments || {};
+      const docs = full?.documents || {};
+      const urls = [
+        ...(Array.isArray(att?.diplomas) ? att.diplomas : []),
+        ...(Array.isArray(att?.languageCertificates) ? att.languageCertificates : []),
+        ...(Array.isArray(att?.certificates) ? att.certificates : []),
+        ...(Array.isArray(docs?.diplomas) ? docs.diplomas : []),
+        ...(Array.isArray(docs?.certificates) ? docs.certificates : []),
+      ];
+      if (urls.length > 0) {
+        await deleteUploadedFilesRemote(urls);
+      }
+
+      // 1) Delete candidate email from external API
+      const emailFromDoc = String(full?.persoenlicheDaten?.email || "").trim();
+      const targetEmail = String(deleteTarget?.email || emailFromDoc || "")
+        .trim()
+        .toLowerCase();
+      if (targetEmail) {
+        await deleteEmailRemote(targetEmail);
+      }
+
+      // 2) Delete from Firestore + update LIVE stats (current only)
+      await deleteCandidateWithCurrentStats(colName, itemId, {
+        majorLabel: resolvedMajor?.title || colName,
+      });
+
+      toast.success("Kandidat o'chirildi.");
+      setDeleteModalOpen(false);
+      setDeleteTarget(null);
+      navigate(`/collectionCv/${resolvedMajor?.linkId || major}`);
+    } catch (err) {
+      console.error(err);
+      toast.error("O'chirishda xatolik.");
+    } finally {
+      setIsDeletingCandidate(false);
+    }
+  }
+
+  function splitCustomEmailBody(raw) {
+    const normalized = String(raw || "")
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n");
+    // first blank line separates main vs note
+    const parts = normalized.split(/\n\s*\n/);
+    const main = String(parts[0] || "").trim();
+    const note = parts.slice(1).join("\n\n").trim();
+    return {
+      mainText: main,
+      nextStepNote: note,
+      hasMain: Boolean(main),
+      hasNote: Boolean(note),
+    };
+  }
+
+  async function sendCustomEmail({
+    to,
+    emailTitle,
+    subject,
+    bodyText,
+  }) {
+    if (isLimitedAdmin) {
+      toast.error("Sizda email yuborish huquqi yo'q.");
+      return;
+    }
+    const recipientEmail = String(to || "").trim();
+    if (!recipientEmail) {
+      toast.error("Qabul qiluvchi email (To) to'ldirilmagan.");
+      return;
+    }
+    const safeStatusValue = String(statusValue || "").trim() || CANDIDATE_STATUS_DEFAULT;
+    const safeDecision = "accepted";
+
+    const firstName = String(formCv.personalInfo.name || "");
+    const lastName = String(formCv.personalInfo.lastName || "");
+
+    const additionalInfo = getStageAdditionalInfo(safeStatusValue);
+
+    const { mainText, nextStepNote, hasMain, hasNote } =
+      splitCustomEmailBody(bodyText);
+
+    if (!hasMain) {
+      toast.error("Matn bo'limida kamida 1-paragraf (asosiy matn) yozilishi shart.");
+      return;
+    }
+    const subjectRaw = String(subject || "").trim();
+    if (!subjectRaw) {
+      toast.error("Subject to'ldirilmagan.");
+      return;
+    }
+
+    const copyOverrides = {
+      emailTitle: String(emailTitle || "").trim()
+        ? String(emailTitle)
+        : undefined,
+      subject: subjectRaw,
+      // Custom email: DO NOT fallback to stage defaults
+      mainText,
+      nextStepNote: hasNote ? nextStepNote : "",
+      emphasizeMainText: false,
+    };
+
+    const { subject: builtSubject, message, htmlContent } = buildStatusEmailTemplate(
+      {
+        statusValue: safeStatusValue,
+        firstName,
+        lastName,
+        stageDecision: safeDecision,
+        decisionNote: "",
+        additionalInfo,
+        copyOverrides,
+      }
+    );
+
+    const safeSubject = String(builtSubject || "").trim();
+    if (!safeSubject) {
+      toast.error("Subject to'ldirilmagan.");
+      return;
+    }
+
+    if (sendingEmailLockRef.current) {
+      toast("Email yuborilmoqda, biroz kuting...");
+      return;
+    }
+
+    sendingEmailLockRef.current = true;
+    setSendingStepValue("custom");
+    try {
+      const emailSentAt = Date.now();
+      const finalMessage = stripStatusLineFromCustomEmail(message);
+      const finalHtml = stripStatusLineFromCustomEmail(htmlContent);
+      const res = await sendBrevoEmail({
+        to: recipientEmail,
+        subject: safeSubject,
+        message: finalMessage,
+        htmlContent: finalHtml || undefined,
+      });
+      if (res?.success === false) {
+        throw new Error("Email yuborilmadi (success=false).");
+      }
+      toast.success("Custom email yuborildi.");
+
+      // Best-effort: store email send counters for list view (CollectionCv)
+      try {
+        const col = String(resolvedMajor?.collectionName || "").trim();
+        const docId = String(id || "").trim();
+        if (col && docId) {
+          await updateDocument(col, docId, {
+            "emailMeta.count": increment(1),
+            "emailMeta.lastSentAt": emailSentAt,
+            "emailMeta.lastSentBy": user?.email || user?.uid || "admin",
+            "emailMeta.lastSentType": "custom",
+          });
+        }
+      } catch (e) {
+        console.error("emailMeta update failed:", e);
+      }
+
+      setIsCustomEmailModalOpen(false);
+    } catch (err) {
+      console.error(err);
+      toast.error("Custom email yuborishda xato. Keyinroq qayta urinib ko'ring.");
+    } finally {
+      setSendingStepValue(null);
+      sendingEmailLockRef.current = false;
+    }
+  }
+
+  async function resetCandidateStages() {
+    if (isLimitedAdmin) {
+      toast.error("Sizda bosqichni reset qilish huquqi yo'q.");
+      return;
+    }
+    if (sendingEmailLockRef.current || sendingStepValue) {
+      toast("Email jarayoni davom etyapti, biroz kuting...");
+      return;
+    }
+    const col = String(resolvedMajor?.collectionName || "").trim();
+    const docId = String(id || "").trim();
+    if (!col || !docId) return;
+
+    const ok = window.confirm(
+      "Kandidat bosqichi boshidan (1-bosqich) boshlansinmi?\n\nEslatma: email hisoblagichi ham 0 ga tushiriladi."
+    );
+    if (!ok) return;
+
+    try {
+      const now = Date.now();
+      const statusMeta = getCandidateStatus(CANDIDATE_STATUS_DEFAULT);
+      await updateDocument(col, docId, {
+        status: {
+          value: CANDIDATE_STATUS_DEFAULT,
+          label: statusMeta.label,
+          updatedAt: now,
+          updatedBy: user?.email || user?.uid || "admin",
+        },
+        emailMeta: {
+          count: 0,
+          lastSentAt: null,
+          lastSentBy: null,
+          lastSentType: null,
+          lastSentStage: null,
+          resetAt: now,
+          resetBy: user?.email || user?.uid || "admin",
+        },
+      });
+      setStatusValue(CANDIDATE_STATUS_DEFAULT);
+      setStatusUpdatedAt(now);
+      setStatusUpdatedBy(user?.email || user?.uid || "admin");
+      toast.success("Bosqich reset qilindi.");
+    } catch (e) {
+      console.error(e);
+      toast.error("Bosqichni reset qilishda xato.");
+    }
+  }
+
+  function getStageAdditionalInfo(stepValue) {
+    const v = String(stepValue || "").trim();
+    const normalizeInterview = (obj) => {
+      const rawType = String(obj?.linkType || "").toLowerCase();
+      const resolvedType =
+        rawType === "telegram" ? "telegram" : inferLinkType(obj?.link, "zoom");
+      return {
+        dateTime: String(obj?.date || ""),
+        link: String(obj?.link || ""),
+        linkType: resolvedType,
+        locationName: String(obj?.locationName || ""),
+        locationUrl: String(obj?.locationUrl || ""),
+      };
+    };
+    if (v === "stage_1") {
+      return normalizeInterview(metaInfo?.interviewInternal);
+    }
+    if (v === "stage_3") {
+      return normalizeInterview(metaInfo?.interviewEmployer);
+    }
+    return createEmptyStageInfo();
+  }
+
+  function normalizeStageFormInfo(raw) {
+    const link = String(raw?.link || "").trim();
+    const linkType =
+      raw?.linkType === "telegram" ? "telegram" : inferLinkType(link, "zoom");
+    const locationUrl = String(raw?.locationUrl || "").trim();
+    const locationNameRaw = String(raw?.locationName || "").trim();
+    const locationName = locationNameRaw || locationUrl;
+    return {
+      dateTime: String(raw?.dateTime || "").trim(),
+      link,
+      linkType,
+      locationName,
+      locationUrl,
+    };
   }
 
   function handleSendStatusEmail(stepValue) {
@@ -878,76 +1395,202 @@ function Generate() {
       toast.error("Faqat joriy bosqich uchun email yuborish mumkin.");
       return;
     }
-    if (stepValue === EMPLOYER_INTERVIEW_STATUS) {
-      setPendingInterviewStep(stepValue);
-      setIsInterviewModalOpen(true);
-      return;
-    }
-    if (stepValue === EMPLOYER_DECISION_STATUS) {
-      setPendingDecisionStep(stepValue);
-      setIsDecisionModalOpen(true);
-      return;
-    }
-    sendStatusEmail(stepValue);
+    const initialInfo = getStageAdditionalInfo(stepValue);
+    setPendingStageStep(stepValue);
+    setStageDecision("accepted");
+    setStageAdditionalInfoForm({
+      dateTime: toDateTimeLocalString(initialInfo?.dateTime),
+      link: String(initialInfo?.link || ""),
+      linkType:
+        initialInfo?.linkType === "telegram"
+          ? "telegram"
+          : inferLinkType(initialInfo?.link, "zoom"),
+      locationName: String(initialInfo?.locationName || ""),
+      locationUrl: String(initialInfo?.locationUrl || ""),
+    });
+    setIsStageEmailModalOpen(true);
   }
 
-  function closeInterviewModal() {
-    if (sendingStepValue === EMPLOYER_INTERVIEW_STATUS) return;
-    setIsInterviewModalOpen(false);
-    setPendingInterviewStep(null);
+  function closeStageEmailModal() {
+    setIsStageEmailModalOpen(false);
+    setPendingStageStep(null);
   }
 
-  async function handleInterviewSubmit(e) {
+  function openCustomEmailModal() {
+    const recipientEmail = String(formCv.personalInfo.email || "").trim();
+    // Start clean (inputs empty), placeholders + preview show defaults.
+    setCustomEmailForm({
+      to: recipientEmail,
+      emailTitle: "",
+      subject: "",
+      bodyText: "",
+    });
+    setIsCustomEmailModalOpen(true);
+  }
+
+  function closeCustomEmailModal() {
+    setIsCustomEmailModalOpen(false);
+  }
+
+  async function handleCustomEmailSubmit(e) {
     e?.preventDefault();
-    if (!pendingInterviewStep) {
-      setIsInterviewModalOpen(false);
-      return;
-    }
-    const dateTime = String(interviewForm.dateTime || "").trim();
-    const location = String(interviewForm.location || "").trim();
-    const items = String(interviewForm.items || "").trim();
+    await sendCustomEmail(customEmailForm);
+  }
 
-    if (!dateTime) {
-      toast.error("Suhbat sanasi va vaqtini kiriting.");
+  async function handleStageEmailSubmit(e) {
+    e?.preventDefault();
+    if (!pendingStageStep) {
+      setIsStageEmailModalOpen(false);
       return;
     }
-    if (!location) {
-      toast.error("Suhbat manzilini kiriting.");
-      return;
-    }
-    if (!items) {
-      toast.error("Nima olib kelish kerakligini kiriting.");
-      return;
-    }
-
-    await sendStatusEmail(pendingInterviewStep, {
-      interviewDetails: { dateTime, location, items },
+    const info =
+      pendingStageStep === "stage_2"
+        ? createEmptyStageInfo()
+        : normalizeStageFormInfo(stageAdditionalInfoForm);
+    await sendStatusEmail(pendingStageStep, {
+      stageDecision,
+      additionalInfo: info,
     });
   }
 
-  function closeDecisionModal() {
-    if (sendingStepValue === EMPLOYER_DECISION_STATUS) return;
-    setIsDecisionModalOpen(false);
-    setPendingDecisionStep(null);
-  }
-
-  async function handleDecisionSubmit(e) {
-    e?.preventDefault();
-    if (!pendingDecisionStep) {
-      setIsDecisionModalOpen(false);
-      return;
+  const stageEmailPreview = useMemo(() => {
+    if (!pendingStageStep) return null;
+    const recipientEmail = String(formCv.personalInfo.email || "").trim();
+    const normalizedDecision =
+      stageDecision === "rejected" ? "rejected" : "accepted";
+    const info =
+      normalizedDecision === "accepted"
+        ? pendingStageStep === "stage_2"
+          ? createEmptyStageInfo()
+          : normalizeStageFormInfo(stageAdditionalInfoForm)
+        : createEmptyStageInfo();
+    try {
+      const { subject, message, htmlContent } = buildStatusEmailTemplate({
+        statusValue: pendingStageStep,
+        firstName: formCv.personalInfo.name,
+        lastName: formCv.personalInfo.lastName,
+        stageDecision: normalizedDecision,
+        decisionNote: "",
+        additionalInfo: info,
+      });
+      return {
+        to: recipientEmail,
+        subject,
+        message,
+        htmlContent,
+      };
+    } catch (err) {
+      console.error("stageEmailPreview error:", err);
+      return {
+        to: recipientEmail,
+        subject: "",
+        message: "",
+        htmlContent: "",
+      };
     }
-    const selectedDecision =
-      decisionForm.decision === "rejected" ? "rejected" : "accepted";
+  }, [
+    pendingStageStep,
+    stageDecision,
+    stageAdditionalInfoForm,
+    formCv.personalInfo.email,
+    formCv.personalInfo.name,
+    formCv.personalInfo.lastName,
+  ]);
 
-    await sendStatusEmail(pendingDecisionStep, {
-      employerDecision: selectedDecision,
-      decisionNote: String(decisionForm.note || "").trim(),
-    });
+  const customEmailDefaults = useMemo(() => {
+    const stage = String(statusValue || "").trim() || CANDIDATE_STATUS_DEFAULT;
+    const baseCopy = getStatusEmailCopy(stage, "accepted");
+    return {
+      emailTitle: "Ariza holati yangilandi",
+      subject: String(baseCopy?.subject || ""),
+      bodyText:
+        "Asosiy matn (main)...\n\nKeyingi qadam (note)...",
+    };
+  }, [statusValue]);
+
+  function stripDefaultIntroFromCustomPreview(value) {
+    const raw = String(value || "");
+    if (!raw) return raw;
+    const intro =
+      "Arizangiz holatini yangiladik. Quyidagi sharh va keyingi qadamlarni diqqat bilan ko'rib chiqing:";
+    // Remove the exact intro line from both HTML and plain text previews (best-effort).
+    return raw
+      .replace(
+        new RegExp(`<p[^>]*>\\s*${intro.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*<\\/p>\\s*`, "g"),
+        ""
+      )
+      .replace(new RegExp(`\\s*${intro.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\n?`, "g"), "")
+      .trim();
   }
+
+  function stripStatusLineFromCustomEmail(value) {
+    const raw = String(value || "");
+    if (!raw) return raw;
+    // HTML header "Holat: <strong>...": remove the entire div line.
+    const htmlOut = raw.replace(
+      /<div[^>]*>\s*Holat:\s*<strong>[\s\S]*?<\/strong>\s*<\/div>\s*/gi,
+      ""
+    );
+    // Plain text "Holat: ..." line
+    return htmlOut
+      .replace(/\n?Holat:\s*.*(\n|$)/gi, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
+  const customEmailPreview = useMemo(() => {
+    const recipientEmail = String(customEmailForm?.to || "").trim();
+    const stage = String(statusValue || "").trim() || CANDIDATE_STATUS_DEFAULT;
+    const decision = "accepted";
+    const info = getStageAdditionalInfo(stage);
+    const { mainText, nextStepNote, hasMain, hasNote } = splitCustomEmailBody(
+      customEmailForm?.bodyText
+    );
+    try {
+      const { subject, message, htmlContent } = buildStatusEmailTemplate({
+        statusValue: stage,
+        firstName: formCv.personalInfo.name,
+        lastName: formCv.personalInfo.lastName,
+        stageDecision: decision,
+        decisionNote: "",
+        additionalInfo: info,
+        copyOverrides: {
+          emailTitle: String(customEmailForm?.emailTitle || "").trim()
+            ? String(customEmailForm?.emailTitle || "")
+            : undefined,
+          subject: String(customEmailForm?.subject || "").trim()
+            ? String(customEmailForm?.subject || "")
+            : undefined,
+          // Preview: don't show stage default texts if user didn't type anything
+          mainText: hasMain ? mainText : "",
+          nextStepNote: hasNote ? nextStepNote : "",
+          emphasizeMainText: false,
+        },
+      });
+      return {
+        to: recipientEmail,
+        subject,
+        message: stripStatusLineFromCustomEmail(
+          stripDefaultIntroFromCustomPreview(message)
+        ),
+        htmlContent: stripStatusLineFromCustomEmail(
+          stripDefaultIntroFromCustomPreview(htmlContent)
+        ),
+      };
+    } catch (err) {
+      console.error("customEmailPreview error:", err);
+      return { to: recipientEmail, subject: "", message: "", htmlContent: "" };
+    }
+  }, [
+    customEmailForm,
+    formCv.personalInfo.name,
+    formCv.personalInfo.lastName,
+    statusValue,
+    metaInfo,
+  ]);
 
   async function handleSave() {
-    const col = String(major || "").trim();
+    const col = String(resolvedMajor?.collectionName || "").trim();
     const docId = String(id || "").trim();
     if (!col || !docId) return;
     const commentHasContent = hasRichTextContent(formCv.commentar);
@@ -978,6 +1621,10 @@ function Generate() {
         toast.error("Bitte Geschlecht auswählen.");
         return;
       }
+      if (!String(formCv.personalInfo.birthPlace || "").trim()) {
+        toast.error("Geburtsort ist erforderlich.");
+        return;
+      }
       if (!isGermanAddressComplete(addressFields)) {
         toast.error(
           "Bitte vollständige Adresse eingeben (Straße, Hausnummer, PLZ, Ort, Land)."
@@ -1002,12 +1649,59 @@ function Generate() {
       if (nextCommentMeta) {
         payload.commentarMeta = nextCommentMeta;
       }
-      await updateDocument(col, docId, payload);
+
+      // Email sync (Firestore + external API)
+      const oldEmail = String(docCv?.persoenlicheDaten?.email || "").trim();
+      const newEmail = String(formCv?.personalInfo?.email || "").trim();
+      const shouldSyncEmail =
+        !isLimitedAdmin &&
+        Boolean(oldEmail) &&
+        Boolean(newEmail) &&
+        oldEmail.toLowerCase() !== newEmail.toLowerCase();
+
+      // If email changed, reset candidate stages so emails can be re-sent from the beginning.
+      if (shouldSyncEmail) {
+        const now = Date.now();
+        const resetMeta = getCandidateStatus(CANDIDATE_STATUS_DEFAULT);
+        payload.status = {
+          value: CANDIDATE_STATUS_DEFAULT,
+          label: resetMeta.label,
+          updatedAt: now,
+          updatedBy: user?.email || user?.uid || "admin",
+        };
+        // Update local UI immediately; snapshot will also refresh.
+        setStatusValue(CANDIDATE_STATUS_DEFAULT);
+        setStatusUpdatedAt(now);
+        setStatusUpdatedBy(user?.email || user?.uid || "admin");
+      }
+
+      if (isLimitedAdmin) {
+        await updateDocument(col, docId, payload);
+      } else {
+        // Update Firestore and adjust LIVE stats (current only) based on delta(old,new)
+        await updateCandidateWithCurrentStats(col, docId, payload, {
+          majorLabel: resolvedMajor?.title || col,
+        });
+      }
+
+      if (shouldSyncEmail) {
+        try {
+          await updateEmailRemote(oldEmail, newEmail, col);
+        } catch (err) {
+          console.error("updateEmailRemote failed:", err);
+          toast.error(
+            "Firebase saqlandi, lekin tashqi email bazasini yangilashda xato bo'ldi."
+          );
+        }
+      }
       toast.success(
         isLimitedAdmin
           ? "Kommentar wurde gespeichert."
           : "Änderungen wurden gespeichert."
       );
+      if (shouldSyncEmail) {
+        toast("Email o'zgardi: kandidat bosqichlari stage_1 ga qaytarildi.");
+      }
       if (isLimitedAdmin) {
         setCommentBaseline(formCv.commentar || "");
       }
@@ -1041,12 +1735,17 @@ function Generate() {
       const safeFileName =
         fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Lebenslauf";
       const blob = await pdf(
-        <CvPdfDocument form={formCv} showDocuments={showDocuments} />
+        <CvPdfDocument
+          form={{ ...formCv, commentarMeta: commentMeta }}
+          showDocuments={showDocuments}
+          showComment={showComment}
+          showCommentDate={showCommentDate}
+        />
       ).toBlob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `${safeFileName}.pdf`;
+      link.download = `ConsultingUz ${safeFileName}.pdf`;
       link.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -1187,14 +1886,67 @@ function Generate() {
 
   function handleCommentPrimaryAction() {
     if (!isCommentEditorOpen) {
-      openCommentEditor();
+      const current = String(formCv.commentar || "");
+      setCommentBaseline(current);
+      if (!hasRichTextContent(current)) {
+        setFormCv((prev) => ({
+          ...prev,
+          commentar: DEFAULT_COMMENT_TEMPLATE_HTML,
+        }));
+      }
+      setIsCommentEditorOpen(true);
       return;
     }
+    // Cancel comment edits
+    setFormCv((prev) => ({ ...prev, commentar: String(commentBaseline || "") }));
     setIsCommentEditorOpen(false);
   }
 
+  const isPageBusy =
+    loading ||
+    isSaving ||
+    isDownloading ||
+    isSavingStatus ||
+    Boolean(sendingStepValue) ||
+    metaLoading;
+
+  const busyLabel = loading
+    ? "Yuklanmoqda..."
+    : isSaving
+    ? "Saqlanmoqda..."
+    : isDownloading
+    ? "PDF tayyorlanmoqda..."
+    : isSavingStatus
+    ? "Status saqlanmoqda..."
+    : sendingStepValue
+    ? "Email yuborilmoqda..."
+    : metaLoading
+    ? "Maʼlumotlar yuklanmoqda..."
+    : "Iltimos kuting...";
+
   return (
     <div className="p-2 sm:p-4 md:p-6 bg-base-200 min-h-screen">
+      {isPageBusy && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-[1px] flex items-center justify-center"
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+        >
+          <div className="bg-base-100 border border-base-300 rounded-2xl shadow-2xl px-6 py-5 flex items-center gap-3">
+            <span className="loading loading-spinner loading-md text-primary" />
+            <div className="text-sm font-medium">{busyLabel}</div>
+          </div>
+        </div>
+      )}
+      <DeleteCandidateModal
+        open={deleteModalOpen}
+        onClose={closeDeleteModal}
+        onConfirm={confirmDeleteCandidate}
+        candidateName={deleteTarget?.name}
+        isDeleting={isDeletingCandidate}
+        seconds={5}
+      />
       <div className="w-full">
         {/* Controls (hidden on print) */}
         <div className="flex items-center justify-between mb-6 pb-2 md:pb-3 print:hidden">
@@ -1202,7 +1954,7 @@ function Generate() {
             <ul>
               <li>
                 <Link
-                  to={`/collectionCv/${major}`}
+                  to={`/collectionCv/${resolvedMajor.linkId || major}`}
                   className="link flex items-center gap-2"
                 >
                   <FaArrowLeft /> Zurück
@@ -1401,6 +2153,20 @@ function Generate() {
                           }))
                         }
                       />
+                      <FormInput
+                        label="Geburtsort"
+                        placeholder="z.B. Taschkent"
+                        value={String(formCv.personalInfo.birthPlace || "")}
+                        onChange={(e) =>
+                          setFormCv((prev) => ({
+                            ...prev,
+                            personalInfo: {
+                              ...prev.personalInfo,
+                              birthPlace: e.target.value,
+                            },
+                          }))
+                        }
+                      />
                       <div className="form-control w-full">
                         <label className="label" htmlFor="g-marital">
                           <span className="label-text">Familienstand</span>
@@ -1497,29 +2263,120 @@ function Generate() {
                                     : "",
                                 },
                               }));
+                              if (!checked) setIsDrivingLicenseDropdownOpen(false);
                             }}
                           />
                           <span className="text-sm">Vorhanden</span>
                         </label>
                         {formCv.personalInfo.hasDrivingLicense ? (
                           <div className="mt-3">
-                            <FormInput
-                              label="Führerschein-Klasse (z.B. B, C, CE)"
-                              placeholder="B"
-                              value={formCv.personalInfo.drivingLicenseType || ""}
-                              onChange={(e) => {
-                                const v = String(e.target.value || "")
-                                  .trimStart()
-                                  .toUpperCase();
-                                setFormCv((prev) => ({
-                                  ...prev,
-                                  personalInfo: {
-                                    ...prev.personalInfo,
-                                    drivingLicenseType: v,
-                                  },
-                                }));
-                              }}
-                            />
+                            <div
+                              ref={drivingLicenseDropdownRef}
+                              className={`dropdown w-full ${
+                                isDrivingLicenseDropdownOpen
+                                  ? "dropdown-open"
+                                  : ""
+                              }`}
+                            >
+                              <label className="label">
+                                <span className="label-text">
+                                  Führerschein-Klassen (mehrere möglich)
+                                </span>
+                              </label>
+
+                              <button
+                                type="button"
+                                className={`${selectBase} flex items-center justify-between gap-3`}
+                                aria-haspopup="listbox"
+                                aria-expanded={isDrivingLicenseDropdownOpen}
+                                onClick={() =>
+                                  setIsDrivingLicenseDropdownOpen((p) => !p)
+                                }
+                              >
+                                {(() => {
+                                  const raw = String(
+                                    formCv.personalInfo.drivingLicenseType || ""
+                                  )
+                                    .trim()
+                                    .toUpperCase();
+                                  const selected = raw
+                                    ? raw
+                                        .split(",")
+                                        .map((s) => s.trim())
+                                        .filter(Boolean)
+                                    : [];
+                                  const displayValue = selected.length
+                                    ? selected.join(", ")
+                                    : "Bitte auswählen";
+                                  return (
+                                    <>
+                                      <span
+                                        className={
+                                          selected.length
+                                            ? "text-base-content"
+                                            : "text-base-content/60"
+                                        }
+                                      >
+                                        {displayValue}
+                                      </span>
+                                      <span className="text-base-content/60">
+                                        ▾
+                                      </span>
+                                    </>
+                                  );
+                                })()}
+                              </button>
+
+                              <ul
+                                className="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-full mt-1 max-h-72 overflow-auto z-[60]"
+                                role="listbox"
+                                aria-multiselectable="true"
+                              >
+                                {DRIVING_LICENSE_OPTIONS.map((opt) => {
+                                  const upper = String(opt || "")
+                                    .trim()
+                                    .toUpperCase();
+                                  const selected = String(
+                                    formCv.personalInfo.drivingLicenseType || ""
+                                  )
+                                    .trim()
+                                    .toUpperCase()
+                                    .split(",")
+                                    .map((s) => s.trim())
+                                    .filter(Boolean);
+                                  const isSelected = selected.includes(upper);
+
+                                  return (
+                                    <li key={opt}>
+                                      <button
+                                        type="button"
+                                        className="flex items-center gap-2"
+                                        onClick={() => {
+                                          const set = new Set(selected);
+                                          if (set.has(upper)) set.delete(upper);
+                                          else set.add(upper);
+                                          const next = Array.from(set).join(", ");
+                                          setFormCv((prev) => ({
+                                            ...prev,
+                                            personalInfo: {
+                                              ...prev.personalInfo,
+                                              drivingLicenseType: next,
+                                            },
+                                          }));
+                                        }}
+                                      >
+                                        <span className="w-5 text-center">
+                                          {isSelected ? "✓" : ""}
+                                        </span>
+                                        <span className="font-medium">
+                                          {opt}
+                                        </span>
+                                      </button>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </div>
                           </div>
                         ) : null}
                       </div>
@@ -1699,65 +2556,73 @@ function Generate() {
                       </div>
                     </div>
 
-                    <div className="divider">Berufserfahrung</div>
-                    <ExperienceSection
-                      experience={formCv.experience}
-                      onAddExperience={addExperience}
-                      onUpdateExperience={updateExperience}
-                      onRemoveExperience={removeExperience}
-                      onAddResponsibility={addResponsibility}
-                      onRemoveResponsibility={removeResponsibility}
-                    />
+                    <CollapsibleSection
+                      title="Berufserfahrung"
+                      count={experienceCount}
+                    >
+                      <ExperienceSection
+                        experience={formCv.experience}
+                        onAddExperience={addExperience}
+                        onUpdateExperience={updateExperience}
+                        onRemoveExperience={removeExperience}
+                        onAddResponsibility={addResponsibility}
+                        onRemoveResponsibility={removeResponsibility}
+                      />
+                    </CollapsibleSection>
 
-                    <div className="divider">Ausbildung</div>
-                    <EducationSection
-                      education={formCv.education}
-                      onAddEducation={addEducation}
-                      onUpdateEducation={updateEducation}
-                      onRemoveEducation={removeEducation}
-                    />
+                    <CollapsibleSection title="Ausbildung" count={educationCount}>
+                      <EducationSection
+                        education={formCv.education}
+                        onAddEducation={addEducation}
+                        onUpdateEducation={updateEducation}
+                        onRemoveEducation={removeEducation}
+                      />
+                    </CollapsibleSection>
 
-                    <div className="divider">Fähigkeiten</div>
-                    <SkillsSection
-                      softSkills={formCv.skills.softSkills}
-                      pcSkills={formCv.skills.pcSkills}
-                      onAddSoft={(val) => addTag(["skills", "softSkills"], val)}
-                      onRemoveSoft={(i) =>
-                        removeTag(["skills", "softSkills"], i)
-                      }
-                      onAddPc={(val) => addTag(["skills", "pcSkills"], val)}
-                      onRemovePc={(i) => removeTag(["skills", "pcSkills"], i)}
-                      onAutoAddSoft={() => autoAddSkills("soft")}
-                      onAutoAddPc={() => autoAddSkills("pc")}
-                      isGeneratingSoft={isGeneratingSoft}
-                      isGeneratingPc={isGeneratingPc}
-                      recentlyAddedSoft={recentlyAdded.soft}
-                      recentlyAddedPc={recentlyAdded.pc}
-                    />
+                    <CollapsibleSection title="Fähigkeiten">
+                      <SkillsSection
+                        softSkills={formCv.skills.softSkills}
+                        pcSkills={formCv.skills.pcSkills}
+                        onAddSoft={(val) =>
+                          addTag(["skills", "softSkills"], val)
+                        }
+                        onRemoveSoft={(i) =>
+                          removeTag(["skills", "softSkills"], i)
+                        }
+                        onAddPc={(val) => addTag(["skills", "pcSkills"], val)}
+                        onRemovePc={(i) => removeTag(["skills", "pcSkills"], i)}
+                        onAutoAddSoft={() => autoAddSkills("soft")}
+                        onAutoAddPc={() => autoAddSkills("pc")}
+                        isGeneratingSoft={isGeneratingSoft}
+                        isGeneratingPc={isGeneratingPc}
+                        recentlyAddedSoft={recentlyAdded.soft}
+                        recentlyAddedPc={recentlyAdded.pc}
+                      />
+                    </CollapsibleSection>
 
-                    <div className="divider">Sprachen</div>
-                    <LanguagesSection
-                      languageRows={languageRows}
-                      onAddRow={addLanguageRow}
-                      onUpdateRow={updateLanguageRow}
-                      onRemoveRow={removeLanguageRow}
-                    />
+                    <CollapsibleSection title="Sprachen" count={languagesCount}>
+                      <LanguagesSection
+                        languageRows={languageRows}
+                        onAddRow={addLanguageRow}
+                        onUpdateRow={updateLanguageRow}
+                        onRemoveRow={removeLanguageRow}
+                      />
+                    </CollapsibleSection>
 
-                    <div className="divider">Dokumente</div>
-
-                    <div className="form-control mb-4">
-                      <label className="label cursor-pointer justify-start gap-3">
-                        <span className="label-text font-semibold">
-                          Dokumente im PDF anzeigen
-                        </span>
-                        <input
-                          type="checkbox"
-                          className="toggle toggle-primary"
-                          checked={showDocuments}
-                          onChange={(e) => setShowDocuments(e.target.checked)}
-                        />
-                      </label>
-                    </div>
+                    <CollapsibleSection title="Dokumente" count={documentsCount}>
+                      <div className="form-control mb-4">
+                        <label className="label cursor-pointer justify-start gap-3">
+                          <span className="label-text font-semibold">
+                            Dokumente im PDF anzeigen
+                          </span>
+                          <input
+                            type="checkbox"
+                            className="toggle toggle-primary"
+                            checked={showDocuments}
+                            onChange={(e) => setShowDocuments(e.target.checked)}
+                          />
+                        </label>
+                      </div>
 
                     {/* Diplomas */}
                     <div className="mb-6">
@@ -1838,11 +2703,38 @@ function Generate() {
                         )}
                       </div>
                     </div>
+                    </CollapsibleSection>
                   </fieldset>
 
                   {!isLimitedAdmin && (
                     <>
                       <div className="divider mt-1">Kommentar</div>
+                      <div className="form-control mb-2">
+                        <label className="label cursor-pointer justify-start gap-3">
+                          <span className="label-text font-semibold">
+                            Kommentar in Vorschau & PDF anzeigen
+                          </span>
+                          <input
+                            type="checkbox"
+                            className="toggle toggle-primary"
+                            checked={showComment}
+                            onChange={(e) => setShowComment(e.target.checked)}
+                          />
+                        </label>
+                      </div>
+                      <div className="form-control mb-3">
+                        <label className="label cursor-pointer justify-start gap-3">
+                          <span className="label-text font-semibold">
+                            Datum im Footer anzeigen
+                          </span>
+                          <input
+                            type="checkbox"
+                            className="toggle toggle-primary"
+                            checked={showCommentDate}
+                            onChange={(e) => setShowCommentDate(e.target.checked)}
+                          />
+                        </label>
+                      </div>
                       <div className="form-control gap-3">
                         <label className="label" htmlFor="comment-admin">
                           <span className="label-text font-medium">
@@ -1942,14 +2834,6 @@ function Generate() {
                                   </>
                                 )}
                               </button>
-                              <button
-                                type="button"
-                                className="btn w-full"
-                                onClick={handleCancel}
-                                disabled={!hasUnsavedChanges || isSaving}
-                              >
-                                Bekor qilish
-                              </button>
                             </div>
                           )}
                         </div>
@@ -1963,7 +2847,10 @@ function Generate() {
               {!isLimitedAdmin && (
                 <LivePreview
                   formCv={formCv}
+                  commentMeta={commentMeta}
                   showDocuments={showDocuments}
+                  showComment={showComment}
+                  showCommentDate={showCommentDate}
                   onPhotoClick={openPhotoModal}
                 />
               )}
@@ -1981,6 +2868,25 @@ function Generate() {
             sendingValue={sendingStepValue}
             disabled={isLimitedAdmin}
           />
+          <div className="mt-3 flex justify-end">
+            <button
+              type="button"
+              className="btn btn-sm btn-outline mr-2"
+              onClick={resetCandidateStages}
+              disabled={Boolean(sendingStepValue)}
+              title="Kandidat bosqichini boshidan (1-bosqich) boshlash va email count'ni 0 qilish"
+            >
+              Bosqich reset
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline"
+              onClick={openCustomEmailModal}
+              disabled={Boolean(sendingStepValue)}
+            >
+              Custom email
+            </button>
+          </div>
           <div className="text-xs opacity-60 mt-2">
             Oxirgi yangilanish:{" "}
             {statusUpdatedAt
@@ -1997,22 +2903,40 @@ function Generate() {
         onClose={closePhotoModal}
       />
 
-      <InterviewModal
-        open={isInterviewModalOpen}
-        onClose={closeInterviewModal}
-        interviewForm={interviewForm}
-        setInterviewForm={setInterviewForm}
-        onSubmit={handleInterviewSubmit}
-        isSending={sendingStepValue === EMPLOYER_INTERVIEW_STATUS}
+      <StageEmailModal
+        open={isStageEmailModalOpen}
+        onClose={closeStageEmailModal}
+        title="Status email yuborish"
+        subtitle={
+          pendingStageStep === "stage_2"
+            ? "2-bosqich emailida link/vaqt yuborilmaydi."
+            : metaLoading
+            ? "Zusätzliche Infos yuklanmoqda..."
+            : "Qabul qilinsa, vaqt, link yoki lokatsiya Zusätzliche Infos'dan olinadi va emailga qo'shiladi."
+        }
+        decision={stageDecision}
+        setDecision={setStageDecision}
+        onSubmit={handleStageEmailSubmit}
+        isSending={Boolean(sendingStepValue)}
+        previewRows={[]}
+        showPreviewWhenAccepted
+        showAdditionalInfoEditor={
+          pendingStageStep !== "stage_2" && stageDecision === "accepted"
+        }
+        additionalInfoForm={stageAdditionalInfoForm}
+        setAdditionalInfoForm={setStageAdditionalInfoForm}
+        emailPreview={stageEmailPreview}
       />
 
-      <DecisionModal
-        open={isDecisionModalOpen}
-        onClose={closeDecisionModal}
-        decisionForm={decisionForm}
-        setDecisionForm={setDecisionForm}
-        onSubmit={handleDecisionSubmit}
-        isSending={sendingStepValue === EMPLOYER_DECISION_STATUS}
+      <CustomEmailModal
+        open={isCustomEmailModalOpen}
+        onClose={closeCustomEmailModal}
+        onSubmit={handleCustomEmailSubmit}
+        isSending={Boolean(sendingStepValue)}
+        form={customEmailForm}
+        setForm={setCustomEmailForm}
+        emailPreview={customEmailPreview}
+        placeholders={customEmailDefaults}
       />
     </div>
   );
