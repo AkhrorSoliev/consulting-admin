@@ -57,6 +57,31 @@ import PhotoModal from "./generate/components/modals/PhotoModal";
 import StageEmailModal from "./generate/components/modals/StageEmailModal";
 import CustomEmailModal from "./generate/components/modals/CustomEmailModal";
 import LivePreview from "./generate/components/LivePreview";
+import { UZBEK_REGIONS } from "../constants/uzbekRegions";
+import { LANGUAGE_OPTIONS } from "../constants/languageOptions";
+
+function safeJson(value, space = 2, maxLen = 120_000) {
+  try {
+    const s = JSON.stringify(value, null, space);
+    if (typeof s === "string" && s.length > maxLen) {
+      return `${s.slice(0, maxLen)}\n... (truncated ${s.length - maxLen} chars)`;
+    }
+    return s;
+  } catch (e) {
+    return `"(unserializable)" ${e?.message || ""}`.trim();
+  }
+}
+
+function safeClone(value) {
+  // structuredClone is not available in some environments (older browsers / webviews).
+  // Our form state is plain JSON, so JSON clone is an acceptable fallback.
+  try {
+    if (typeof structuredClone === "function") return structuredClone(value);
+  } catch {
+    // ignore and fallback to JSON clone
+  }
+  return JSON.parse(JSON.stringify(value ?? null));
+}
 
 function toDateTimeLocalString(value) {
   if (!value) return "";
@@ -291,7 +316,7 @@ function Generate() {
       experience: [],
       education: [],
       skills: { softSkills: [], pcSkills: [], languages: {} },
-      documents: { diplomas: [], certificates: [] },
+      documents: { diplomas: [], certificates: [], passport: [] },
       commentar: "",
     }),
     []
@@ -305,6 +330,7 @@ function Generate() {
   const [recentlyAdded, setRecentlyAdded] = useState({ soft: [], pc: [] });
   const [formInitialized, setFormInitialized] = useState(false);
   const { user } = useSelector((state) => state.auth);
+
   const { role: userRole } = useUserRole();
   const [isCommentEditorOpen, setIsCommentEditorOpen] = useState(false);
   const [commentBaseline, setCommentBaseline] = useState("");
@@ -315,6 +341,15 @@ function Generate() {
     updatedByUid: "",
   });
 
+  function getCommentHtml(obj) {
+    return String(obj?.commentar || "");
+  }
+
+  function setCommentHtml(nextHtml) {
+    const v = String(nextHtml || "");
+    setFormCv((prev) => ({ ...prev, commentar: v }));
+  }
+
   const [addressFields, setAddressFields] = useState(() =>
     parseGermanAddress(initialForm.personalInfo.address)
   );
@@ -323,6 +358,7 @@ function Generate() {
 
   function normalizeForm(form) {
     const safe = form || initialForm;
+    const commentHtml = getCommentHtml(safe);
     const langEntries = Object.entries(safe?.skills?.languages || {}).filter(
       ([key]) => key !== undefined && key !== null
     );
@@ -393,19 +429,23 @@ function Generate() {
         certificates: Array.isArray(safe?.documents?.certificates)
           ? safe.documents.certificates.map((c) => String(c || ""))
           : [],
+        passport: Array.isArray(safe?.documents?.passport)
+          ? safe.documents.passport.map((p) => String(p || ""))
+          : [],
       },
-      commentar: String(safe?.commentar || ""),
+      commentar: commentHtml,
     };
   }
 
   const isLimitedAdmin = userRole === "limited_admin";
+  const commentHtml = useMemo(() => getCommentHtml(formCv), [formCv]);
   const hasComment = useMemo(
-    () => hasRichTextContent(formCv.commentar),
-    [formCv.commentar]
+    () => hasRichTextContent(commentHtml),
+    [commentHtml]
   );
   const commentChanged = useMemo(
-    () => String(formCv.commentar || "") !== String(commentBaseline || ""),
-    [formCv.commentar, commentBaseline]
+    () => String(commentHtml || "") !== String(commentBaseline || ""),
+    [commentHtml, commentBaseline]
   );
 
   const normalizedDocForm = useMemo(() => {
@@ -427,7 +467,7 @@ function Generate() {
     if (!docCv) return;
     const mapped = mapDocToForm(docCv);
     setFormCv(normalizeForm(mapped));
-    setCommentBaseline(mapped.commentar || "");
+    setCommentBaseline(getCommentHtml(mapped));
     setIsCommentEditorOpen(false);
     setRecentlyAdded({ soft: [], pc: [] });
   }
@@ -603,6 +643,23 @@ function Generate() {
       certificates = att.languageCertificates;
     }
 
+    const passportCandidates = [
+      att?.passport,
+      ...(Array.isArray(att?.passports) ? att.passports : []),
+      d?.reisepass,
+      d?.passport,
+      ...(Array.isArray(d?.reisepaesse) ? d.reisepaesse : []),
+      ...(Array.isArray(d?.passports) ? d.passports : []),
+      (data?.documents || {})?.passport,
+      ...(Array.isArray((data?.documents || {})?.passports)
+        ? (data?.documents || {})?.passports
+        : []),
+    ];
+    const passport = passportCandidates
+      .flatMap((p) => (Array.isArray(p) ? p : [p]))
+      .map((p) => String(p || "").trim())
+      .filter(Boolean);
+
     const rawChildrenCount = String(p.kinderAnzahl ?? "").trim();
     const noChildrenFromDoc = Boolean(p.keinKinder);
     const inferredNoChildren =
@@ -653,6 +710,7 @@ function Generate() {
       documents: {
         diplomas,
         certificates,
+        passport,
       },
       commentar: String(data?.commentar || ""),
     };
@@ -707,8 +765,21 @@ function Generate() {
       dokumente: {
         diplome: f.documents?.diplomas || [],
         zertifikate: f.documents?.certificates || [],
+        reisepass: f.documents?.passport || [],
+        reisepaesse: Array.isArray(f.documents?.passport)
+          ? f.documents.passport
+          : [],
       },
-      commentar: String(f.commentar || ""),
+      documents: {
+        diplomas: f.documents?.diplomas || [],
+        certificates: f.documents?.certificates || [],
+        passport: Array.isArray(f.documents?.passport)
+          ? f.documents.passport
+          : f.documents?.passport
+          ? [f.documents.passport]
+          : [],
+      },
+      commentar: String(getCommentHtml(f) || ""),
     };
   }
 
@@ -821,7 +892,7 @@ function Generate() {
     if (isLimitedAdmin) return;
     if (!value?.trim()) return;
     setFormCv((prev) => {
-      const draft = structuredClone(prev);
+      const draft = safeClone(prev);
       let target = draft;
       for (let i = 0; i < path.length - 1; i++) target = target[path[i]];
       const key = path[path.length - 1];
@@ -832,7 +903,7 @@ function Generate() {
   function removeTag(path, index) {
     if (isLimitedAdmin) return;
     setFormCv((prev) => {
-      const draft = structuredClone(prev);
+      const draft = safeClone(prev);
       let target = draft;
       for (let i = 0; i < path.length - 1; i++) target = target[path[i]];
       const key = path[path.length - 1];
@@ -895,6 +966,9 @@ function Generate() {
     (Array.isArray(formCv.documents?.diplomas) ? formCv.documents.diplomas.length : 0) +
     (Array.isArray(formCv.documents?.certificates)
       ? formCv.documents.certificates.length
+      : 0) +
+    (Array.isArray(formCv.documents?.passport)
+      ? formCv.documents.passport.length
       : 0);
   function addLanguageRow() {
     if (isLimitedAdmin) return;
@@ -1139,6 +1213,21 @@ function Generate() {
         ...(Array.isArray(att?.certificates) ? att.certificates : []),
         ...(Array.isArray(docs?.diplomas) ? docs.diplomas : []),
         ...(Array.isArray(docs?.certificates) ? docs.certificates : []),
+        ...(Array.isArray(att?.passports) ? att.passports : []),
+        ...(Array.isArray(att?.passport) ? att.passport : [att?.passport]).filter(
+          Boolean
+        ),
+        ...(Array.isArray(docs?.passport) ? docs.passport : [docs?.passport]).filter(
+          Boolean
+        ),
+        ...(Array.isArray(docs?.passports) ? docs.passports : []),
+        ...(Array.isArray(full?.dokumente?.reisepaesse)
+          ? full.dokumente.reisepaesse
+          : []),
+        ...(Array.isArray(full?.dokumente?.reisepass)
+          ? full.dokumente.reisepass
+          : [full?.dokumente?.reisepass]
+        ).filter(Boolean),
       ];
       if (urls.length > 0) {
         await deleteUploadedFilesRemote(urls);
@@ -1593,10 +1682,10 @@ function Generate() {
     const col = String(resolvedMajor?.collectionName || "").trim();
     const docId = String(id || "").trim();
     if (!col || !docId) return;
-    const commentHasContent = hasRichTextContent(formCv.commentar);
+    const commentHasContent = hasRichTextContent(commentHtml);
     const originalComment = String(docCv?.commentar || "");
     const isCommentUpdated =
-      String(formCv.commentar || "") !== String(originalComment || "");
+      String(commentHtml || "") !== String(originalComment || "");
 
     const nextCommentMeta = isCommentUpdated
       ? {
@@ -1644,7 +1733,7 @@ function Generate() {
     try {
       setIsSaving(true);
       const payload = isLimitedAdmin
-        ? { commentar: String(formCv.commentar || "") }
+        ? { commentar: String(commentHtml || "") }
         : mapFormToDoc(formCv);
       if (nextCommentMeta) {
         payload.commentarMeta = nextCommentMeta;
@@ -1703,7 +1792,7 @@ function Generate() {
         toast("Email o'zgardi: kandidat bosqichlari stage_1 ga qaytarildi.");
       }
       if (isLimitedAdmin) {
-        setCommentBaseline(formCv.commentar || "");
+        setCommentBaseline(String(commentHtml || ""));
       }
       if (nextCommentMeta) {
         setCommentMeta(nextCommentMeta);
@@ -1868,7 +1957,7 @@ function Generate() {
           </div>
           <div
             className="prose prose-sm max-w-none text-base-content"
-            dangerouslySetInnerHTML={{ __html: formCv.commentar }}
+            dangerouslySetInnerHTML={{ __html: commentHtml }}
           />
         </div>
       ) : (
@@ -1880,26 +1969,49 @@ function Generate() {
   );
 
   function openCommentEditor() {
-    setCommentBaseline(formCv.commentar || "");
+    setCommentBaseline(String(commentHtml || ""));
     setIsCommentEditorOpen(true);
   }
 
   function handleCommentPrimaryAction() {
     if (!isCommentEditorOpen) {
-      const current = String(formCv.commentar || "");
+      const current = String(commentHtml || "");
       setCommentBaseline(current);
       if (!hasRichTextContent(current)) {
-        setFormCv((prev) => ({
-          ...prev,
-          commentar: DEFAULT_COMMENT_TEMPLATE_HTML,
-        }));
+        setCommentHtml(DEFAULT_COMMENT_TEMPLATE_HTML);
       }
       setIsCommentEditorOpen(true);
       return;
     }
     // Cancel comment edits
-    setFormCv((prev) => ({ ...prev, commentar: String(commentBaseline || "") }));
+    setCommentHtml(String(commentBaseline || ""));
     setIsCommentEditorOpen(false);
+  }
+
+  function appendToComment(nextHtmlBlock) {
+    const block = String(nextHtmlBlock || "").trim();
+    if (!block) return;
+    setCommentHtml(`${String(commentHtml || "")}${block}`);
+    setShowComment(true);
+    setIsCommentEditorOpen(true);
+  }
+
+  function escapeHtml(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function plainTextToSimpleHtml(text) {
+    const raw = String(text || "").trim();
+    if (!raw) return "";
+    const paras = raw.split(/\n{2,}/g);
+    return paras
+      .map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br/>")}</p>`)
+      .join("");
   }
 
   const isPageBusy =
@@ -2153,20 +2265,32 @@ function Generate() {
                           }))
                         }
                       />
-                      <FormInput
-                        label="Geburtsort"
-                        placeholder="z.B. Taschkent"
-                        value={String(formCv.personalInfo.birthPlace || "")}
-                        onChange={(e) =>
-                          setFormCv((prev) => ({
-                            ...prev,
-                            personalInfo: {
-                              ...prev.personalInfo,
-                              birthPlace: e.target.value,
-                            },
-                          }))
-                        }
-                      />
+                      <div className="form-control w-full">
+                        <label className="label" htmlFor="g-birthPlace">
+                          <span className="label-text">Geburtsort</span>
+                        </label>
+                        <select
+                          id="g-birthPlace"
+                          className={selectBase}
+                          value={String(formCv.personalInfo.birthPlace || "")}
+                          onChange={(e) =>
+                            setFormCv((prev) => ({
+                              ...prev,
+                              personalInfo: {
+                                ...prev.personalInfo,
+                                birthPlace: e.target.value,
+                              },
+                            }))
+                          }
+                        >
+                          <option value="">Bitte auswählen</option>
+                          {UZBEK_REGIONS.map((region) => (
+                            <option key={region} value={region}>
+                              {region}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                       <div className="form-control w-full">
                         <label className="label" htmlFor="g-marital">
                           <span className="label-text">Familienstand</span>
@@ -2521,11 +2645,9 @@ function Generate() {
                               <label className="label" htmlFor="g-addressCity">
                                 <span className="label-text">Ort *</span>
                               </label>
-                              <input
+                              <select
                                 id="g-addressCity"
-                                type="text"
-                                className={inputBase}
-                                placeholder="z.B. Berlin"
+                                className={selectBase}
                                 value={addressFields.city}
                                 onChange={(e) =>
                                   applyAddressFields({
@@ -2533,7 +2655,14 @@ function Generate() {
                                     city: e.target.value,
                                   })
                                 }
-                              />
+                              >
+                                <option value="">Bitte auswählen</option>
+                                {UZBEK_REGIONS.map((region) => (
+                                  <option key={region} value={region}>
+                                    {region}
+                                  </option>
+                                ))}
+                              </select>
                             </div>
 
                             <div className="md:col-span-2">
@@ -2606,6 +2735,7 @@ function Generate() {
                         onAddRow={addLanguageRow}
                         onUpdateRow={updateLanguageRow}
                         onRemoveRow={removeLanguageRow}
+                        languageOptions={LANGUAGE_OPTIONS}
                       />
                     </CollapsibleSection>
 
@@ -2623,6 +2753,46 @@ function Generate() {
                           />
                         </label>
                       </div>
+
+                    {/* Passport */}
+                    <div className="mb-6">
+                      <h4 className="font-semibold mb-2 text-sm uppercase tracking-wide opacity-80">
+                        Reisepass
+                      </h4>
+                      <div className="flex flex-col gap-2">
+                        {!formCv.documents?.passport ||
+                        formCv.documents.passport.length === 0 ? (
+                          <div className="p-3 bg-base-200 rounded text-sm text-center opacity-60 italic border border-dashed border-base-300">
+                            Kein Reisepass vorhanden.
+                          </div>
+                        ) : (
+                          formCv.documents.passport.map((url, i) => (
+                            <div
+                              key={i}
+                              className="flex gap-2 items-center p-2 bg-base-100 border rounded"
+                            >
+                              <a
+                                href={url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="link link-primary text-sm truncate flex-1"
+                              >
+                                {url}
+                              </a>
+                              <a
+                                href={url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="btn btn-square btn-sm btn-ghost text-primary"
+                                title="Link öffnen"
+                              >
+                                <FaExternalLinkAlt />
+                              </a>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
 
                     {/* Diplomas */}
                     <div className="mb-6">
@@ -2744,13 +2914,8 @@ function Generate() {
                         {showCommentPreview && renderCommentPreview()}
                         {isCommentEditorOpen && (
                           <RichTextEditor
-                            value={formCv.commentar}
-                            onChange={(val) =>
-                              setFormCv((prev) => ({
-                                ...prev,
-                                commentar: val,
-                              }))
-                            }
+                            value={commentHtml}
+                            onChange={setCommentHtml}
                             placeholder='Umumiy fikr: "Kandidat juda mos, faqat foto yangilansin"'
                           />
                         )}
@@ -2792,10 +2957,8 @@ function Generate() {
                         {showCommentPreview && renderCommentPreview("flex-1")}
                         {isCommentEditorOpen && (
                           <RichTextEditor
-                            value={formCv.commentar}
-                            onChange={(val) =>
-                              setFormCv((prev) => ({ ...prev, commentar: val }))
-                            }
+                            value={commentHtml}
+                            onChange={setCommentHtml}
                             placeholder='Umumiy fikr: "Kandidat juda mos, faqat foto yangilansin"'
                             className="flex-1"
                             editorClassName="min-h-[220px]"

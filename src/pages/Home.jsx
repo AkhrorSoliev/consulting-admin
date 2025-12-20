@@ -42,6 +42,25 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
       .sort((a, b) => (b.count || 0) - (a.count || 0));
   }, [statsDoc]);
 
+  const leadCounts = useMemo(() => {
+    const byLead = statsDoc?.totals?.byLead || {};
+    return Object.entries(byLead)
+      .map(([name, count]) => ({ name, count: Number(count) || 0 }))
+      .filter((x) => x.count > 0)
+      .sort((a, b) => (b.count || 0) - (a.count || 0));
+  }, [statsDoc]);
+
+  const perMajorLeadCounts = useMemo(() => {
+    const map = statsDoc?.totals?.byMajorLead || {};
+    return Object.entries(map).map(([majorName, leadsObj]) => {
+      const leads = Object.entries(leadsObj || {})
+        .map(([leadName, count]) => ({ leadName, count: Number(count) || 0 }))
+        .filter((x) => x.count > 0)
+        .sort((a, b) => (b.count || 0) - (a.count || 0));
+      return { majorName, leads };
+    });
+  }, [statsDoc]);
+
   const ageBuckets = useMemo(() => {
     const map = statsDoc?.demographics?.ageBuckets || {};
     const defs = ["18-24", "25-34", "35-44", "45-54", "55+"];
@@ -89,6 +108,15 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
       has: Number(cand?.has) || 0,
       none: Number(cand?.none) || 0,
     };
+  }, [statsDoc]);
+
+  const certTypeCounts = useMemo(() => {
+    const map = statsDoc?.attachments?.languageCertificates?.byType || {};
+    return Object.entries(map)
+      .map(([type, count]) => ({ type, count: Number(count) || 0 }))
+      .filter((x) => x.count > 0)
+      .sort((a, b) => (b.count || 0) - (a.count || 0))
+      .slice(0, 12);
   }, [statsDoc]);
 
   const maritalStats = useMemo(() => {
@@ -216,6 +244,21 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
       ],
     }),
     [certStats]
+  );
+
+  const certTypesBarData = useMemo(
+    () => ({
+      labels: certTypeCounts.map((x) => x.type),
+      datasets: [
+        {
+          label: "Anzahl (Dateien)",
+          data: certTypeCounts.map((x) => x.count),
+          backgroundColor: "#10B981",
+          borderRadius: 6,
+        },
+      ],
+    }),
+    [certTypeCounts]
   );
 
   const maritalPieData = useMemo(
@@ -352,6 +395,87 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
             </div>
           </div>
 
+          {/* Leads */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="card bg-base-100 shadow border border-base-200">
+              <div className="card-body">
+                <h2 className="card-title text-lg mb-4">
+                  Lead bo‘yicha statistika
+                </h2>
+                {leadCounts.length === 0 ? (
+                  <div className="opacity-70 text-sm">Lead ma’lumot yo‘q.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="table table-sm">
+                      <thead>
+                        <tr>
+                          <th>Lead</th>
+                          <th className="text-right">Soni</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {leadCounts.slice(0, 30).map((x) => (
+                          <tr key={x.name}>
+                            <td className="font-medium">{x.name}</td>
+                            <td className="text-right">{x.count}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {leadCounts.length > 30 ? (
+                      <div className="text-xs opacity-70 mt-2">
+                        +{leadCounts.length - 30} ta lead yashirildi
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="card bg-base-100 shadow border border-base-200">
+              <div className="card-body">
+                <h2 className="card-title text-lg mb-4">Berufsfeld + Lead</h2>
+                <div className="space-y-3">
+                  {perMajorLeadCounts
+                    .filter((x) => Array.isArray(x.leads) && x.leads.length > 0)
+                    .slice(0, 20)
+                    .map((row) => (
+                      <div
+                        key={row.majorName}
+                        className="rounded-box border border-base-200 p-3"
+                      >
+                        <div className="font-medium mb-2">{row.majorName}</div>
+                        <div className="overflow-x-auto">
+                          <table className="table table-xs">
+                            <thead>
+                              <tr>
+                                <th>Lead</th>
+                                <th className="text-right">Soni</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {row.leads.slice(0, 10).map((l) => (
+                                <tr key={`${row.majorName}:${l.leadName}`}>
+                                  <td>{l.leadName}</td>
+                                  <td className="text-right">{l.count}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    ))}
+                  {perMajorLeadCounts.filter((x) => x.leads?.length > 0)
+                    .length === 0 ? (
+                    <div className="opacity-70 text-sm">
+                      Berufsfeld+Lead ma’lumot yo‘q.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Row 2 */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="card bg-base-100 shadow border border-base-200">
@@ -375,6 +499,29 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
                 <h2 className="card-title text-base mb-2">Familienstand</h2>
                 <div className="h-48 w-full max-w-xs">
                   <Pie data={maritalPieData} options={pieOptions} />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 2b */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="card bg-base-100 shadow border border-base-200">
+              <div className="card-body">
+                <h2 className="card-title text-lg mb-4">
+                  Sprachzertifikat-Typen (Top)
+                </h2>
+                <div className="h-64 md:h-80">
+                  {certTypeCounts.length > 0 ? (
+                    <Bar
+                      data={certTypesBarData}
+                      options={defaultBarOptions}
+                    />
+                  ) : (
+                    <div className="h-full grid place-items-center opacity-60 text-sm">
+                      Zertifikat-Typen nicht verfügbar.
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -635,12 +782,29 @@ function Home() {
       return [];
     };
 
+    const extractCertDetails = (payload) => {
+      const att = payload?.attachments || {};
+      const docs = payload?.documents || {};
+      if (Array.isArray(att?.languageCertificatesDetailed))
+        return att.languageCertificatesDetailed;
+      if (Array.isArray(docs?.certificatesDetailed)) return docs.certificatesDetailed;
+      if (Array.isArray(payload?.languageCertificatesDetailed))
+        return payload.languageCertificatesDetailed;
+      return [];
+    };
+
     const noLangCertFlag = (payload) =>
       Boolean(payload?.attachments?.noLanguageCertificate);
 
     const buildStatsFromDocsByCollection = (docsByCollection) => {
       const stats = {
-        totals: { candidates: 0, directions: names.length, byMajor: {} },
+        totals: {
+          candidates: 0,
+          directions: names.length,
+          byMajor: {},
+          byLead: {},
+          byMajorLead: {},
+        },
         demographics: {
           gender: { male: 0, female: 0, unknown: 0 },
           ageBuckets: {
@@ -663,7 +827,7 @@ function Home() {
         },
         attachments: {
           diplomas: { candidates: { has: 0, none: 0 } },
-          languageCertificates: { candidates: { has: 0, none: 0 } },
+          languageCertificates: { candidates: { has: 0, none: 0 }, byType: {} },
         },
         skills: {
           languages: { counts: {} },
@@ -686,8 +850,29 @@ function Home() {
           : [];
         stats.totals.byMajor[safeName] = docs.length;
         stats.totals.candidates += docs.length;
+        stats.totals.byMajorLead[safeName] = stats.totals.byMajorLead[safeName] || {};
 
         docs.forEach((d) => {
+          const safeKey = (input) =>
+            String(input ?? "")
+              .trim()
+              .replace(/[./[\]#?$\\]/g, "_")
+              .replace(/\s+/g, " ")
+              .trim()
+              .slice(0, 80);
+
+          const leadRaw =
+            d?.lead ?? d?.tracking?.lead ?? d?.meta?.lead ?? d?.source?.lead;
+          const leadName = String(leadRaw || "").trim();
+          if (leadName) {
+            const lk = safeKey(leadName);
+            if (lk) {
+              stats.totals.byLead[lk] = (stats.totals.byLead[lk] || 0) + 1;
+              stats.totals.byMajorLead[safeName][lk] =
+                (stats.totals.byMajorLead[safeName][lk] || 0) + 1;
+            }
+          }
+
           const gender = normalizeGender(d?.persoenlicheDaten?.geschlecht);
           stats.demographics.gender[gender] += 1;
 
@@ -718,13 +903,19 @@ function Home() {
             stats.attachments.languageCertificates.candidates.has += 1;
           else stats.attachments.languageCertificates.candidates.none += 1;
 
-          const safeKey = (input) =>
-            String(input ?? "")
-              .trim()
-              .replace(/[./[\]#?$\\]/g, "_")
-              .replace(/\s+/g, " ")
-              .trim()
-              .slice(0, 80);
+          if (hasCert) {
+            const detailed = extractCertDetails(d);
+            if (Array.isArray(detailed) && detailed.length > 0) {
+              detailed.forEach((row) => {
+                const url = String(row?.url || "").trim();
+                const type = String(row?.type || "").trim();
+                if (!url || !type) return;
+                const k = safeKey(type);
+                stats.attachments.languageCertificates.byType[k] =
+                  (stats.attachments.languageCertificates.byType[k] || 0) + 1;
+              });
+            }
+          }
 
           const sprachen = d?.faehigkeiten?.sprachen || {};
           if (sprachen && typeof sprachen === "object") {

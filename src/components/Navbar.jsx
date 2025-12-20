@@ -29,3 +29,5 @@ function Navbar({ title = "Consulting Admin", isSidebarOpen, onToggleSidebar, ch
 export default Navbar;
 
 
+
+

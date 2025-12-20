@@ -6,7 +6,14 @@ import { store } from "./app/store.js";
 import { Provider } from "react-redux";
 createRoot(document.getElementById("root")).render(
   <Provider store={store}>
-    <Toaster />
+    <Toaster
+      position="top-center"
+      containerStyle={{ zIndex: 100000 }}
+      toastOptions={{
+        // Ensure toasts stay above modals/overlays
+        style: { zIndex: 100000 },
+      }}
+    />
     <App />
   </Provider>
 );

@@ -14,6 +14,10 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.role == 'limited_admin';
     }
 
+    function isPrivileged() {
+      return isSuperAdmin() || isAdmin();
+    }
+
     // Limited admin can only touch the "commentar" field on existing docs.
     function limitedAdminCanUpdate() {
       let diff = request.resource.data.diff(resource.data);
@@ -21,13 +25,37 @@ service cloud.firestore {
              diff.addedKeys().hasOnly(['commentar']) &&
              diff.changedKeys().hasOnly(['commentar']);
     }
-    match /{document=**} {
-      allow read: if isSuperAdmin() || isAdmin() || isLimitedAdmin();
 
-      allow create, delete: if isSuperAdmin() || isAdmin();
+    function isPublicCandidateCollection(collectionId) {
+      return collectionId.matches('^[a-z0-9-]{3,64}$') &&
+             collectionId != 'meta' &&
+             collectionId != 'stats' &&
+             collectionId != 'users';
+    }
 
-      allow update: if isSuperAdmin() ||
-                     isAdmin() ||
+    // Meta: public read (form needs it), write only admins.
+    match /meta/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isPrivileged();
+    }
+
+    // Stats: only admins may read/write.
+    match /stats/{docId} {
+      allow read: if isPrivileged();
+      allow create, update, delete: if isPrivileged();
+    }
+
+    // Candidate collections (dynamic). Public may only create; no read/update/delete.
+    match /{collectionId}/{docId} {
+      allow read: if isPrivileged() || isLimitedAdmin();
+
+      // Public create taqiqlanadi; faqat adminlar (yoki backend/Admin SDK) yozishi mumkin.
+      allow create: if isPrivileged()
+                    && !('meta' == collectionId) && !('stats' == collectionId);
+
+      allow delete: if isPrivileged();
+
+      allow update: if isPrivileged() ||
                      (isLimitedAdmin() && limitedAdminCanUpdate());
     }
   }

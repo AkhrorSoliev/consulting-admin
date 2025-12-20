@@ -5,8 +5,8 @@ function LanguagesSection({
   onRemoveRow,
   showRequiredWarning = false,
   errors = [],
+  languageOptions = [],
 }) {
-  const fieldInput = "input input-bordered w-full";
   const selectInput = "select select-bordered w-full";
 
   return (
@@ -25,15 +25,23 @@ function LanguagesSection({
               : "border-base-300 ring-base-200/80"
           }`}
         >
-          <input
-            className={`${fieldInput} col-span-6 ${
-              errors?.[idx]?.name ? "input-error" : ""
+          <select
+            className={`${selectInput} col-span-6 ${
+              errors?.[idx]?.name ? "select-error" : ""
             }`}
-            placeholder="Name der Sprache (z. B. Deutsch)"
             aria-label="Sprache"
             value={row.name}
             onChange={(e) => onUpdateRow(idx, "name", e.target.value)}
-          />
+          >
+            <option value="">Bitte auswählen</option>
+            {Array.from(
+              new Set([...(languageOptions || []), row?.name].filter(Boolean))
+            ).map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
           <select
             className={`${selectInput} col-span-5 ${
               errors?.[idx]?.level ? "select-error" : ""

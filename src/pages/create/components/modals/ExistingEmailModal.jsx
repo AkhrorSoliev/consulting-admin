@@ -1,10 +1,19 @@
 export default function ExistingEmailModal({
   open,
   onClose,
+  onAcknowledge,
   enteredEmail,
   existingMajor,
 }) {
   if (!open) return null;
+
+  const handleAcknowledge = () => {
+    if (typeof onAcknowledge === "function") {
+      onAcknowledge();
+      return;
+    }
+    onClose?.();
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -19,7 +28,7 @@ export default function ExistingEmailModal({
             Sie haben sich mit der E-Mail-Adresse <strong>{enteredEmail}</strong>{" "}
             bereits für den Bereich <strong>„{existingMajor}“</strong> beworben.
           </p>
-          <button className="btn btn-primary w-full" onClick={onClose}>
+          <button className="btn btn-primary w-full" onClick={handleAcknowledge}>
             Verstanden
           </button>
         </div>

@@ -92,6 +92,9 @@ export async function createCollection(name, createdBy) {
       slug: normalizedName,
       collectionName: normalizedName,
       title: rawTitle || normalizedName,
+      // Controls whether the public /create?major=... link should be accessible.
+      // Default to active for backward compatibility.
+      linkActive: true,
       createdAt: Date.now(),
       createdBy: createdBySafe,
     });

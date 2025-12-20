@@ -190,6 +190,18 @@ function extractCertificates(payload) {
   return [];
 }
 
+function extractCertificateDetails(payload) {
+  const att = payload?.attachments || {};
+  const docs = payload?.documents || {};
+  // New schema: detailed rows with { url, type }
+  if (Array.isArray(att?.languageCertificatesDetailed))
+    return att.languageCertificatesDetailed;
+  if (Array.isArray(docs?.certificatesDetailed)) return docs.certificatesDetailed;
+  if (Array.isArray(payload?.languageCertificatesDetailed))
+    return payload.languageCertificatesDetailed;
+  return [];
+}
+
 function hasNoLanguageCertificateFlag(payload) {
   return Boolean(payload?.attachments?.noLanguageCertificate);
 }
@@ -208,10 +220,20 @@ export function buildCandidateStatsIncrementsWithFactor(
   const inc = {};
   const majorLabel = options?.majorLabel || major;
   const majorKey = safeKey(majorLabel);
+  const leadRaw =
+    payload?.lead ??
+    payload?.tracking?.lead ??
+    payload?.meta?.lead ??
+    payload?.source?.lead;
+  const leadKey = safeKey(leadRaw, "");
 
   // Totals
   inc["totals.candidates"] = increment(1 * f);
   inc[`totals.byMajor.${majorKey}`] = increment(1 * f);
+  if (leadKey) {
+    inc[`totals.byLead.${leadKey}`] = increment(1 * f);
+    inc[`totals.byMajorLead.${majorKey}.${leadKey}`] = increment(1 * f);
+  }
 
   // Gender
   const gender = normalizeGender(payload?.persoenlicheDaten?.geschlecht);
@@ -304,6 +326,20 @@ export function buildCandidateStatsIncrementsWithFactor(
     }`
   ] = increment(1 * f);
 
+  // Language certificate types (only when a file exists and type is specified)
+  if (hasLangCert) {
+    const detailed = extractCertificateDetails(payload);
+    if (Array.isArray(detailed) && detailed.length > 0) {
+      detailed.forEach((row) => {
+        const url = String(row?.url || "").trim();
+        const type = String(row?.type || "").trim();
+        if (!url || !type) return;
+        inc[`attachments.languageCertificates.byType.${safeKey(type)}`] =
+          increment(1 * f);
+      });
+    }
+  }
+
   // Skills: languages + level counts, plus totals for soft/pc skill lists
   const sprachen = payload?.faehigkeiten?.sprachen || {};
   if (sprachen && typeof sprachen === "object") {
@@ -352,24 +388,34 @@ export async function addCandidateWithDualStats(major, payload, options = {}) {
     options
   );
 
-  await runTransaction(db, async (tx) => {
-    tx.set(candidateRef, payload);
-    // Ensure stats docs exist, then update using field-paths (dot notation).
-    tx.set(
-      allTimeRef,
-      { meta: { countersVersion: 1, updatedAt: Date.now() } },
-      { merge: true }
-    );
-    tx.set(
-      currentRef,
-      { meta: { countersVersion: 1, updatedAt: Date.now() } },
-      { merge: true }
-    );
-    tx.update(allTimeRef, increments);
-    tx.update(currentRef, increments);
-  });
-
-  return { id: candidateRef.id };
+  try {
+    await runTransaction(db, async (tx) => {
+      tx.set(candidateRef, payload);
+      // Ensure stats docs exist, then update using field-paths (dot notation).
+      tx.set(
+        allTimeRef,
+        { meta: { countersVersion: 1, updatedAt: Date.now() } },
+        { merge: true }
+      );
+      tx.set(
+        currentRef,
+        { meta: { countersVersion: 1, updatedAt: Date.now() } },
+        { merge: true }
+      );
+      tx.update(allTimeRef, increments);
+      tx.update(currentRef, increments);
+    });
+    return { id: candidateRef.id, statsUpdated: true };
+  } catch (err) {
+    // If stats are locked down (permission denied), still allow candidate submission.
+    if (err?.code === "permission-denied") {
+      // eslint-disable-next-line no-console
+      console.warn("Stats update not permitted; saving candidate only.");
+      await setDoc(candidateRef, payload);
+      return { id: candidateRef.id, statsUpdated: false, reason: "stats-permission-denied" };
+    }
+    throw err;
+  }
 }
 
 export async function incrementDirectionsTotal() {
@@ -461,6 +507,16 @@ function buildCandidateStatsNumbers(major, payload, options = {}) {
 
   add("totals.candidates", 1);
   add(`totals.byMajor.${safeMajor}`, 1);
+  const leadRaw =
+    payload?.lead ??
+    payload?.tracking?.lead ??
+    payload?.meta?.lead ??
+    payload?.source?.lead;
+  const leadKey = safeKey(leadRaw, "");
+  if (leadKey) {
+    add(`totals.byLead.${leadKey}`, 1);
+    add(`totals.byMajorLead.${safeMajor}.${leadKey}`, 1);
+  }
 
   const gender = normalizeGender(payload?.persoenlicheDaten?.geschlecht);
   add(`demographics.gender.${gender}`, 1);
@@ -536,6 +592,18 @@ function buildCandidateStatsNumbers(major, payload, options = {}) {
     }`,
     1
   );
+
+  if (hasLangCert) {
+    const detailed = extractCertificateDetails(payload);
+    if (Array.isArray(detailed) && detailed.length > 0) {
+      detailed.forEach((row) => {
+        const url = String(row?.url || "").trim();
+        const type = String(row?.type || "").trim();
+        if (!url || !type) return;
+        add(`attachments.languageCertificates.byType.${safeKey(type)}`, 1);
+      });
+    }
+  }
 
   const sprachen = payload?.faehigkeiten?.sprachen || {};
   if (sprachen && typeof sprachen === "object") {
@@ -672,6 +740,7 @@ function computeStatsSnapshotFromExistingData() {
       languageCertificates: {
         filesTotal: 0,
         candidates: { has: 0, none: 0 },
+        byType: {},
       },
     },
     skills: {
@@ -682,6 +751,10 @@ function computeStatsSnapshotFromExistingData() {
     },
     meta: { rebuiltAt: Date.now(), countersVersion: 1 },
   };
+
+  // Lead tracking (optional)
+  stats.totals.byLead = {};
+  stats.totals.byMajorLead = {};
 
   return { stats };
 }
@@ -714,8 +787,22 @@ export async function rebuildStatsDocsFromExistingData(
       stats.totals.candidates += docs.length;
       stats.totals.byMajor[major] =
         (stats.totals.byMajor[major] || 0) + docs.length;
+      stats.totals.byMajorLead[major] = stats.totals.byMajorLead[major] || {};
 
       docs.forEach((payload) => {
+        // Lead
+        const leadRaw =
+          payload?.lead ??
+          payload?.tracking?.lead ??
+          payload?.meta?.lead ??
+          payload?.source?.lead;
+        const leadKey = safeKey(leadRaw, "");
+        if (leadKey) {
+          stats.totals.byLead[leadKey] = (stats.totals.byLead[leadKey] || 0) + 1;
+          stats.totals.byMajorLead[major][leadKey] =
+            (stats.totals.byMajorLead[major][leadKey] || 0) + 1;
+        }
+
         // Gender
         const g = normalizeGender(payload?.persoenlicheDaten?.geschlecht);
         stats.demographics.gender[g] = (stats.demographics.gender[g] || 0) + 1;
@@ -803,6 +890,19 @@ export async function rebuildStatsDocsFromExistingData(
         stats.attachments.languageCertificates.candidates[
           hasLangCert ? "has" : "none"
         ] += 1;
+        if (hasLangCert) {
+          const detailed = extractCertificateDetails(payload);
+          if (Array.isArray(detailed) && detailed.length > 0) {
+            detailed.forEach((row) => {
+              const url = String(row?.url || "").trim();
+              const type = String(row?.type || "").trim();
+              if (!url || !type) return;
+              const k = safeKey(type);
+              stats.attachments.languageCertificates.byType[k] =
+                (stats.attachments.languageCertificates.byType[k] || 0) + 1;
+            });
+          }
+        }
 
         // Skills
         const sprachen = payload?.faehigkeiten?.sprachen || {};

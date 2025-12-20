@@ -290,10 +290,11 @@ export const CvPdfDocument = ({
     : childrenCount
     ? childrenCount
     : "—";
+  const hasDrivingLicense = Boolean(personal.hasDrivingLicense);
   const drivingType = String(personal.drivingLicenseType || "")
     .trim()
     .toUpperCase();
-  const drivingText = Boolean(personal.hasDrivingLicense)
+  const drivingText = hasDrivingLicense
     ? drivingType
       ? `Ja (${drivingType})`
       : "Ja"
@@ -347,10 +348,6 @@ export const CvPdfDocument = ({
                 <View style={pdfStyles.row}>
                   <Text style={pdfStyles.label}>Kinder</Text>
                   <Text style={pdfStyles.value}>{childrenText}</Text>
-                </View>
-                <View style={pdfStyles.row}>
-                  <Text style={pdfStyles.label}>Führerschein</Text>
-                  <Text style={pdfStyles.value}>{drivingText}</Text>
                 </View>
                 <View style={pdfStyles.row}>
                   <Text style={pdfStyles.label}>Tel</Text>
@@ -437,10 +434,23 @@ export const CvPdfDocument = ({
 
         {(Array.isArray(skills.softSkills) && skills.softSkills.length > 0) ||
         (Array.isArray(skills.pcSkills) && skills.pcSkills.length > 0) ||
-        languagesEntries.length > 0 ? (
+        languagesEntries.length > 0 ||
+        hasDrivingLicense ? (
           <>
             <Text style={pdfStyles.sectionTitle}>Kenntnisse & Fähigkeiten</Text>
             <View style={{ gap: 12 }}>
+              {hasDrivingLicense ? (
+                <View style={{ gap: 4 }}>
+                  <Text style={{ fontWeight: "bold" }}>Führerschein</Text>
+                  <View style={{ gap: 3 }}>
+                    <View style={pdfStyles.bulletRow}>
+                      <Text>•</Text>
+                      <Text>{drivingText}</Text>
+                    </View>
+                  </View>
+                </View>
+              ) : null}
+
               {Array.isArray(skills.softSkills) &&
               skills.softSkills.length > 0 ? (
                 <View style={{ gap: 4 }}>
@@ -491,10 +501,33 @@ export const CvPdfDocument = ({
 
         {showDocuments &&
           (documents?.diplomas?.length > 0 ||
-            documents?.certificates?.length > 0) && (
+            documents?.certificates?.length > 0 ||
+            documents?.passport?.length > 0) && (
             <>
               <Text style={pdfStyles.sectionTitle}>Dokumente</Text>
               <View style={{ gap: 8 }}>
+                {documents.passport?.length > 0 && (
+                  <View style={{ gap: 2 }}>
+                    <Text style={{ fontWeight: "bold", fontSize: 10 }}>
+                      Reisepass
+                    </Text>
+                    {documents.passport.map((url, i) => (
+                      <View key={i} style={pdfStyles.bulletRow}>
+                        <Text>•</Text>
+                        <PdfLink
+                          src={url}
+                          style={{
+                            fontSize: 10,
+                            color: "#2563eb",
+                            textDecoration: "none",
+                          }}
+                        >
+                          {url}
+                        </PdfLink>
+                      </View>
+                    ))}
+                  </View>
+                )}
                 {documents.diplomas?.length > 0 && (
                   <View style={{ gap: 2 }}>
                     <Text style={{ fontWeight: "bold", fontSize: 10 }}>
