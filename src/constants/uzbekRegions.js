@@ -1,0 +1,15 @@
+export const UZBEK_REGIONS = [
+  "Andijan Region",
+  "Bukhara Region",
+  "Fergana Region",
+  "Jizzakh Region",
+  "Namangan Region",
+  "Navoi Region",
+  "Kashkadarya Region",
+  "Samarkand Region",
+  "Syrdarya Region",
+  "Surkhandarya Region",
+  "Tashkent Region",
+  "Khorezm Region",
+];
+

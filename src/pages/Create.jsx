@@ -3,7 +3,13 @@ import { useSearchParams } from "react-router-dom";
 import { useForm, Controller } from "react-hook-form";
 import toast from "react-hot-toast";
 import ReCAPTCHA from "react-google-recaptcha";
-import { FaPaperPlane, FaTelegramPlane, FaVideo } from "react-icons/fa";
+import {
+  FaGlobe,
+  FaPaperPlane,
+  FaTelegramPlane,
+  FaVideo,
+  FaChevronRight,
+} from "react-icons/fa";
 import FormInput from "../components/FormInput";
 import ExperienceSection from "../components/ExperienceSection";
 import EducationSection from "../components/EducationSection";
@@ -21,13 +27,14 @@ import {
   uploadFilesToConsulting,
   checkEmailRemote,
   registerEmailRemote,
-  addCandidateWithDualStats,
   getMetaByName,
 } from "../utils";
 import {
   CANDIDATE_STATUS_DEFAULT,
   candidateStatusMap,
 } from "../constants/candidateStatus";
+import { UZBEK_REGIONS } from "../constants/uzbekRegions";
+import { LANGUAGE_OPTIONS } from "../constants/languageOptions";
 import PrivacyModal from "./create/components/modals/PrivacyModal";
 import GuideModal from "./create/components/modals/GuideModal";
 import ExistingEmailModal from "./create/components/modals/ExistingEmailModal";
@@ -35,6 +42,16 @@ import ExistingEmailModal from "./create/components/modals/ExistingEmailModal";
 function Create() {
   const MAX_PDF_BYTES = 2 * 1024 * 1024; // 2MB per file
   const MAX_PHOTO_BYTES = 250 * 1024; // 250KB per file
+  const LANG_CERT_TYPES = useMemo(
+    () => [
+      "DAF Sprachzentrum Zertifikat",
+      "Goethe-Zertifikat",
+      "TestDaF",
+      "telc Deutsch",
+      "ÖSD",
+    ],
+    []
+  );
   const DRIVING_LICENSE_OPTIONS = useMemo(
     () => [
       "AM",
@@ -100,12 +117,16 @@ function Create() {
   const [searchParams] = useSearchParams();
   const [diplomaFiles, setDiplomaFiles] = useState([]);
   const [langCertFiles, setLangCertFiles] = useState([]);
+  const [passportFiles, setPassportFiles] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [diplomaError, setDiplomaError] = useState(false);
   const [diplomaSizeError, setDiplomaSizeError] = useState(false);
+  const [langCertError, setLangCertError] = useState(false);
   const [langCertSizeError, setLangCertSizeError] = useState(false);
+  const [langCertTypeError, setLangCertTypeError] = useState(false);
+  const [passportError, setPassportError] = useState(false);
+  const [passportSizeError, setPassportSizeError] = useState(false);
   const [photoSizeError, setPhotoSizeError] = useState(false);
-  const [noLangCert, setNoLangCert] = useState(false);
   const [captchaToken, setCaptchaToken] = useState(null);
   const [showEducationWarning, setShowEducationWarning] = useState(false);
   const [showExperienceWarning, setShowExperienceWarning] = useState(false);
@@ -116,6 +137,9 @@ function Create() {
   const [isDrivingLicenseDropdownOpen, setIsDrivingLicenseDropdownOpen] =
     useState(false);
   const drivingLicenseDropdownRef = useRef(null);
+  const [isLinkBlocked, setIsLinkBlocked] = useState(false);
+  const [blockedLinkTitle, setBlockedLinkTitle] = useState("");
+  const [leadValue, setLeadValue] = useState("");
   const [majorInfo, setMajorInfo] = useState({
     collectionName: "",
     title: "",
@@ -143,10 +167,15 @@ function Create() {
 
   useEffect(() => {
     const key = String(searchParams.get("major") || "").trim();
+    const leadParam = String(searchParams.get("lead") || "").trim();
     let cancelled = false;
     setMajorLoading(true);
     (async () => {
       try {
+        // Reset link access state when major changes
+        setIsLinkBlocked(false);
+        setBlockedLinkTitle("");
+        setLeadValue(leadParam);
         if (!key) {
           setMajorInfo({
             collectionName: "",
@@ -159,6 +188,36 @@ function Create() {
         const meta = await getMetaByName(key);
         if (cancelled) return;
         if (meta) {
+          const isActive = meta?.linkActive !== false; // default active
+          if (!isActive) {
+            setIsLinkBlocked(true);
+            setBlockedLinkTitle(String(meta?.title || meta?.collectionName || key));
+          }
+
+          // Lead validation (optional)
+          if (leadParam) {
+            const leadsGloballyActive = meta?.leadLinksActive !== false;
+            const list = Array.isArray(meta?.leadLinks) ? meta.leadLinks : [];
+            const match = list.find((l) => {
+              const n = String(l?.name || "").trim();
+              const id = String(l?.id || l?.key || "").trim();
+              return n === leadParam || id === leadParam;
+            });
+            const leadActive = match ? match?.active !== false : false;
+            if (!leadsGloballyActive) {
+              setIsLinkBlocked(true);
+              setBlockedLinkTitle(
+                `Lead linklar vaqtincha o‘chirilgan (${meta?.title || meta?.collectionName || key})`
+              );
+            } else if (!match) {
+              setIsLinkBlocked(true);
+              setBlockedLinkTitle(`Lead topilmadi: ${leadParam}`);
+            } else if (!leadActive) {
+              setIsLinkBlocked(true);
+              setBlockedLinkTitle(`Lead link aktiv emas: ${leadParam}`);
+            }
+          }
+
           const isUuidMatch = key === (meta.linkId || meta.uuid || meta.id);
           const shouldShowTitle =
             isUuidMatch &&
@@ -179,7 +238,7 @@ function Create() {
             showTitle: false,
           });
         }
-      } catch (e) {
+      } catch {
         if (!cancelled) {
           setMajorInfo({
             collectionName: key,
@@ -223,6 +282,27 @@ function Create() {
       if (f instanceof File) map.set(uniqueKey(f), f);
     });
     return Array.from(map.values());
+  }
+
+  function mergeLangCertItems(existing, incomingFiles) {
+    const map = new Map();
+    (existing || []).forEach((item) => {
+      const file = item?.file || item;
+      const key = uniqueKey(file);
+      map.set(key, { file, type: item?.type || "" });
+    });
+    (incomingFiles || []).forEach((f) => {
+      if (!(f instanceof File)) return;
+      const key = uniqueKey(f);
+      if (!map.has(key)) {
+        map.set(key, { file: f, type: "" });
+      }
+    });
+    return Array.from(map.values());
+  }
+
+  function removeLangCertAt(items, idx) {
+    return (items || []).filter((_, i) => i !== idx);
   }
 
   function removeFileAt(files, idx) {
@@ -284,16 +364,27 @@ function Create() {
   }
 
   const TELEGRAM_SUPPORT_URL = "https://t.me/consultinguz_kundensupport";
+  const SUBMIT_ENDPOINT =
+    import.meta.env.VITE_SUBMIT_CANDIDATE_URL ||
+    import.meta.env.VITE_FUNCTIONS_BASE &&
+      `${import.meta.env.VITE_FUNCTIONS_BASE}/submitCandidate`;
   // Phone/Country dropdown options come from `src/utils/const.js` via components
 
   useEffect(() => {
+    // Submission state should be tracked per-major, otherwise a candidate
+    // can't submit again for a different major.
+    const majorCollection = String(majorInfo?.collectionName || "").trim();
+    if (!majorCollection) {
+      setIsSubmitted(false);
+      return;
+    }
     try {
-      const v = localStorage.getItem("createCvSubmitted");
-      if (v === "true") setIsSubmitted(true);
+      const v = localStorage.getItem(`createCvSubmitted:${majorCollection}`);
+      setIsSubmitted(v === "true");
     } catch {
       // ignore storage errors
     }
-  }, []);
+  }, [majorInfo?.collectionName]);
 
   useEffect(() => {
     function onKeyDown(e) {
@@ -520,18 +611,20 @@ function Create() {
       }
       return Boolean(cur);
     };
-    const firstPath = requiredOrder.find((p) => hasErrAt(p));
-    if (firstPath) {
-      const label = labelMap[firstPath] || firstPath;
-      toast.error(`Bitte füllen Sie „${label}“ aus.`);
+    const missing = requiredOrder.filter((p) => hasErrAt(p));
+    if (missing.length) {
+      const labels = missing.map((p) => labelMap[p] || p).join(", ");
+      toast.error(`Bitte füllen Sie folgende Pflichtfelder aus: ${labels}.`);
+      // Fokus weiterhin auf das erste fehlende Feld setzen, damit der Nutzer direkt starten kann.
+      const firstPath = missing[0];
       try {
         setFocus(firstPath);
       } catch {
         // ignore focus errors
       }
-    } else {
-      toast.error("Bitte füllen Sie alle Pflichtfelder aus.");
+      return;
     }
+    toast.error("Bitte füllen Sie alle Pflichtfelder aus.");
   }
 
   function removeExperience(idx) {
@@ -716,14 +809,26 @@ function Create() {
     // Start loading immediately to reflect click action without delay
     setIsUploading(true);
     try {
+      const blockingErrors = [];
+      const errorLabels = {
+        captcha: "reCAPTCHA",
+        majorLoading: "Berufsfeld lädt",
+        education: "Ausbildung",
+        experience: "Berufserfahrung",
+        language: "Sprache",
+        diploma: "Diplom/Zeugnis",
+        langCert: "Sprachzertifikat",
+        langCertType: "Zertifikat-Typ",
+        passport: "Reisepass/ID",
+        major: "?major=",
+      };
+
       if (!captchaToken) {
-        toast.error("Bitte bestätigen Sie, dass Sie kein Roboter sind.");
-        return;
+        blockingErrors.push("captcha");
       }
 
       if (majorLoading) {
-        toast.error("Berufsfeld wird geladen, bitte warten.");
-        return;
+        blockingErrors.push("majorLoading");
       }
 
       const hasEducation =
@@ -733,10 +838,7 @@ function Create() {
       if (!hasEducation) {
         setShowEducationWarning(true);
         setEducationErrors(getEducationErrors(cv.education));
-        toast.error(
-          "Bitte fügen Sie mindestens eine vollständige Ausbildungsstation hinzu (mindestens Schule) und füllen Sie alle Felder aus."
-        );
-        return;
+        blockingErrors.push("education");
       }
 
       const hasIncompleteExperience =
@@ -745,10 +847,7 @@ function Create() {
       if (hasIncompleteExperience) {
         setShowExperienceWarning(true);
         setExperienceErrors(getExperienceErrors(cv.experience));
-        toast.error(
-          "Bitte füllen Sie alle Felder in jeder Berufserfahrung aus oder entfernen Sie unvollständige Einträge."
-        );
-        return;
+        blockingErrors.push("experience");
       }
 
       const rows =
@@ -760,20 +859,53 @@ function Create() {
       if (!hasLanguages) {
         setShowLanguageWarning(true);
         setLanguageErrors(getLanguageErrors(rows));
-        toast.error(
-          "Bitte fügen Sie mindestens eine Sprache mit Niveau hinzu."
-        );
-        return;
+        blockingErrors.push("language");
       }
 
       if (!Array.isArray(diplomaFiles) || diplomaFiles.length === 0) {
         setDiplomaError(true);
-        toast.error(
-          "Bitte laden Sie mindestens ein Diplom/Schulzeugnis als PDF hoch."
-        );
-        return;
+        blockingErrors.push("diploma");
       } else {
         setDiplomaError(false);
+      }
+
+      if (!Array.isArray(langCertFiles) || langCertFiles.length === 0) {
+        setLangCertError(true);
+        blockingErrors.push("langCert");
+      } else {
+        setLangCertError(false);
+      }
+
+      const hasMissingLangType = langCertFiles.some(
+        (item) => !String(item?.type || "").trim()
+      );
+      if (hasMissingLangType) {
+        setLangCertTypeError(true);
+        blockingErrors.push("langCertType");
+      } else {
+        setLangCertTypeError(false);
+      }
+
+      if (!Array.isArray(passportFiles) || passportFiles.length === 0) {
+        setPassportError(true);
+        blockingErrors.push("passport");
+      } else {
+        setPassportError(false);
+      }
+
+      const majorCollection = String(majorInfo?.collectionName || "").trim();
+      if (!majorCollection) {
+        blockingErrors.push("major");
+      }
+
+      if (blockingErrors.length) {
+        const maxItems = 6;
+        const shown = blockingErrors.slice(0, maxItems);
+        const list = shown.map((key) => errorLabels[key] || key).join(", ");
+        const remaining = blockingErrors.length - shown.length;
+        const suffix = remaining > 0 ? `, +${remaining}` : "";
+        toast.error(`Fehlend: ${list}${suffix}`);
+        return;
       }
 
       const final = {
@@ -811,7 +943,11 @@ function Create() {
                   .map((s) => s.trim())
                   .filter(Boolean);
             return types
-              .map((t) => String(t || "").trim().toUpperCase())
+              .map((t) =>
+                String(t || "")
+                  .trim()
+                  .toUpperCase()
+              )
               .filter(Boolean)
               .join(", ");
           })(),
@@ -846,12 +982,6 @@ function Create() {
         },
       };
 
-      const majorCollection = String(majorInfo?.collectionName || "").trim();
-      if (!majorCollection) {
-        toast.error("Der URL-Parameter ?major= fehlt oder ist leer.");
-        return;
-      }
-
       const email = (formData.personalInfo.email || "").trim();
       try {
         const { exists, data } = await checkEmailRemote(email);
@@ -871,20 +1001,36 @@ function Create() {
 
       try {
         // Upload files first and attach URLs (language certificates optional)
-        const [diplomaUrls, langUrls] = await Promise.all([
+        const [diplomaUrls, langUrls, passportUrls] = await Promise.all([
           uploadFilesToConsulting(diplomaFiles),
-          noLangCert
-            ? Promise.resolve([])
-            : uploadFilesToConsulting(langCertFiles),
+          uploadFilesToConsulting(langCertFiles.map((item) => item?.file)),
+          uploadFilesToConsulting(passportFiles),
         ]);
+
+        const langCertTypes = langCertFiles.map((item) => item?.type || "");
+        const langCertDetailed = (langUrls || []).map((url, idx) => ({
+          url,
+          type: langCertTypes[idx] || "",
+        }));
 
         const payload = {
           ...lebenslauf,
+          // Tracking: optional lead param from URL (/create?major=...&lead=...)
+          lead: String(leadValue || "").trim(),
           attachments: {
             diplomas: diplomaUrls || [],
             languageCertificates: langUrls || [],
-            noLanguageCertificate: Boolean(noLangCert),
+            languageCertificatesDetailed: langCertDetailed,
+            passport: passportUrls?.[0] || null,
+            passports: passportUrls || [],
           },
+          documents: {
+            diplomas: diplomaUrls || [],
+            certificates: langUrls || [],
+            certificatesDetailed: langCertDetailed,
+            passport: passportUrls || [],
+          },
+          languageCertificatesDetailed: langCertDetailed,
           status: {
             value: CANDIDATE_STATUS_DEFAULT,
             label: candidateStatusMap[CANDIDATE_STATUS_DEFAULT].label,
@@ -894,13 +1040,36 @@ function Create() {
           createdAt: Date.now(),
         };
 
-        await addCandidateWithDualStats(majorCollection, payload, {
-          majorLabel: majorInfo?.title || majorCollection,
+        // Submit via Cloud Function to enforce link/lead checks server-side
+        if (!SUBMIT_ENDPOINT) {
+          throw new Error(
+            "SUBMIT_CANDIDATE_URL is not configured (VITE_SUBMIT_CANDIDATE_URL)"
+          );
+        }
+        const res = await fetch(SUBMIT_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            major: majorCollection,
+            payload,
+            recaptchaToken: captchaToken,
+          }),
         });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || !json?.ok) {
+          const errMsg =
+            json?.error ||
+            json?.details ||
+            `Submit failed (${res.status || ""})`;
+          throw new Error(errMsg);
+        }
+
         await registerEmailRemote(email, majorCollection);
         toast.success("Daten erfolgreich gesendet!");
         try {
-          localStorage.setItem("createCvSubmitted", "true");
+          localStorage.setItem(`createCvSubmitted:${majorCollection}`, "true");
+          // legacy key cleanup (avoid cross-major false positives)
+          localStorage.removeItem("createCvSubmitted");
         } catch {
           // ignore storage errors
         }
@@ -912,6 +1081,28 @@ function Create() {
     } finally {
       setIsUploading(false);
     }
+  }
+
+  if (isLinkBlocked) {
+    return (
+      <div className="min-h-screen bg-base-200">
+        <div className="max-w-3xl mx-auto min-h-screen grid place-items-center p-4">
+          <div className="card bg-base-100 shadow w-full max-w-lg">
+            <div className="card-body items-center text-center">
+              <h2 className="text-2xl font-bold">Link aktiv emas</h2>
+              <p className="opacity-80">
+                {blockedLinkTitle
+                  ? `“${blockedLinkTitle}” uchun forma vaqtincha o‘chirilgan.`
+                  : "Bu forma vaqtincha o‘chirilgan."}
+              </p>
+              <p className="text-sm opacity-70">
+                Iltimos, sizga link bergan admin bilan bog‘laning.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -952,6 +1143,61 @@ function Create() {
                   Vielen Dank, dass Sie die Informationen auf Deutsch ausgefüllt
                   haben.
                 </p>
+                <div className="w-full max-w-md pt-4">
+                  <div className="rounded-2xl border border-base-300 bg-base-100 p-4 text-left shadow-sm">
+                    <div className="text-center">
+                      <div className="text-sm font-semibold leading-tight">
+                        Empfehlung:{" "}
+                        <span className="text-base-content">
+                          DaF Sprachzentrum
+                        </span>
+                      </div>
+                      <div className="mt-1 text-sm text-base-content/70">
+                        Unsere Deutschkurse in ganz Usbekistan.
+                      </div>
+                    </div>
+
+                    <div className="mt-4 space-y-2">
+                      <a
+                        href="https://www.dafzentrum.uz"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group flex items-center gap-3 rounded-xl border border-base-300 bg-base-100 px-4 py-3 hover:bg-base-200/60"
+                        aria-label="DaF Sprachzentrum Website öffnen"
+                      >
+                        <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          <FaGlobe className="text-base" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-semibold">Website</div>
+                          <div className="text-xs text-base-content/60 truncate">
+                            dafzentrum.uz
+                          </div>
+                        </div>
+                        <FaChevronRight className="text-sm opacity-50 group-hover:opacity-80" />
+                      </a>
+
+                      <a
+                        href="https://t.me/dafsprachzentrum"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group flex items-center gap-3 rounded-xl border border-base-300 bg-base-100 px-4 py-3 hover:bg-base-200/60"
+                        aria-label="DaF Sprachzentrum Telegram-Kanal öffnen"
+                      >
+                        <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#229ED9]/10 text-[#229ED9]">
+                          <FaTelegramPlane className="text-base" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-semibold">Telegram</div>
+                          <div className="text-xs text-base-content/60 truncate">
+                            @dafsprachzentrum
+                          </div>
+                        </div>
+                        <FaChevronRight className="text-sm opacity-50 group-hover:opacity-80" />
+                      </a>
+                    </div>
+                  </div>
+                </div>
               </div>
             ) : (
               <>
@@ -975,7 +1221,7 @@ function Create() {
                       control={control}
                       name="personalInfo.name"
                       rules={{ required: "Vorname ist erforderlich" }}
-                      render={({ field, fieldState }) => (
+                      render={({ field }) => (
                         <FormInput
                           label={<RequiredLabel>Vorname</RequiredLabel>}
                           placeholder="Vorname"
@@ -993,7 +1239,7 @@ function Create() {
                       control={control}
                       name="personalInfo.lastName"
                       rules={{ required: "Nachname ist erforderlich" }}
-                      render={({ field, fieldState }) => (
+                      render={({ field }) => (
                         <FormInput
                           label={<RequiredLabel>Nachname</RequiredLabel>}
                           placeholder="Nachname"
@@ -1048,7 +1294,7 @@ function Create() {
                         control={control}
                         name="personalInfo.birthDate"
                         rules={{ required: "Geburtsdatum ist erforderlich" }}
-                        render={({ field, fieldState }) => (
+                        render={({ field }) => (
                           <>
                             <label
                               className="label"
@@ -1086,25 +1332,40 @@ function Create() {
                           required: "Geburtsort ist erforderlich",
                         }}
                         render={({ field }) => (
-                          <FormInput
-                            label={<RequiredLabel>Geburtsort</RequiredLabel>}
-                            placeholder="z.B. Taschkent"
-                            inputClassName={
-                              errors?.personalInfo?.birthPlace
-                                ? "input-error"
-                                : ""
-                            }
-                            aria-invalid={
-                              errors?.personalInfo?.birthPlace ? "true" : "false"
-                            }
-                            {...field}
-                            onChange={(e) =>
-                              field.onChange(String(e.target.value || ""))
-                            }
-                            onBlur={(e) =>
-                              field.onChange(String(e.target.value || "").trim())
-                            }
-                          />
+                          <>
+                            <label
+                              className="label"
+                              htmlFor="personalInfo-birthPlace"
+                            >
+                              <RequiredLabel className="label-text">
+                                Geburtsort
+                              </RequiredLabel>
+                            </label>
+                            <select
+                              id="personalInfo-birthPlace"
+                              className={`select select-bordered w-full ${
+                                errors?.personalInfo?.birthPlace
+                                  ? "select-error"
+                                  : ""
+                              }`}
+                              aria-invalid={
+                                errors?.personalInfo?.birthPlace
+                                  ? "true"
+                                  : "false"
+                              }
+                              value={field.value || ""}
+                              onChange={(e) =>
+                                field.onChange(String(e.target.value || ""))
+                              }
+                            >
+                              <option value="">Bitte auswählen</option>
+                              {UZBEK_REGIONS.map((region) => (
+                                <option key={region} value={region}>
+                                  {region}
+                                </option>
+                              ))}
+                            </select>
+                          </>
                         )}
                       />
                       {errors?.personalInfo?.birthPlace ? (
@@ -1118,7 +1379,7 @@ function Create() {
                         control={control}
                         name="personalInfo.maritalStatus"
                         rules={{ required: "Bitte Familienstand auswählen" }}
-                        render={({ field, fieldState }) => (
+                        render={({ field }) => (
                           <>
                             <label
                               className="label"
@@ -1286,7 +1547,7 @@ function Create() {
                             message: "Bitte gültige E-Mail eingeben",
                           },
                         }}
-                        render={({ field, fieldState }) => (
+                        render={({ field }) => (
                           <FormInput
                             label={<RequiredLabel>E-Mail</RequiredLabel>}
                             placeholder="E-Mail"
@@ -1492,13 +1753,11 @@ function Create() {
                                 Ort
                               </RequiredLabel>
                             </label>
-                            <input
+                            <select
                               id="personalInfo-addressCity"
-                              type="text"
-                              placeholder="z.B. Berlin"
-                              className={`input input-bordered w-full ${
+                              className={`select select-bordered w-full ${
                                 errors?.personalInfo?.addressCity
-                                  ? "input-error"
+                                  ? "select-error"
                                   : ""
                               }`}
                               aria-invalid={
@@ -1510,7 +1769,14 @@ function Create() {
                                 required: "Ort ist erforderlich",
                                 setValueAs: (v) => String(v || "").trim(),
                               })}
-                            />
+                            >
+                              <option value="">Bitte auswählen</option>
+                              {UZBEK_REGIONS.map((region) => (
+                                <option key={region} value={region}>
+                                  {region}
+                                </option>
+                              ))}
+                            </select>
                             {errors?.personalInfo?.addressCity ? (
                               <p className="text-error text-sm mt-1">
                                 {errors.personalInfo.addressCity.message}
@@ -1600,6 +1866,7 @@ function Create() {
                     onRemoveRow={removeLanguageRow}
                     showRequiredWarning={showLanguageWarning}
                     errors={languageErrors}
+                    languageOptions={LANGUAGE_OPTIONS}
                   />
 
                   <div className="divider">Führerschein</div>
@@ -1628,14 +1895,10 @@ function Create() {
                               }
                             );
                             if (!checked) {
-                              setValue(
-                                "personalInfo.drivingLicenseType",
-                                [],
-                                {
-                                  shouldDirty: true,
-                                  shouldValidate: true,
-                                }
-                              );
+                              setValue("personalInfo.drivingLicenseType", [], {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              });
                             }
                           }}
                           checked={Boolean(
@@ -1684,7 +1947,9 @@ function Create() {
                                   .toUpperCase();
                                 const set = new Set(
                                   selected.map((s) =>
-                                    String(s || "").trim().toUpperCase()
+                                    String(s || "")
+                                      .trim()
+                                      .toUpperCase()
                                   )
                                 );
                                 if (set.has(normalized)) {
@@ -1725,9 +1990,7 @@ function Create() {
                                     aria-haspopup="listbox"
                                     aria-expanded={isDrivingLicenseDropdownOpen}
                                     onClick={() =>
-                                      setIsDrivingLicenseDropdownOpen(
-                                        (p) => !p
-                                      )
+                                      setIsDrivingLicenseDropdownOpen((p) => !p)
                                     }
                                   >
                                     <span
@@ -1745,7 +2008,7 @@ function Create() {
                                   </button>
 
                                   <ul
-                                    className="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-full mt-1 max-h-72 overflow-auto z-[60]"
+                                    className="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-full mt-1 max-h-72 overflow-auto z-60"
                                     role="listbox"
                                     aria-multiselectable="true"
                                   >
@@ -1794,6 +2057,312 @@ function Create() {
 
                   <div className="divider">Dokumente</div>
                   <div className="grid grid-cols-1 gap-4">
+                    {/* Passport first (required) */}
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="label" htmlFor="doc-passport">
+                          <RequiredLabel className="label-text">
+                            Reisepass (PDF)
+                          </RequiredLabel>
+                        </label>
+                        {Array.isArray(passportFiles) &&
+                        passportFiles.length > 0 ? (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-xs"
+                            onClick={() => setPassportFiles([])}
+                          >
+                            Alle entfernen
+                          </button>
+                        ) : null}
+                      </div>
+                      <p className="text-xs text-base-content/70 mb-2">
+                        Falls kein Reisepass vorhanden ist, bitte
+                        Personalausweis oder nationalen Pass (ID Card) als PDF
+                        hochladen. Maximal 2 MB.
+                      </p>
+                      <input
+                        id="doc-passport"
+                        type="file"
+                        accept=".pdf,application/pdf"
+                        className={`file-input file-input-bordered w-full ${
+                          passportError || passportSizeError
+                            ? "file-input-error"
+                            : ""
+                        }`}
+                        aria-invalid={
+                          passportError || passportSizeError ? "true" : "false"
+                        }
+                        onChange={(e) => {
+                          const raw = Array.from(e.target.files || []);
+                          const pdfs = raw.filter(
+                            (f) =>
+                              String(f.type).toLowerCase() ===
+                                "application/pdf" ||
+                              /\.pdf$/i.test(String(f.name || ""))
+                          );
+                          const sized = pdfs.filter(
+                            (f) => (f?.size || 0) <= MAX_PDF_BYTES
+                          );
+                          const tooBig = pdfs.length - sized.length;
+                          const invalid = raw.length - pdfs.length;
+                          if (invalid > 0) {
+                            toast.error("Nur PDF-Dateien sind erlaubt.");
+                          }
+                          if (tooBig > 0) {
+                            toast.error(
+                              "PDF-Datei darf maximal 2 MB groß sein."
+                            );
+                            setPassportSizeError(true);
+                          } else {
+                            setPassportSizeError(false);
+                          }
+                          if (pdfs.length > 0) {
+                            setPassportError(false);
+                          }
+                          setPassportFiles(sized.slice(0, 1));
+                          e.target.value = "";
+                        }}
+                      />
+                      {passportError ? (
+                        <p className="text-error text-sm mt-1">
+                          Reisepass oder Ausweis (PDF) erforderlich.
+                        </p>
+                      ) : null}
+                      {passportSizeError ? (
+                        <p className="text-error text-sm mt-1">
+                          Datei &gt; 2 MB. Komprimieren:{" "}
+                          <a
+                            className="link link-primary"
+                            href="https://www.ilovepdf.com/compress_pdf"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            iLovePDF
+                          </a>
+                        </p>
+                      ) : null}
+                      {Array.isArray(passportFiles) &&
+                      passportFiles.length > 0 ? (
+                        <div className="mt-2">
+                          <div className="text-xs opacity-70 mb-1">Nur PDF</div>
+                          <ul className="space-y-2">
+                            {passportFiles.map((f) => (
+                              <li
+                                key={uniqueKey(f)}
+                                className="flex items-center justify-between gap-2 rounded-box border border-base-300 px-3 py-2"
+                              >
+                                <div className="min-w-0">
+                                  <div className="truncate font-medium">
+                                    {f.name}
+                                  </div>
+                                  <div className="text-xs opacity-70">
+                                    {(f.size / 1024).toFixed(1)} KB
+                                  </div>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="btn btn-ghost btn-xs"
+                                  onClick={() => setPassportFiles([])}
+                                  aria-label="Entfernen"
+                                >
+                                  ✕
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {/* Language certificates (required) */}
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <label className="label" htmlFor="doc-langcerts">
+                          <RequiredLabel className="label-text">
+                            Sprachzertifikate (mehrere möglich)
+                          </RequiredLabel>
+                        </label>
+                        {Array.isArray(langCertFiles) &&
+                        langCertFiles.length > 0 ? (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-xs"
+                            onClick={() => setLangCertFiles([])}
+                          >
+                            Alle entfernen
+                          </button>
+                        ) : null}
+                      </div>
+                      <p className="text-xs text-base-content/70 mb-2">
+                        Pflicht: Laden Sie mindestens ein Sprachzertifikat als
+                        PDF hoch.
+                      </p>
+                      <p className="text-xs text-base-content/70 mb-2">
+                        Maximal 2 MB pro Datei.
+                      </p>
+                      <input
+                        id="doc-langcerts"
+                        type="file"
+                        multiple
+                        accept=".pdf,application/pdf"
+                        className={`file-input file-input-bordered w-full ${
+                          langCertError || langCertSizeError
+                            ? "file-input-error"
+                            : ""
+                        }`}
+                        aria-invalid={
+                          langCertError || langCertSizeError ? "true" : "false"
+                        }
+                        onChange={(e) => {
+                          const raw = Array.from(e.target.files || []);
+                          const pdfs = raw.filter(
+                            (f) =>
+                              String(f.type).toLowerCase() ===
+                                "application/pdf" ||
+                              /\.pdf$/i.test(String(f.name || ""))
+                          );
+                          const sized = pdfs.filter(
+                            (f) => (f?.size || 0) <= MAX_PDF_BYTES
+                          );
+                          const tooBig = pdfs.length - sized.length;
+                          const invalid = raw.length - pdfs.length;
+                          if (invalid > 0) {
+                            toast.error("Nur PDF-Dateien sind erlaubt.");
+                          }
+                          if (tooBig > 0) {
+                            toast.error(
+                              "PDF-Datei darf maximal 2 MB groß sein."
+                            );
+                            setLangCertSizeError(true);
+                          } else {
+                            setLangCertSizeError(false);
+                          }
+                          if (pdfs.length > 0) {
+                            setLangCertError(false);
+                          }
+                          setLangCertFiles((prev) =>
+                            mergeLangCertItems(prev, sized)
+                          );
+                          e.target.value = "";
+                        }}
+                      />
+                      {langCertError ? (
+                        <p className="text-error text-sm mt-1">
+                          Mindestens ein Sprachzertifikat (PDF) erforderlich.
+                        </p>
+                      ) : null}
+                      {langCertSizeError ? (
+                        <p className="text-error text-sm mt-1">
+                          Datei &gt; 2 MB. Komprimieren:{" "}
+                          <a
+                            className="link link-primary"
+                            href="https://www.ilovepdf.com/compress_pdf"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            iLovePDF
+                          </a>
+                        </p>
+                      ) : null}
+                      {Array.isArray(langCertFiles) &&
+                      langCertFiles.length > 0 ? (
+                        <div className="mt-2">
+                          <div className="text-xs opacity-70 mb-1">Nur PDF</div>
+                          <ul className="space-y-2">
+                            {langCertFiles.map((item, i) => {
+                              const file = item?.file || item;
+                              return (
+                                <li
+                                  key={uniqueKey(file)}
+                                  className="flex flex-col gap-2 rounded-box border border-base-300 px-3 py-2"
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="min-w-0">
+                                      <div className="truncate font-medium">
+                                        {file.name}
+                                      </div>
+                                      <div className="text-xs opacity-70">
+                                        {(file.size / 1024).toFixed(1)} KB
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      className="btn btn-ghost btn-xs"
+                                      onClick={() =>
+                                        setLangCertFiles((prev) =>
+                                          removeLangCertAt(prev, i)
+                                        )
+                                      }
+                                      aria-label="Entfernen"
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                  <div className="grid sm:grid-cols-2 gap-2 items-center">
+                                    <label
+                                      className="label py-0 sm:py-1"
+                                      htmlFor={`langcert-type-${i}`}
+                                    >
+                                      <span className="label-text text-xs sm:text-sm">
+                                        Zertifikat auswählen
+                                      </span>
+                                    </label>
+                                    <select
+                                      id={`langcert-type-${i}`}
+                                      className={`select select-bordered w-full ${
+                                        langCertTypeError &&
+                                        !String(item?.type || "").trim()
+                                          ? "select-error"
+                                          : ""
+                                      }`}
+                                      aria-label="Typ des Sprachzertifikats"
+                                      aria-invalid={
+                                        langCertTypeError &&
+                                        !String(item?.type || "").trim()
+                                          ? "true"
+                                          : "false"
+                                      }
+                                      value={item?.type || ""}
+                                      onChange={(e) =>
+                                        setLangCertFiles((prev) =>
+                                          prev.map((entry, idx) =>
+                                            idx === i
+                                              ? {
+                                                  ...entry,
+                                                  type: e.target.value,
+                                                }
+                                              : entry
+                                          )
+                                        )
+                                      }
+                                    >
+                                      <option value="">
+                                        Zertifikat auswählen
+                                      </option>
+                                      {LANG_CERT_TYPES.map((opt) => (
+                                        <option key={opt} value={opt}>
+                                          {opt}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  {langCertTypeError &&
+                                  !String(item?.type || "").trim() ? (
+                                    <p className="text-error text-sm">
+                                      Bitte wählen Sie, zu welchem Zertifikat
+                                      die Datei gehört.
+                                    </p>
+                                  ) : null}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {/* Diplomas */}
                     <div>
                       <div className="flex items-center justify-between">
                         <label className="label" htmlFor="doc-diplomas">
@@ -1849,7 +2418,9 @@ function Create() {
                             toast.error("Nur PDF-Dateien sind erlaubt.");
                           }
                           if (tooBig > 0) {
-                            toast.error("PDF-Datei darf maximal 2 MB groß sein.");
+                            toast.error(
+                              "PDF-Datei darf maximal 2 MB groß sein."
+                            );
                             setDiplomaSizeError(true);
                           } else {
                             setDiplomaSizeError(false);
@@ -1904,130 +2475,6 @@ function Create() {
                                   className="btn btn-ghost btn-xs"
                                   onClick={() =>
                                     setDiplomaFiles((prev) =>
-                                      removeFileAt(prev, i)
-                                    )
-                                  }
-                                  aria-label="Entfernen"
-                                >
-                                  ✕
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null}
-                    </div>
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <label className="label" htmlFor="doc-langcerts">
-                          <span className="label-text">
-                            Sprachzertifikate (mehrere möglich)
-                          </span>
-                        </label>
-                        {Array.isArray(langCertFiles) &&
-                        langCertFiles.length > 0 ? (
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-xs"
-                            onClick={() => setLangCertFiles([])}
-                          >
-                            Alle entfernen
-                          </button>
-                        ) : null}
-                      </div>
-                      <div className="form-control mb-2">
-                        <label className="cursor-pointer flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            className="checkbox checkbox-sm"
-                            checked={noLangCert}
-                            onChange={(e) => {
-                              const v = e.target.checked;
-                              setNoLangCert(v);
-                              if (v) {
-                                setLangCertFiles([]);
-                                setLangCertSizeError(false);
-                              }
-                            }}
-                          />
-                          <span className="text-sm">Kein Sprachzertifikat</span>
-                        </label>
-                      </div>
-                      <p className="text-xs text-base-content/70 mb-2">
-                        Maximal 2 MB pro Datei.
-                      </p>
-                      <input
-                        id="doc-langcerts"
-                        type="file"
-                        multiple
-                        accept=".pdf,application/pdf"
-                        className={`file-input file-input-bordered w-full ${
-                          langCertSizeError ? "file-input-error" : ""
-                        }`}
-                        aria-invalid={langCertSizeError ? "true" : "false"}
-                        disabled={noLangCert}
-                        onChange={(e) => {
-                          const raw = Array.from(e.target.files || []);
-                          const pdfs = raw.filter(
-                            (f) =>
-                              String(f.type).toLowerCase() ===
-                                "application/pdf" ||
-                              /\.pdf$/i.test(String(f.name || ""))
-                          );
-                          const sized = pdfs.filter(
-                            (f) => (f?.size || 0) <= MAX_PDF_BYTES
-                          );
-                          const tooBig = pdfs.length - sized.length;
-                          const invalid = raw.length - pdfs.length;
-                          if (invalid > 0) {
-                            toast.error("Nur PDF-Dateien sind erlaubt.");
-                          }
-                          if (tooBig > 0) {
-                            toast.error("PDF-Datei darf maximal 2 MB groß sein.");
-                            setLangCertSizeError(true);
-                          } else {
-                            setLangCertSizeError(false);
-                          }
-                          setLangCertFiles((prev) => mergeFiles(prev, sized));
-                          e.target.value = "";
-                        }}
-                      />
-                      {langCertSizeError ? (
-                        <p className="text-error text-sm mt-1">
-                          Datei &gt; 2 MB. Komprimieren:{" "}
-                          <a
-                            className="link link-primary"
-                            href="https://www.ilovepdf.com/compress_pdf"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            iLovePDF
-                          </a>
-                        </p>
-                      ) : null}
-                      {Array.isArray(langCertFiles) &&
-                      langCertFiles.length > 0 ? (
-                        <div className="mt-2">
-                          <div className="text-xs opacity-70 mb-1">Nur PDF</div>
-                          <ul className="space-y-2">
-                            {langCertFiles.map((f, i) => (
-                              <li
-                                key={uniqueKey(f)}
-                                className="flex items-center justify-between gap-2 rounded-box border border-base-300 px-3 py-2"
-                              >
-                                <div className="min-w-0">
-                                  <div className="truncate font-medium">
-                                    {f.name}
-                                  </div>
-                                  <div className="text-xs opacity-70">
-                                    {(f.size / 1024).toFixed(1)} KB
-                                  </div>
-                                </div>
-                                <button
-                                  type="button"
-                                  className="btn btn-ghost btn-xs"
-                                  onClick={() =>
-                                    setLangCertFiles((prev) =>
                                       removeFileAt(prev, i)
                                     )
                                   }
@@ -2160,6 +2607,25 @@ function Create() {
       <ExistingEmailModal
         open={isEmailModalOpen}
         onClose={() => setIsEmailModalOpen(false)}
+        onAcknowledge={() => {
+          // After telling the user that this email was already used for a different area,
+          // we mark the current major as "submitted" locally so they see the Thank You screen.
+          const majorCollection = String(majorInfo?.collectionName || "").trim();
+          if (majorCollection) {
+            try {
+              localStorage.setItem(
+                `createCvSubmitted:${majorCollection}`,
+                "true"
+              );
+              // legacy key cleanup (avoid cross-major false positives)
+              localStorage.removeItem("createCvSubmitted");
+            } catch {
+              // ignore storage errors
+            }
+          }
+          setIsEmailModalOpen(false);
+          setIsSubmitted(true);
+        }}
         enteredEmail={enteredEmail}
         existingMajor={existingMajor}
       />

@@ -11,6 +11,7 @@ function ExperienceSection({
   onRemoveResponsibility,
   showRequiredWarning = false,
   errors = [],
+  renderItemActions,
 }) {
   const fieldInput =
     "input input-bordered w-full";
@@ -24,13 +25,16 @@ function ExperienceSection({
         >
           <div className="flex items-center justify-between mb-1">
             <h3 className="font-semibold text-base">Berufserfahrung #{idx + 1}</h3>
-            <button
-              type="button"
-              className="btn btn-ghost btn-xs text-error hover:bg-error/10"
-              onClick={() => onRemoveExperience(idx)}
-            >
-              Entfernen
-            </button>
+            <div className="flex items-center gap-2">
+              {typeof renderItemActions === "function" ? renderItemActions(idx, exp) : null}
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs text-error hover:bg-error/10"
+                onClick={() => onRemoveExperience(idx)}
+              >
+                Entfernen
+              </button>
+            </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
