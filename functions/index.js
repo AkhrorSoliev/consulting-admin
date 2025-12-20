@@ -18,6 +18,20 @@ exports.health = onRequest((req, res) => {
 });
 
 // ---- Helper ----
+function setCors(req, res) {
+  const allowedOrigins = new Set([
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "https://admin.consultinguz.de",
+  ]);
+  const origin = req.get("Origin") || "";
+  if (allowedOrigins.has(origin)) {
+    res.set("Access-Control-Allow-Origin", origin);
+  }
+  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+}
+
 function findLead(meta, leadParam) {
   const list = Array.isArray(meta?.leadLinks) ? meta.leadLinks : [];
   return list.find((l) => {
@@ -31,6 +45,11 @@ function findLead(meta, leadParam) {
 // Body: { major: string, payload: object, recaptchaToken?: string }
 exports.submitCandidate = onRequest(async (req, res) => {
   try {
+    setCors(req, res);
+    if (req.method === "OPTIONS") {
+      return res.status(204).send("");
+    }
+
     if (req.method !== "POST") {
       return res.status(405).json({ ok: false, error: "method-not-allowed" });
     }
@@ -94,6 +113,7 @@ exports.submitCandidate = onRequest(async (req, res) => {
     return res.json({ ok: true, id: candidateRef.id });
   } catch (err) {
     logger.error("submitCandidate error", err);
+    setCors(req, res);
     return res
       .status(500)
       .json({ ok: false, error: "internal", details: err.message });

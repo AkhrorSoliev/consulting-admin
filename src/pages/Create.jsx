@@ -121,7 +121,6 @@ function Create() {
   const [isUploading, setIsUploading] = useState(false);
   const [diplomaError, setDiplomaError] = useState(false);
   const [diplomaSizeError, setDiplomaSizeError] = useState(false);
-  const [langCertError, setLangCertError] = useState(false);
   const [langCertSizeError, setLangCertSizeError] = useState(false);
   const [langCertTypeError, setLangCertTypeError] = useState(false);
   const [passportError, setPassportError] = useState(false);
@@ -869,16 +868,11 @@ function Create() {
         setDiplomaError(false);
       }
 
-      if (!Array.isArray(langCertFiles) || langCertFiles.length === 0) {
-        setLangCertError(true);
-        blockingErrors.push("langCert");
-      } else {
-        setLangCertError(false);
-      }
-
-      const hasMissingLangType = langCertFiles.some(
-        (item) => !String(item?.type || "").trim()
-      );
+      // Language certificates are optional, but if provided, a type is required.
+      const hasLangCertFiles = Array.isArray(langCertFiles) && langCertFiles.length > 0;
+      const hasMissingLangType = hasLangCertFiles
+        ? langCertFiles.some((item) => !String(item?.type || "").trim())
+        : false;
       if (hasMissingLangType) {
         setLangCertTypeError(true);
         blockingErrors.push("langCertType");
@@ -2175,13 +2169,13 @@ function Create() {
                       ) : null}
                     </div>
 
-                    {/* Language certificates (required) */}
+                    {/* Language certificates (optional but type required if provided) */}
                     <div>
                       <div className="flex items-center justify-between">
                         <label className="label" htmlFor="doc-langcerts">
-                          <RequiredLabel className="label-text">
-                            Sprachzertifikate (mehrere möglich)
-                          </RequiredLabel>
+                          <span className="label-text">
+                            Sprachzertifikate (optional, mehrere möglich)
+                          </span>
                         </label>
                         {Array.isArray(langCertFiles) &&
                         langCertFiles.length > 0 ? (
@@ -2195,8 +2189,7 @@ function Create() {
                         ) : null}
                       </div>
                       <p className="text-xs text-base-content/70 mb-2">
-                        Pflicht: Laden Sie mindestens ein Sprachzertifikat als
-                        PDF hoch.
+                        Falls vorhanden: Laden Sie Sprachzertifikate als PDF hoch.
                       </p>
                       <p className="text-xs text-base-content/70 mb-2">
                         Maximal 2 MB pro Datei.
@@ -2207,12 +2200,10 @@ function Create() {
                         multiple
                         accept=".pdf,application/pdf"
                         className={`file-input file-input-bordered w-full ${
-                          langCertError || langCertSizeError
-                            ? "file-input-error"
-                            : ""
+                          langCertSizeError ? "file-input-error" : ""
                         }`}
                         aria-invalid={
-                          langCertError || langCertSizeError ? "true" : "false"
+                          langCertSizeError ? "true" : "false"
                         }
                         onChange={(e) => {
                           const raw = Array.from(e.target.files || []);
@@ -2238,20 +2229,12 @@ function Create() {
                           } else {
                             setLangCertSizeError(false);
                           }
-                          if (pdfs.length > 0) {
-                            setLangCertError(false);
-                          }
                           setLangCertFiles((prev) =>
                             mergeLangCertItems(prev, sized)
                           );
                           e.target.value = "";
                         }}
                       />
-                      {langCertError ? (
-                        <p className="text-error text-sm mt-1">
-                          Mindestens ein Sprachzertifikat (PDF) erforderlich.
-                        </p>
-                      ) : null}
                       {langCertSizeError ? (
                         <p className="text-error text-sm mt-1">
                           Datei &gt; 2 MB. Komprimieren:{" "}
