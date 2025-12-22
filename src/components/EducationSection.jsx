@@ -15,6 +15,12 @@ function EducationSection({
 
   return (
     <div className="space-y-6">
+      {(!Array.isArray(education) || education.length === 0) ? (
+        <div className="alert alert-info text-sm">
+          Bitte fügen Sie mindestens eine vollständige Ausbildungsstation hinzu
+          und füllen Sie alle Felder aus (z. B. Schule).
+        </div>
+      ) : null}
       {education.map((edu, idx) => (
         <div
           key={idx}
@@ -79,7 +85,8 @@ function EducationSection({
             <FormInput
               className="md:col-span-2"
               label={<RequiredLabel>Bildungseinrichtung</RequiredLabel>}
-              placeholder="Bildungseinrichtung"
+              placeholder="z.B. Tashkent State University"
+              helperText="Beispiel: Schule, Universität, College."
               value={edu.institution}
               inputClassName={errors[idx]?.institution ? "input-error" : ""}
               onChange={(e) =>
@@ -89,7 +96,8 @@ function EducationSection({
             <FormInput
               className="md:col-span-2"
               label={<RequiredLabel>Abschluss / Studiengang</RequiredLabel>}
-              placeholder="Abschluss / Studiengang"
+              placeholder="z.B. Bachelor Informatik"
+              helperText="Beispiel: Abitur, Bachelor, Master, Ausbildung."
               value={edu.degree || ""}
               inputClassName={errors[idx]?.degree ? "input-error" : ""}
               onChange={(e) => onUpdateEducation(idx, "degree", e.target.value)}

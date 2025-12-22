@@ -16,6 +16,13 @@ function LanguagesSection({
           Bitte geben Sie mindestens eine Sprache mit Niveau an.
         </p>
       ) : null}
+      {languageRows.length ? (
+        <div className="grid grid-cols-12 gap-3 px-1 text-xs text-base-content/60">
+          <div className="col-span-6">Sprache</div>
+          <div className="col-span-5">Niveau</div>
+          <div className="col-span-1" aria-hidden="true" />
+        </div>
+      ) : null}
       {languageRows.map((row, idx) => (
         <div
           key={idx}

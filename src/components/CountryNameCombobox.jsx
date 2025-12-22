@@ -40,11 +40,20 @@ export default function CountryNameCombobox({
   value,
   onChange,
   error,
+  helperText,
   inputClassName = "",
 }) {
   const rootRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const helpId = useMemo(
+    () => `country-help-${Math.random().toString(36).slice(2)}`,
+    []
+  );
+  const errorId = useMemo(
+    () => `country-error-${Math.random().toString(36).slice(2)}`,
+    []
+  );
 
   const filtered = useMemo(() => {
     // Important: when opening, show full list even if current value is set (e.g. "Deutschland")
@@ -97,6 +106,12 @@ export default function CountryNameCombobox({
         }}
         autoComplete="off"
         aria-invalid={error ? "true" : "false"}
+        aria-describedby={[
+          error ? errorId : "",
+          helperText ? helpId : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
       />
 
       {open ? (
@@ -138,7 +153,16 @@ export default function CountryNameCombobox({
         </div>
       ) : null}
 
-      {error ? <p className="text-error text-sm mt-1">{error}</p> : null}
+      {error ? (
+        <p id={errorId} className="text-error text-sm mt-1">
+          {error}
+        </p>
+      ) : null}
+      {helperText ? (
+        <p id={helpId} className="mt-1 text-xs text-base-content/70">
+          {helperText}
+        </p>
+      ) : null}
     </div>
   );
 }
