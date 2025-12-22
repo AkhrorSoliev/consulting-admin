@@ -18,6 +18,16 @@ function ExperienceSection({
 
   return (
     <div className="space-y-6">
+      <div className="alert alert-info text-sm">
+        <div>
+          <div className="font-medium">Optional</div>
+          <div className="opacity-80">
+            Wenn Sie keine Berufserfahrung haben, können Sie diesen Schritt
+            überspringen. Wenn Sie Einträge hinzufügen, füllen Sie bitte alle
+            Felder vollständig aus.
+          </div>
+        </div>
+      </div>
       {experience.map((exp, idx) => (
         <div
           key={idx}
@@ -87,14 +97,16 @@ function ExperienceSection({
             </div>
             <FormInput
               label="Position"
-              placeholder="Position"
+              placeholder="z.B. Verkäufer"
+              helperText="Beispiel: Verkäufer, Lagerist, Bauhelfer"
               value={exp.position}
               inputClassName={errors[idx]?.position ? "input-error" : ""}
               onChange={(e) => onUpdateExperience(idx, "position", e.target.value)}
             />
             <FormInput
               label="Unternehmen"
-              placeholder="Unternehmen"
+              placeholder="z.B. ABC GmbH"
+              helperText="Name des Unternehmens/Arbeitgebers."
               value={exp.company}
               inputClassName={errors[idx]?.company ? "input-error" : ""}
               onChange={(e) => onUpdateExperience(idx, "company", e.target.value)}
@@ -102,7 +114,8 @@ function ExperienceSection({
             <FormInput
               className="md:col-span-2"
               label="Ort (Stadt, Land)"
-              placeholder="Ort (Stadt, Land)"
+              placeholder="z.B. Berlin, Deutschland"
+              helperText="Bitte Stadt und Land angeben."
               value={exp.location}
               inputClassName={errors[idx]?.location ? "input-error" : ""}
               onChange={(e) => onUpdateExperience(idx, "location", e.target.value)}
@@ -116,7 +129,9 @@ function ExperienceSection({
               tags={exp.responsibilities}
               display="list"
               inputMode="textarea"
-              placeholder="Neuen Punkt eingeben und auf Hinzufügen klicken (oder , setzen)"
+              placeholder={
+                "z.B.\n– Unterstützung bei täglichen Arbeitsabläufen\n– Mitarbeit im Team\n– Einhaltung von Arbeits- und Sicherheitsregeln"
+              }
               onAdd={(val) => onAddResponsibility(idx, val)}
               onRemove={(tagIdx) => onRemoveResponsibility(idx, tagIdx)}
             />

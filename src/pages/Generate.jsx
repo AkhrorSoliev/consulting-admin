@@ -14,6 +14,11 @@ import { pdf } from "@react-pdf/renderer";
 import CvPdfDocument from "./generate/pdf/CvPdfDocument";
 import FormInput from "../components/FormInput";
 import PhoneInputWithCountry from "../components/PhoneInputWithCountry";
+import {
+  getPhoneBodyDigits,
+  isEmailValid,
+  isPhoneComplete,
+} from "../utils/validation";
 import CountryNameCombobox from "../components/CountryNameCombobox";
 import ExperienceSection from "../components/ExperienceSection";
 import EducationSection from "../components/EducationSection";
@@ -64,7 +69,9 @@ function safeJson(value, space = 2, maxLen = 120_000) {
   try {
     const s = JSON.stringify(value, null, space);
     if (typeof s === "string" && s.length > maxLen) {
-      return `${s.slice(0, maxLen)}\n... (truncated ${s.length - maxLen} chars)`;
+      return `${s.slice(0, maxLen)}\n... (truncated ${
+        s.length - maxLen
+      } chars)`;
     }
     return s;
   } catch (e) {
@@ -178,7 +185,9 @@ function parseGermanAddress(raw) {
   // Split off postal code + city at the end, if present: "... , 12345 Berlin"
   const mPlz = streetLine.match(/^(.*?)(?:,\s*)?(\d{5})\s+(.+)$/);
   if (mPlz) {
-    streetLine = String(mPlz[1] || "").trim().replace(/,+\s*$/, "");
+    streetLine = String(mPlz[1] || "")
+      .trim()
+      .replace(/,+\s*$/, "");
     postalCode = String(mPlz[2] || "").trim();
     city = String(mPlz[3] || "").trim();
   }
@@ -254,9 +263,8 @@ function Generate() {
   const [isStageEmailModalOpen, setIsStageEmailModalOpen] = useState(false);
   const [pendingStageStep, setPendingStageStep] = useState(null);
   const [stageDecision, setStageDecision] = useState("accepted");
-  const [stageAdditionalInfoForm, setStageAdditionalInfoForm] = useState(
-    createEmptyStageInfo
-  );
+  const [stageAdditionalInfoForm, setStageAdditionalInfoForm] =
+    useState(createEmptyStageInfo);
   useEffect(() => {
     if (stageDecision === "rejected") {
       // Clear extra info when switching to rejection to avoid leaking previous data
@@ -727,7 +735,9 @@ function Generate() {
         geburtsdatum: f.personalInfo.birthDate,
         geburtsort: String(f?.personalInfo?.birthPlace || "").trim(),
         familienstand: f.personalInfo.maritalStatus,
-        kinderAnzahl: noChildren ? "" : String(f.personalInfo.childrenCount || ""),
+        kinderAnzahl: noChildren
+          ? ""
+          : String(f.personalInfo.childrenCount || ""),
         keinKinder: noChildren,
         fuehrerschein: Boolean(f?.personalInfo?.hasDrivingLicense),
         fuehrerscheinTyp: String(f?.personalInfo?.drivingLicenseType || "")
@@ -960,10 +970,14 @@ function Generate() {
   const experienceCount = Array.isArray(formCv.experience)
     ? formCv.experience.length
     : 0;
-  const educationCount = Array.isArray(formCv.education) ? formCv.education.length : 0;
+  const educationCount = Array.isArray(formCv.education)
+    ? formCv.education.length
+    : 0;
   const languagesCount = Array.isArray(languageRows) ? languageRows.length : 0;
   const documentsCount =
-    (Array.isArray(formCv.documents?.diplomas) ? formCv.documents.diplomas.length : 0) +
+    (Array.isArray(formCv.documents?.diplomas)
+      ? formCv.documents.diplomas.length
+      : 0) +
     (Array.isArray(formCv.documents?.certificates)
       ? formCv.documents.certificates.length
       : 0) +
@@ -1167,7 +1181,10 @@ function Generate() {
         const targetEmail = String(formCv?.personalInfo?.email || "").trim();
         const firstName = String(formCv?.personalInfo?.name || "").trim();
         const lastName = String(formCv?.personalInfo?.lastName || "").trim();
-        const targetName = [firstName, lastName].filter(Boolean).join(" ").trim();
+        const targetName = [firstName, lastName]
+          .filter(Boolean)
+          .join(" ")
+          .trim();
         if (itemId) {
           setDeleteTarget({
             id: itemId,
@@ -1209,17 +1226,21 @@ function Generate() {
       const docs = full?.documents || {};
       const urls = [
         ...(Array.isArray(att?.diplomas) ? att.diplomas : []),
-        ...(Array.isArray(att?.languageCertificates) ? att.languageCertificates : []),
+        ...(Array.isArray(att?.languageCertificates)
+          ? att.languageCertificates
+          : []),
         ...(Array.isArray(att?.certificates) ? att.certificates : []),
         ...(Array.isArray(docs?.diplomas) ? docs.diplomas : []),
         ...(Array.isArray(docs?.certificates) ? docs.certificates : []),
         ...(Array.isArray(att?.passports) ? att.passports : []),
-        ...(Array.isArray(att?.passport) ? att.passport : [att?.passport]).filter(
-          Boolean
-        ),
-        ...(Array.isArray(docs?.passport) ? docs.passport : [docs?.passport]).filter(
-          Boolean
-        ),
+        ...(Array.isArray(att?.passport)
+          ? att.passport
+          : [att?.passport]
+        ).filter(Boolean),
+        ...(Array.isArray(docs?.passport)
+          ? docs.passport
+          : [docs?.passport]
+        ).filter(Boolean),
         ...(Array.isArray(docs?.passports) ? docs.passports : []),
         ...(Array.isArray(full?.dokumente?.reisepaesse)
           ? full.dokumente.reisepaesse
@@ -1275,12 +1296,7 @@ function Generate() {
     };
   }
 
-  async function sendCustomEmail({
-    to,
-    emailTitle,
-    subject,
-    bodyText,
-  }) {
+  async function sendCustomEmail({ to, emailTitle, subject, bodyText }) {
     if (isLimitedAdmin) {
       toast.error("Sizda email yuborish huquqi yo'q.");
       return;
@@ -1290,7 +1306,8 @@ function Generate() {
       toast.error("Qabul qiluvchi email (To) to'ldirilmagan.");
       return;
     }
-    const safeStatusValue = String(statusValue || "").trim() || CANDIDATE_STATUS_DEFAULT;
+    const safeStatusValue =
+      String(statusValue || "").trim() || CANDIDATE_STATUS_DEFAULT;
     const safeDecision = "accepted";
 
     const firstName = String(formCv.personalInfo.name || "");
@@ -1302,7 +1319,9 @@ function Generate() {
       splitCustomEmailBody(bodyText);
 
     if (!hasMain) {
-      toast.error("Matn bo'limida kamida 1-paragraf (asosiy matn) yozilishi shart.");
+      toast.error(
+        "Matn bo'limida kamida 1-paragraf (asosiy matn) yozilishi shart."
+      );
       return;
     }
     const subjectRaw = String(subject || "").trim();
@@ -1322,17 +1341,19 @@ function Generate() {
       emphasizeMainText: false,
     };
 
-    const { subject: builtSubject, message, htmlContent } = buildStatusEmailTemplate(
-      {
-        statusValue: safeStatusValue,
-        firstName,
-        lastName,
-        stageDecision: safeDecision,
-        decisionNote: "",
-        additionalInfo,
-        copyOverrides,
-      }
-    );
+    const {
+      subject: builtSubject,
+      message,
+      htmlContent,
+    } = buildStatusEmailTemplate({
+      statusValue: safeStatusValue,
+      firstName,
+      lastName,
+      stageDecision: safeDecision,
+      decisionNote: "",
+      additionalInfo,
+      copyOverrides,
+    });
 
     const safeSubject = String(builtSubject || "").trim();
     if (!safeSubject) {
@@ -1381,7 +1402,9 @@ function Generate() {
       setIsCustomEmailModalOpen(false);
     } catch (err) {
       console.error(err);
-      toast.error("Custom email yuborishda xato. Keyinroq qayta urinib ko'ring.");
+      toast.error(
+        "Custom email yuborishda xato. Keyinroq qayta urinib ko'ring."
+      );
     } finally {
       setSendingStepValue(null);
       sendingEmailLockRef.current = false;
@@ -1592,8 +1615,7 @@ function Generate() {
     return {
       emailTitle: "Ariza holati yangilandi",
       subject: String(baseCopy?.subject || ""),
-      bodyText:
-        "Asosiy matn (main)...\n\nKeyingi qadam (note)...",
+      bodyText: "Asosiy matn (main)...\n\nKeyingi qadam (note)...",
     };
   }, [statusValue]);
 
@@ -1605,10 +1627,22 @@ function Generate() {
     // Remove the exact intro line from both HTML and plain text previews (best-effort).
     return raw
       .replace(
-        new RegExp(`<p[^>]*>\\s*${intro.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*<\\/p>\\s*`, "g"),
+        new RegExp(
+          `<p[^>]*>\\s*${intro.replace(
+            /[.*+?^${}()|[\]\\]/g,
+            "\\$&"
+          )}\\s*<\\/p>\\s*`,
+          "g"
+        ),
         ""
       )
-      .replace(new RegExp(`\\s*${intro.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\n?`, "g"), "")
+      .replace(
+        new RegExp(
+          `\\s*${intro.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\n?`,
+          "g"
+        ),
+        ""
+      )
       .trim();
   }
 
@@ -1882,6 +1916,12 @@ function Generate() {
   const textareaBase = "textarea textarea-bordered w-full";
   const fileInputBase =
     "file-input file-input-bordered file-input-primary w-full";
+
+  const phoneOk = isPhoneComplete(phone);
+  const phoneWarn = phone.length > 0 && !phoneOk;
+  const phoneDigits = getPhoneBodyDigits(phone);
+  const emailOk = isEmailValid(email);
+  const emailWarn = email.length > 0 && !emailOk;
 
   // Style overrides for FormInput component
 
@@ -2356,7 +2396,9 @@ function Generate() {
                                     noChildren: checked,
                                     childrenCount: checked
                                       ? ""
-                                      : String(prev.personalInfo.childrenCount || ""),
+                                      : String(
+                                          prev.personalInfo.childrenCount || ""
+                                        ),
                                   },
                                 }));
                               }}
@@ -2374,7 +2416,9 @@ function Generate() {
                             id="g-driving"
                             type="checkbox"
                             className="checkbox"
-                            checked={Boolean(formCv.personalInfo.hasDrivingLicense)}
+                            checked={Boolean(
+                              formCv.personalInfo.hasDrivingLicense
+                            )}
                             onChange={(e) => {
                               const checked = e.target.checked;
                               setFormCv((prev) => ({
@@ -2383,11 +2427,15 @@ function Generate() {
                                   ...prev.personalInfo,
                                   hasDrivingLicense: checked,
                                   drivingLicenseType: checked
-                                    ? String(prev.personalInfo.drivingLicenseType || "")
+                                    ? String(
+                                        prev.personalInfo.drivingLicenseType ||
+                                          ""
+                                      )
                                     : "",
                                 },
                               }));
-                              if (!checked) setIsDrivingLicenseDropdownOpen(false);
+                              if (!checked)
+                                setIsDrivingLicenseDropdownOpen(false);
                             }}
                           />
                           <span className="text-sm">Vorhanden</span>
@@ -2451,55 +2499,82 @@ function Generate() {
                                 })()}
                               </button>
 
-                              <ul
-                                className="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-full mt-1 max-h-72 overflow-auto z-[60]"
-                                role="listbox"
-                                aria-multiselectable="true"
-                              >
-                                {DRIVING_LICENSE_OPTIONS.map((opt) => {
-                                  const upper = String(opt || "")
-                                    .trim()
-                                    .toUpperCase();
-                                  const selected = String(
-                                    formCv.personalInfo.drivingLicenseType || ""
-                                  )
-                                    .trim()
-                                    .toUpperCase()
-                                    .split(",")
-                                    .map((s) => s.trim())
-                                    .filter(Boolean);
-                                  const isSelected = selected.includes(upper);
+                              <div className="dropdown-content w-full mt-1 max-h-72 rounded-box border border-base-300 bg-base-100 shadow z-[60] overflow-hidden flex flex-col">
+                                <div className="flex justify-end p-2 border-b border-base-200">
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost btn-xs"
+                                    aria-label="Schließen"
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                    }}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      setIsDrivingLicenseDropdownOpen(false);
+                                    }}
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                                <ul
+                                  className="menu p-2 overflow-auto w-full"
+                                  role="listbox"
+                                  aria-multiselectable="true"
+                                >
+                                  {DRIVING_LICENSE_OPTIONS.map((opt) => {
+                                    const upper = String(opt || "")
+                                      .trim()
+                                      .toUpperCase();
+                                    const selected = String(
+                                      formCv.personalInfo.drivingLicenseType ||
+                                        ""
+                                    )
+                                      .trim()
+                                      .toUpperCase()
+                                      .split(",")
+                                      .map((s) => s.trim())
+                                      .filter(Boolean);
+                                    const isSelected = selected.includes(upper);
 
-                                  return (
-                                    <li key={opt}>
-                                      <button
-                                        type="button"
-                                        className="flex items-center gap-2"
-                                        onClick={() => {
-                                          const set = new Set(selected);
-                                          if (set.has(upper)) set.delete(upper);
-                                          else set.add(upper);
-                                          const next = Array.from(set).join(", ");
-                                          setFormCv((prev) => ({
-                                            ...prev,
-                                            personalInfo: {
-                                              ...prev.personalInfo,
-                                              drivingLicenseType: next,
-                                            },
-                                          }));
-                                        }}
-                                      >
-                                        <span className="w-5 text-center">
-                                          {isSelected ? "✓" : ""}
-                                        </span>
-                                        <span className="font-medium">
-                                          {opt}
-                                        </span>
-                                      </button>
-                                    </li>
-                                  );
-                                })}
-                              </ul>
+                                    return (
+                                      <li key={opt}>
+                                        <button
+                                          type="button"
+                                          className="flex items-center gap-2"
+                                          onClick={() => {
+                                            const set = new Set(selected);
+                                            if (set.has(upper))
+                                              set.delete(upper);
+                                            else set.add(upper);
+                                            const next =
+                                              Array.from(set).join(", ");
+                                            setFormCv((prev) => ({
+                                              ...prev,
+                                              personalInfo: {
+                                                ...prev.personalInfo,
+                                                drivingLicenseType: next,
+                                              },
+                                            }));
+                                            // Close dropdown after selecting a value (user can reopen to add more)
+                                            setIsDrivingLicenseDropdownOpen(
+                                              false
+                                            );
+                                          }}
+                                        >
+                                          <span className="w-5 text-center">
+                                            {isSelected ? "✓" : ""}
+                                          </span>
+                                          <span className="font-medium">
+                                            {opt}
+                                          </span>
+                                        </button>
+                                      </li>
+                                    );
+                                  })}
+                                </ul>
+                              </div>
                             </div>
                           </div>
                         ) : null}
@@ -2512,8 +2587,26 @@ function Generate() {
                           onChange={(next) =>
                             setFormCv((prev) => ({
                               ...prev,
-                              personalInfo: { ...prev.personalInfo, phone: next },
+                              personalInfo: {
+                                ...prev.personalInfo,
+                                phone: next,
+                              },
                             }))
+                          }
+                          inputClassName={
+                            phoneOk
+                              ? "input-success"
+                              : phoneWarn
+                              ? "input-warning"
+                              : ""
+                          }
+                          helperText={
+                            phoneWarn ? (
+                              <span className="text-warning">
+                                Telefonnummer unvollständig (
+                                {phoneDigits.length}/9 Ziffern)
+                              </span>
+                            ) : null
                           }
                         />
                       </div>
@@ -2531,6 +2624,22 @@ function Generate() {
                             },
                           }))
                         }
+                        inputClassName={
+                          emailOk
+                            ? "input-success"
+                            : emailWarn
+                            ? "input-warning"
+                            : ""
+                        }
+                        helperText={
+                          emailWarn ? (
+                            <span className="text-warning">
+                              Bitte gültige E-Mail eingeben.
+                            </span>
+                          ) : (
+                            ""
+                          )
+                        }
                       />
 
                       <div className="md:col-span-2 form-control w-full">
@@ -2539,10 +2648,10 @@ function Generate() {
                           htmlFor="g-photo-file"
                         >
                           <span className="label-text font-medium">
-                            Foto hochladen (JPEG/PNG)
+                            Foto hochladen (JPEG/PNG) (Ihr eigenes Foto)
                           </span>
                           <span className="label-text-alt text-xs text-base-content/70">
-                            Bis 250 KB
+                            Eigenes 3×4‑Passfoto. Bis 250 KB
                           </span>
                         </label>
                         <input
@@ -2557,17 +2666,10 @@ function Generate() {
                       <div className="md:col-span-2 form-control w-full">
                         <label className="label pb-1" htmlFor="g-addressStreet">
                           <span className="label-text font-medium">
-                            Adresse (Deutschland)
+                            Adresse
                           </span>
                         </label>
                         <div className="rounded-box border border-base-300 bg-base-200/40 p-4">
-                          <p className="text-xs text-base-content/70 mb-3">
-                            Format:{" "}
-                            <span className="font-mono">
-                              Musterstraße 12A, 12345 Berlin
-                            </span>
-                          </p>
-
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div>
                               <label
@@ -2596,9 +2698,7 @@ function Generate() {
                                 className="label"
                                 htmlFor="g-addressHouseNumber"
                               >
-                                <span className="label-text">
-                                  Hausnummer *
-                                </span>
+                                <span className="label-text">Hausnummer *</span>
                               </label>
                               <input
                                 id="g-addressHouseNumber"
@@ -2699,7 +2799,10 @@ function Generate() {
                       />
                     </CollapsibleSection>
 
-                    <CollapsibleSection title="Ausbildung" count={educationCount}>
+                    <CollapsibleSection
+                      title="Ausbildung"
+                      count={educationCount}
+                    >
                       <EducationSection
                         education={formCv.education}
                         onAddEducation={addEducation}
@@ -2739,7 +2842,10 @@ function Generate() {
                       />
                     </CollapsibleSection>
 
-                    <CollapsibleSection title="Dokumente" count={documentsCount}>
+                    <CollapsibleSection
+                      title="Dokumente"
+                      count={documentsCount}
+                    >
                       <div className="form-control mb-4">
                         <label className="label cursor-pointer justify-start gap-3">
                           <span className="label-text font-semibold">
@@ -2754,125 +2860,125 @@ function Generate() {
                         </label>
                       </div>
 
-                    {/* Passport */}
-                    <div className="mb-6">
-                      <h4 className="font-semibold mb-2 text-sm uppercase tracking-wide opacity-80">
-                        Reisepass
-                      </h4>
-                      <div className="flex flex-col gap-2">
-                        {!formCv.documents?.passport ||
-                        formCv.documents.passport.length === 0 ? (
-                          <div className="p-3 bg-base-200 rounded text-sm text-center opacity-60 italic border border-dashed border-base-300">
-                            Kein Reisepass vorhanden.
-                          </div>
-                        ) : (
-                          formCv.documents.passport.map((url, i) => (
-                            <div
-                              key={i}
-                              className="flex gap-2 items-center p-2 bg-base-100 border rounded"
-                            >
-                              <a
-                                href={url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="link link-primary text-sm truncate flex-1"
-                              >
-                                {url}
-                              </a>
-                              <a
-                                href={url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="btn btn-square btn-sm btn-ghost text-primary"
-                                title="Link öffnen"
-                              >
-                                <FaExternalLinkAlt />
-                              </a>
+                      {/* Passport */}
+                      <div className="mb-6">
+                        <h4 className="font-semibold mb-2 text-sm uppercase tracking-wide opacity-80">
+                          Reisepass
+                        </h4>
+                        <div className="flex flex-col gap-2">
+                          {!formCv.documents?.passport ||
+                          formCv.documents.passport.length === 0 ? (
+                            <div className="p-3 bg-base-200 rounded text-sm text-center opacity-60 italic border border-dashed border-base-300">
+                              Kein Reisepass vorhanden.
                             </div>
-                          ))
-                        )}
+                          ) : (
+                            formCv.documents.passport.map((url, i) => (
+                              <div
+                                key={i}
+                                className="flex gap-2 items-center p-2 bg-base-100 border rounded"
+                              >
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="link link-primary text-sm truncate flex-1"
+                                >
+                                  {url}
+                                </a>
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="btn btn-square btn-sm btn-ghost text-primary"
+                                  title="Link öffnen"
+                                >
+                                  <FaExternalLinkAlt />
+                                </a>
+                              </div>
+                            ))
+                          )}
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Diplomas */}
-                    <div className="mb-6">
-                      <h4 className="font-semibold mb-2 text-sm uppercase tracking-wide opacity-80">
-                        Diplome
-                      </h4>
-                      <div className="flex flex-col gap-2">
-                        {!formCv.documents?.diplomas ||
-                        formCv.documents.diplomas.length === 0 ? (
-                          <div className="p-3 bg-base-200 rounded text-sm text-center opacity-60 italic border border-dashed border-base-300">
-                            Keine Diplome vorhanden.
-                          </div>
-                        ) : (
-                          formCv.documents.diplomas.map((url, i) => (
-                            <div
-                              key={i}
-                              className="flex gap-2 items-center p-2 bg-base-100 border rounded"
-                            >
-                              <a
-                                href={url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="link link-primary text-sm truncate flex-1"
-                              >
-                                {url}
-                              </a>
-                              <a
-                                href={url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="btn btn-square btn-sm btn-ghost text-primary"
-                                title="Link öffnen"
-                              >
-                                <FaExternalLinkAlt />
-                              </a>
+                      {/* Diplomas */}
+                      <div className="mb-6">
+                        <h4 className="font-semibold mb-2 text-sm uppercase tracking-wide opacity-80">
+                          Diplome
+                        </h4>
+                        <div className="flex flex-col gap-2">
+                          {!formCv.documents?.diplomas ||
+                          formCv.documents.diplomas.length === 0 ? (
+                            <div className="p-3 bg-base-200 rounded text-sm text-center opacity-60 italic border border-dashed border-base-300">
+                              Keine Diplome vorhanden.
                             </div>
-                          ))
-                        )}
+                          ) : (
+                            formCv.documents.diplomas.map((url, i) => (
+                              <div
+                                key={i}
+                                className="flex gap-2 items-center p-2 bg-base-100 border rounded"
+                              >
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="link link-primary text-sm truncate flex-1"
+                                >
+                                  {url}
+                                </a>
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="btn btn-square btn-sm btn-ghost text-primary"
+                                  title="Link öffnen"
+                                >
+                                  <FaExternalLinkAlt />
+                                </a>
+                              </div>
+                            ))
+                          )}
+                        </div>
                       </div>
-                    </div>
 
-                    {/* Certificates */}
-                    <div className="mb-2">
-                      <h4 className="font-semibold mb-2 text-sm uppercase tracking-wide opacity-80">
-                        Zertifikate
-                      </h4>
-                      <div className="flex flex-col gap-2">
-                        {!formCv.documents?.certificates ||
-                        formCv.documents.certificates.length === 0 ? (
-                          <div className="p-3 bg-base-200 rounded text-sm text-center opacity-60 italic border border-dashed border-base-300">
-                            Keine Zertifikate vorhanden.
-                          </div>
-                        ) : (
-                          formCv.documents.certificates.map((url, i) => (
-                            <div
-                              key={i}
-                              className="flex gap-2 items-center p-2 bg-base-100 border rounded"
-                            >
-                              <a
-                                href={url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="link link-primary text-sm truncate flex-1"
-                              >
-                                {url}
-                              </a>
-                              <a
-                                href={url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="btn btn-square btn-sm btn-ghost text-primary"
-                                title="Link öffnen"
-                              >
-                                <FaExternalLinkAlt />
-                              </a>
+                      {/* Certificates */}
+                      <div className="mb-2">
+                        <h4 className="font-semibold mb-2 text-sm uppercase tracking-wide opacity-80">
+                          Zertifikate
+                        </h4>
+                        <div className="flex flex-col gap-2">
+                          {!formCv.documents?.certificates ||
+                          formCv.documents.certificates.length === 0 ? (
+                            <div className="p-3 bg-base-200 rounded text-sm text-center opacity-60 italic border border-dashed border-base-300">
+                              Keine Zertifikate vorhanden.
                             </div>
-                          ))
-                        )}
+                          ) : (
+                            formCv.documents.certificates.map((url, i) => (
+                              <div
+                                key={i}
+                                className="flex gap-2 items-center p-2 bg-base-100 border rounded"
+                              >
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="link link-primary text-sm truncate flex-1"
+                                >
+                                  {url}
+                                </a>
+                                <a
+                                  href={url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="btn btn-square btn-sm btn-ghost text-primary"
+                                  title="Link öffnen"
+                                >
+                                  <FaExternalLinkAlt />
+                                </a>
+                              </div>
+                            ))
+                          )}
+                        </div>
                       </div>
-                    </div>
                     </CollapsibleSection>
                   </fieldset>
 
@@ -2901,7 +3007,9 @@ function Generate() {
                             type="checkbox"
                             className="toggle toggle-primary"
                             checked={showCommentDate}
-                            onChange={(e) => setShowCommentDate(e.target.checked)}
+                            onChange={(e) =>
+                              setShowCommentDate(e.target.checked)
+                            }
                           />
                         </label>
                       </div>

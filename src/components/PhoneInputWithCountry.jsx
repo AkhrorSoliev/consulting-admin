@@ -6,7 +6,7 @@ function digitsOnly(v) {
 }
 
 function formatMaskedBody(raw) {
-  const d = digitsOnly(raw);
+  const d = digitsOnly(raw).slice(0, 9);
   // Mask style: 00 000 00 00 (2-3-2-2)
   const parts = [];
   let i = 0;
@@ -17,8 +17,6 @@ function formatMaskedBody(raw) {
     parts.push(chunk);
     i += g;
   }
-  const rest = d.slice(i);
-  if (rest) parts.push(rest);
   return parts.join(" ");
 }
 
@@ -112,10 +110,14 @@ export default function PhoneInputWithCountry({
   value,
   onChange,
   error,
+  helperText,
+  inputClassName = "",
 }) {
   const rootRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const helpId = useMemo(() => `phone-help-${Math.random().toString(36).slice(2)}`, []);
+  const errorId = useMemo(() => `phone-error-${Math.random().toString(36).slice(2)}`, []);
 
   const inferredCountry = useMemo(
     () => findCountryByPhonePrefix(value) || getDefaultCountry(),
@@ -174,7 +176,7 @@ export default function PhoneInputWithCountry({
         <div className="join-item relative">
           <button
             type="button"
-            className={`join-item input input-bordered flex   items-center w-[88px] justify-start gap-2 ${
+            className={`join-item input input-bordered flex items-center w-[88px] justify-start gap-2 ${inputClassName} ${
               error ? "input-error" : ""
             }`}
             onClick={() => setOpen((v) => !v)}
@@ -248,13 +250,29 @@ export default function PhoneInputWithCountry({
           type="tel"
           inputMode="tel"
           autoComplete="tel"
-          className={`join-item input input-bordered w-full ${
+          className={`join-item input input-bordered w-full ${inputClassName} ${
             error ? "input-error" : ""
           }`}
           placeholder="00 000 00 00"
           aria-invalid={error ? "true" : "false"}
+          aria-describedby={[
+            error ? errorId : "",
+            helperText ? helpId : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
           value={body}
+          onFocus={() => {
+            if (open) {
+              setOpen(false);
+              setQuery("");
+            }
+          }}
           onChange={(e) => {
+            if (open) {
+              setOpen(false);
+              setQuery("");
+            }
             const nextBody = formatMaskedBody(e.target.value);
             const prefix = String(selected?.phone || "").trim();
             const next = nextBody ? `${prefix} ${nextBody}` : prefix;
@@ -263,7 +281,16 @@ export default function PhoneInputWithCountry({
         />
       </div>
 
-      {error ? <p className="text-error text-sm mt-1">{error}</p> : null}
+      {error ? (
+        <p id={errorId} className="text-error text-sm mt-1">
+          {error}
+        </p>
+      ) : null}
+      {helperText ? (
+        <p id={helpId} className="mt-1 text-xs text-base-content/70">
+          {helperText}
+        </p>
+      ) : null}
     </div>
   );
 }

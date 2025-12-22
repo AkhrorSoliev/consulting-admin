@@ -50,6 +50,24 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
       .sort((a, b) => (b.count || 0) - (a.count || 0));
   }, [statsDoc]);
 
+  const leadCharts = useMemo(() => {
+    const items = Array.isArray(leadCounts) ? leadCounts : [];
+    const TOP = 12;
+    const top = items.slice(0, TOP);
+    const others = items.slice(TOP).reduce((sum, x) => sum + (x.count || 0), 0);
+    const labels = [...top.map((x) => x.name), ...(others > 0 ? ["Boshqalar"] : [])];
+    const values = [...top.map((x) => x.count || 0), ...(others > 0 ? [others] : [])];
+
+    return {
+      labels,
+      values,
+      top,
+      others,
+      unique: items.length,
+      total: items.reduce((sum, x) => sum + (x.count || 0), 0),
+    };
+  }, [leadCounts]);
+
   const perMajorLeadCounts = useMemo(() => {
     const map = statsDoc?.totals?.byMajorLead || {};
     return Object.entries(map).map(([majorName, leadsObj]) => {
@@ -155,6 +173,42 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
     "#A855F7",
     "#84CC16",
   ];
+
+  const leadBarData = useMemo(
+    () => ({
+      labels: leadCharts.labels,
+      datasets: [
+        {
+          label: "Soni",
+          data: leadCharts.values,
+          backgroundColor: leadCharts.values.map(
+            (_, i) => COLORS[i % COLORS.length]
+          ),
+          borderRadius: 8,
+          barThickness: 18,
+        },
+      ],
+    }),
+    [leadCharts, COLORS]
+  );
+
+  const leadPieData = useMemo(
+    () => ({
+      labels: leadCharts.labels,
+      datasets: [
+        {
+          label: "Soni",
+          data: leadCharts.values,
+          backgroundColor: leadCharts.values.map(
+            (_, i) => COLORS[i % COLORS.length]
+          ),
+          borderWidth: 1,
+          hoverOffset: 6,
+        },
+      ],
+    }),
+    [leadCharts, COLORS]
+  );
 
   const perCollectionBarData = useMemo(
     () => ({
@@ -311,6 +365,33 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
     scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
   };
 
+  const leadBarOptions = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: "y",
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: (ctx) => ` ${ctx.parsed.x}` } },
+      },
+      scales: {
+        x: { beginAtZero: true, ticks: { precision: 0 } },
+        y: {
+          ticks: {
+            autoSkip: false,
+            callback: function (val) {
+              // Chart.js gives tick value; convert to label
+              const label = this.getLabelForValue(val);
+              const s = String(label || "");
+              return s.length > 22 ? `${s.slice(0, 22)}…` : s;
+            },
+          },
+        },
+      },
+    }),
+    []
+  );
+
   const pieOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -405,28 +486,55 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
                 {leadCounts.length === 0 ? (
                   <div className="opacity-70 text-sm">Lead ma’lumot yo‘q.</div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="table table-sm">
-                      <thead>
-                        <tr>
-                          <th>Lead</th>
-                          <th className="text-right">Soni</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {leadCounts.slice(0, 30).map((x) => (
-                          <tr key={x.name}>
-                            <td className="font-medium">{x.name}</td>
-                            <td className="text-right">{x.count}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {leadCounts.length > 30 ? (
-                      <div className="text-xs opacity-70 mt-2">
-                        +{leadCounts.length - 30} ta lead yashirildi
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div className="stat bg-base-200/30 rounded-box border border-base-200">
+                        <div className="stat-title">Unique lead</div>
+                        <div className="stat-value text-primary text-2xl">
+                          {leadCharts.unique}
+                        </div>
                       </div>
-                    ) : null}
+                      <div className="stat bg-base-200/30 rounded-box border border-base-200">
+                        <div className="stat-title">Jami lead</div>
+                        <div className="stat-value text-secondary text-2xl">
+                          {leadCharts.total}
+                        </div>
+                      </div>
+                      <div className="stat bg-base-200/30 rounded-box border border-base-200">
+                        <div className="stat-title">Top lead</div>
+                        <div className="stat-value text-accent text-2xl">
+                          {leadCounts?.[0]?.count ?? 0}
+                        </div>
+                        <div className="stat-desc">
+                          {leadCounts?.[0]?.name ?? "-"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <div className="rounded-box border border-base-200 p-4">
+                        <div className="font-medium mb-3">
+                          Top leadlar (bar)
+                        </div>
+                        <div className="h-72">
+                          <Bar data={leadBarData} options={leadBarOptions} />
+                        </div>
+                        {leadCharts.others > 0 ? (
+                          <div className="text-xs opacity-70 mt-2">
+                            “Boshqalar” = top 12 dan tashqari jami
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className="rounded-box border border-base-200 p-4">
+                        <div className="font-medium mb-3">
+                          Ulush (pie)
+                        </div>
+                        <div className="h-72">
+                          <Pie data={leadPieData} options={pieOptions} />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

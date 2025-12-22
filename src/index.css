@@ -35,6 +35,18 @@ select {
   font-family: inherit;
 }
 
+/* Create page: keep long titles readable and avoid 3+ line wraps */
+.create-form-title {
+  line-height: 1.2;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  word-break: break-word;
+  hyphens: auto;
+}
+
 /* TipTap content defaults */
 .ProseMirror ul {
   list-style: disc;
