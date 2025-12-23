@@ -1369,13 +1369,13 @@ function Create() {
             diplomas: diplomaUrls || [],
             languageCertificates: langUrls || [],
             languageCertificatesDetailed: langCertDetailed,
-            passport: passportUrls?.[0] || null,
-            passports: passportUrls || [],
+            // NOTE: passport is stored under `documents.passport` to avoid duplicated rendering
           },
           documents: {
             diplomas: diplomaUrls || [],
             certificates: langUrls || [],
             certificatesDetailed: langCertDetailed,
+            // Canonical: array of URLs (even if only one file is allowed)
             passport: passportUrls || [],
           },
           languageCertificatesDetailed: langCertDetailed,

@@ -64,6 +64,11 @@ import CustomEmailModal from "./generate/components/modals/CustomEmailModal";
 import LivePreview from "./generate/components/LivePreview";
 import { UZBEK_REGIONS } from "../constants/uzbekRegions";
 import { LANGUAGE_OPTIONS } from "../constants/languageOptions";
+import {
+  makeEmailTemplateId,
+  subscribeToEmailTemplates,
+  toCopyOverridesFromTemplateDoc,
+} from "../utils/emailTemplates";
 
 function safeJson(value, space = 2, maxLen = 120_000) {
   try {
@@ -92,11 +97,43 @@ function safeClone(value) {
 
 function toDateTimeLocalString(value) {
   if (!value) return "";
+  function formatDateTimeLocalInTimeZone(date, timeZone) {
+    try {
+      const d = date instanceof Date ? date : new Date(date);
+      if (Number.isNaN(d.getTime())) return "";
+      const formatter = new Intl.DateTimeFormat("en-GB", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone,
+      });
+      const parts = formatter.formatToParts(d).reduce((acc, part) => {
+        acc[part.type] = part.value;
+        return acc;
+      }, {});
+      if (!parts.year || !parts.month || !parts.day || !parts.hour || !parts.minute) {
+        return "";
+      }
+      return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+    } catch {
+      return "";
+    }
+  }
+
   if (typeof value === "string") {
     const s = value.trim();
     if (!s) return "";
     // datetime-local: yyyy-mm-ddThh:mm
-    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(s)) return s.slice(0, 16);
+    // If it's already a plain datetime-local string (NO timezone info), keep as-is.
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(s)) return s.slice(0, 16);
+    // If it contains timezone (Z or +hh:mm/-hh:mm), normalize to Asia/Tashkent for the input.
+    if (/[zZ]$/.test(s) || /[+\-]\d{2}:\d{2}$/.test(s)) {
+      const out = formatDateTimeLocalInTimeZone(new Date(s), "Asia/Tashkent");
+      if (out) return out;
+    }
     // yyyy-mm-dd -> yyyy-mm-ddT00:00
     if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return `${s}T00:00`;
     // dd.mm.yyyy -> yyyy-mm-ddT00:00
@@ -108,13 +145,9 @@ function toDateTimeLocalString(value) {
     return "";
   }
   if (typeof value === "number") {
-    try {
-      const d = new Date(value);
-      if (Number.isNaN(d.getTime())) return "";
-      return d.toISOString().slice(0, 16);
-    } catch {
-      return "";
-    }
+    // IMPORTANT: datetime-local expects *local wall time*; toISOString() is UTC and shifts time.
+    // We standardize on Toshkent time for scheduling fields.
+    return formatDateTimeLocalInTimeZone(new Date(value), "Asia/Tashkent");
   }
   return "";
 }
@@ -182,8 +215,11 @@ function parseGermanAddress(raw) {
     }
   }
 
-  // Split off postal code + city at the end, if present: "... , 12345 Berlin"
-  const mPlz = streetLine.match(/^(.*?)(?:,\s*)?(\d{5})\s+(.+)$/);
+  // Split off postal code + city at the end, if present:
+  // "... , 12345 Berlin" (DE) or "... , 150100 Farg‘ona" (UZ)
+  // Create.jsx currently collects 6-digit codes, so we support both 5 and 6 digits
+  // to avoid corrupt parsing ("1" leaking into house number, etc.).
+  const mPlz = streetLine.match(/^(.*?)(?:,\s*)?(\d{5,6})\s+(.+)$/);
   if (mPlz) {
     streetLine = String(mPlz[1] || "")
       .trim()
@@ -207,7 +243,7 @@ function isGermanAddressComplete(parts) {
   return (
     Boolean(String(parts?.street || "").trim()) &&
     Boolean(String(parts?.houseNumber || "").trim()) &&
-    /^\d{5}$/.test(String(parts?.postalCode || "").trim()) &&
+    /^\d{5,6}$/.test(String(parts?.postalCode || "").trim()) &&
     Boolean(String(parts?.city || "").trim()) &&
     Boolean(String(parts?.country || "").trim())
   );
@@ -260,17 +296,34 @@ function Generate() {
     linkId: "",
   });
 
+  const { user } = useSelector((state) => state.auth);
+  const { role: userRole } = useUserRole();
+
   const [isStageEmailModalOpen, setIsStageEmailModalOpen] = useState(false);
   const [pendingStageStep, setPendingStageStep] = useState(null);
   const [stageDecision, setStageDecision] = useState("accepted");
   const [stageAdditionalInfoForm, setStageAdditionalInfoForm] =
     useState(createEmptyStageInfo);
+  const [emailTemplatesMap, setEmailTemplatesMap] = useState({});
   useEffect(() => {
     if (stageDecision === "rejected") {
       // Clear extra info when switching to rejection to avoid leaking previous data
       setStageAdditionalInfoForm(createEmptyStageInfo());
     }
   }, [stageDecision]);
+
+  useEffect(() => {
+    const isPrivileged = userRole === "super_admin" || userRole === "admin";
+    if (!isPrivileged) {
+      setEmailTemplatesMap({});
+      return undefined;
+    }
+    // Live subscribe so newly saved templates in Settings are picked up instantly.
+    const unsub = subscribeToEmailTemplates((map) => {
+      setEmailTemplatesMap(map || {});
+    });
+    return () => unsub?.();
+  }, [userRole]);
 
   const [isCustomEmailModalOpen, setIsCustomEmailModalOpen] = useState(false);
   const [customEmailForm, setCustomEmailForm] = useState({
@@ -337,9 +390,6 @@ function Generate() {
   const [isGeneratingPc, setIsGeneratingPc] = useState(false);
   const [recentlyAdded, setRecentlyAdded] = useState({ soft: [], pc: [] });
   const [formInitialized, setFormInitialized] = useState(false);
-  const { user } = useSelector((state) => state.auth);
-
-  const { role: userRole } = useUserRole();
   const [isCommentEditorOpen, setIsCommentEditorOpen] = useState(false);
   const [commentBaseline, setCommentBaseline] = useState("");
   const [commentMeta, setCommentMeta] = useState({
@@ -667,6 +717,13 @@ function Generate() {
       .flatMap((p) => (Array.isArray(p) ? p : [p]))
       .map((p) => String(p || "").trim())
       .filter(Boolean);
+    // Dedupe (some docs store the same URL in multiple legacy fields)
+    const seenPassport = new Set();
+    const passportUnique = passport.filter((u) => {
+      if (seenPassport.has(u)) return false;
+      seenPassport.add(u);
+      return true;
+    });
 
     const rawChildrenCount = String(p.kinderAnzahl ?? "").trim();
     const noChildrenFromDoc = Boolean(p.keinKinder);
@@ -718,7 +775,7 @@ function Generate() {
       documents: {
         diplomas,
         certificates,
-        passport,
+        passport: passportUnique,
       },
       commentar: String(data?.commentar || ""),
     };
@@ -1025,7 +1082,7 @@ function Generate() {
 
   async function persistStatus(targetValue, { silent = false } = {}) {
     if (isLimitedAdmin) {
-      toast.error("Sizda status o'zgartirish huquqi yo'q.");
+      toast.error("Sie haben keine Berechtigung, den Status zu ändern.");
       return false;
     }
     const col = String(resolvedMajor?.collectionName || "").trim();
@@ -1048,13 +1105,13 @@ function Generate() {
       setStatusUpdatedAt(now);
       setStatusUpdatedBy(user?.email || user?.uid || "admin");
       if (!silent) {
-        toast.success("Status saqlandi.");
+        toast.success("Status gespeichert.");
       }
       return true;
     } catch (err) {
       console.error(err);
       if (!silent) {
-        toast.error("Statusni saqlashda xato.");
+        toast.error("Fehler beim Speichern des Status.");
       }
       return false;
     } finally {
@@ -1078,11 +1135,11 @@ function Generate() {
     { stageDecision: decisionRaw, decisionNote, additionalInfo } = {}
   ) {
     if (isLimitedAdmin) {
-      toast.error("Sizda email yuborish huquqi yo'q.");
+      toast.error("Sie haben keine Berechtigung, E-Mails zu senden.");
       return;
     }
     if (stepValue !== statusValue) {
-      toast.error("Faqat joriy bosqich uchun email yuborish mumkin.");
+      toast.error("E-Mails können nur für die aktuelle Stufe gesendet werden.");
       return;
     }
     const col = String(resolvedMajor?.collectionName || "").trim();
@@ -1091,12 +1148,12 @@ function Generate() {
 
     const recipientEmail = String(formCv.personalInfo.email || "").trim();
     if (!recipientEmail) {
-      toast.error("Kandidat email manzili topilmadi.");
+      toast.error("E-Mail-Adresse des Kandidaten wurde nicht gefunden.");
       return;
     }
 
     if (sendingEmailLockRef.current) {
-      toast("Email yuborilmoqda, biroz kuting...");
+      toast("E-Mail wird gesendet, bitte warten...");
       return;
     }
 
@@ -1119,14 +1176,19 @@ function Generate() {
         const hasLink = Boolean(info.link);
         const hasLocation = Boolean(info.locationName || info.locationUrl);
         if (!info.dateTime) {
-          toast.error("Vaqt ko'rsatilmagan.");
+          toast.error("Datum/Uhrzeit fehlt.");
           return;
         }
         if (!hasLink && !hasLocation) {
-          toast.error("Link yoki lokatsiya kiritilishi kerak.");
+          toast.error("Bitte Link oder Standort angeben.");
           return;
         }
       }
+
+      const templateId = makeEmailTemplateId(stepValue, normalizedDecision);
+      const templateDoc = emailTemplatesMap?.[templateId] || null;
+      const copyOverrides =
+        toCopyOverridesFromTemplateDoc(templateDoc) || undefined;
 
       const { subject, message, htmlContent } = buildStatusEmailTemplate({
         statusValue: stepValue,
@@ -1135,6 +1197,7 @@ function Generate() {
         stageDecision: normalizedDecision,
         decisionNote,
         additionalInfo: info,
+        copyOverrides,
       });
       const res = await sendBrevoEmail({
         to: recipientEmail,
@@ -1146,7 +1209,7 @@ function Generate() {
         throw new Error("Email yuborilmadi (success=false).");
       }
 
-      toast.success("Status bo'yicha email yuborildi.");
+      toast.success("Status-E-Mail wurde gesendet.");
 
       // Best-effort: store email send counters for list view (CollectionCv)
       try {
@@ -1196,7 +1259,7 @@ function Generate() {
       }
     } catch (err) {
       console.error(err);
-      toast.error("Email yuborishda xato. Keyinroq qayta urinib ko'ring.");
+      toast.error("Fehler beim Senden der E-Mail. Bitte später erneut versuchen.");
     } finally {
       setSendingStepValue(null);
       sendingEmailLockRef.current = false;
@@ -1211,7 +1274,7 @@ function Generate() {
 
   async function confirmDeleteCandidate() {
     if (isLimitedAdmin) {
-      toast.error("Sizda kandidatni o'chirish huquqi yo'q.");
+      toast.error("Sie haben keine Berechtigung, Kandidaten zu löschen.");
       return;
     }
     const colName = String(resolvedMajor?.collectionName || "").trim();
@@ -1268,13 +1331,13 @@ function Generate() {
         majorLabel: resolvedMajor?.title || colName,
       });
 
-      toast.success("Kandidat o'chirildi.");
+      toast.success("Kandidat wurde gelöscht.");
       setDeleteModalOpen(false);
       setDeleteTarget(null);
       navigate(`/collectionCv/${resolvedMajor?.linkId || major}`);
     } catch (err) {
       console.error(err);
-      toast.error("O'chirishda xatolik.");
+      toast.error("Fehler beim Löschen.");
     } finally {
       setIsDeletingCandidate(false);
     }
@@ -1298,12 +1361,12 @@ function Generate() {
 
   async function sendCustomEmail({ to, emailTitle, subject, bodyText }) {
     if (isLimitedAdmin) {
-      toast.error("Sizda email yuborish huquqi yo'q.");
+      toast.error("Sie haben keine Berechtigung, E-Mails zu senden.");
       return;
     }
     const recipientEmail = String(to || "").trim();
     if (!recipientEmail) {
-      toast.error("Qabul qiluvchi email (To) to'ldirilmagan.");
+      toast.error("Empfänger-E-Mail (To) ist nicht ausgefüllt.");
       return;
     }
     const safeStatusValue =
@@ -1320,13 +1383,13 @@ function Generate() {
 
     if (!hasMain) {
       toast.error(
-        "Matn bo'limida kamida 1-paragraf (asosiy matn) yozilishi shart."
+        "Im Textbereich muss mindestens 1 Absatz (Haupttext) enthalten sein."
       );
       return;
     }
     const subjectRaw = String(subject || "").trim();
     if (!subjectRaw) {
-      toast.error("Subject to'ldirilmagan.");
+      toast.error("Betreff ist nicht ausgefüllt.");
       return;
     }
 
@@ -1357,12 +1420,12 @@ function Generate() {
 
     const safeSubject = String(builtSubject || "").trim();
     if (!safeSubject) {
-      toast.error("Subject to'ldirilmagan.");
+      toast.error("Betreff ist nicht ausgefüllt.");
       return;
     }
 
     if (sendingEmailLockRef.current) {
-      toast("Email yuborilmoqda, biroz kuting...");
+      toast("E-Mail wird gesendet, bitte warten...");
       return;
     }
 
@@ -1381,7 +1444,7 @@ function Generate() {
       if (res?.success === false) {
         throw new Error("Email yuborilmadi (success=false).");
       }
-      toast.success("Custom email yuborildi.");
+      toast.success("Benutzerdefinierte E-Mail wurde gesendet.");
 
       // Best-effort: store email send counters for list view (CollectionCv)
       try {
@@ -1403,7 +1466,7 @@ function Generate() {
     } catch (err) {
       console.error(err);
       toast.error(
-        "Custom email yuborishda xato. Keyinroq qayta urinib ko'ring."
+        "Fehler beim Senden der benutzerdefinierten E-Mail. Bitte später erneut versuchen."
       );
     } finally {
       setSendingStepValue(null);
@@ -1413,11 +1476,11 @@ function Generate() {
 
   async function resetCandidateStages() {
     if (isLimitedAdmin) {
-      toast.error("Sizda bosqichni reset qilish huquqi yo'q.");
+      toast.error("Sie haben keine Berechtigung, die Stufen zurückzusetzen.");
       return;
     }
     if (sendingEmailLockRef.current || sendingStepValue) {
-      toast("Email jarayoni davom etyapti, biroz kuting...");
+      toast("E-Mail-Vorgang läuft, bitte warten...");
       return;
     }
     const col = String(resolvedMajor?.collectionName || "").trim();
@@ -1452,10 +1515,10 @@ function Generate() {
       setStatusValue(CANDIDATE_STATUS_DEFAULT);
       setStatusUpdatedAt(now);
       setStatusUpdatedBy(user?.email || user?.uid || "admin");
-      toast.success("Bosqich reset qilindi.");
+      toast.success("Stufen wurden zurückgesetzt.");
     } catch (e) {
       console.error(e);
-      toast.error("Bosqichni reset qilishda xato.");
+      toast.error("Fehler beim Zurücksetzen der Stufen.");
     }
   }
 
@@ -1500,11 +1563,11 @@ function Generate() {
 
   function handleSendStatusEmail(stepValue) {
     if (isLimitedAdmin) {
-      toast.error("Sizda email yuborish huquqi yo'q.");
+      toast.error("Sie haben keine Berechtigung, E-Mails zu senden.");
       return;
     }
     if (stepValue !== statusValue) {
-      toast.error("Faqat joriy bosqich uchun email yuborish mumkin.");
+      toast.error("E-Mails können nur für die aktuelle Stufe gesendet werden.");
       return;
     }
     const initialInfo = getStageAdditionalInfo(stepValue);
@@ -1577,6 +1640,11 @@ function Generate() {
           : normalizeStageFormInfo(stageAdditionalInfoForm)
         : createEmptyStageInfo();
     try {
+      const templateId = makeEmailTemplateId(pendingStageStep, normalizedDecision);
+      const templateDoc = emailTemplatesMap?.[templateId] || null;
+      const copyOverrides =
+        toCopyOverridesFromTemplateDoc(templateDoc) || undefined;
+
       const { subject, message, htmlContent } = buildStatusEmailTemplate({
         statusValue: pendingStageStep,
         firstName: formCv.personalInfo.name,
@@ -1584,6 +1652,7 @@ function Generate() {
         stageDecision: normalizedDecision,
         decisionNote: "",
         additionalInfo: info,
+        copyOverrides,
       });
       return {
         to: recipientEmail,
@@ -1607,17 +1676,25 @@ function Generate() {
     formCv.personalInfo.email,
     formCv.personalInfo.name,
     formCv.personalInfo.lastName,
+    emailTemplatesMap,
   ]);
 
   const customEmailDefaults = useMemo(() => {
     const stage = String(statusValue || "").trim() || CANDIDATE_STATUS_DEFAULT;
+    const templateId = makeEmailTemplateId(stage, "accepted");
+    const templateDoc = emailTemplatesMap?.[templateId] || null;
+    const override = toCopyOverridesFromTemplateDoc(templateDoc) || {};
     const baseCopy = getStatusEmailCopy(stage, "accepted");
+    const subjectFromTemplate =
+      override?.subject !== undefined
+        ? String(override.subject || "")
+        : String(baseCopy?.subject || "");
     return {
       emailTitle: "Ariza holati yangilandi",
-      subject: String(baseCopy?.subject || ""),
+      subject: subjectFromTemplate,
       bodyText: "Asosiy matn (main)...\n\nKeyingi qadam (note)...",
     };
-  }, [statusValue]);
+  }, [statusValue, emailTemplatesMap]);
 
   function stripDefaultIntroFromCustomPreview(value) {
     const raw = String(value || "");
@@ -1823,7 +1900,7 @@ function Generate() {
           : "Änderungen wurden gespeichert."
       );
       if (shouldSyncEmail) {
-        toast("Email o'zgardi: kandidat bosqichlari stage_1 ga qaytarildi.");
+        toast("E-Mail wurde geändert: Kandidatenstufen wurden auf stage_1 zurückgesetzt.");
       }
       if (isLimitedAdmin) {
         setCommentBaseline(String(commentHtml || ""));
@@ -2726,16 +2803,16 @@ function Generate() {
                                 id="g-addressPostalCode"
                                 type="text"
                                 inputMode="numeric"
-                                maxLength={5}
+                                maxLength={6}
                                 className={inputBase}
-                                placeholder="12345"
+                                placeholder="123456"
                                 value={String(addressFields.postalCode || "")}
                                 onChange={(e) =>
                                   applyAddressFields({
                                     ...addressFields,
                                     postalCode: String(e.target.value || "")
                                       .replace(/[^\d]/g, "")
-                                      .slice(0, 5),
+                                      .slice(0, 6),
                                   })
                                 }
                               />
@@ -3160,9 +3237,23 @@ function Generate() {
           </div>
           <div className="text-xs opacity-60 mt-2">
             Oxirgi yangilanish:{" "}
-            {statusUpdatedAt
-              ? new Date(statusUpdatedAt).toLocaleString("de-DE")
-              : "—"}
+            {statusUpdatedAt ? (() => {
+              try {
+                const d = new Date(statusUpdatedAt);
+                if (Number.isNaN(d.getTime())) return "—";
+                return new Intl.DateTimeFormat("uz-UZ", {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                  timeZone: "Asia/Tashkent",
+                }).format(d);
+              } catch {
+                return "—";
+              }
+            })() : "—"}
             {statusUpdatedBy ? ` • Kim: ${statusUpdatedBy}` : ""}
           </div>
         </div>

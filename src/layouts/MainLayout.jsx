@@ -3,15 +3,17 @@ import { useEffect, useRef, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import Navbar from "../components/Navbar";
 import { FaHome, FaUserCircle } from "react-icons/fa";
-import { MdDarkMode, MdLightMode, MdOutlineLogout } from "react-icons/md";
+import { MdDarkMode, MdLightMode, MdOutlineLogout, MdSettings } from "react-icons/md";
 import { useLogout } from "../hooks/useLogut";
 import { useTheme } from "../hooks/useTheme";
+import useUserRole from "../hooks/useUserRole";
 
 function MainLayout() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const location = useLocation();
   const { logoutUser, isPending } = useLogout();
   const { theme, toggleTheme } = useTheme();
+  const { role, loadingRole } = useUserRole();
   const isDracula = theme === "dracula";
   const sidebarRef = useRef(null);
 
@@ -65,6 +67,17 @@ function MainLayout() {
           <FaUserCircle className="text-xl" />
           <span className="font-medium">Profil</span>
         </Link>
+        {!loadingRole && (role === "super_admin" || role === "admin") && (
+          <Link
+            to="/settings"
+            className="btn btn-ghost gap-2 hidden sm:inline-flex"
+            aria-label="Einstellungen"
+            data-sidebar-toggle
+          >
+            <MdSettings className="text-xl" />
+            <span className="font-medium">Einstellungen</span>
+          </Link>
+        )}
         <button
           type="button"
           onClick={toggleTheme}

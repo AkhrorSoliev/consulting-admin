@@ -7,7 +7,16 @@ function formatDate(value) {
   try {
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return "";
-    return d.toLocaleString("de-DE");
+    // Always show timestamps in Toshkent time to avoid confusing offsets (e.g. 8h) on admins' machines.
+    return new Intl.DateTimeFormat("uz-UZ", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: "Asia/Tashkent",
+    }).format(d);
   } catch {
     return "";
   }

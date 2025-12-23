@@ -119,3 +119,13 @@ exports.submitCandidate = onRequest(async (req, res) => {
       .json({ ok: false, error: "internal", details: err.message });
   }
 });
+
+// Callable (super_admin only) user management
+const userManagement = require("./src/userManagement");
+exports.createUser = userManagement.createUser;
+exports.disableUser = userManagement.disableUser;
+exports.enableUser = userManagement.enableUser;
+exports.deleteUser = userManagement.deleteUser;
+exports.listUsers = userManagement.listUsers;
+exports.setUserPassword = userManagement.setUserPassword;
+exports.setUserRole = userManagement.setUserRole;

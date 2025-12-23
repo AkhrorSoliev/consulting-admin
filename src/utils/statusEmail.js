@@ -21,8 +21,24 @@ function buildFullName(firstName, lastName) {
 function formatInterviewDateTime(value) {
   if (!value) return "";
   try {
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return String(value);
+    // If admin enters a `datetime-local` value (YYYY-MM-DDTHH:mm), it has NO timezone.
+    // In JS, `new Date("YYYY-MM-DDTHH:mm")` is interpreted in the *machine's local TZ*,
+    // which can shift the time (often reported as 8h difference). For our product
+    // we treat that input as **Toshkent vaqti**, so we render it as-is.
+    const raw = String(value).trim();
+    const mLocal = raw.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?$/);
+    if (mLocal) {
+      const [, yyyy, mm, dd, hh, min] = mLocal;
+      return `${yyyy}-${mm}-${dd} ${hh}:${min} (Toshkent vaqti)`;
+    }
+    const mDateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (mDateOnly) {
+      const [, yyyy, mm, dd] = mDateOnly;
+      return `${yyyy}-${mm}-${dd} 00:00 (Toshkent vaqti)`;
+    }
+
+    const parsed = new Date(raw);
+    if (Number.isNaN(parsed.getTime())) return raw;
 
     const formatter = new Intl.DateTimeFormat("uz-UZ", {
       year: "numeric",
