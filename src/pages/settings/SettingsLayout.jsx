@@ -1,87 +1,69 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { MdSettings, MdPeopleAlt, MdEmail } from "react-icons/md";
 import useUserRole from "../../hooks/useUserRole";
+import { FiMail, FiSettings, FiUsers } from "react-icons/fi";
 
-function SettingsNavLink({ to, icon: Icon, title }) {
-  return (
-    <NavLink
-      to={to}
-      className={({ isActive }) =>
-        [
-          "group flex items-center gap-3 rounded-lg px-3 py-2 transition",
-          isActive ? "bg-primary/10 text-primary" : "hover:bg-base-200/70",
-        ].join(" ")
-      }
-      end
-    >
-      <Icon className="text-lg opacity-80" />
-      <div className="min-w-0 font-medium">{title}</div>
-    </NavLink>
-  );
+function menuItemClass({ isActive }) {
+  const base =
+    "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors";
+  const inactive =
+    "text-base-content/80 hover:bg-base-300/60 hover:text-base-content";
+  const active =
+    "bg-primary text-primary-content shadow-sm ring-1 ring-primary/30";
+  return `${base} ${isActive ? active : inactive}`;
 }
 
 export default function SettingsLayout() {
-  const { role, loadingRole } = useUserRole();
-
-  if (loadingRole) {
-    return (
-      <div className="w-full">
-        <div className="rounded-box border border-base-300 bg-base-100 p-6 shadow">
-          <p className="text-sm text-base-content/60">Wird geladen...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const canAccessSettings = role === "super_admin" || role === "admin";
-
-  if (!canAccessSettings) {
-    return (
-      <div className="w-full">
-        <div className="rounded-box border border-base-300 bg-base-100 p-6 shadow space-y-2">
-          <h1 className="text-2xl font-semibold flex items-center gap-2">
-            <MdSettings className="text-2xl" /> Einstellungen
-          </h1>
-          <p className="text-sm text-error">
-            Kein Zugriff. (Admin yoki Super Admin talab qilinadi)
-          </p>
-          <p className="text-sm text-base-content/60">
-            Sizning akkauntingizda{" "}
-            <span className="font-mono">role=admin</span> yoki{" "}
-            <span className="font-mono">role=super_admin</span> custom claim yo‘q.
-            Logout/Login qiling yoki claim to‘g‘ri berilganini tekshiring.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const { role, loadingRole } = useUserRole({ forceRefresh: true });
+  const showAdmins = !loadingRole && role === "super_admin";
 
   return (
-    <div className="w-full space-y-4">
-      <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr] gap-3 items-start">
-        <aside className="border border-base-300 bg-base-100 rounded-lg p-2">
-          <div className="flex flex-col gap-1">
-            {role === "super_admin" && (
-              <SettingsNavLink
-                to="/settings/admins"
-                icon={MdPeopleAlt}
-                title="Adminlar"
-              />
-            )}
-            <SettingsNavLink
-              to="/settings/template-emails"
-              icon={MdEmail}
-              title="Template Emaillar"
-            />
+    <div className="w-full mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-6">
+        <aside className="md:sticky md:top-0 self-start rounded-box border border-base-300 bg-base-100 shadow">
+          <div className="p-4 border-b border-base-200">
+            <div className="flex items-center gap-3">
+              <div className="grid place-items-center h-10 w-10 rounded-xl bg-primary/10 text-primary">
+                <FiSettings className="h-5 w-5" aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <div className="font-semibold leading-tight">Einstellungen</div>
+                <div className="text-xs text-base-content/60">
+                  Konfiguration &amp; Vorlagen
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-2">
+            <ul className="space-y-1">
+              {showAdmins && (
+                <li>
+                  <NavLink to="admins" className={menuItemClass} end>
+                    <FiUsers
+                      className="h-[18px] w-[18px] opacity-90"
+                      aria-hidden="true"
+                    />
+                    <span className="flex-1">Admins</span>
+                  </NavLink>
+                </li>
+              )}
+              <li>
+                <NavLink to="template-emails" className={menuItemClass} end>
+                  <FiMail
+                    className="h-[18px] w-[18px] opacity-90"
+                    aria-hidden="true"
+                  />
+                  <span className="flex-1">E-Mail-Vorlagen</span>
+                </NavLink>
+              </li>
+            </ul>
           </div>
         </aside>
 
-        <section className="border border-base-300 bg-base-100 rounded-lg p-4">
+        <section className="min-w-0 rounded-box border border-base-300 bg-base-100 p-6 shadow">
           <Outlet />
         </section>
       </div>
     </div>
   );
 }
-
-

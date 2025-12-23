@@ -383,6 +383,8 @@ function Generate() {
     []
   );
   const [formCv, setFormCv] = useState(initialForm);
+  const [phoneTouched, setPhoneTouched] = useState(false);
+  const [emailTouched, setEmailTouched] = useState(false);
   const [showDocuments, setShowDocuments] = useState(false);
   const [showComment, setShowComment] = useState(true);
   const [showCommentDate, setShowCommentDate] = useState(true);
@@ -527,6 +529,8 @@ function Generate() {
     setFormCv(normalizeForm(mapped));
     setCommentBaseline(getCommentHtml(mapped));
     setIsCommentEditorOpen(false);
+    setPhoneTouched(false);
+    setEmailTouched(false);
     setRecentlyAdded({ soft: [], pc: [] });
   }
 
@@ -639,6 +643,9 @@ function Generate() {
             const mapped = mapDocToForm(data);
             setFormCv(normalizeForm(mapped));
             setFormInitialized(true);
+            // Don't show "success" validation colors on initial load.
+            setPhoneTouched(false);
+            setEmailTouched(false);
           }
         }
         setLoading(false);
@@ -1999,6 +2006,8 @@ function Generate() {
   const phoneDigits = getPhoneBodyDigits(phone);
   const emailOk = isEmailValid(email);
   const emailWarn = email.length > 0 && !emailOk;
+  const phoneShowOk = phoneTouched && phoneOk;
+  const emailShowOk = emailTouched && emailOk;
 
   // Style overrides for FormInput component
 
@@ -2577,24 +2586,6 @@ function Generate() {
                               </button>
 
                               <div className="dropdown-content w-full mt-1 max-h-72 rounded-box border border-base-300 bg-base-100 shadow z-[60] overflow-hidden flex flex-col">
-                                <div className="flex justify-end p-2 border-b border-base-200">
-                                  <button
-                                    type="button"
-                                    className="btn btn-ghost btn-xs"
-                                    aria-label="Schließen"
-                                    onMouseDown={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                    }}
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      setIsDrivingLicenseDropdownOpen(false);
-                                    }}
-                                  >
-                                    ✕
-                                  </button>
-                                </div>
                                 <ul
                                   className="menu p-2 overflow-auto w-full"
                                   role="listbox"
@@ -2661,17 +2652,18 @@ function Generate() {
                           label="Telefonnummer"
                           required
                           value={formCv.personalInfo.phone}
-                          onChange={(next) =>
+                          onChange={(next) => {
+                            setPhoneTouched(true);
                             setFormCv((prev) => ({
                               ...prev,
                               personalInfo: {
                                 ...prev.personalInfo,
                                 phone: next,
                               },
-                            }))
-                          }
+                            }));
+                          }}
                           inputClassName={
-                            phoneOk
+                            phoneShowOk
                               ? "input-success"
                               : phoneWarn
                               ? "input-warning"
@@ -2692,17 +2684,18 @@ function Generate() {
                         placeholder="E-Mail"
                         type="email"
                         value={formCv.personalInfo.email}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          setEmailTouched(true);
                           setFormCv((prev) => ({
                             ...prev,
                             personalInfo: {
                               ...prev.personalInfo,
                               email: e.target.value,
                             },
-                          }))
-                        }
+                          }));
+                        }}
                         inputClassName={
-                          emailOk
+                          emailShowOk
                             ? "input-success"
                             : emailWarn
                             ? "input-warning"

@@ -222,7 +222,9 @@ function SuperAdminUserManagement() {
         <h2 className="text-lg font-semibold">Benutzerverwaltung</h2>
         <button
           type="button"
-          className={`btn btn-sm btn-outline btn-square ${loading ? "btn-disabled" : ""}`}
+          className={`btn btn-sm btn-outline btn-square ${
+            loading ? "btn-disabled" : ""
+          }`}
           onClick={() => loadUsers()}
           disabled={loading}
           aria-label="Aktualisieren"
@@ -267,9 +269,15 @@ function SuperAdminUserManagement() {
             className="absolute inset-y-0 right-0 pr-3 flex items-center text-base-content/70 hover:text-base-content z-10 focus:outline-none focus-visible:outline-none"
             onClick={() => setShowCreatePassword((prev) => !prev)}
             disabled={loading}
-            aria-label={showCreatePassword ? "Passwort verbergen" : "Passwort anzeigen"}
+            aria-label={
+              showCreatePassword ? "Passwort verbergen" : "Passwort anzeigen"
+            }
           >
-            {showCreatePassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
+            {showCreatePassword ? (
+              <FaEyeSlash size={18} />
+            ) : (
+              <FaEye size={18} />
+            )}
           </button>
         </div>
         <button
@@ -286,7 +294,6 @@ function SuperAdminUserManagement() {
           <thead>
             <tr>
               <th>Email</th>
-              <th>UID</th>
               <th>Rolle</th>
               <th>Status</th>
               <th className="text-right">Aktionen</th>
@@ -295,7 +302,10 @@ function SuperAdminUserManagement() {
           <tbody>
             {users.length === 0 ? (
               <tr>
-                <td colSpan={4} className="text-center text-sm text-base-content/60">
+                <td
+                  colSpan={4}
+                  className="text-center text-sm text-base-content/60"
+                >
                   {loading ? "Wird geladen..." : "Keine Benutzer gefunden"}
                 </td>
               </tr>
@@ -303,13 +313,14 @@ function SuperAdminUserManagement() {
               users.map((u) => (
                 <tr key={u.uid}>
                   <td className="max-w-[240px] truncate">{u.email || "—"}</td>
-                  <td className="font-mono text-xs max-w-[220px] truncate">{u.uid}</td>
                   <td>
                     <div className="flex items-center">
                       <select
                         className="select select-bordered select-xs w-[148px]"
                         value={roleDrafts[u.uid] || "user"}
-                        onChange={(e) => handleRoleChange(u.uid, e.target.value)}
+                        onChange={(e) =>
+                          handleRoleChange(u.uid, e.target.value)
+                        }
                         disabled={loading}
                       >
                         {ROLE_OPTIONS.map((opt) => (
@@ -321,7 +332,11 @@ function SuperAdminUserManagement() {
                     </div>
                   </td>
                   <td>
-                    <span className={`badge ${u.disabled ? "badge-error" : "badge-success"}`}>
+                    <span
+                      className={`badge ${
+                        u.disabled ? "badge-error" : "badge-success"
+                      }`}
+                    >
                       {u.disabled ? "deaktiviert" : "aktiv"}
                     </span>
                   </td>
@@ -379,14 +394,15 @@ function SuperAdminUserManagement() {
         </table>
       </div>
 
-      <dialog id="set_password_modal" className="modal modal-bottom sm:modal-middle">
+      <dialog
+        id="set_password_modal"
+        className="modal modal-bottom sm:modal-middle"
+      >
         <div className="modal-box max-w-md">
           <h3 className="font-bold text-lg">Passwort ändern</h3>
           <p className="text-sm opacity-70 mt-1">
             Für:{" "}
-            <span className="font-medium">
-              {pwModalUser?.email || pwModalUser?.uid || "—"}
-            </span>
+            <span className="font-medium">{pwModalUser?.email || "—"}</span>
           </p>
 
           <form
@@ -416,7 +432,9 @@ function SuperAdminUserManagement() {
                   className="absolute inset-y-0 right-0 pr-3 flex items-center text-base-content/70 hover:text-base-content z-10 focus:outline-none focus-visible:outline-none"
                   onClick={() => setShowPw1((prev) => !prev)}
                   disabled={loading}
-                  aria-label={showPw1 ? "Passwort verbergen" : "Passwort anzeigen"}
+                  aria-label={
+                    showPw1 ? "Passwort verbergen" : "Passwort anzeigen"
+                  }
                 >
                   {showPw1 ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
                 </button>
@@ -444,7 +462,9 @@ function SuperAdminUserManagement() {
                   className="absolute inset-y-0 right-0 pr-3 flex items-center text-base-content/70 hover:text-base-content z-10 focus:outline-none focus-visible:outline-none"
                   onClick={() => setShowPw2((prev) => !prev)}
                   disabled={loading}
-                  aria-label={showPw2 ? "Passwort verbergen" : "Passwort anzeigen"}
+                  aria-label={
+                    showPw2 ? "Passwort verbergen" : "Passwort anzeigen"
+                  }
                 >
                   {showPw2 ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
                 </button>
@@ -487,5 +507,3 @@ function SuperAdminUserManagement() {
 }
 
 export default SuperAdminUserManagement;
-
-

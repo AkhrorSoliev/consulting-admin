@@ -1,18 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSelector } from "react-redux";
 
 /**
  * Reads current Firebase custom claims role from the authenticated user.
  * Returns { role, loadingRole } where role is e.g. "admin" | "limited_admin" | null.
  */
-export function useUserRole() {
+export function useUserRole(options = {}) {
   const { user } = useSelector((state) => state.auth);
   const [role, setRole] = useState(null);
   const [loadingRole, setLoadingRole] = useState(false);
 
+  const forceRefresh = useMemo(
+    () => Boolean(options?.forceRefresh),
+    [options?.forceRefresh]
+  );
+
   useEffect(() => {
     let active = true;
-    let didForceRefresh = false;
 
     async function loadRole() {
       if (!user) {
@@ -25,17 +29,10 @@ export function useUserRole() {
 
       setLoadingRole(true);
       try {
-        // First try cached token (cheap). If role is missing, force refresh ONCE.
-        let token = await user.getIdTokenResult();
-        let nextRole = token?.claims?.role || null;
-
-        if (!nextRole && !didForceRefresh) {
-          didForceRefresh = true;
-          token = await user.getIdTokenResult(true);
-          nextRole = token?.claims?.role || null;
+        const token = await user.getIdTokenResult(forceRefresh);
+        if (active) {
+          setRole(token?.claims?.role || null);
         }
-
-        if (active) setRole(nextRole);
       } catch (err) {
         console.error("Failed to load user role:", err);
         if (active) {
@@ -52,7 +49,7 @@ export function useUserRole() {
     return () => {
       active = false;
     };
-  }, [user]);
+  }, [user, forceRefresh]);
 
   return { role, loadingRole };
 }
