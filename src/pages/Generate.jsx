@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useBlocker, useNavigate, useParams } from "react-router-dom";
 import { doc, increment, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/config";
 import {
@@ -18,6 +18,8 @@ import {
   getPhoneBodyDigits,
   isEmailValid,
   isPhoneComplete,
+  isPassportNumberValid,
+  normalizePassportNumber,
 } from "../utils/validation";
 import CountryNameCombobox from "../components/CountryNameCombobox";
 import ExperienceSection from "../components/ExperienceSection";
@@ -58,6 +60,7 @@ import { sendBrevoEmail } from "../utils/brevo";
 import RichTextEditor from "../components/RichTextEditor";
 import { useUserRole } from "../hooks/useUserRole";
 import DeleteCandidateModal from "../components/DeleteCandidateModal";
+import UnsavedChangesModal from "../components/UnsavedChangesModal";
 import PhotoModal from "./generate/components/modals/PhotoModal";
 import StageEmailModal from "./generate/components/modals/StageEmailModal";
 import CustomEmailModal from "./generate/components/modals/CustomEmailModal";
@@ -114,7 +117,13 @@ function toDateTimeLocalString(value) {
         acc[part.type] = part.value;
         return acc;
       }, {});
-      if (!parts.year || !parts.month || !parts.day || !parts.hour || !parts.minute) {
+      if (
+        !parts.year ||
+        !parts.month ||
+        !parts.day ||
+        !parts.hour ||
+        !parts.minute
+      ) {
         return "";
       }
       return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
@@ -128,7 +137,8 @@ function toDateTimeLocalString(value) {
     if (!s) return "";
     // datetime-local: yyyy-mm-ddThh:mm
     // If it's already a plain datetime-local string (NO timezone info), keep as-is.
-    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(s)) return s.slice(0, 16);
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(s))
+      return s.slice(0, 16);
     // If it contains timezone (Z or +hh:mm/-hh:mm), normalize to Asia/Tashkent for the input.
     if (/[zZ]$/.test(s) || /[+\-]\d{2}:\d{2}$/.test(s)) {
       const out = formatDateTimeLocalInTimeZone(new Date(s), "Asia/Tashkent");
@@ -371,6 +381,7 @@ function Generate() {
         hasDrivingLicense: false,
         drivingLicenseType: "",
         phone: "",
+        passportNumber: "",
         email: "",
         photo: "",
       },
@@ -384,6 +395,7 @@ function Generate() {
   );
   const [formCv, setFormCv] = useState(initialForm);
   const [phoneTouched, setPhoneTouched] = useState(false);
+  const [passportTouched, setPassportTouched] = useState(false);
   const [emailTouched, setEmailTouched] = useState(false);
   const [showDocuments, setShowDocuments] = useState(false);
   const [showComment, setShowComment] = useState(true);
@@ -444,6 +456,9 @@ function Generate() {
           safe?.personalInfo?.drivingLicenseType || ""
         ).trim(),
         phone: String(safe?.personalInfo?.phone || ""),
+        passportNumber: normalizePassportNumber(
+          safe?.personalInfo?.passportNumber || ""
+        ),
         email: String(safe?.personalInfo?.email || ""),
         photo: String(safe?.personalInfo?.photo || ""),
       },
@@ -515,13 +530,62 @@ function Generate() {
 
   const normalizedCurrentForm = useMemo(() => normalizeForm(formCv), [formCv]);
 
+  const [savedBaselineJson, setSavedBaselineJson] = useState("");
+  useEffect(() => {
+    if (!normalizedDocForm) return;
+    setSavedBaselineJson(JSON.stringify(normalizedDocForm));
+  }, [normalizedDocForm]);
+
+  const currentFormJson = useMemo(
+    () => JSON.stringify(normalizedCurrentForm),
+    [normalizedCurrentForm]
+  );
+
   const hasUnsavedChanges = useMemo(() => {
-    if (!normalizedDocForm) return false;
-    return (
-      JSON.stringify(normalizedDocForm) !==
-      JSON.stringify(normalizedCurrentForm)
-    );
-  }, [normalizedDocForm, normalizedCurrentForm]);
+    if (!savedBaselineJson) return false;
+    return savedBaselineJson !== currentFormJson;
+  }, [savedBaselineJson, currentFormJson]);
+
+  const [unsavedModalOpen, setUnsavedModalOpen] = useState(false);
+  const unsavedBlocker = useBlocker(
+    Boolean(hasUnsavedChanges) && !Boolean(isSaving)
+  );
+
+  useEffect(() => {
+    if (unsavedBlocker.state === "blocked") {
+      setUnsavedModalOpen(true);
+    }
+  }, [unsavedBlocker.state]);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges && unsavedModalOpen) {
+      setUnsavedModalOpen(false);
+    }
+  }, [hasUnsavedChanges, unsavedModalOpen]);
+
+  useEffect(() => {
+    if (!hasUnsavedChanges) return;
+    const message =
+      "Sizda saqlanmagan o‘zgarishlar bor. Sahifani tark etsangiz o‘zgarishlar yo‘qoladi.";
+    function onBeforeUnload(e) {
+      e.preventDefault();
+      // Most browsers ignore custom text, but setting returnValue is required to trigger the prompt.
+      e.returnValue = message;
+      return message;
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [hasUnsavedChanges]);
+
+  function stayOnGeneratePage() {
+    setUnsavedModalOpen(false);
+    unsavedBlocker.reset?.();
+  }
+
+  function leaveGeneratePage() {
+    setUnsavedModalOpen(false);
+    unsavedBlocker.proceed?.();
+  }
 
   function handleCancel() {
     if (!docCv) return;
@@ -530,6 +594,7 @@ function Generate() {
     setCommentBaseline(getCommentHtml(mapped));
     setIsCommentEditorOpen(false);
     setPhoneTouched(false);
+    setPassportTouched(false);
     setEmailTouched(false);
     setRecentlyAdded({ soft: [], pc: [] });
   }
@@ -752,6 +817,14 @@ function Generate() {
         hasDrivingLicense,
         drivingLicenseType,
         phone: String(p.telefon || ""),
+        passportNumber: normalizePassportNumber(
+          p?.reisepassNummer ||
+            data?.passportId ||
+            p?.passportId ||
+            p?.passportNumber ||
+            data?.reisepassNummer ||
+            ""
+        ),
         email: String(p.email || ""),
         photo: String(p.foto || ""),
       },
@@ -790,6 +863,9 @@ function Generate() {
 
   function mapFormToDoc(f) {
     const noChildren = Boolean(f?.personalInfo?.noChildren);
+    const passportNumber = normalizePassportNumber(
+      f?.personalInfo?.passportNumber || ""
+    );
     return {
       persoenlicheDaten: {
         name: f.personalInfo.name,
@@ -809,8 +885,10 @@ function Generate() {
           .toUpperCase(),
         telefon: f.personalInfo.phone,
         email: f.personalInfo.email,
+        reisepassNummer: passportNumber,
         foto: f.personalInfo.photo,
       },
+      passportId: passportNumber || null,
       berufserfahrung: Array.isArray(f.experience)
         ? f.experience.map((exp) => ({
             beginn: exp.startDate,
@@ -1266,7 +1344,9 @@ function Generate() {
       }
     } catch (err) {
       console.error(err);
-      toast.error("Fehler beim Senden der E-Mail. Bitte später erneut versuchen.");
+      toast.error(
+        "Fehler beim Senden der E-Mail. Bitte später erneut versuchen."
+      );
     } finally {
       setSendingStepValue(null);
       sendingEmailLockRef.current = false;
@@ -1647,7 +1727,10 @@ function Generate() {
           : normalizeStageFormInfo(stageAdditionalInfoForm)
         : createEmptyStageInfo();
     try {
-      const templateId = makeEmailTemplateId(pendingStageStep, normalizedDecision);
+      const templateId = makeEmailTemplateId(
+        pendingStageStep,
+        normalizedDecision
+      );
       const templateDoc = emailTemplatesMap?.[templateId] || null;
       const copyOverrides =
         toCopyOverridesFromTemplateDoc(templateDoc) || undefined;
@@ -1907,11 +1990,15 @@ function Generate() {
           : "Änderungen wurden gespeichert."
       );
       if (shouldSyncEmail) {
-        toast("E-Mail wurde geändert: Kandidatenstufen wurden auf stage_1 zurückgesetzt.");
+        toast(
+          "E-Mail wurde geändert: Kandidatenstufen wurden auf stage_1 zurückgesetzt."
+        );
       }
       if (isLimitedAdmin) {
         setCommentBaseline(String(commentHtml || ""));
       }
+      // Optimistic: mark current form as saved so user isn't blocked while snapshot catches up.
+      setSavedBaselineJson(JSON.stringify(normalizedCurrentForm));
       if (nextCommentMeta) {
         setCommentMeta(nextCommentMeta);
       }
@@ -1977,6 +2064,9 @@ function Generate() {
   const address = String(formCv.personalInfo.address || "").trim();
   const birthDate = String(formCv.personalInfo.birthDate || "").trim();
   const phone = String(formCv.personalInfo.phone || "").trim();
+  const passportNumber = normalizePassportNumber(
+    formCv.personalInfo.passportNumber || ""
+  );
   const email = String(formCv.personalInfo.email || "").trim();
   const maritalStatus = String(formCv.personalInfo.maritalStatus || "").trim();
   const noChildren = Boolean(formCv.personalInfo.noChildren);
@@ -2006,7 +2096,10 @@ function Generate() {
   const phoneDigits = getPhoneBodyDigits(phone);
   const emailOk = isEmailValid(email);
   const emailWarn = email.length > 0 && !emailOk;
+  const passportOk = isPassportNumberValid(passportNumber);
+  const passportWarn = passportNumber.length > 0 && !passportOk;
   const phoneShowOk = phoneTouched && phoneOk;
+  const passportShowOk = passportTouched && passportOk;
   const emailShowOk = emailTouched && emailOk;
 
   // Style overrides for FormInput component
@@ -2163,7 +2256,7 @@ function Generate() {
     : "Iltimos kuting...";
 
   return (
-    <div className="p-2 sm:p-4 md:p-6 bg-base-200 min-h-screen">
+    <div className="p-2 bg-base-200 min-h-screen">
       {isPageBusy && (
         <div
           className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-[1px] flex items-center justify-center"
@@ -2185,9 +2278,19 @@ function Generate() {
         isDeleting={isDeletingCandidate}
         seconds={5}
       />
-      <div className="w-full">
-        {/* Controls (hidden on print) */}
-        <div className="flex items-center justify-between mb-6 pb-2 md:pb-3 print:hidden">
+      <UnsavedChangesModal
+        open={unsavedModalOpen && unsavedBlocker.state === "blocked"}
+        title="Saqlanmagan o‘zgarishlar bor"
+        message="Sizda saqlanmagan o‘zgarishlar bor. Agar boshqa sahifaga o‘tsangiz yoki sahifani yangilasangiz, o‘zgarishlar yo‘qoladi. Davom etasizmi?"
+        stayText="Qolish"
+        leaveText="Davom etish"
+        onStay={stayOnGeneratePage}
+        onLeave={leaveGeneratePage}
+      />
+
+      {/* Fixed action bar under the global navbar (hidden on print) */}
+      <div className="fixed inset-x-0 top-16 z-30 border-b border-base-300 bg-base-200/90 backdrop-blur print:hidden">
+        <div className="flex items-center justify-between gap-3 px-4 py-2 lg:px-6">
           <div className="breadcrumbs text-sm">
             <ul>
               <li>
@@ -2201,6 +2304,7 @@ function Generate() {
               <li className="opacity-70">CV</li>
             </ul>
           </div>
+
           <div className="flex items-center gap-2">
             {!isLimitedAdmin && (
               <>
@@ -2235,7 +2339,11 @@ function Generate() {
             )}
           </div>
         </div>
+      </div>
+      {/* Spacer so content doesn't go under the fixed action bar */}
+      <div className="h-14 print:hidden" />
 
+      <div className="w-full">
         {loading ? (
           <div className="grid place-items-center py-16">
             <span className="loading loading-spinner loading-lg text-primary" />
@@ -2494,158 +2602,7 @@ function Generate() {
                         </div>
                       </div>
                       <div className="md:col-span-2 form-control w-full">
-                        <label className="label" htmlFor="g-driving">
-                          <span className="label-text">Führerschein</span>
-                        </label>
-                        <label className="cursor-pointer flex items-center gap-2">
-                          <input
-                            id="g-driving"
-                            type="checkbox"
-                            className="checkbox"
-                            checked={Boolean(
-                              formCv.personalInfo.hasDrivingLicense
-                            )}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setFormCv((prev) => ({
-                                ...prev,
-                                personalInfo: {
-                                  ...prev.personalInfo,
-                                  hasDrivingLicense: checked,
-                                  drivingLicenseType: checked
-                                    ? String(
-                                        prev.personalInfo.drivingLicenseType ||
-                                          ""
-                                      )
-                                    : "",
-                                },
-                              }));
-                              if (!checked)
-                                setIsDrivingLicenseDropdownOpen(false);
-                            }}
-                          />
-                          <span className="text-sm">Vorhanden</span>
-                        </label>
-                        {formCv.personalInfo.hasDrivingLicense ? (
-                          <div className="mt-3">
-                            <div
-                              ref={drivingLicenseDropdownRef}
-                              className={`dropdown w-full ${
-                                isDrivingLicenseDropdownOpen
-                                  ? "dropdown-open"
-                                  : ""
-                              }`}
-                            >
-                              <label className="label">
-                                <span className="label-text">
-                                  Führerschein-Klassen (mehrere möglich)
-                                </span>
-                              </label>
-
-                              <button
-                                type="button"
-                                className={`${selectBase} flex items-center justify-between gap-3`}
-                                aria-haspopup="listbox"
-                                aria-expanded={isDrivingLicenseDropdownOpen}
-                                onClick={() =>
-                                  setIsDrivingLicenseDropdownOpen((p) => !p)
-                                }
-                              >
-                                {(() => {
-                                  const raw = String(
-                                    formCv.personalInfo.drivingLicenseType || ""
-                                  )
-                                    .trim()
-                                    .toUpperCase();
-                                  const selected = raw
-                                    ? raw
-                                        .split(",")
-                                        .map((s) => s.trim())
-                                        .filter(Boolean)
-                                    : [];
-                                  const displayValue = selected.length
-                                    ? selected.join(", ")
-                                    : "Bitte auswählen";
-                                  return (
-                                    <>
-                                      <span
-                                        className={
-                                          selected.length
-                                            ? "text-base-content"
-                                            : "text-base-content/60"
-                                        }
-                                      >
-                                        {displayValue}
-                                      </span>
-                                      <span className="text-base-content/60">
-                                        ▾
-                                      </span>
-                                    </>
-                                  );
-                                })()}
-                              </button>
-
-                              <div className="dropdown-content w-full mt-1 max-h-72 rounded-box border border-base-300 bg-base-100 shadow z-[60] overflow-hidden flex flex-col">
-                                <ul
-                                  className="menu p-2 overflow-auto w-full"
-                                  role="listbox"
-                                  aria-multiselectable="true"
-                                >
-                                  {DRIVING_LICENSE_OPTIONS.map((opt) => {
-                                    const upper = String(opt || "")
-                                      .trim()
-                                      .toUpperCase();
-                                    const selected = String(
-                                      formCv.personalInfo.drivingLicenseType ||
-                                        ""
-                                    )
-                                      .trim()
-                                      .toUpperCase()
-                                      .split(",")
-                                      .map((s) => s.trim())
-                                      .filter(Boolean);
-                                    const isSelected = selected.includes(upper);
-
-                                    return (
-                                      <li key={opt}>
-                                        <button
-                                          type="button"
-                                          className="flex items-center gap-2"
-                                          onClick={() => {
-                                            const set = new Set(selected);
-                                            if (set.has(upper))
-                                              set.delete(upper);
-                                            else set.add(upper);
-                                            const next =
-                                              Array.from(set).join(", ");
-                                            setFormCv((prev) => ({
-                                              ...prev,
-                                              personalInfo: {
-                                                ...prev.personalInfo,
-                                                drivingLicenseType: next,
-                                              },
-                                            }));
-                                            // Close dropdown after selecting a value (user can reopen to add more)
-                                            setIsDrivingLicenseDropdownOpen(
-                                              false
-                                            );
-                                          }}
-                                        >
-                                          <span className="w-5 text-center">
-                                            {isSelected ? "✓" : ""}
-                                          </span>
-                                          <span className="font-medium">
-                                            {opt}
-                                          </span>
-                                        </button>
-                                      </li>
-                                    );
-                                  })}
-                                </ul>
-                              </div>
-                            </div>
-                          </div>
-                        ) : null}
+                        {/* Führerschein moved to Fähigkeiten section */}
                       </div>
                       <div className="md:col-span-2">
                         <PhoneInputWithCountry
@@ -2679,6 +2636,38 @@ function Generate() {
                           }
                         />
                       </div>
+                      <FormInput
+                        label="Passnummer"
+                        placeholder="AA 0000000"
+                        value={passportNumber}
+                        onChange={(e) => {
+                          setPassportTouched(true);
+                          const norm = normalizePassportNumber(e.target.value);
+                          setFormCv((prev) => ({
+                            ...prev,
+                            personalInfo: {
+                              ...prev.personalInfo,
+                              passportNumber: norm,
+                            },
+                          }));
+                        }}
+                        inputClassName={
+                          passportShowOk
+                            ? "input-success"
+                            : passportWarn
+                            ? "input-warning"
+                            : ""
+                        }
+                        helperText={
+                          passportWarn ? (
+                            <span className="text-warning">
+                              Bitte Passnummer im Format AA 0000000 eingeben.
+                            </span>
+                          ) : (
+                            ""
+                          )
+                        }
+                      />
                       <FormInput
                         label="E-Mail"
                         placeholder="E-Mail"
@@ -2881,7 +2870,172 @@ function Generate() {
                       />
                     </CollapsibleSection>
 
-                    <CollapsibleSection title="Fähigkeiten">
+                    <CollapsibleSection
+                      title="Fähigkeiten"
+                      className="!overflow-visible"
+                      contentClassName="!overflow-visible"
+                      openClassName="relative z-[80]"
+                    >
+                      <div className="mb-4 rounded-box border border-base-300 bg-base-200/40 p-4">
+                        <div className="form-control w-full">
+                          <label className="label" htmlFor="g-driving">
+                            <span className="label-text font-semibold">
+                              Führerschein
+                            </span>
+                          </label>
+                          <label className="cursor-pointer flex items-center gap-2">
+                            <input
+                              id="g-driving"
+                              type="checkbox"
+                              className="checkbox"
+                              checked={Boolean(
+                                formCv.personalInfo.hasDrivingLicense
+                              )}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setFormCv((prev) => ({
+                                  ...prev,
+                                  personalInfo: {
+                                    ...prev.personalInfo,
+                                    hasDrivingLicense: checked,
+                                    drivingLicenseType: checked
+                                      ? String(
+                                          prev.personalInfo
+                                            .drivingLicenseType || ""
+                                        )
+                                      : "",
+                                  },
+                                }));
+                                if (!checked)
+                                  setIsDrivingLicenseDropdownOpen(false);
+                              }}
+                            />
+                            <span className="text-sm">Vorhanden</span>
+                          </label>
+                          {formCv.personalInfo.hasDrivingLicense ? (
+                            <div className="mt-3">
+                              <div
+                                ref={drivingLicenseDropdownRef}
+                                className={`dropdown w-full ${
+                                  isDrivingLicenseDropdownOpen
+                                    ? "dropdown-open"
+                                    : ""
+                                }`}
+                              >
+                                <label className="label">
+                                  <span className="label-text">
+                                    Führerschein-Klassen (mehrere möglich)
+                                  </span>
+                                </label>
+
+                                <button
+                                  type="button"
+                                  className={`${selectBase} flex items-center justify-between gap-3`}
+                                  aria-haspopup="listbox"
+                                  aria-expanded={isDrivingLicenseDropdownOpen}
+                                  onClick={() =>
+                                    setIsDrivingLicenseDropdownOpen((p) => !p)
+                                  }
+                                >
+                                  {(() => {
+                                    const raw = String(
+                                      formCv.personalInfo.drivingLicenseType ||
+                                        ""
+                                    )
+                                      .trim()
+                                      .toUpperCase();
+                                    const selected = raw
+                                      ? raw
+                                          .split(",")
+                                          .map((s) => s.trim())
+                                          .filter(Boolean)
+                                      : [];
+                                    const displayValue = selected.length
+                                      ? selected.join(", ")
+                                      : "Bitte auswählen";
+                                    return (
+                                      <>
+                                        <span
+                                          className={
+                                            selected.length
+                                              ? "text-base-content"
+                                              : "text-base-content/60"
+                                          }
+                                        >
+                                          {displayValue}
+                                        </span>
+                                        <span className="text-base-content/60">
+                                          ▾
+                                        </span>
+                                      </>
+                                    );
+                                  })()}
+                                </button>
+
+                                <div className="dropdown-content w-full mt-1 max-h-72 rounded-box border border-base-300 bg-base-100 shadow z-[60] overflow-hidden flex flex-col">
+                                  <ul
+                                    className="menu p-2 overflow-auto w-full"
+                                    role="listbox"
+                                    aria-multiselectable="true"
+                                  >
+                                    {DRIVING_LICENSE_OPTIONS.map((opt) => {
+                                      const upper = String(opt || "")
+                                        .trim()
+                                        .toUpperCase();
+                                      const selected = String(
+                                        formCv.personalInfo
+                                          .drivingLicenseType || ""
+                                      )
+                                        .trim()
+                                        .toUpperCase()
+                                        .split(",")
+                                        .map((s) => s.trim())
+                                        .filter(Boolean);
+                                      const isSelected =
+                                        selected.includes(upper);
+
+                                      return (
+                                        <li key={opt}>
+                                          <button
+                                            type="button"
+                                            className="flex items-center gap-2"
+                                            onClick={() => {
+                                              const set = new Set(selected);
+                                              if (set.has(upper))
+                                                set.delete(upper);
+                                              else set.add(upper);
+                                              const next =
+                                                Array.from(set).join(", ");
+                                              setFormCv((prev) => ({
+                                                ...prev,
+                                                personalInfo: {
+                                                  ...prev.personalInfo,
+                                                  drivingLicenseType: next,
+                                                },
+                                              }));
+                                              // Close dropdown after selecting a value (user can reopen to add more)
+                                              setIsDrivingLicenseDropdownOpen(
+                                                false
+                                              );
+                                            }}
+                                          >
+                                            <span className="w-5 text-center">
+                                              {isSelected ? "✓" : ""}
+                                            </span>
+                                            <span className="font-medium">
+                                              {opt}
+                                            </span>
+                                          </button>
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
                       <SkillsSection
                         softSkills={formCv.skills.softSkills}
                         pcSkills={formCv.skills.pcSkills}
@@ -3230,23 +3384,25 @@ function Generate() {
           </div>
           <div className="text-xs opacity-60 mt-2">
             Oxirgi yangilanish:{" "}
-            {statusUpdatedAt ? (() => {
-              try {
-                const d = new Date(statusUpdatedAt);
-                if (Number.isNaN(d.getTime())) return "—";
-                return new Intl.DateTimeFormat("uz-UZ", {
-                  year: "numeric",
-                  month: "2-digit",
-                  day: "2-digit",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  hour12: false,
-                  timeZone: "Asia/Tashkent",
-                }).format(d);
-              } catch {
-                return "—";
-              }
-            })() : "—"}
+            {statusUpdatedAt
+              ? (() => {
+                  try {
+                    const d = new Date(statusUpdatedAt);
+                    if (Number.isNaN(d.getTime())) return "—";
+                    return new Intl.DateTimeFormat("uz-UZ", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: false,
+                      timeZone: "Asia/Tashkent",
+                    }).format(d);
+                  } catch {
+                    return "—";
+                  }
+                })()
+              : "—"}
             {statusUpdatedBy ? ` • Kim: ${statusUpdatedBy}` : ""}
           </div>
         </div>
