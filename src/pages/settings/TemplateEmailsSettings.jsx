@@ -13,15 +13,15 @@ import {
 } from "../../utils/emailTemplates";
 
 const STAGES = [
-  { value: "stage_1", label: "Stage 1" },
-  { value: "stage_2", label: "Stage 2" },
-  { value: "stage_3", label: "Stage 3" },
-  { value: "stage_4", label: "Stage 4" },
+  { value: "stage_1", label: "Stufe 1" },
+  { value: "stage_2", label: "Stufe 2" },
+  { value: "stage_3", label: "Stufe 3" },
+  { value: "stage_4", label: "Stufe 4" },
 ];
 
 const DECISIONS = [
-  { value: "accepted", label: "Accepted" },
-  { value: "rejected", label: "Rejected" },
+  { value: "accepted", label: "Angenommen" },
+  { value: "rejected", label: "Abgelehnt" },
 ];
 
 function buildDefaultForm(stage, decision) {
@@ -67,18 +67,20 @@ function EmailPreview({ subject, to, htmlContent, message }) {
     <div className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <div className="text-xs opacity-60">To</div>
-          <div className="font-medium break-words">{safeTo || "—"}</div>
+          <div className="text-xs opacity-60">An</div>
+          <div className="font-medium wrap-break-word">{safeTo || "—"}</div>
         </div>
         <div>
-          <div className="text-xs opacity-60">Subject</div>
-          <div className="font-medium break-words">{safeSubject || "—"}</div>
+          <div className="text-xs opacity-60">Betreff</div>
+          <div className="font-medium wrap-break-word">
+            {safeSubject || "—"}
+          </div>
         </div>
       </div>
 
       {safeHtml ? (
         <div className="rounded-lg border border-base-300 bg-white overflow-hidden">
-          <div className="w-full h-[420px] overflow-auto p-4">
+          <div className="w-full p-4">
             <div
               className="min-h-full"
               // Smooth preview (no iframe reload): render email body HTML inline.
@@ -89,7 +91,9 @@ function EmailPreview({ subject, to, htmlContent, message }) {
         </div>
       ) : (
         <div className="rounded-lg border border-base-300 bg-base-100 p-3">
-          <div className="text-xs opacity-60 mb-2">HTML yo&apos;q (text preview)</div>
+          <div className="text-xs opacity-60 mb-2">
+            Kein HTML (Textvorschau)
+          </div>
           <pre className="whitespace-pre-wrap text-sm leading-relaxed">
             {safeMsg || "—"}
           </pre>
@@ -116,7 +120,9 @@ export default function TemplateEmailsSettings() {
   const [stage, setStage] = useState("stage_1");
   const [decision, setDecision] = useState("accepted");
 
-  const [form, setForm] = useState(() => buildDefaultForm("stage_1", "accepted"));
+  const [form, setForm] = useState(() =>
+    buildDefaultForm("stage_1", "accepted")
+  );
   const [saving, setSaving] = useState(false);
   const debouncedForm = useDebouncedValue(form, 300);
 
@@ -214,7 +220,12 @@ export default function TemplateEmailsSettings() {
       };
     } catch (e) {
       console.error("template preview error:", e);
-      return { to: "candidate@example.com", subject: "", message: "", htmlContent: "" };
+      return {
+        to: "candidate@example.com",
+        subject: "",
+        message: "",
+        htmlContent: "",
+      };
     }
   }, [stage, decision, debouncedForm]);
 
@@ -235,10 +246,10 @@ export default function TemplateEmailsSettings() {
         updatedAt: Date.now(),
         updatedBy: user?.email || user?.uid || "admin",
       });
-      toast.success("Template saqlandi.");
+      toast.success("Vorlage gespeichert.");
     } catch (e) {
       console.error(e);
-      toast.error(e?.message || "Template saqlashda xatolik.");
+      toast.error(e?.message || "Fehler beim Speichern der Vorlage.");
     } finally {
       setSaving(false);
     }
@@ -247,16 +258,16 @@ export default function TemplateEmailsSettings() {
   async function handleResetToDefault() {
     if (!templateId) return;
     const ok = window.confirm(
-      "Bu template override’ni o‘chirib tashlaysizmi? (Default matnlar qaytadi)"
+      "Möchten Sie diese Überschreibung löschen? (Standardtexte werden wiederhergestellt)"
     );
     if (!ok) return;
     setSaving(true);
     try {
       await deleteEmailTemplate(stage, decision);
-      toast.success("Defaultga qaytarildi.");
+      toast.success("Auf Standard zurückgesetzt.");
     } catch (e) {
       console.error(e);
-      toast.error(e?.message || "O‘chirishda xatolik.");
+      toast.error(e?.message || "Fehler beim Löschen.");
     } finally {
       setSaving(false);
     }
@@ -264,26 +275,20 @@ export default function TemplateEmailsSettings() {
 
   function handleLoadDefaultsIntoForm() {
     setForm(buildDefaultForm(stage, decision));
-    toast("Default matnlar formga yuklandi (hali saqlanmadi).");
+    toast(
+      "Standardtexte wurden in das Formular geladen (noch nicht gespeichert)."
+    );
   }
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold">Template Emaillar</h2>
-        <p className="text-sm text-base-content/60">
-          Stage email’lar uchun subject va matn shablonlarini sozlang. Saqlangandan
-          keyin Generate’dagi email’lar shu template bilan ketadi.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
-        <div className="space-y-3">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,40rem)_minmax(0,1fr)] gap-4 items-start">
+        <div className="space-y-3 min-w-0">
           <div className="flex flex-wrap items-end gap-3">
             <div className="w-full sm:w-auto flex flex-col gap-1">
-              <div className="text-sm font-medium">Stage</div>
+              <div className="text-sm font-medium">Stufe</div>
               <select
-                className="select select-bordered"
+                className="select select-bordered w-full"
                 value={stage}
                 onChange={(e) => setStage(e.target.value)}
                 disabled={saving}
@@ -297,9 +302,9 @@ export default function TemplateEmailsSettings() {
             </div>
 
             <div className="w-full sm:w-auto flex flex-col gap-1">
-              <div className="text-sm font-medium">Decision</div>
+              <div className="text-sm font-medium">Entscheidung</div>
               <select
-                className="select select-bordered"
+                className="select select-bordered w-full"
                 value={decision}
                 onChange={(e) => setDecision(e.target.value)}
                 disabled={saving}
@@ -312,41 +317,43 @@ export default function TemplateEmailsSettings() {
               </select>
             </div>
 
-            <div className="flex-1 min-w-[240px]" />
+            <div className="hidden md:block flex-1 min-w-[240px]" />
 
             <button
               type="button"
-              className="btn btn-outline"
+              className="btn btn-outline w-full sm:w-auto"
               onClick={handleLoadDefaultsIntoForm}
               disabled={saving || loading}
-              title="Default matnlarni formga qaytaradi (saqlamaydi)."
+              title="Lädt Standardtexte in das Formular (ohne zu speichern)."
             >
-              Defaultni yuklash
+              Standard laden
             </button>
 
             <button
               type="button"
-              className="btn btn-primary"
+              className="btn btn-primary w-full sm:w-auto"
               onClick={handleSave}
               disabled={saving || loading}
             >
               {saving ? (
                 <>
                   <span className="loading loading-spinner loading-sm" />
-                  Saqlanmoqda...
+                  Wird gespeichert...
                 </>
               ) : (
-                "Saqlash"
+                "Speichern"
               )}
             </button>
           </div>
 
-          <div className="rounded-box border border-base-300 bg-base-200/30 p-4 space-y-3">
+          <div className="rounded-box border border-base-300 bg-base-200/30 p-3 sm:p-4 space-y-3">
             <div className="grid grid-cols-1 gap-3">
               <div className="flex flex-col gap-1">
-                <div className="text-sm font-medium">Email title (HTML sarlavha)</div>
+                <div className="text-sm font-medium">
+                  E-Mail-Titel (HTML-Überschrift)
+                </div>
                 <input
-                  className="input input-bordered"
+                  className="input input-bordered w-full"
                   value={form.emailTitle}
                   onChange={(e) =>
                     setForm((p) => ({ ...p, emailTitle: e.target.value }))
@@ -356,20 +363,22 @@ export default function TemplateEmailsSettings() {
               </div>
 
               <div className="flex flex-col gap-1">
-                <div className="text-sm font-medium">Subject</div>
+                <div className="text-sm font-medium">Betreff</div>
                 <input
-                  className="input input-bordered"
+                  className="input input-bordered w-full"
                   value={form.subject}
-                  onChange={(e) => setForm((p) => ({ ...p, subject: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, subject: e.target.value }))
+                  }
                   disabled={saving}
                 />
               </div>
 
               <div className="flex flex-col gap-1">
-                <div className="text-sm font-medium">Holat</div>
+                <div className="text-sm font-medium">Status</div>
                 <input
-                  className="input input-bordered"
-                  placeholder="Masalan: 1-bosqich (ichki suhbat)"
+                  className="input input-bordered w-full"
+                  placeholder="z. B.: Stufe 1 (internes Interview)"
                   value={form.statusLabel}
                   onChange={(e) =>
                     setForm((p) => ({ ...p, statusLabel: e.target.value }))
@@ -377,24 +386,28 @@ export default function TemplateEmailsSettings() {
                   disabled={saving}
                 />
                 <p className="text-xs opacity-60 mt-1">
-                  Bo‘sh qoldirsangiz, default status label ishlaydi.
+                  Wenn leer, wird die Standard-Statusbezeichnung verwendet.
                 </p>
               </div>
 
               <div className="flex flex-col gap-1">
-                <div className="text-sm font-medium">Main text</div>
+                <div className="text-sm font-medium">Haupttext</div>
                 <textarea
-                  className="textarea textarea-bordered min-h-[110px]"
+                  className="textarea textarea-bordered w-full min-h-[90px] sm:min-h-[110px]"
                   value={form.mainText}
-                  onChange={(e) => setForm((p) => ({ ...p, mainText: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, mainText: e.target.value }))
+                  }
                   disabled={saving}
                 />
               </div>
 
               <div className="flex flex-col gap-1">
-                <div className="text-sm font-medium">Next step note</div>
+                <div className="text-sm font-medium">
+                  Hinweis zum nächsten Schritt
+                </div>
                 <textarea
-                  className="textarea textarea-bordered min-h-[110px]"
+                  className="textarea textarea-bordered w-full min-h-[90px] sm:min-h-[110px]"
                   value={form.nextStepNote}
                   onChange={(e) =>
                     setForm((p) => ({ ...p, nextStepNote: e.target.value }))
@@ -404,9 +417,11 @@ export default function TemplateEmailsSettings() {
               </div>
 
               <div className="flex flex-col gap-1">
-                <div className="text-sm font-medium">Channels text</div>
+                <div className="text-sm font-medium">
+                  Text für Kontaktkanäle
+                </div>
                 <textarea
-                  className="textarea textarea-bordered min-h-[90px]"
+                  className="textarea textarea-bordered w-full min-h-[90px]"
                   value={form.channelsText}
                   onChange={(e) =>
                     setForm((p) => ({ ...p, channelsText: e.target.value }))
@@ -421,34 +436,38 @@ export default function TemplateEmailsSettings() {
                   className="toggle toggle-primary"
                   checked={Boolean(form.emphasizeMainText)}
                   onChange={(e) =>
-                    setForm((p) => ({ ...p, emphasizeMainText: e.target.checked }))
+                    setForm((p) => ({
+                      ...p,
+                      emphasizeMainText: e.target.checked,
+                    }))
                   }
                   disabled={saving}
                 />
                 <span className="text-sm">
-                  Main text’ni <span className="font-semibold">bold</span> qilish
+                  Haupttext <span className="font-semibold">fett</span>{" "}
+                  darstellen
                 </span>
               </label>
 
-              <div className="flex justify-end">
+              <div className="flex justify-stretch sm:justify-end">
                 <button
                   type="button"
-                  className="btn btn-error btn-outline"
+                  className="btn btn-error btn-outline w-full sm:w-auto whitespace-normal h-auto leading-snug"
                   onClick={handleResetToDefault}
                   disabled={saving || !activeTemplate}
                 >
-                  Defaultga qaytarish (override’ni o‘chirish)
+                  Auf Standard zurücksetzen (Überschreibung löschen)
                 </button>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="font-semibold">Preview</div>
-            <div className="text-xs text-base-content/60">
-              Bu preview faqat namuna ma’lumot bilan.
+        <div className="space-y-3 min-w-0">
+          <div className="flex items-center justify-between gap-3 min-w-0">
+            <div className="font-semibold shrink-0">Vorschau</div>
+            <div className="text-xs text-base-content/60 flex-1 min-w-0 text-right truncate">
+              Diese Vorschau verwendet nur Beispieldaten.
             </div>
           </div>
           <EmailPreview
@@ -462,5 +481,3 @@ export default function TemplateEmailsSettings() {
     </div>
   );
 }
-
-
