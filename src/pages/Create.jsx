@@ -28,6 +28,8 @@ import {
   getPhoneBodyDigits,
   isEmailValid,
   isPhoneComplete,
+  isPassportNumberValid,
+  normalizePassportNumber,
 } from "../utils/validation";
 import CountryNameCombobox from "../components/CountryNameCombobox";
 import {
@@ -39,6 +41,7 @@ import {
   uploadFilesToConsulting,
   checkEmailRemote,
   registerEmailRemote,
+  checkPassportRemote,
   getMetaByName,
 } from "../utils";
 import {
@@ -51,6 +54,7 @@ import DrivingLicenseMultiSelect from "../components/ui/driving-license-multisel
 import PrivacyModal from "./create/components/modals/PrivacyModal";
 import GuideModal from "./create/components/modals/GuideModal";
 import ExistingEmailModal from "./create/components/modals/ExistingEmailModal";
+import ExistingPassportModal from "./create/components/modals/ExistingPassportModal";
 
 function RequiredField({ children, className = "" }) {
   return <div className={className}>{children}</div>;
@@ -61,6 +65,15 @@ function Create() {
   const MAX_PHOTO_BYTES = 250 * 1024; // 250KB per file
   const REQUIRED_STAR_CLASS =
     "[&_[aria-hidden=true]]:text-[0.7em] [&_[aria-hidden=true]]:opacity-60";
+  // Draft persistence (refresh-safe). Note: File inputs cannot be restored after refresh.
+  function safeParseJson(text, fallback = null) {
+    try {
+      if (!text) return fallback;
+      return JSON.parse(text);
+    } catch {
+      return fallback;
+    }
+  }
   const LANG_CERT_TYPES = useMemo(
     () => [
       "DAF Sprachzentrum Zertifikat",
@@ -110,6 +123,7 @@ function Create() {
         drivingLicenseType: [],
         phone: "",
         email: "",
+        passportNumber: "",
         photo: "",
       },
       experience: [],
@@ -134,6 +148,9 @@ function Create() {
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [existingMajor, setExistingMajor] = useState("");
   const [enteredEmail, setEnteredEmail] = useState("");
+  const [isPassportModalOpen, setIsPassportModalOpen] = useState(false);
+  const [existingPassportMajor, setExistingPassportMajor] = useState("");
+  const [enteredPassport, setEnteredPassport] = useState("");
   const [searchParams] = useSearchParams();
   const [diplomaFiles, setDiplomaFiles] = useState([]);
   const [langCertFiles, setLangCertFiles] = useState([]);
@@ -168,6 +185,10 @@ function Create() {
   const lastEmailCheckRef = useRef({ email: "", exists: false });
   const emailCheckSeqRef = useRef(0);
   const lastEmailExistsModalRef = useRef("");
+  const [isPassportChecking, setIsPassportChecking] = useState(false);
+  const lastPassportCheckRef = useRef({ passport: "", exists: false });
+  const passportCheckSeqRef = useRef(0);
+  const lastPassportExistsModalRef = useRef("");
 
   // Wizard steps: show one section at a time to reduce perceived form size
   const STEPS = useMemo(
@@ -185,6 +206,8 @@ function Create() {
   const FINAL_STEP = STEPS.length - 1;
   const [currentStep, setCurrentStep] = useState(0);
   const [maxUnlockedStep, setMaxUnlockedStep] = useState(0);
+  const draftHydratingRef = useRef(false);
+  const lastDraftFormRef = useRef(null);
 
   const languageRows = useMemo(
     () =>
@@ -516,6 +539,7 @@ function Create() {
         drivingLicenseType: initialCv.personalInfo.drivingLicenseType,
         phone: initialCv.personalInfo.phone,
         email: initialCv.personalInfo.email,
+        passportNumber: initialCv.personalInfo.passportNumber,
         photo: initialCv.personalInfo.photo,
       },
     },
@@ -536,7 +560,223 @@ function Create() {
   const watchNoChildren = watch("personalInfo.noChildren");
   const watchPhone = watch("personalInfo.phone");
   const watchEmail = watch("personalInfo.email");
+  const watchPassportNumber = watch("personalInfo.passportNumber");
   const watchPhoto = watch("personalInfo.photo");
+
+  // ---- Draft load/save (per major) ----
+  // Placed AFTER useForm() so `watch` / `setValue` are initialized (avoids TDZ crash).
+  const majorCollectionForDraft = String(majorInfo?.collectionName || "").trim();
+  // Use a single key (not per-major) as requested.
+  const draftKey = "createCvDraft";
+  const DRAFT_EXCLUDE_PERSONAL_FIELDS = useMemo(
+    () => new Set(["email", "passportNumber"]),
+    []
+  );
+
+  function sanitizeDraftFormSnapshot(formSnapshot) {
+    if (!formSnapshot || typeof formSnapshot !== "object") return null;
+    const snap = structuredClone(formSnapshot);
+    if (snap?.personalInfo && typeof snap.personalInfo === "object") {
+      for (const k of DRAFT_EXCLUDE_PERSONAL_FIELDS) {
+        if (k in snap.personalInfo) delete snap.personalInfo[k];
+      }
+    }
+    // Also exclude agreement/captcha by design (we don't rely on draft for those)
+    if ("agreePrivacy" in snap) delete snap.agreePrivacy;
+    return snap;
+  }
+
+  function sanitizeDraftCvSnapshot(cvSnapshot) {
+    if (!cvSnapshot || typeof cvSnapshot !== "object") return initialCv;
+    const snap = structuredClone(cvSnapshot);
+    if (snap?.personalInfo && typeof snap.personalInfo === "object") {
+      for (const k of DRAFT_EXCLUDE_PERSONAL_FIELDS) {
+        if (k in snap.personalInfo) delete snap.personalInfo[k];
+      }
+    }
+    return snap;
+  }
+
+  function normalizeDraftCv(draftCv) {
+    const base = initialCv;
+    const merged = {
+      ...base,
+      ...(draftCv && typeof draftCv === "object" ? draftCv : {}),
+      personalInfo: {
+        ...base.personalInfo,
+        ...(draftCv?.personalInfo && typeof draftCv.personalInfo === "object"
+          ? draftCv.personalInfo
+          : {}),
+      },
+      skills: {
+        ...base.skills,
+        ...(draftCv?.skills && typeof draftCv.skills === "object"
+          ? draftCv.skills
+          : {}),
+        languages:
+          draftCv?.skills?.languages &&
+          typeof draftCv.skills.languages === "object" &&
+          !Array.isArray(draftCv.skills.languages)
+            ? draftCv.skills.languages
+            : base.skills.languages,
+      },
+      experience: Array.isArray(draftCv?.experience) ? draftCv.experience : [],
+      education: Array.isArray(draftCv?.education) ? draftCv.education : [],
+    };
+
+    // Defensive: ensure drivingLicenseType stays an array in the UI
+    const rawDL = merged?.personalInfo?.drivingLicenseType;
+    merged.personalInfo.drivingLicenseType = Array.isArray(rawDL)
+      ? rawDL
+      : String(rawDL || "")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+    return merged;
+  }
+
+  function saveDraftNow(formSnapshot) {
+    if (draftHydratingRef.current) return;
+    try {
+      const sanitizedForm = sanitizeDraftFormSnapshot(formSnapshot);
+      const sanitizedCv = sanitizeDraftCvSnapshot(cv);
+      const payload = {
+        v: 1,
+        updatedAt: Date.now(),
+        major: majorCollectionForDraft,
+        form: sanitizedForm,
+        cv: sanitizedCv,
+        wizard: { currentStep, maxUnlockedStep },
+        // NOTE: Not storing File inputs or reCAPTCHA token (cannot/should not persist).
+      };
+      localStorage.setItem(draftKey, JSON.stringify(payload));
+    } catch {
+      // ignore storage errors (quota/private mode)
+    }
+  }
+
+  function clearDraftNow() {
+    try {
+      localStorage.removeItem(draftKey);
+    } catch {
+      // ignore
+    }
+  }
+
+  useEffect(() => {
+    // Load draft once major is known and not loading (prevents flicker / wrong restore).
+    if (majorLoading) return;
+    draftHydratingRef.current = true;
+    try {
+      const raw = localStorage.getItem(draftKey);
+      const parsed = safeParseJson(raw, null);
+      if (!parsed || typeof parsed !== "object") return;
+
+      // Restore wizard progress (best-effort)
+      const nextStep = Number(parsed?.wizard?.currentStep);
+      const nextUnlocked = Number(parsed?.wizard?.maxUnlockedStep);
+      if (!Number.isNaN(nextStep) && nextStep >= 0) {
+        setCurrentStep(Math.max(0, Math.min(FINAL_STEP, nextStep)));
+      }
+      if (!Number.isNaN(nextUnlocked) && nextUnlocked >= 0) {
+        setMaxUnlockedStep(Math.max(0, Math.min(FINAL_STEP, nextUnlocked)));
+      }
+
+      // Restore CV state (experience/education/skills). personalInfo is primarily from RHF.
+      if (parsed?.cv) {
+        setCv(normalizeDraftCv(parsed.cv));
+      }
+
+      // Restore RHF fields (personalInfo.*). We intentionally do NOT restore agreePrivacy/reCAPTCHA.
+      const form = parsed?.form;
+      if (form?.personalInfo && typeof form.personalInfo === "object") {
+        const p = form.personalInfo;
+        const fields = [
+          "name",
+          "lastName",
+          "gender",
+          "address",
+          "addressStreet",
+          "addressHouseNumber",
+          "addressPostalCode",
+          "addressCity",
+          "addressCountry",
+          "birthDate",
+          "birthPlace",
+          "maritalStatus",
+          "childrenCount",
+          "noChildren",
+          "hasDrivingLicense",
+          "drivingLicenseType",
+          "phone",
+          "photo",
+        ];
+        fields.forEach((k) => {
+          setValue(`personalInfo.${k}`, p?.[k], {
+            shouldDirty: false,
+            shouldTouch: false,
+            shouldValidate: false,
+          });
+        });
+      }
+
+      // Keep local ref in sync so cv-only changes can still be saved.
+      lastDraftFormRef.current = parsed?.form || null;
+    } catch {
+      // ignore
+    } finally {
+      // Unblock saving after hydration settles.
+      window.setTimeout(() => {
+        draftHydratingRef.current = false;
+      }, 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [majorCollectionForDraft, majorLoading]);
+
+  useEffect(() => {
+    // If the user has submitted for this major, clear any stale draft.
+    if (isSubmitted === true) {
+      clearDraftNow();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSubmitted, draftKey]);
+
+  useEffect(() => {
+    // Autosave RHF changes (debounced)
+    if (majorLoading) return;
+    let t = null;
+    const sub = watch((values) => {
+      lastDraftFormRef.current = values || null;
+      if (t) window.clearTimeout(t);
+      t = window.setTimeout(() => saveDraftNow(values), 600);
+    });
+    return () => {
+      try {
+        if (t) window.clearTimeout(t);
+      } catch {
+        // ignore
+      }
+      try {
+        sub?.unsubscribe?.();
+      } catch {
+        // ignore
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [watch, majorCollectionForDraft, majorLoading, draftKey]);
+
+  useEffect(() => {
+    // Autosave cv-only changes (experience/education/skills), using last known form snapshot.
+    if (majorLoading) return;
+    if (draftHydratingRef.current) return;
+    const t = window.setTimeout(
+      () => saveDraftNow(lastDraftFormRef.current),
+      600
+    );
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cv, currentStep, maxUnlockedStep, majorCollectionForDraft, majorLoading]);
 
   useEffect(() => {
     const raw = String(watchEmail || "").trim();
@@ -625,6 +865,92 @@ function Create() {
     setError,
     isEmailModalOpen,
     enteredEmail,
+  ]);
+
+  useEffect(() => {
+    const raw = String(watchPassportNumber || "");
+    const passport = normalizePassportNumber(raw);
+
+    // If the user edits the passport while the "already used" modal is open,
+    // close the modal to avoid stale information.
+    if (
+      isPassportModalOpen &&
+      passport &&
+      passport !== normalizePassportNumber(enteredPassport)
+    ) {
+      setIsPassportModalOpen(false);
+    }
+
+    // Clear remote "exists" error immediately when user edits the passport.
+    const st = getFieldState("personalInfo.passportNumber");
+    if (
+      st?.error?.type === "remoteExists" &&
+      passport &&
+      passport !== String(lastPassportCheckRef.current?.passport || "")
+    ) {
+      clearErrors("personalInfo.passportNumber");
+    }
+
+    // Don't remote-check if empty or syntactically invalid.
+    if (!passport || !isPassportNumberValid(passport)) {
+      setIsPassportChecking(false);
+      return;
+    }
+
+    // Avoid repeating the same check.
+    if (passport === String(lastPassportCheckRef.current?.passport || "")) {
+      setIsPassportChecking(false);
+      return;
+    }
+
+    const seq = (passportCheckSeqRef.current += 1);
+    const t = setTimeout(async () => {
+      setIsPassportChecking(true);
+      try {
+        const { exists, data } = await checkPassportRemote(passport);
+        if (passportCheckSeqRef.current !== seq) return;
+
+        lastPassportCheckRef.current = { passport, exists: Boolean(exists) };
+
+        if (exists) {
+          const major = String(data?.major || "Unbekannt");
+          setExistingPassportMajor(major);
+          setEnteredPassport(passport);
+          setError("personalInfo.passportNumber", {
+            type: "remoteExists",
+            message: `Diese Passnummer ist bereits für „${major}“ registriert.`,
+          });
+
+          // Show the "Achtung!" modal immediately on live-check.
+          if (lastPassportExistsModalRef.current !== passport) {
+            setIsPassportModalOpen(true);
+            lastPassportExistsModalRef.current = passport;
+          }
+        } else {
+          const now = getFieldState("personalInfo.passportNumber");
+          if (now?.error?.type === "remoteExists") {
+            clearErrors("personalInfo.passportNumber");
+          }
+        }
+      } catch (e) {
+        // Best-effort: don't block the form if remote check fails.
+        // User will still be checked on submit.
+        console.error("Passport remote check failed:", e);
+      } finally {
+        if (passportCheckSeqRef.current === seq) {
+          setIsPassportChecking(false);
+        }
+      }
+    }, 650);
+
+    return () => clearTimeout(t);
+  }, [
+    watchPassportNumber,
+    clearErrors,
+    getFieldState,
+    setError,
+    isPassportModalOpen,
+    enteredPassport,
   ]);
 
   function hasNonEmptyValue(v) {
@@ -732,10 +1058,14 @@ function Create() {
             "personalInfo.addressCity": "Ort",
             "personalInfo.addressCountry": "Land",
           };
-          const labels = missing.map((p) => labelMap[p] || p).join(", ");
-          toast.error(
-            `Bitte füllen Sie folgende Pflichtfelder aus: ${labels}.`
-          );
+          if (missing.length === 1) {
+            const onlyPath = missing[0];
+            const label = labelMap[onlyPath] || onlyPath;
+            toast.error(`Fehlend: ${label}`);
+          } else {
+            // Keep it short: don't list all fields in toast
+            toast.error("Sie haben mehrere Pflichtfelder nicht ausgefüllt.");
+          }
         } else {
           toast.error("Bitte füllen Sie alle Pflichtfelder aus.");
         }
@@ -961,8 +1291,14 @@ function Create() {
     };
     const missing = requiredOrder.filter((p) => hasErrAt(p));
     if (missing.length) {
-      const labels = missing.map((p) => labelMap[p] || p).join(", ");
-      toast.error(`Bitte füllen Sie folgende Pflichtfelder aus: ${labels}.`);
+      if (missing.length === 1) {
+        const onlyPath = missing[0];
+        const label = labelMap[onlyPath] || onlyPath;
+        toast.error(`Fehlend: ${label}`);
+      } else {
+        // Keep it short: don't list all fields in toast
+        toast.error("Sie haben mehrere Pflichtfelder nicht ausgefüllt.");
+      }
       // Fokus weiterhin auf das erste fehlende Feld setzen, damit der Nutzer direkt starten kann.
       const firstPath = missing[0];
       try {
@@ -1301,6 +1637,9 @@ function Create() {
           })(),
           telefon: final.personalInfo.phone,
           email: final.personalInfo.email,
+          reisepassNummer: normalizePassportNumber(
+            final?.personalInfo?.passportNumber || ""
+          ),
           foto: final.personalInfo.photo,
         },
         berufserfahrung: Array.isArray(final.experience)
@@ -1331,6 +1670,9 @@ function Create() {
       };
 
       const email = (formData.personalInfo.email || "").trim();
+      const passportNumber = normalizePassportNumber(
+        formData?.personalInfo?.passportNumber || ""
+      );
       try {
         const { exists, data } = await checkEmailRemote(email);
         if (exists) {
@@ -1343,6 +1685,24 @@ function Create() {
         console.error(error);
         toast.error(
           "Fehler bei der Überprüfung der E-Mail-Adresse. Bitte versuchen Sie es erneut."
+        );
+        return;
+      }
+
+      try {
+        if (passportNumber && isPassportNumberValid(passportNumber)) {
+          const { exists, data } = await checkPassportRemote(passportNumber);
+          if (exists) {
+            setExistingPassportMajor(data?.major || "Unbekannt");
+            setEnteredPassport(passportNumber);
+            setIsPassportModalOpen(true);
+            return;
+          }
+        }
+      } catch (error) {
+        console.error(error);
+        toast.error(
+          "Fehler bei der Überprüfung der Passnummer. Bitte versuchen Sie es erneut."
         );
         return;
       }
@@ -1363,6 +1723,9 @@ function Create() {
 
         const payload = {
           ...lebenslauf,
+          // Keep a canonical field name aligned with the json-api registry (`passportId`)
+          // for easier querying in Firestore.
+          passportId: passportNumber || null,
           // Tracking: optional lead param from URL (/create?major=...&lead=...)
           lead: String(leadValue || "").trim(),
           attachments: {
@@ -1412,7 +1775,11 @@ function Create() {
           throw new Error(errMsg);
         }
 
-        await registerEmailRemote(email, majorCollection);
+        // Remote registry is best-effort and must not break a successful submit.
+        // Passport is stored inside all_Emails as `passportId`.
+        await Promise.allSettled([
+          registerEmailRemote(email, majorCollection, passportNumber),
+        ]);
         toast.success("Daten erfolgreich gesendet!");
         try {
           localStorage.setItem(`createCvSubmitted:${majorCollection}`, "true");
@@ -2146,6 +2513,107 @@ function Create() {
                                   {errors?.personalInfo?.email ? (
                                     <p className="text-error text-sm mt-1">
                                       {errors.personalInfo.email.message}
+                                    </p>
+                                  ) : null}
+                                </>
+                              );
+                            }}
+                          />
+                        </RequiredField>
+                        <RequiredField>
+                          <Controller
+                            control={control}
+                            name="personalInfo.passportNumber"
+                            rules={{
+                              required: "Passnummer ist erforderlich",
+                              validate: (v) =>
+                                isPassportNumberValid(v) ||
+                                "Bitte Passnummer im Format AA 0000000 eingeben",
+                            }}
+                            render={({ field }) => {
+                              const st = getFieldState(
+                                "personalInfo.passportNumber"
+                              );
+                              const touched = Boolean(
+                                st?.isTouched || st?.isDirty
+                              );
+                              const raw = String(field.value || "");
+                              const norm = normalizePassportNumber(raw);
+                              const has = hasNonEmptyValue(raw);
+                              const ok = isPassportNumberValid(norm);
+                              const warn =
+                                !errors?.personalInfo?.passportNumber &&
+                                touched &&
+                                has &&
+                                !ok;
+
+                              return (
+                                <>
+                                  <FormInput
+                                    label={
+                                      <RequiredLabel
+                                        className={REQUIRED_STAR_CLASS}
+                                      >
+                                        Passnummer
+                                      </RequiredLabel>
+                                    }
+                                    placeholder="AA 0000000"
+                                    disabled={isPassportChecking}
+                                    aria-busy={
+                                      isPassportChecking ? "true" : "false"
+                                    }
+                                    rightElement={
+                                      isPassportChecking ? (
+                                        <span
+                                          className="loading loading-spinner loading-sm text-base-content/60 pointer-events-none"
+                                          aria-hidden="true"
+                                        />
+                                      ) : null
+                                    }
+                                    helperText={
+                                      <>
+                                        Beispiel: AA 0000000
+                                        {warn ? (
+                                          <>
+                                            <br />
+                                            <span className="text-warning">
+                                              Bitte vollständig eingeben (AA
+                                              0000000).
+                                            </span>
+                                          </>
+                                        ) : null}
+                                      </>
+                                    }
+                                    inputClassName={
+                                      errors?.personalInfo?.passportNumber
+                                        ? "input-error"
+                                        : getLiveInputClass(
+                                            "personalInfo.passportNumber",
+                                            raw,
+                                            isPassportNumberValid
+                                          )
+                                    }
+                                    aria-invalid={
+                                      errors?.personalInfo?.passportNumber
+                                        ? "true"
+                                        : "false"
+                                    }
+                                    name={field.name}
+                                    value={field.value}
+                                    onBlur={field.onBlur}
+                                    onChange={(e) => {
+                                      const next = normalizePassportNumber(
+                                        e?.target?.value
+                                      );
+                                      field.onChange(next);
+                                    }}
+                                  />
+                                  {errors?.personalInfo?.passportNumber ? (
+                                    <p className="text-error text-sm mt-1">
+                                      {
+                                        errors.personalInfo.passportNumber
+                                          .message
+                                      }
                                     </p>
                                   ) : null}
                                 </>
@@ -3306,6 +3774,34 @@ function Create() {
         }}
         enteredEmail={enteredEmail}
         existingMajor={existingMajor}
+      />
+
+      <ExistingPassportModal
+        open={isPassportModalOpen}
+        onClose={() => setIsPassportModalOpen(false)}
+        onAcknowledge={() => {
+          // Same behavior as email duplicate: mark this major as "submitted"
+          // so the user sees the Thank You screen.
+          const majorCollection = String(
+            majorInfo?.collectionName || ""
+          ).trim();
+          if (majorCollection) {
+            try {
+              localStorage.setItem(
+                `createCvSubmitted:${majorCollection}`,
+                "true"
+              );
+              // legacy key cleanup (avoid cross-major false positives)
+              localStorage.removeItem("createCvSubmitted");
+            } catch {
+              // ignore storage errors
+            }
+          }
+          setIsPassportModalOpen(false);
+          setIsSubmitted(true);
+        }}
+        enteredPassport={enteredPassport}
+        existingMajor={existingPassportMajor}
       />
     </div>
   );

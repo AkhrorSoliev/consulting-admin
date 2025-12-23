@@ -29,5 +29,27 @@ export function isEmailValid(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 }
 
+export function normalizePassportNumber(v) {
+  const raw = String(v || "")
+    .trim()
+    .toUpperCase();
+  if (!raw) return "";
+  // Keep only letters/digits, then format as "AA 0000000"
+  const alnum = raw.replace(/[^A-Z0-9]/g, "");
+  const letters = alnum.replace(/[^A-Z]/g, "").slice(0, 2);
+  const digits = alnum.replace(/[^\d]/g, "").slice(0, 7);
+  if (!letters && !digits) return "";
+  if (letters.length === 2 && digits.length > 0) return `${letters} ${digits}`;
+  return `${letters}${digits ? ` ${digits}` : ""}`.trim();
+}
+
+export function isPassportNumberValid(v) {
+  const norm = normalizePassportNumber(v);
+  if (!norm) return false;
+  return /^[A-Z]{2}\s\d{7}$/.test(norm);
+}
+
+
+
 
 

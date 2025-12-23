@@ -5,6 +5,8 @@ export default function CollapsibleSection({
   children,
   defaultOpen = false,
   className = "",
+  contentClassName = "",
+  openClassName = "",
   count,
   meta,
 }) {
@@ -20,6 +22,7 @@ export default function CollapsibleSection({
     <details
       className={[
         "collapse collapse-arrow bg-base-100 border border-base-300 rounded-box",
+        isOpen ? openClassName : "",
         className,
       ]
         .filter(Boolean)
@@ -35,7 +38,13 @@ export default function CollapsibleSection({
           ) : null}
         </div>
       </summary>
-      <div className="collapse-content pt-0">{children}</div>
+      <div
+        className={["collapse-content pt-0", contentClassName]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        {children}
+      </div>
     </details>
   );
 }

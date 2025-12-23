@@ -625,9 +625,47 @@ export async function checkEmailRemote(email) {
   return { exists: false };
 }
 
-export async function registerEmailRemote(email, major) {
+export async function checkPassportRemote(passportNumber) {
+  const safePassport = String(passportNumber || "")
+    .trim()
+    .toUpperCase();
+  if (!safePassport) return { exists: false };
+
+  // Passport registry is stored inside all_Emails as `passportId`.
+  // json-api.uz supports GET /all_Emails (list) and GET /all_Emails?email=..., but not by-property.
+  // So we list and filter client-side (best-effort; might be heavier but works with current API).
+  const res = await fetch(`${EMAIL_API_BASE}/all_Emails`, { method: "GET" });
+  if (!res.ok) {
+    throw new Error(`Passnummer Prüfung fehlgeschlagen: ${res.status}`);
+  }
+  const json = await res.json().catch(() => ({}));
+  const list = Array.isArray(json?.data) ? json.data : [];
+  const match =
+    list.find((item) => {
+      const p =
+        item?.passportId ??
+        item?.passport ??
+        item?.passportNumber ??
+        item?.reisepass ??
+        item?.reisepassNummer ??
+        "";
+      return (
+        String(p || "")
+          .trim()
+          .toUpperCase() === safePassport
+      );
+    }) || null;
+  if (match) return { exists: true, data: match };
+  return { exists: false };
+}
+
+export async function registerEmailRemote(email, major, passportNumber) {
   const safeEmail = String(email || "").trim();
   if (!safeEmail) return;
+
+  const safePassportId = String(passportNumber || "")
+    .trim()
+    .toUpperCase();
 
   const res = await fetch(`${EMAIL_API_BASE}/all_Emails`, {
     method: "POST",
@@ -635,11 +673,37 @@ export async function registerEmailRemote(email, major) {
     body: JSON.stringify({
       email: safeEmail,
       major: String(major || "").trim() || null,
+      ...(safePassportId ? { passportId: safePassportId } : {}),
     }),
   });
   if (!res.ok) {
     throw new Error(`E-Mail Registrierung fehlgeschlagen: ${res.status}`);
   }
+  return res.json().catch(() => ({}));
+}
+
+export async function registerPassportRemote(passportNumber, major) {
+  const safePassport = String(passportNumber || "")
+    .trim()
+    .toUpperCase();
+  if (!safePassport) return;
+
+  const res = await fetch(`${EMAIL_API_BASE}/all_Passports`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      passport: safePassport,
+      major: String(major || "").trim() || null,
+    }),
+  });
+  // If the endpoint doesn't exist, don't block the overall submission flow.
+  if (res.status === 404) {
+    console.warn(
+      "[passport-registry] Endpoint missing (404). Create json-api.uz collection 'all_Passports' or update the endpoint path."
+    );
+    return { ok: false, unavailable: true, status: 404 };
+  }
+  if (!res.ok) throw new Error(`Passnummer Registrierung fehlgeschlagen: ${res.status}`);
   return res.json().catch(() => ({}));
 }
 
