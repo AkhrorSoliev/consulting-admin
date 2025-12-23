@@ -125,6 +125,8 @@ function CollectionCv() {
         day: "2-digit",
         hour: "2-digit",
         minute: "2-digit",
+        hour12: false,
+        timeZone: "Asia/Tashkent",
       }).format(d);
     } catch {
       return d.toLocaleString();
@@ -146,6 +148,8 @@ function CollectionCv() {
         day: "2-digit",
         hour: "2-digit",
         minute: "2-digit",
+        hour12: false,
+        timeZone: "Asia/Tashkent",
       }).format(d);
     } catch {
       return d.toLocaleString();
@@ -614,12 +618,19 @@ function CollectionCv() {
       const full = await getDocumentDataById(colName, itemId);
       const att = full?.attachments || {};
       const docs = full?.documents || {};
+      const dok = full?.dokumente || {};
       const urls = [
         ...(Array.isArray(att?.diplomas) ? att.diplomas : []),
         ...(Array.isArray(att?.languageCertificates) ? att.languageCertificates : []),
         ...(Array.isArray(att?.certificates) ? att.certificates : []),
+        ...(typeof att?.passport === "string" && att.passport ? [att.passport] : []),
+        ...(Array.isArray(att?.passports) ? att.passports : []),
         ...(Array.isArray(docs?.diplomas) ? docs.diplomas : []),
         ...(Array.isArray(docs?.certificates) ? docs.certificates : []),
+        ...(Array.isArray(docs?.passport) ? docs.passport : []),
+        ...(Array.isArray(docs?.passports) ? docs.passports : []),
+        ...(Array.isArray(dok?.reisepass) ? dok.reisepass : []),
+        ...(Array.isArray(dok?.reisepaesse) ? dok.reisepaesse : []),
       ];
       if (urls.length > 0) {
         await deleteUploadedFilesRemote(urls);

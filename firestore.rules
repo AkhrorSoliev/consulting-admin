@@ -45,6 +45,12 @@ service cloud.firestore {
       allow create, update, delete: if isPrivileged();
     }
 
+    // Email templates: privileged can read, only super admin can write.
+    match /emailTemplates/{docId} {
+      allow read: if isPrivileged();
+      allow create, update, delete: if isSuperAdmin();
+    }
+
     // Candidate collections (dynamic). Public may only create; no read/update/delete.
     match /{collectionId}/{docId} {
       allow read: if isPrivileged() || isLimitedAdmin();

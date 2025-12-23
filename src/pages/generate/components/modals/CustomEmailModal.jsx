@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import CollapsibleSection from "../../../../components/CollapsibleSection";
 
 function InfoRow({ label, value }) {
@@ -16,6 +17,24 @@ function EmailPreview({ subject, to, htmlContent, message }) {
   const safeHtml = String(htmlContent || "").trim();
   const safeMsg = String(message || "").trim();
 
+  const inlineBodyHtml = useMemo(() => {
+    if (!safeHtml) return "";
+    // Smooth preview (no iframe reload): extract <body> and render inline.
+    try {
+      if (typeof DOMParser !== "undefined") {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(safeHtml, "text/html");
+        const inner = doc?.body?.innerHTML;
+        if (typeof inner === "string") return inner;
+      }
+    } catch {
+      // ignore and fallback below
+    }
+    const m = safeHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    if (m && typeof m[1] === "string") return m[1];
+    return safeHtml;
+  }, [safeHtml]);
+
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -24,13 +43,13 @@ function EmailPreview({ subject, to, htmlContent, message }) {
       </div>
 
       {safeHtml ? (
-        <div className="rounded-lg border border-base-300 bg-base-100 overflow-hidden">
-          <iframe
-            title="Email preview"
-            className="w-full h-[420px] bg-white"
-            sandbox="allow-popups allow-popups-to-escape-sandbox"
-            srcDoc={safeHtml}
-          />
+        <div className="rounded-lg border border-base-300 bg-white overflow-hidden">
+          <div className="w-full h-[420px] overflow-auto p-4">
+            <div
+              className="min-h-full"
+              dangerouslySetInnerHTML={{ __html: inlineBodyHtml }}
+            />
+          </div>
         </div>
       ) : (
         <div className="rounded-lg border border-base-300 bg-base-100 p-3">

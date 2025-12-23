@@ -933,11 +933,11 @@ export async function rebuildStatsDocsFromExistingData(
     await Promise.all(
       list.map((id) => setDoc(statsDocRef(id), stats, { merge: false }))
     );
-    if (toastProgress) toast.success("Statistika muvaffaqiyatli saqlandi.");
+    if (toastProgress) toast.success("Statistik erfolgreich gespeichert.");
     return stats;
   } catch (err) {
     console.error("rebuildStatsDocsFromExistingData error:", err);
-    if (toastProgress) toast.error("Statistikani qayta hisoblashda xato.");
+    if (toastProgress) toast.error("Fehler beim Neuberechnen der Statistik.");
     throw err;
   }
 }

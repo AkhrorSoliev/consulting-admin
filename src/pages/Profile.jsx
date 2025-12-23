@@ -104,6 +104,7 @@ function Profile() {
     error: "text-error",
   };
 
+
   return (
     <div className="min-h-screen bg-base-200">
       <div className="max-w-3xl mx-auto px-4 py-10">
@@ -204,6 +205,7 @@ function Profile() {
                 </button>
               </form>
             </div>
+
           </div>
         </div>
       </div>

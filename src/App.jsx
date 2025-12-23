@@ -16,6 +16,10 @@ import { login, setAuthReady } from "./features/authSlice";
 import Create from "./pages/Create";
 import Generate from "./pages/Generate";
 import Profile from "./pages/Profile";
+import SettingsLayout from "./pages/settings/SettingsLayout";
+import AdminsSettings from "./pages/settings/AdminsSettings";
+import TemplateEmailsSettings from "./pages/settings/TemplateEmailsSettings";
+import SettingsIndexRedirect from "./pages/settings/SettingsIndexRedirect";
 
 function App() {
   const dispatch = useDispatch();
@@ -34,15 +38,24 @@ function App() {
           element: <Home />,
         },
         {
-          path: "/profile",
+          path: "profile",
           element: <Profile />,
         },
         {
-          path: "/collectionCv/:major",
+          path: "settings",
+          element: <SettingsLayout />,
+          children: [
+            { index: true, element: <SettingsIndexRedirect /> },
+            { path: "admins", element: <AdminsSettings /> },
+            { path: "template-emails", element: <TemplateEmailsSettings /> },
+          ],
+        },
+        {
+          path: "collectionCv/:major",
           element: <CollectionCv />,
         },
         {
-          path: "/generate/:major/:id",
+          path: "generate/:major/:id",
           element: <Generate />,
         },
       ],

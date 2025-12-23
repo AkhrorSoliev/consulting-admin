@@ -12,6 +12,7 @@ export function useUserRole() {
 
   useEffect(() => {
     let active = true;
+    let didForceRefresh = false;
 
     async function loadRole() {
       if (!user) {
@@ -24,10 +25,17 @@ export function useUserRole() {
 
       setLoadingRole(true);
       try {
-        const token = await user.getIdTokenResult();
-        if (active) {
-          setRole(token?.claims?.role || null);
+        // First try cached token (cheap). If role is missing, force refresh ONCE.
+        let token = await user.getIdTokenResult();
+        let nextRole = token?.claims?.role || null;
+
+        if (!nextRole && !didForceRefresh) {
+          didForceRefresh = true;
+          token = await user.getIdTokenResult(true);
+          nextRole = token?.claims?.role || null;
         }
+
+        if (active) setRole(nextRole);
       } catch (err) {
         console.error("Failed to load user role:", err);
         if (active) {

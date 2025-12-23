@@ -57,9 +57,9 @@ function resolveLinkType(rawType, link) {
 
 // Create-link origin (manual switch):
 // Local test:
-// const CREATE_LINK_ORIGIN = "http://localhost:5173";
+const CREATE_LINK_ORIGIN = "http://localhost:5173";
 // Production:
-const CREATE_LINK_ORIGIN = "https://admin.consultinguz.de";
+// const CREATE_LINK_ORIGIN = "https://admin.consultinguz.de";
 
 function buildCreateLink(major, lead) {
   const linkId =
@@ -220,9 +220,9 @@ function MajorSettingsModal({
         leadLinksActive: nextLeadLinksActive !== false,
         updatedAt: now,
       });
-      toast.success("Lead linklar saqlandi.");
+      toast.success("Lead-Links wurden gespeichert.");
     } catch (e) {
-      toast.error("Lead linklarni saqlashda xatolik.");
+      toast.error("Fehler beim Speichern der Lead-Links.");
       // eslint-disable-next-line no-console
       console.error("persistLeadSettings error:", e);
     } finally {
@@ -233,7 +233,7 @@ function MajorSettingsModal({
   const handleAddLead = async () => {
     const name = String(newLeadName || "").trim();
     if (!name) {
-      toast.error("Lead nomini kiriting.");
+      toast.error("Bitte geben Sie den Lead-Namen ein.");
       return;
     }
     const exists = (leadLinks || []).some(
@@ -243,7 +243,7 @@ function MajorSettingsModal({
           .toLowerCase() === name.toLowerCase()
     );
     if (exists) {
-      toast.error("Bunday lead allaqachon bor.");
+      toast.error("Ein solcher Lead existiert bereits.");
       return;
     }
     const next = [
@@ -528,18 +528,20 @@ function MajorSettingsModal({
                                     onClick={() => {
                                       if (!canCopy) {
                                         toast.error(
-                                          "Lead link hozir aktiv emas (yoki umumiy OFF)."
+                                          "Der Lead-Link ist derzeit nicht aktiv (oder global deaktiviert)."
                                         );
                                         return;
                                       }
                                       navigator.clipboard
                                         .writeText(leadUrl)
                                         .then(() =>
-                                          toast.success("Lead link nusxalandi!")
+                                          toast.success(
+                                            "Lead-Link wurde kopiert!"
+                                          )
                                         )
                                         .catch(() =>
                                           toast.error(
-                                            "Lead linkni copy qilib bo‘lmadi."
+                                            "Lead-Link konnte nicht kopiert werden."
                                           )
                                         );
                                     }}
@@ -914,12 +916,14 @@ export default function MajorsList() {
 
   const handleCopyLink = (major) => {
     if (major?.linkActive === false) {
-      toast.error("Create-Link hozir OFF. Avval ON qiling.");
+      toast.error("Create-Link ist derzeit AUS. Bitte zuerst einschalten.");
       return;
     }
     const link = buildCreateLink(major);
     if (!link) {
-      toast.error("Link yaratib bo‘lmadi (major aniqlanmadi).");
+      toast.error(
+        "Link konnte nicht erstellt werden (Berufsfeld nicht erkannt)."
+      );
       return;
     }
     navigator.clipboard
@@ -982,7 +986,7 @@ export default function MajorsList() {
           return { ...(m || {}), linkActive: !Boolean(nextChecked) };
         })
       );
-      toast.error("O‘zgartirishda xatolik bo‘ldi.");
+      toast.error("Fehler beim Ändern.");
       // eslint-disable-next-line no-console
       console.error("toggle linkActive failed:", e);
     } finally {
