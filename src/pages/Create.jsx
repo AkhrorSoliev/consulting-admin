@@ -55,6 +55,9 @@ import PrivacyModal from "./create/components/modals/PrivacyModal";
 import GuideModal from "./create/components/modals/GuideModal";
 import ExistingEmailModal from "./create/components/modals/ExistingEmailModal";
 import ExistingPassportModal from "./create/components/modals/ExistingPassportModal";
+import PdfPreviewModal from "./create/components/modals/PdfPreviewModal";
+import LivePreview from "./generate/components/LivePreview";
+import PhotoModal from "./generate/components/modals/PhotoModal";
 
 function RequiredField({ children, className = "" }) {
   return <div className={className}>{children}</div>;
@@ -165,6 +168,7 @@ function Create() {
   const [passportSizeError, setPassportSizeError] = useState(false);
   const [photoSizeError, setPhotoSizeError] = useState(false);
   const [captchaToken, setCaptchaToken] = useState(null);
+  const [captchaSize, setCaptchaSize] = useState("normal");
   const [showEducationWarning, setShowEducationWarning] = useState(false);
   const [showExperienceWarning, setShowExperienceWarning] = useState(false);
   const [educationErrors, setEducationErrors] = useState([]);
@@ -182,13 +186,11 @@ function Create() {
   });
   const [majorLoading, setMajorLoading] = useState(false);
   const [isEmailChecking, setIsEmailChecking] = useState(false);
-  const lastEmailCheckRef = useRef({ email: "", exists: false });
-  const emailCheckSeqRef = useRef(0);
-  const lastEmailExistsModalRef = useRef("");
   const [isPassportChecking, setIsPassportChecking] = useState(false);
-  const lastPassportCheckRef = useRef({ passport: "", exists: false });
-  const passportCheckSeqRef = useRef(0);
-  const lastPassportExistsModalRef = useRef("");
+  const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false);
+  const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
+  const [photoModalSrc, setPhotoModalSrc] = useState("");
+  const formScrollRef = useRef(null);
 
   // Wizard steps: show one section at a time to reduce perceived form size
   const STEPS = useMemo(
@@ -196,8 +198,8 @@ function Create() {
       { key: "personal", label: "Persönliche Daten" },
       { key: "experience", label: "Berufserfahrung" },
       { key: "education", label: "Ausbildung" },
-      { key: "skills", label: "Fähigkeiten" },
       { key: "languages", label: "Sprachen" },
+      { key: "skills", label: "Fähigkeiten" },
       { key: "documents", label: "Dokumente" },
       { key: "confirm", label: "Bestätigen" },
     ],
@@ -224,6 +226,22 @@ function Create() {
     return () => {
       document.title = previousTitle;
     };
+  }, []);
+
+  useEffect(() => {
+    // Avoid horizontal overflow on very small devices (reCAPTCHA normal is ~304px wide).
+    if (typeof window === "undefined" || !window?.matchMedia) return;
+    const mq = window.matchMedia("(max-width: 360px)");
+    const update = () => setCaptchaSize(mq.matches ? "compact" : "normal");
+    update();
+    try {
+      mq.addEventListener("change", update);
+      return () => mq.removeEventListener("change", update);
+    } catch {
+      // Safari < 14
+      mq.addListener(update);
+      return () => mq.removeListener(update);
+    }
   }, []);
 
   useEffect(() => {
@@ -460,13 +478,14 @@ function Create() {
       if (e.key === "Escape") {
         setIsPrivacyOpen(false);
         setIsGuideOpen(false);
+        setIsPdfPreviewOpen(false);
       }
     }
-    if (isPrivacyOpen || isGuideOpen) {
+    if (isPrivacyOpen || isGuideOpen || isPdfPreviewOpen) {
       window.addEventListener("keydown", onKeyDown);
     }
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isPrivacyOpen, isGuideOpen]);
+  }, [isPrivacyOpen, isGuideOpen, isPdfPreviewOpen]);
 
   useEffect(() => {
     const hasCompleteEducation =
@@ -507,7 +526,6 @@ function Create() {
     control,
     handleSubmit: rhfHandleSubmit,
     setValue,
-    setError,
     clearErrors,
     setFocus,
     watch,
@@ -515,9 +533,9 @@ function Create() {
     getFieldState,
     formState: { errors },
   } = useForm({
-    // Validate and re-validate while typing so "warning/error" states
-    // clear immediately once the user fixes the input.
-    mode: "onChange",
+    // Show red errors only after the user tries to proceed (Weiter) or submit.
+    // After the first validation attempt, re-validate on change so errors clear immediately.
+    mode: "onSubmit",
     reValidateMode: "onChange",
     defaultValues: {
       personalInfo: {
@@ -562,10 +580,92 @@ function Create() {
   const watchEmail = watch("personalInfo.email");
   const watchPassportNumber = watch("personalInfo.passportNumber");
   const watchPhoto = watch("personalInfo.photo");
+  const watchHasDrivingLicense = watch("personalInfo.hasDrivingLicense");
+  const watchDrivingLicenseType = watch("personalInfo.drivingLicenseType");
+  const watchAddress = watch("personalInfo.address");
+
+  const previewCv = useMemo(() => {
+    const drivingTypeRaw = watchDrivingLicenseType;
+    const drivingLicenseType = Array.isArray(drivingTypeRaw)
+      ? drivingTypeRaw
+          .map((s) =>
+            String(s || "")
+              .trim()
+              .toUpperCase()
+          )
+          .filter(Boolean)
+          .join(", ")
+      : String(drivingTypeRaw || "")
+          .split(",")
+          .map((s) =>
+            String(s || "")
+              .trim()
+              .toUpperCase()
+          )
+          .filter(Boolean)
+          .join(", ");
+
+    const address = String(watchAddress || "").trim();
+
+    return {
+      ...cv,
+      personalInfo: {
+        ...(cv?.personalInfo || {}),
+        name: String(watchName || "").trim(),
+        lastName: String(watchLastName || "").trim(),
+        gender: String(watchGender || "").trim(),
+        address,
+        birthDate: String(watchBirthDate || "").trim(),
+        birthPlace: String(watchBirthPlace || "").trim(),
+        maritalStatus: String(watchMaritalStatus || "").trim(),
+        childrenCount: String(watchChildrenCount || "").trim(),
+        noChildren: Boolean(watchNoChildren),
+        hasDrivingLicense: Boolean(watchHasDrivingLicense),
+        drivingLicenseType,
+        phone: String(watchPhone || "").trim(),
+        email: String(watchEmail || "").trim(),
+        passportNumber: String(watchPassportNumber || "").trim(),
+        photo: String(watchPhoto || "").trim(),
+      },
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    cv,
+    watchName,
+    watchLastName,
+    watchGender,
+    watchBirthDate,
+    watchBirthPlace,
+    watchMaritalStatus,
+    watchChildrenCount,
+    watchNoChildren,
+    watchHasDrivingLicense,
+    watchDrivingLicenseType,
+    watchAddress,
+    watchPhone,
+    watchEmail,
+    watchPassportNumber,
+    watchPhoto,
+    // NOTE: watch("...") calls inside are intentionally not listed (RHF subscription already triggers rerenders).
+  ]);
+
+  function openPhotoModal() {
+    const photo = String(previewCv?.personalInfo?.photo || "").trim();
+    if (!photo) return;
+    setPhotoModalSrc(photo);
+    setIsPhotoModalOpen(true);
+  }
+
+  function closePhotoModal() {
+    setIsPhotoModalOpen(false);
+    setPhotoModalSrc("");
+  }
 
   // ---- Draft load/save (per major) ----
   // Placed AFTER useForm() so `watch` / `setValue` are initialized (avoids TDZ crash).
-  const majorCollectionForDraft = String(majorInfo?.collectionName || "").trim();
+  const majorCollectionForDraft = String(
+    majorInfo?.collectionName || ""
+  ).trim();
   // Use a single key (not per-major) as requested.
   const draftKey = "createCvDraft";
   const DRAFT_EXCLUDE_PERSONAL_FIELDS = useMemo(
@@ -642,7 +742,7 @@ function Create() {
       const sanitizedForm = sanitizeDraftFormSnapshot(formSnapshot);
       const sanitizedCv = sanitizeDraftCvSnapshot(cv);
       const payload = {
-        v: 1,
+        v: 2,
         updatedAt: Date.now(),
         major: majorCollectionForDraft,
         form: sanitizedForm,
@@ -673,9 +773,25 @@ function Create() {
       const parsed = safeParseJson(raw, null);
       if (!parsed || typeof parsed !== "object") return;
 
+      // Migrate old wizard step indices (v1 -> v2) after swapping Languages/Skills.
+      const draftVersion = Number(parsed?.v || 1);
+      const mapStepV1ToV2 = (step) => {
+        const s = Number(step);
+        if (Number.isNaN(s)) return s;
+        // v1 order: 0 personal, 1 experience, 2 education, 3 skills, 4 languages, 5 documents, 6 confirm
+        // v2 order: 0 personal, 1 experience, 2 education, 3 languages, 4 skills, 5 documents, 6 confirm
+        if (s === 3) return 4;
+        if (s === 4) return 3;
+        return s;
+      };
+
       // Restore wizard progress (best-effort)
-      const nextStep = Number(parsed?.wizard?.currentStep);
-      const nextUnlocked = Number(parsed?.wizard?.maxUnlockedStep);
+      const nextStepRaw = Number(parsed?.wizard?.currentStep);
+      const nextUnlockedRaw = Number(parsed?.wizard?.maxUnlockedStep);
+      const nextStep =
+        draftVersion >= 2 ? nextStepRaw : mapStepV1ToV2(nextStepRaw);
+      const nextUnlocked =
+        draftVersion >= 2 ? nextUnlockedRaw : mapStepV1ToV2(nextUnlockedRaw);
       if (!Number.isNaN(nextStep) && nextStep >= 0) {
         setCurrentStep(Math.max(0, Math.min(FINAL_STEP, nextStep)));
       }
@@ -778,181 +894,6 @@ function Create() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cv, currentStep, maxUnlockedStep, majorCollectionForDraft, majorLoading]);
 
-  useEffect(() => {
-    const raw = String(watchEmail || "").trim();
-    const email = raw.toLowerCase();
-
-    // If the user edits the email while the "already used" modal is open,
-    // close the modal to avoid stale information.
-    if (
-      isEmailModalOpen &&
-      email &&
-      email !==
-        String(enteredEmail || "")
-          .trim()
-          .toLowerCase()
-    ) {
-      setIsEmailModalOpen(false);
-    }
-
-    // Clear remote "exists" error immediately when user edits the email.
-    const st = getFieldState("personalInfo.email");
-    if (
-      st?.error?.type === "remoteExists" &&
-      email &&
-      email !== String(lastEmailCheckRef.current?.email || "")
-    ) {
-      clearErrors("personalInfo.email");
-    }
-
-    // Don't remote-check if empty or syntactically invalid.
-    if (!email || !isEmailValid(email)) {
-      setIsEmailChecking(false);
-      return;
-    }
-
-    // Avoid repeating the same check.
-    if (email === String(lastEmailCheckRef.current?.email || "")) {
-      setIsEmailChecking(false);
-      return;
-    }
-
-    const seq = (emailCheckSeqRef.current += 1);
-    const t = setTimeout(async () => {
-      setIsEmailChecking(true);
-      try {
-        const { exists, data } = await checkEmailRemote(email);
-        if (emailCheckSeqRef.current !== seq) return;
-
-        lastEmailCheckRef.current = { email, exists: Boolean(exists) };
-
-        if (exists) {
-          const major = String(data?.major || "Unbekannt");
-          setExistingMajor(major);
-          setEnteredEmail(email);
-          setError("personalInfo.email", {
-            type: "remoteExists",
-            message: `Diese E-Mail ist bereits für „${major}“ registriert.`,
-          });
-
-          // Show the "Achtung!" modal immediately on live-check.
-          if (lastEmailExistsModalRef.current !== email) {
-            setIsEmailModalOpen(true);
-            lastEmailExistsModalRef.current = email;
-          }
-        } else {
-          const now = getFieldState("personalInfo.email");
-          if (now?.error?.type === "remoteExists") {
-            clearErrors("personalInfo.email");
-          }
-        }
-      } catch (e) {
-        // Best-effort: don't block the form if remote check fails.
-        // User will still be checked on submit.
-        console.error("Email remote check failed:", e);
-      } finally {
-        if (emailCheckSeqRef.current === seq) {
-          setIsEmailChecking(false);
-        }
-      }
-    }, 650);
-
-    return () => clearTimeout(t);
-  }, [
-    watchEmail,
-    clearErrors,
-    getFieldState,
-    setError,
-    isEmailModalOpen,
-    enteredEmail,
-  ]);
-
-  useEffect(() => {
-    const raw = String(watchPassportNumber || "");
-    const passport = normalizePassportNumber(raw);
-
-    // If the user edits the passport while the "already used" modal is open,
-    // close the modal to avoid stale information.
-    if (
-      isPassportModalOpen &&
-      passport &&
-      passport !== normalizePassportNumber(enteredPassport)
-    ) {
-      setIsPassportModalOpen(false);
-    }
-
-    // Clear remote "exists" error immediately when user edits the passport.
-    const st = getFieldState("personalInfo.passportNumber");
-    if (
-      st?.error?.type === "remoteExists" &&
-      passport &&
-      passport !== String(lastPassportCheckRef.current?.passport || "")
-    ) {
-      clearErrors("personalInfo.passportNumber");
-    }
-
-    // Don't remote-check if empty or syntactically invalid.
-    if (!passport || !isPassportNumberValid(passport)) {
-      setIsPassportChecking(false);
-      return;
-    }
-
-    // Avoid repeating the same check.
-    if (passport === String(lastPassportCheckRef.current?.passport || "")) {
-      setIsPassportChecking(false);
-      return;
-    }
-
-    const seq = (passportCheckSeqRef.current += 1);
-    const t = setTimeout(async () => {
-      setIsPassportChecking(true);
-      try {
-        const { exists, data } = await checkPassportRemote(passport);
-        if (passportCheckSeqRef.current !== seq) return;
-
-        lastPassportCheckRef.current = { passport, exists: Boolean(exists) };
-
-        if (exists) {
-          const major = String(data?.major || "Unbekannt");
-          setExistingPassportMajor(major);
-          setEnteredPassport(passport);
-          setError("personalInfo.passportNumber", {
-            type: "remoteExists",
-            message: `Diese Passnummer ist bereits für „${major}“ registriert.`,
-          });
-
-          // Show the "Achtung!" modal immediately on live-check.
-          if (lastPassportExistsModalRef.current !== passport) {
-            setIsPassportModalOpen(true);
-            lastPassportExistsModalRef.current = passport;
-          }
-        } else {
-          const now = getFieldState("personalInfo.passportNumber");
-          if (now?.error?.type === "remoteExists") {
-            clearErrors("personalInfo.passportNumber");
-          }
-        }
-      } catch (e) {
-        // Best-effort: don't block the form if remote check fails.
-        // User will still be checked on submit.
-        console.error("Passport remote check failed:", e);
-      } finally {
-        if (passportCheckSeqRef.current === seq) {
-          setIsPassportChecking(false);
-        }
-      }
-    }, 650);
-
-    return () => clearTimeout(t);
-  }, [
-    watchPassportNumber,
-    clearErrors,
-    getFieldState,
-    setError,
-    isPassportModalOpen,
-    enteredPassport,
-  ]);
-
   function hasNonEmptyValue(v) {
     if (Array.isArray(v)) return v.length > 0;
     if (typeof v === "boolean") return true;
@@ -1029,6 +970,7 @@ function Create() {
         "personalInfo.childrenCount",
         "personalInfo.phone",
         "personalInfo.email",
+        "personalInfo.passportNumber",
         "personalInfo.photo",
         "personalInfo.addressStreet",
         "personalInfo.addressHouseNumber",
@@ -1051,6 +993,7 @@ function Create() {
             "personalInfo.childrenCount": "Kinder",
             "personalInfo.phone": "Telefonnummer",
             "personalInfo.email": "E-Mail",
+            "personalInfo.passportNumber": "Passnummer",
             "personalInfo.photo": "Foto",
             "personalInfo.addressStreet": "Straße",
             "personalInfo.addressHouseNumber": "Hausnummer",
@@ -1071,6 +1014,51 @@ function Create() {
         }
         return false;
       }
+
+      // Remote uniqueness checks (only when user clicks "Weiter")
+      const email = String(watch("personalInfo.email") || "")
+        .trim()
+        .toLowerCase();
+      const passportNumber = normalizePassportNumber(
+        String(watch("personalInfo.passportNumber") || "")
+      );
+
+      if (email && isEmailValid(email)) {
+        setIsEmailChecking(true);
+        try {
+          const { exists, data } = await checkEmailRemote(email);
+          if (exists) {
+            setExistingMajor(String(data?.major || "Unbekannt"));
+            setEnteredEmail(email);
+            setIsEmailModalOpen(true);
+            return false;
+          }
+        } catch (e) {
+          // Best-effort: don't block if remote check fails.
+          console.error("Email remote check failed:", e);
+        } finally {
+          setIsEmailChecking(false);
+        }
+      }
+
+      if (passportNumber && isPassportNumberValid(passportNumber)) {
+        setIsPassportChecking(true);
+        try {
+          const { exists, data } = await checkPassportRemote(passportNumber);
+          if (exists) {
+            setExistingPassportMajor(String(data?.major || "Unbekannt"));
+            setEnteredPassport(passportNumber);
+            setIsPassportModalOpen(true);
+            return false;
+          }
+        } catch (e) {
+          // Best-effort: don't block if remote check fails.
+          console.error("Passport remote check failed:", e);
+        } finally {
+          setIsPassportChecking(false);
+        }
+      }
+
       return true;
     }
 
@@ -1101,18 +1089,9 @@ function Create() {
       return true;
     }
 
+    // Step index note (after reordering):
+    // 0 personal, 1 experience, 2 education, 3 languages, 4 skills, 5 documents, 6 confirm
     if (currentStep === 3) {
-      // Driving license selection lives inside "Fähigkeiten" step (optional).
-      const has = Boolean(watch("personalInfo.hasDrivingLicense"));
-      if (!has) return true;
-      const ok = await trigger(["personalInfo.drivingLicenseType"], {
-        shouldFocus: true,
-      });
-      if (!ok) return false;
-      return true;
-    }
-
-    if (currentStep === 4) {
       const rows =
         Array.isArray(languageRows) && languageRows.length > 0
           ? languageRows
@@ -1125,6 +1104,17 @@ function Create() {
         toast.error(`Fehlend: ${errorLabels.language}`);
         return false;
       }
+      return true;
+    }
+
+    if (currentStep === 4) {
+      // Driving license selection lives inside "Fähigkeiten" step (optional).
+      const has = Boolean(watch("personalInfo.hasDrivingLicense"));
+      if (!has) return true;
+      const ok = await trigger(["personalInfo.drivingLicenseType"], {
+        shouldFocus: true,
+      });
+      if (!ok) return false;
       return true;
     }
 
@@ -1168,17 +1158,35 @@ function Create() {
     return true;
   }
 
+  function scrollWizardToTop() {
+    // Desktop: inner scroll container. Mobile: window scroll.
+    try {
+      const el = formScrollRef.current;
+      const canScrollEl =
+        el &&
+        typeof el.scrollTo === "function" &&
+        el.scrollHeight > el.clientHeight + 1;
+      if (canScrollEl) {
+        el.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
   async function goNext() {
     const ok = await validateCurrentStep();
     if (!ok) return;
     setCurrentStep((s) => Math.min(FINAL_STEP, s + 1));
     setMaxUnlockedStep((u) => Math.max(u, currentStep + 1));
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    scrollWizardToTop();
   }
 
   function goBack() {
     setCurrentStep((s) => Math.max(0, s - 1));
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    scrollWizardToTop();
   }
 
   async function handlePhotoFileChange(e) {
@@ -1256,6 +1264,7 @@ function Create() {
       "personalInfo.childrenCount",
       "personalInfo.phone",
       "personalInfo.email",
+      "personalInfo.passportNumber",
       "personalInfo.photo",
       "personalInfo.addressStreet",
       "personalInfo.addressHouseNumber",
@@ -1273,6 +1282,7 @@ function Create() {
       "personalInfo.childrenCount": "Kinder",
       "personalInfo.phone": "Telefonnummer",
       "personalInfo.email": "E-Mail",
+      "personalInfo.passportNumber": "Passnummer",
       "personalInfo.photo": "Foto",
       "personalInfo.addressStreet": "Straße",
       "personalInfo.addressHouseNumber": "Hausnummer",
@@ -1821,7 +1831,7 @@ function Create() {
   }
 
   return (
-    <div className="min-h-screen bg-base-200">
+    <div className="min-h-dvh bg-base-200 lg:h-dvh lg:overflow-hidden">
       {isUploading ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-base-content/40 backdrop-blur-sm">
           <div
@@ -1835,507 +1845,1290 @@ function Create() {
         </div>
       ) : null}
       <div
-        className={`max-w-3xl mx-auto w-full px-4 py-10 ${
-          isSubmitted === false
-            ? ""
-            : "min-h-[calc(100vh-5rem)] grid place-items-center"
+        className={`min-h-dvh lg:h-full max-w-2xl mx-auto md:max-w-[1600px] lg:p-4 ${
+          isSubmitted === false ? "" : "grid place-items-center"
         }`}
       >
-        <section className="card bg-base-100 shadow w-full max-w-lg mx-auto py-10">
-          <div
-            className={
-              isSubmitted !== false
-                ? "card-body items-center text-center p-[0.7rem]!"
-                : "card-body p-[0.7rem]!"
-            }
+        <div
+          className={`${
+            isSubmitted === false
+              ? "lg:h-full flex flex-col lg:flex-row gap-6 items-start lg:items-stretch"
+              : ""
+          }`}
+        >
+          <section
+            className={`card bg-base-100 shadow-2xl border border-base-300 rounded-2xl w-full ${
+              isSubmitted === false
+                ? "lg:flex-1 lg:min-w-0 lg:h-full lg:overflow-hidden"
+                : "py-10 max-w-lg mx-auto"
+            }`}
           >
-            {isSubmitted === null ? (
-              <div className="w-full flex flex-col items-center justify-center text-center py-10 gap-3">
-                <span className="loading loading-spinner loading-lg text-primary" />
-                <div className="text-sm font-medium">Wird geladen...</div>
-              </div>
-            ) : isSubmitted ? (
-              <div className="space-y-4 text-center">
-                <h2 className="card-title text-3xl font-bold w-full justify-center text-center">
-                  Vielen Dank!
-                </h2>
-                <p>
-                  Ihre Bewerbung wurde erfolgreich abgeschlossen. Vielen Dank
-                  für Ihre Bewerbung
-                </p>
-                <div className="w-full pt-4">
-                  <div className="rounded-2xl border border-base-300 bg-base-100 p-4 text-left shadow-sm">
-                    <div className="text-center">
-                      <div className="text-sm font-semibold leading-tight">
-                        Empfehlung:{" "}
-                        <span className="text-base-content">
-                          DaF Sprachzentrum
-                        </span>
+            <div
+              className={
+                isSubmitted !== false
+                  ? "card-body items-center text-center p-[0.7rem]!"
+                  : "p-4 flex flex-col lg:h-full lg:min-h-0 items-stretch justify-start"
+              }
+            >
+              {isSubmitted === null ? (
+                <div className="w-[200px] flex flex-col items-center justify-center text-center gap-3">
+                  <span className="loading loading-spinner loading-lg text-primary" />
+                  <div className="text-sm font-medium">Wird geladen...</div>
+                </div>
+              ) : isSubmitted ? (
+                <div className="space-y-4 text-center">
+                  <h2 className="card-title text-3xl font-bold w-full justify-center text-center">
+                    Vielen Dank!
+                  </h2>
+                  <p>
+                    Ihre Bewerbung wurde erfolgreich abgeschlossen. Vielen Dank
+                    für Ihre Bewerbung
+                  </p>
+                  <div className="w-full pt-4">
+                    <div className="rounded-2xl border border-base-300 bg-base-100 p-4 text-left shadow-sm">
+                      <div className="text-center">
+                        <div className="text-sm font-semibold leading-tight">
+                          Empfehlung:{" "}
+                          <span className="text-base-content">
+                            DaF Sprachzentrum
+                          </span>
+                        </div>
+                        <div className="mt-1 text-sm text-base-content/70">
+                          Unsere Deutschkurse in ganz Usbekistan.
+                        </div>
                       </div>
-                      <div className="mt-1 text-sm text-base-content/70">
-                        Unsere Deutschkurse in ganz Usbekistan.
+
+                      <div className="mt-4 space-y-2">
+                        <a
+                          href="https://www.dafzentrum.uz"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group flex items-center gap-3 rounded-xl border border-base-300 bg-base-100 px-4 py-3 hover:bg-base-200/60"
+                          aria-label="DaF Sprachzentrum Website öffnen"
+                        >
+                          <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                            <FaGlobe className="text-base" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-semibold">Website</div>
+                            <div className="text-xs text-base-content/60 truncate">
+                              dafzentrum.uz
+                            </div>
+                          </div>
+                          <FaChevronRight className="text-sm opacity-50 group-hover:opacity-80" />
+                        </a>
+
+                        <a
+                          href="https://t.me/dafsprachzentrum"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="group flex items-center gap-3 rounded-xl border border-base-300 bg-base-100 px-4 py-3 hover:bg-base-200/60"
+                          aria-label="DaF Sprachzentrum Telegram-Kanal öffnen"
+                        >
+                          <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#229ED9]/10 text-[#229ED9]">
+                            <FaTelegramPlane className="text-base" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-semibold">
+                              Telegram
+                            </div>
+                            <div className="text-xs text-base-content/60 truncate">
+                              @dafsprachzentrum
+                            </div>
+                          </div>
+                          <FaChevronRight className="text-sm opacity-50 group-hover:opacity-80" />
+                        </a>
                       </div>
-                    </div>
-
-                    <div className="mt-4 space-y-2">
-                      <a
-                        href="https://www.dafzentrum.uz"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group flex items-center gap-3 rounded-xl border border-base-300 bg-base-100 px-4 py-3 hover:bg-base-200/60"
-                        aria-label="DaF Sprachzentrum Website öffnen"
-                      >
-                        <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                          <FaGlobe className="text-base" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm font-semibold">Website</div>
-                          <div className="text-xs text-base-content/60 truncate">
-                            dafzentrum.uz
-                          </div>
-                        </div>
-                        <FaChevronRight className="text-sm opacity-50 group-hover:opacity-80" />
-                      </a>
-
-                      <a
-                        href="https://t.me/dafsprachzentrum"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group flex items-center gap-3 rounded-xl border border-base-300 bg-base-100 px-4 py-3 hover:bg-base-200/60"
-                        aria-label="DaF Sprachzentrum Telegram-Kanal öffnen"
-                      >
-                        <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#229ED9]/10 text-[#229ED9]">
-                          <FaTelegramPlane className="text-base" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm font-semibold">Telegram</div>
-                          <div className="text-xs text-base-content/60 truncate">
-                            @dafsprachzentrum
-                          </div>
-                        </div>
-                        <FaChevronRight className="text-sm opacity-50 group-hover:opacity-80" />
-                      </a>
                     </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <>
-                <div className="w-full mb-6">
-                  {(() => {
-                    const pct =
-                      FINAL_STEP > 0
-                        ? Math.round((currentStep / FINAL_STEP) * 100)
-                        : 0;
-                    return (
-                      <>
-                        <div className="flex items-center justify-between text-xs text-base-content/70 mb-2">
-                          <div>
-                            Schritt {currentStep + 1} / {STEPS.length}
-                          </div>
-                          <div className="font-medium text-base-content/80">
-                            {pct}%
-                          </div>
-                        </div>
-                        <div className="w-full h-2 rounded-full bg-base-200 overflow-hidden">
-                          <div
-                            className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
-                            style={{ width: `${pct}%` }}
-                            aria-label="Formular Fortschritt"
-                          />
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-                <div className="w-full flex justify-center">
-                  <h2 className="card-title text-2xl sm:text-3xl font-bold text-center leading-tight create-form-title">
-                    {currentStep === 0 && majorInfo.showTitle
-                      ? majorInfo.title
-                      : STEPS?.[currentStep]?.label || "Persönliche Daten"}
-                  </h2>
-                </div>
-                <p className="mt-2 text-center text-xs text-base-content/70">
-                  <span
-                    className="text-error/70 text-[0.85em]"
-                    aria-hidden="true"
+              ) : (
+                <>
+                  <form
+                    onSubmit={rhfHandleSubmit(onSubmit, onInvalid)}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter") return;
+                      const tag = String(e.target?.tagName || "").toLowerCase();
+                      if (tag === "textarea") return;
+                      if (currentStep !== FINAL_STEP) {
+                        e.preventDefault();
+                        goNext();
+                      }
+                    }}
+                    className="flex flex-col lg:flex-1 lg:min-h-0"
                   >
-                    *
-                  </span>{" "}
-                  = Pflichtfeld
-                </p>
-
-                <form
-                  onSubmit={rhfHandleSubmit(onSubmit, onInvalid)}
-                  onKeyDown={(e) => {
-                    if (e.key !== "Enter") return;
-                    const tag = String(e.target?.tagName || "").toLowerCase();
-                    if (tag === "textarea") return;
-                    if (currentStep !== FINAL_STEP) {
-                      e.preventDefault();
-                      goNext();
-                    }
-                  }}
-                  className="space-y-6"
-                >
-                  {currentStep === 0 ? (
-                    <>
-                      <div className="divider mt-0">
-                        <span className="mx-auto inline-flex items-center gap-2">
-                          <FaUser className="opacity-70" aria-hidden="true" />
-                          <span>Persönliche Daten</span>
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Controller
-                          control={control}
-                          name="personalInfo.name"
-                          rules={{ required: "Vorname ist erforderlich" }}
-                          render={({ field }) => (
-                            <RequiredField>
-                              <FormInput
-                                label={
-                                  <RequiredLabel
-                                    className={REQUIRED_STAR_CLASS}
-                                  >
-                                    Vorname
-                                  </RequiredLabel>
-                                }
-                                placeholder="z.B. Ali"
-                                helperText="Bitte geben Sie Ihren Vornamen ein (wie im Ausweis)."
-                                inputClassName={
-                                  errors?.personalInfo?.name
-                                    ? "input-error"
-                                    : getSuccessClass(
-                                        "personalInfo.name",
-                                        field.value,
-                                        "input"
-                                      )
-                                }
-                                aria-invalid={
-                                  errors?.personalInfo?.name ? "true" : "false"
-                                }
-                                {...field}
-                              />
-                            </RequiredField>
-                          )}
-                        />
-                        <Controller
-                          control={control}
-                          name="personalInfo.lastName"
-                          rules={{ required: "Nachname ist erforderlich" }}
-                          render={({ field }) => (
-                            <RequiredField>
-                              <FormInput
-                                label={
-                                  <RequiredLabel
-                                    className={REQUIRED_STAR_CLASS}
-                                  >
-                                    Nachname
-                                  </RequiredLabel>
-                                }
-                                placeholder="z.B. Soliev"
-                                helperText="Bitte geben Sie Ihren Nachnamen ein (wie im Ausweis)."
-                                inputClassName={
-                                  errors?.personalInfo?.lastName
-                                    ? "input-error"
-                                    : getSuccessClass(
-                                        "personalInfo.lastName",
-                                        field.value,
-                                        "input"
-                                      )
-                                }
-                                aria-invalid={
-                                  errors?.personalInfo?.lastName
-                                    ? "true"
-                                    : "false"
-                                }
-                                {...field}
-                              />
-                            </RequiredField>
-                          )}
-                        />
-                        <RequiredField className="md:col-span-2">
-                          <label className="label">
-                            <RequiredLabel
-                              className={`label-text ${REQUIRED_STAR_CLASS}`}
-                            >
-                              Geschlecht
-                            </RequiredLabel>
-                          </label>
-                          <div className="flex gap-6">
-                            <label className="cursor-pointer flex items-center gap-2">
-                              <input
-                                type="radio"
-                                value="Männlich"
-                                className="radio radio-primary"
-                                {...register("personalInfo.gender", {
-                                  required: "Bitte Geschlecht auswählen",
-                                })}
-                              />
-                              <span>Männlich</span>
-                            </label>
-                            <label className="cursor-pointer flex items-center gap-2">
-                              <input
-                                type="radio"
-                                value="Weiblich"
-                                className="radio radio-primary"
-                                {...register("personalInfo.gender", {
-                                  required: "Bitte Geschlecht auswählen",
-                                })}
-                              />
-                              <span>Weiblich</span>
-                            </label>
+                    <div
+                      ref={formScrollRef}
+                      className="space-y-6 pb-[calc(env(safe-area-inset-bottom)+9rem)] lg:flex-1 lg:min-h-0 lg:overflow-y-auto lg:pb-28"
+                    >
+                      {/* Keep header INSIDE the scroll container so it's NOT fixed on mobile.
+                          On desktop (`lg+`) we still keep the step indicator sticky for convenience. */}
+                      <div className="space-y-3">
+                        <div className="sticky top-0 z-20 pt-4 sm:pt-2 pb-4 bg-base-100/95 backdrop-blur supports-backdrop-filter:bg-base-100/75 border-b border-base-200">
+                          <div className="w-full">
+                            {(() => {
+                              const pct =
+                                FINAL_STEP > 0
+                                  ? Math.round((currentStep / FINAL_STEP) * 100)
+                                  : 0;
+                              return (
+                                <>
+                                  <div className="flex items-center justify-between text-sm sm:text-base text-base-content/70 mb-2">
+                                    <div>
+                                      Schritt {currentStep + 1} / {STEPS.length}
+                                    </div>
+                                    <div className="font-semibold text-base-content/80 tabular-nums">
+                                      {pct}%
+                                    </div>
+                                  </div>
+                                  <div className="w-full h-2 rounded-full bg-base-200 overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
+                                      style={{ width: `${pct}%` }}
+                                      aria-label="Formular Fortschritt"
+                                    />
+                                  </div>
+                                </>
+                              );
+                            })()}
                           </div>
-                          {errors?.personalInfo?.gender && (
-                            <p className="text-error text-sm mt-1">
-                              {errors.personalInfo.gender.message}
-                            </p>
-                          )}
-                        </RequiredField>
-                        <RequiredField>
-                          <Controller
-                            control={control}
-                            name="personalInfo.birthDate"
-                            rules={{
-                              required: "Geburtsdatum ist erforderlich",
-                            }}
-                            render={({ field }) => (
-                              <>
-                                <label
-                                  className="label"
-                                  htmlFor="personalInfo-birthDate"
-                                >
-                                  <RequiredLabel
-                                    className={`label-text ${REQUIRED_STAR_CLASS}`}
-                                  >
-                                    Geburtsdatum
-                                  </RequiredLabel>
-                                </label>
-                                <input
-                                  id="personalInfo-birthDate"
-                                  type="date"
-                                  placeholder="YYYY-MM-DD"
-                                  className={`input input-bordered w-full ${
-                                    errors?.personalInfo?.birthDate
-                                      ? "input-error"
-                                      : getSuccessClass(
-                                          "personalInfo.birthDate",
-                                          field.value,
-                                          "input"
-                                        )
-                                  }`}
-                                  aria-invalid={
-                                    errors?.personalInfo?.birthDate
-                                      ? "true"
-                                      : "false"
-                                  }
-                                  {...field}
-                                />
-                                <p className="mt-1 text-xs text-base-content/70">
-                                  Bitte wählen Sie Ihr Geburtsdatum aus.
-                                </p>
-                              </>
-                            )}
-                          />
-                        </RequiredField>
-                        <RequiredField>
-                          <Controller
-                            control={control}
-                            name="personalInfo.birthPlace"
-                            rules={{
-                              required: "Geburtsort ist erforderlich",
-                            }}
-                            render={({ field }) => (
-                              <>
-                                <label
-                                  className="label"
-                                  htmlFor="personalInfo-birthPlace"
-                                >
-                                  <RequiredLabel
-                                    className={`label-text ${REQUIRED_STAR_CLASS}`}
-                                  >
-                                    Geburtsort
-                                  </RequiredLabel>
-                                </label>
-                                <select
-                                  id="personalInfo-birthPlace"
-                                  {...field}
-                                  className={`select select-bordered w-full ${
-                                    errors?.personalInfo?.birthPlace
-                                      ? "select-error"
-                                      : getSuccessClass(
-                                          "personalInfo.birthPlace",
-                                          field.value,
-                                          "select"
-                                        )
-                                  }`}
-                                  aria-invalid={
-                                    errors?.personalInfo?.birthPlace
-                                      ? "true"
-                                      : "false"
-                                  }
-                                  value={field.value || ""}
-                                  onChange={(e) => {
-                                    const v = String(e.target.value || "");
-                                    field.onChange(v);
-                                    // Ensure the error state clears immediately after selecting a value
-                                    clearErrors("personalInfo.birthPlace");
-                                    trigger("personalInfo.birthPlace");
-                                  }}
-                                >
-                                  <option value="">Bitte auswählen</option>
-                                  {UZBEK_REGIONS.map((region) => (
-                                    <option key={region} value={region}>
-                                      {region}
-                                    </option>
-                                  ))}
-                                </select>
-                              </>
-                            )}
-                          />
-                          {errors?.personalInfo?.birthPlace ? (
-                            <p className="text-error text-sm mt-1">
-                              {errors.personalInfo.birthPlace.message}
-                            </p>
-                          ) : null}
-                        </RequiredField>
-                        <RequiredField>
-                          <Controller
-                            control={control}
-                            name="personalInfo.maritalStatus"
-                            rules={{
-                              required: "Bitte Familienstand auswählen",
-                            }}
-                            render={({ field }) => (
-                              <>
-                                <label
-                                  className="label"
-                                  htmlFor="personalInfo-maritalStatus"
-                                >
-                                  <RequiredLabel
-                                    className={`label-text ${REQUIRED_STAR_CLASS}`}
-                                  >
-                                    Familienstand
-                                  </RequiredLabel>
-                                </label>
-                                <select
-                                  id="personalInfo-maritalStatus"
-                                  className={`select select-bordered w-full ${
-                                    errors?.personalInfo?.maritalStatus
-                                      ? "select-error"
-                                      : getSuccessClass(
-                                          "personalInfo.maritalStatus",
-                                          field.value,
-                                          "select"
-                                        )
-                                  }`}
-                                  aria-invalid={
-                                    errors?.personalInfo?.maritalStatus
-                                      ? "true"
-                                      : "false"
-                                  }
-                                  {...field}
-                                >
-                                  <option value="">Bitte auswählen</option>
-                                  <option value="ledig">ledig</option>
-                                  <option value="verheiratet">
-                                    verheiratet
-                                  </option>
-                                  <option value="geschieden">geschieden</option>
-                                  <option value="verwitwet">verwitwet</option>
-                                </select>
-                              </>
-                            )}
-                          />
-                        </RequiredField>
-                        <RequiredField className="md:col-span-2">
-                          <label
-                            className="label"
-                            htmlFor="personalInfo-childrenCount"
+                        </div>
+
+                        <div className="w-full flex justify-center">
+                          <h2 className="card-title text-2xl sm:text-3xl font-bold text-center leading-tight create-form-title">
+                            {currentStep === 0 && majorInfo.showTitle
+                              ? majorInfo.title
+                              : STEPS?.[currentStep]?.label ||
+                                "Persönliche Daten"}
+                          </h2>
+                        </div>
+
+                        <p className="text-center text-xs text-base-content/70">
+                          <span
+                            className="text-error/70 text-[0.85em]"
+                            aria-hidden="true"
                           >
-                            <RequiredLabel
-                              className={`label-text ${REQUIRED_STAR_CLASS}`}
-                            >
-                              Kinder
-                            </RequiredLabel>
-                          </label>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div className="form-control">
-                              <input
-                                id="personalInfo-childrenCount"
-                                type="number"
-                                min={0}
-                                inputMode="numeric"
-                                placeholder="z.B. 2"
-                                className={`input input-bordered w-full ${
-                                  errors?.personalInfo?.childrenCount
-                                    ? "input-error"
-                                    : getSuccessClass(
-                                        "personalInfo.childrenCount",
-                                        watchChildrenCount,
-                                        "input"
-                                      )
-                                }`}
-                                disabled={watch("personalInfo.noChildren")}
-                                aria-invalid={
-                                  errors?.personalInfo?.childrenCount
-                                    ? "true"
-                                    : "false"
-                                }
-                                {...register("personalInfo.childrenCount", {
-                                  validate: (value) => {
-                                    const noKids = Boolean(
-                                      watch("personalInfo.noChildren")
-                                    );
-                                    if (noKids) return true;
-                                    const v = String(value || "").trim();
-                                    if (!v)
-                                      return "Bitte Kinderanzahl eingeben oder 'Keine Kinder' auswählen.";
-                                    const n = Number(v);
-                                    if (Number.isNaN(n) || n < 0)
-                                      return "Bitte eine gültige Zahl eingeben.";
-                                    return true;
-                                  },
-                                  setValueAs: (v) => {
-                                    const s = String(v ?? "").trim();
-                                    if (!s) return "";
-                                    const num = Number(s);
-                                    if (Number.isNaN(num)) return "";
-                                    return String(Math.max(0, Math.floor(num)));
-                                  },
-                                })}
+                            *
+                          </span>{" "}
+                          = Pflichtfeld
+                        </p>
+                      </div>
+
+                      {currentStep === 0 ? (
+                        <>
+                          <div className="divider mt-0">
+                            <span className="mx-auto inline-flex items-center gap-2">
+                              <FaUser
+                                className="opacity-70"
+                                aria-hidden="true"
                               />
-                              {errors?.personalInfo?.childrenCount ? (
+                              <span>Persönliche Daten</span>
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <Controller
+                              control={control}
+                              name="personalInfo.name"
+                              rules={{ required: "Vorname ist erforderlich" }}
+                              render={({ field }) => (
+                                <RequiredField>
+                                  <FormInput
+                                    label={
+                                      <RequiredLabel
+                                        className={REQUIRED_STAR_CLASS}
+                                      >
+                                        Vorname
+                                      </RequiredLabel>
+                                    }
+                                    placeholder="z.B. Ali"
+                                    helperText="Bitte geben Sie Ihren Vornamen ein (wie im Ausweis)."
+                                    inputClassName={
+                                      errors?.personalInfo?.name
+                                        ? "input-error"
+                                        : getSuccessClass(
+                                            "personalInfo.name",
+                                            field.value,
+                                            "input"
+                                          )
+                                    }
+                                    aria-invalid={
+                                      errors?.personalInfo?.name
+                                        ? "true"
+                                        : "false"
+                                    }
+                                    {...field}
+                                  />
+                                </RequiredField>
+                              )}
+                            />
+                            <Controller
+                              control={control}
+                              name="personalInfo.lastName"
+                              rules={{ required: "Nachname ist erforderlich" }}
+                              render={({ field }) => (
+                                <RequiredField>
+                                  <FormInput
+                                    label={
+                                      <RequiredLabel
+                                        className={REQUIRED_STAR_CLASS}
+                                      >
+                                        Nachname
+                                      </RequiredLabel>
+                                    }
+                                    placeholder="z.B. Soliev"
+                                    helperText="Bitte geben Sie Ihren Nachnamen ein (wie im Ausweis)."
+                                    inputClassName={
+                                      errors?.personalInfo?.lastName
+                                        ? "input-error"
+                                        : getSuccessClass(
+                                            "personalInfo.lastName",
+                                            field.value,
+                                            "input"
+                                          )
+                                    }
+                                    aria-invalid={
+                                      errors?.personalInfo?.lastName
+                                        ? "true"
+                                        : "false"
+                                    }
+                                    {...field}
+                                  />
+                                </RequiredField>
+                              )}
+                            />
+                            <RequiredField className="md:col-span-2">
+                              <label className="label">
+                                <RequiredLabel
+                                  className={`label-text ${REQUIRED_STAR_CLASS}`}
+                                >
+                                  Geschlecht
+                                </RequiredLabel>
+                              </label>
+                              <div className="flex gap-6">
+                                <label className="cursor-pointer flex items-center gap-2">
+                                  <input
+                                    type="radio"
+                                    value="Männlich"
+                                    className="radio radio-primary"
+                                    {...register("personalInfo.gender", {
+                                      required: "Bitte Geschlecht auswählen",
+                                    })}
+                                  />
+                                  <span>Männlich</span>
+                                </label>
+                                <label className="cursor-pointer flex items-center gap-2">
+                                  <input
+                                    type="radio"
+                                    value="Weiblich"
+                                    className="radio radio-primary"
+                                    {...register("personalInfo.gender", {
+                                      required: "Bitte Geschlecht auswählen",
+                                    })}
+                                  />
+                                  <span>Weiblich</span>
+                                </label>
+                              </div>
+                              {errors?.personalInfo?.gender && (
                                 <p className="text-error text-sm mt-1">
-                                  {errors.personalInfo.childrenCount.message}
+                                  {errors.personalInfo.gender.message}
+                                </p>
+                              )}
+                            </RequiredField>
+                            <RequiredField>
+                              <Controller
+                                control={control}
+                                name="personalInfo.birthDate"
+                                rules={{
+                                  required: "Geburtsdatum ist erforderlich",
+                                }}
+                                render={({ field }) => (
+                                  <>
+                                    <label
+                                      className="label"
+                                      htmlFor="personalInfo-birthDate"
+                                    >
+                                      <RequiredLabel
+                                        className={`label-text ${REQUIRED_STAR_CLASS}`}
+                                      >
+                                        Geburtsdatum
+                                      </RequiredLabel>
+                                    </label>
+                                    <input
+                                      id="personalInfo-birthDate"
+                                      type="date"
+                                      placeholder="YYYY-MM-DD"
+                                      className={`input input-bordered w-full ${
+                                        errors?.personalInfo?.birthDate
+                                          ? "input-error"
+                                          : getSuccessClass(
+                                              "personalInfo.birthDate",
+                                              field.value,
+                                              "input"
+                                            )
+                                      }`}
+                                      aria-invalid={
+                                        errors?.personalInfo?.birthDate
+                                          ? "true"
+                                          : "false"
+                                      }
+                                      {...field}
+                                    />
+                                    <p className="mt-1 text-xs text-base-content/70">
+                                      Bitte wählen Sie Ihr Geburtsdatum aus.
+                                    </p>
+                                  </>
+                                )}
+                              />
+                            </RequiredField>
+                            <RequiredField>
+                              <Controller
+                                control={control}
+                                name="personalInfo.birthPlace"
+                                rules={{
+                                  required: "Geburtsort ist erforderlich",
+                                }}
+                                render={({ field }) => (
+                                  <>
+                                    <label
+                                      className="label"
+                                      htmlFor="personalInfo-birthPlace"
+                                    >
+                                      <RequiredLabel
+                                        className={`label-text ${REQUIRED_STAR_CLASS}`}
+                                      >
+                                        Geburtsort
+                                      </RequiredLabel>
+                                    </label>
+                                    <select
+                                      id="personalInfo-birthPlace"
+                                      {...field}
+                                      className={`select select-bordered w-full ${
+                                        errors?.personalInfo?.birthPlace
+                                          ? "select-error"
+                                          : getSuccessClass(
+                                              "personalInfo.birthPlace",
+                                              field.value,
+                                              "select"
+                                            )
+                                      }`}
+                                      aria-invalid={
+                                        errors?.personalInfo?.birthPlace
+                                          ? "true"
+                                          : "false"
+                                      }
+                                      value={field.value || ""}
+                                      onChange={(e) => {
+                                        const v = String(e.target.value || "");
+                                        field.onChange(v);
+                                        // Ensure the error state clears immediately after selecting a value
+                                        clearErrors("personalInfo.birthPlace");
+                                      }}
+                                    >
+                                      <option value="">Bitte auswählen</option>
+                                      {UZBEK_REGIONS.map((region) => (
+                                        <option key={region} value={region}>
+                                          {region}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </>
+                                )}
+                              />
+                              {errors?.personalInfo?.birthPlace ? (
+                                <p className="text-error text-sm mt-1">
+                                  {errors.personalInfo.birthPlace.message}
                                 </p>
                               ) : null}
-                              <p className="mt-1 text-xs text-base-content/70">
-                                Wenn Sie keine Kinder haben, wählen Sie bitte
-                                „Keine Kinder“.
-                              </p>
+                            </RequiredField>
+                            <RequiredField>
+                              <Controller
+                                control={control}
+                                name="personalInfo.maritalStatus"
+                                rules={{
+                                  required: "Bitte Familienstand auswählen",
+                                }}
+                                render={({ field }) => (
+                                  <>
+                                    <label
+                                      className="label"
+                                      htmlFor="personalInfo-maritalStatus"
+                                    >
+                                      <RequiredLabel
+                                        className={`label-text ${REQUIRED_STAR_CLASS}`}
+                                      >
+                                        Familienstand
+                                      </RequiredLabel>
+                                    </label>
+                                    <select
+                                      id="personalInfo-maritalStatus"
+                                      className={`select select-bordered w-full ${
+                                        errors?.personalInfo?.maritalStatus
+                                          ? "select-error"
+                                          : getSuccessClass(
+                                              "personalInfo.maritalStatus",
+                                              field.value,
+                                              "select"
+                                            )
+                                      }`}
+                                      aria-invalid={
+                                        errors?.personalInfo?.maritalStatus
+                                          ? "true"
+                                          : "false"
+                                      }
+                                      {...field}
+                                    >
+                                      <option value="">Bitte auswählen</option>
+                                      <option value="ledig">ledig</option>
+                                      <option value="verheiratet">
+                                        verheiratet
+                                      </option>
+                                      <option value="geschieden">
+                                        geschieden
+                                      </option>
+                                      <option value="verwitwet">
+                                        verwitwet
+                                      </option>
+                                    </select>
+                                  </>
+                                )}
+                              />
+                            </RequiredField>
+                            <RequiredField className="md:col-span-2">
+                              <label
+                                className="label"
+                                htmlFor="personalInfo-childrenCount"
+                              >
+                                <RequiredLabel
+                                  className={`label-text ${REQUIRED_STAR_CLASS}`}
+                                >
+                                  Kinder
+                                </RequiredLabel>
+                              </label>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div className="form-control">
+                                  <input
+                                    id="personalInfo-childrenCount"
+                                    type="number"
+                                    min={0}
+                                    inputMode="numeric"
+                                    placeholder="z.B. 2"
+                                    className={`input input-bordered w-full ${
+                                      errors?.personalInfo?.childrenCount
+                                        ? "input-error"
+                                        : getSuccessClass(
+                                            "personalInfo.childrenCount",
+                                            watchChildrenCount,
+                                            "input"
+                                          )
+                                    }`}
+                                    disabled={watch("personalInfo.noChildren")}
+                                    aria-invalid={
+                                      errors?.personalInfo?.childrenCount
+                                        ? "true"
+                                        : "false"
+                                    }
+                                    {...register("personalInfo.childrenCount", {
+                                      validate: (value) => {
+                                        const noKids = Boolean(
+                                          watch("personalInfo.noChildren")
+                                        );
+                                        if (noKids) return true;
+                                        const v = String(value || "").trim();
+                                        if (!v)
+                                          return "Bitte Kinderanzahl eingeben oder 'Keine Kinder' auswählen.";
+                                        const n = Number(v);
+                                        if (Number.isNaN(n) || n < 0)
+                                          return "Bitte eine gültige Zahl eingeben.";
+                                        return true;
+                                      },
+                                      setValueAs: (v) => {
+                                        const s = String(v ?? "").trim();
+                                        if (!s) return "";
+                                        const num = Number(s);
+                                        if (Number.isNaN(num)) return "";
+                                        return String(
+                                          Math.max(0, Math.floor(num))
+                                        );
+                                      },
+                                    })}
+                                  />
+                                  {errors?.personalInfo?.childrenCount ? (
+                                    <p className="text-error text-sm mt-1">
+                                      {
+                                        errors.personalInfo.childrenCount
+                                          .message
+                                      }
+                                    </p>
+                                  ) : null}
+                                  <p className="mt-1 text-xs text-base-content/70">
+                                    Wenn Sie keine Kinder haben, wählen Sie
+                                    bitte „Keine Kinder“.
+                                  </p>
+                                </div>
+                                <div className="form-control">
+                                  <label className="cursor-pointer flex items-center gap-2 mt-2 md:mt-0">
+                                    <input
+                                      type="checkbox"
+                                      className="checkbox"
+                                      {...register("personalInfo.noChildren")}
+                                      onChange={(e) => {
+                                        const checked = e.target.checked;
+                                        setValue(
+                                          "personalInfo.noChildren",
+                                          checked,
+                                          {
+                                            shouldDirty: true,
+                                            shouldValidate: true,
+                                          }
+                                        );
+                                        if (checked) {
+                                          setValue(
+                                            "personalInfo.childrenCount",
+                                            "",
+                                            {
+                                              shouldDirty: true,
+                                              shouldValidate: true,
+                                            }
+                                          );
+                                        }
+                                      }}
+                                      checked={Boolean(
+                                        watch("personalInfo.noChildren")
+                                      )}
+                                    />
+                                    <span className="text-sm">
+                                      Keine Kinder
+                                    </span>
+                                  </label>
+                                </div>
+                              </div>
+                            </RequiredField>
+                            <Controller
+                              control={control}
+                              name="personalInfo.phone"
+                              rules={{
+                                required: "Telefonnummer ist erforderlich",
+                                validate: (v) => {
+                                  const raw = String(v || "").trim();
+                                  const firstSpace = raw.indexOf(" ");
+                                  if (firstSpace < 0) {
+                                    return "Bitte Telefonnummer vollständig eingeben.";
+                                  }
+                                  const body = raw.slice(firstSpace + 1);
+                                  const digits = String(body || "").replace(
+                                    /[^\d]/g,
+                                    ""
+                                  );
+                                  if (digits.length !== 9) {
+                                    return "Bitte Telefonnummer vollständig eingeben.";
+                                  }
+                                  return true;
+                                },
+                              }}
+                              render={({ field }) => {
+                                const st = getFieldState("personalInfo.phone");
+                                const touched = Boolean(
+                                  st?.isTouched || st?.isDirty
+                                );
+                                const rawPhone = String(
+                                  field.value || ""
+                                ).trim();
+                                const phoneOk = isPhoneComplete(rawPhone);
+                                const phoneHas = hasNonEmptyValue(rawPhone);
+                                const phoneWarn =
+                                  !errors?.personalInfo?.phone &&
+                                  touched &&
+                                  phoneHas &&
+                                  !phoneOk;
+                                const phoneDigits =
+                                  getPhoneBodyDigits(rawPhone);
+
+                                return (
+                                  <RequiredField className="md:col-span-2">
+                                    <PhoneInputWithCountry
+                                      label={
+                                        <RequiredLabel
+                                          className={`label-text ${REQUIRED_STAR_CLASS}`}
+                                        >
+                                          Telefonnummer
+                                        </RequiredLabel>
+                                      }
+                                      required
+                                      value={field.value}
+                                      onChange={field.onChange}
+                                      error={
+                                        errors?.personalInfo?.phone?.message
+                                      }
+                                      inputClassName={
+                                        errors?.personalInfo?.phone
+                                          ? ""
+                                          : getLiveInputClass(
+                                              "personalInfo.phone",
+                                              field.value,
+                                              isPhoneComplete
+                                            )
+                                      }
+                                      helperText={
+                                        <>
+                                          Beispiel: +998 90 123 45 67
+                                          {phoneWarn ? (
+                                            <>
+                                              <br />
+                                              <span className="text-warning">
+                                                Telefonnummer unvollständig (
+                                                {phoneDigits.length}/9 Ziffern)
+                                              </span>
+                                            </>
+                                          ) : null}
+                                        </>
+                                      }
+                                    />
+                                  </RequiredField>
+                                );
+                              }}
+                            />
+                            <RequiredField>
+                              <Controller
+                                control={control}
+                                name="personalInfo.email"
+                                rules={{
+                                  required: "E-Mail ist erforderlich",
+                                  pattern: {
+                                    value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                                    message: "Bitte gültige E-Mail eingeben",
+                                  },
+                                }}
+                                render={({ field }) => {
+                                  const st =
+                                    getFieldState("personalInfo.email");
+                                  const touched = Boolean(
+                                    st?.isTouched || st?.isDirty
+                                  );
+                                  const rawEmail = String(
+                                    field.value || ""
+                                  ).trim();
+                                  const emailHas = hasNonEmptyValue(rawEmail);
+                                  const emailOk = isEmailValid(rawEmail);
+                                  const emailWarn =
+                                    !errors?.personalInfo?.email &&
+                                    touched &&
+                                    emailHas &&
+                                    !emailOk;
+
+                                  return (
+                                    <>
+                                      <FormInput
+                                        label={
+                                          <RequiredLabel
+                                            className={REQUIRED_STAR_CLASS}
+                                          >
+                                            E-Mail
+                                          </RequiredLabel>
+                                        }
+                                        placeholder="z.B. name@example.com"
+                                        disabled={isEmailChecking}
+                                        aria-busy={
+                                          isEmailChecking ? "true" : "false"
+                                        }
+                                        rightElement={
+                                          isEmailChecking ? (
+                                            <span
+                                              className="loading loading-spinner loading-sm text-base-content/60 pointer-events-none"
+                                              aria-hidden="true"
+                                            />
+                                          ) : null
+                                        }
+                                        helperText={
+                                          <>
+                                            Bitte geben Sie eine E-Mail ein, die
+                                            Sie regelmäßig nutzen.
+                                            {emailWarn ? (
+                                              <>
+                                                <br />
+                                                <span className="text-warning">
+                                                  Bitte gültige E-Mail eingeben.
+                                                </span>
+                                              </>
+                                            ) : null}
+                                          </>
+                                        }
+                                        type="email"
+                                        inputClassName={
+                                          errors?.personalInfo?.email
+                                            ? "input-error"
+                                            : getLiveInputClass(
+                                                "personalInfo.email",
+                                                field.value,
+                                                isEmailValid
+                                              )
+                                        }
+                                        aria-invalid={
+                                          errors?.personalInfo?.email
+                                            ? "true"
+                                            : "false"
+                                        }
+                                        {...field}
+                                      />
+                                      {errors?.personalInfo?.email ? (
+                                        <p className="text-error text-sm mt-1">
+                                          {errors.personalInfo.email.message}
+                                        </p>
+                                      ) : null}
+                                    </>
+                                  );
+                                }}
+                              />
+                            </RequiredField>
+                            <RequiredField>
+                              <Controller
+                                control={control}
+                                name="personalInfo.passportNumber"
+                                rules={{
+                                  required: "Passnummer ist erforderlich",
+                                  validate: (v) =>
+                                    isPassportNumberValid(v) ||
+                                    "Bitte Passnummer im Format AA 0000000 eingeben",
+                                }}
+                                render={({ field }) => {
+                                  const st = getFieldState(
+                                    "personalInfo.passportNumber"
+                                  );
+                                  const touched = Boolean(
+                                    st?.isTouched || st?.isDirty
+                                  );
+                                  const raw = String(field.value || "");
+                                  const norm = normalizePassportNumber(raw);
+                                  const has = hasNonEmptyValue(raw);
+                                  const ok = isPassportNumberValid(norm);
+                                  const warn =
+                                    !errors?.personalInfo?.passportNumber &&
+                                    touched &&
+                                    has &&
+                                    !ok;
+
+                                  return (
+                                    <>
+                                      <FormInput
+                                        label={
+                                          <RequiredLabel
+                                            className={REQUIRED_STAR_CLASS}
+                                          >
+                                            Passnummer
+                                          </RequiredLabel>
+                                        }
+                                        placeholder="AA 0000000"
+                                        disabled={isPassportChecking}
+                                        aria-busy={
+                                          isPassportChecking ? "true" : "false"
+                                        }
+                                        rightElement={
+                                          isPassportChecking ? (
+                                            <span
+                                              className="loading loading-spinner loading-sm text-base-content/60 pointer-events-none"
+                                              aria-hidden="true"
+                                            />
+                                          ) : null
+                                        }
+                                        helperText={
+                                          <>
+                                            Beispiel: AA 0000000
+                                            {warn ? (
+                                              <>
+                                                <br />
+                                                <span className="text-warning">
+                                                  Bitte vollständig eingeben (AA
+                                                  0000000).
+                                                </span>
+                                              </>
+                                            ) : null}
+                                          </>
+                                        }
+                                        inputClassName={
+                                          errors?.personalInfo?.passportNumber
+                                            ? "input-error"
+                                            : getLiveInputClass(
+                                                "personalInfo.passportNumber",
+                                                raw,
+                                                isPassportNumberValid
+                                              )
+                                        }
+                                        aria-invalid={
+                                          errors?.personalInfo?.passportNumber
+                                            ? "true"
+                                            : "false"
+                                        }
+                                        name={field.name}
+                                        value={field.value}
+                                        onBlur={field.onBlur}
+                                        onChange={(e) => {
+                                          const next = normalizePassportNumber(
+                                            e?.target?.value
+                                          );
+                                          field.onChange(next);
+                                        }}
+                                      />
+                                      {errors?.personalInfo?.passportNumber ? (
+                                        <p className="text-error text-sm mt-1">
+                                          {
+                                            errors.personalInfo.passportNumber
+                                              .message
+                                          }
+                                        </p>
+                                      ) : null}
+                                    </>
+                                  );
+                                }}
+                              />
+                            </RequiredField>
+                            <RequiredField className="md:col-span-2">
+                              <label
+                                className="label flex-col items-start gap-1"
+                                htmlFor="personalInfo-photo-file"
+                              >
+                                <RequiredLabel
+                                  className={`label-text ${REQUIRED_STAR_CLASS} line-clamp-1`}
+                                >
+                                  Ihr eigenes Foto(JPEG/PNG)
+                                </RequiredLabel>
+                                <span className="label-text-alt text-xs text-base-content/70">
+                                  Eigenes 3×4‑Passfoto. Bis 250 KB
+                                </span>
+                              </label>
+                              <input
+                                type="hidden"
+                                {...register("personalInfo.photo", {
+                                  required: "Foto ist erforderlich",
+                                })}
+                              />
+                              <input
+                                id="personalInfo-photo-file"
+                                type="file"
+                                accept="image/*"
+                                className={`file-input file-input-bordered w-full ${
+                                  errors?.personalInfo?.photo
+                                    ? "file-input-error"
+                                    : getSuccessClass(
+                                        "personalInfo.photo",
+                                        watchPhoto,
+                                        "file"
+                                      )
+                                }`}
+                                onChange={handlePhotoFileChange}
+                              />
+                              {photoSizeError ? (
+                                <p className="text-error text-sm mt-1">
+                                  Foto ist zu groß. Komprimieren:{" "}
+                                  <a
+                                    className="link link-primary"
+                                    href="https://imagecompressor.com/"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    imagecompressor.com
+                                  </a>
+                                </p>
+                              ) : null}
+                            </RequiredField>
+                            <div className="md:col-span-2">
+                              {/* Keep a single `address` field for storage/PDF, but collect it as Germany address parts */}
+                              <input
+                                type="hidden"
+                                {...register("personalInfo.address")}
+                                aria-hidden="true"
+                              />
+
+                              <div className="rounded-box border border-base-300 bg-base-200/40 p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <div className="font-medium">
+                                      <RequiredLabel
+                                        className={REQUIRED_STAR_CLASS}
+                                      >
+                                        Adresse
+                                      </RequiredLabel>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                                  <div>
+                                    <label
+                                      className="label"
+                                      htmlFor="personalInfo-addressStreet"
+                                    >
+                                      <RequiredLabel
+                                        className={`label-text ${REQUIRED_STAR_CLASS}`}
+                                      >
+                                        Straße
+                                      </RequiredLabel>
+                                    </label>
+                                    <input
+                                      id="personalInfo-addressStreet"
+                                      type="text"
+                                      placeholder="z.B. Musterstraße"
+                                      className={`input input-bordered w-full ${
+                                        errors?.personalInfo?.addressStreet
+                                          ? "input-error"
+                                          : getSuccessClass(
+                                              "personalInfo.addressStreet",
+                                              addressStreet,
+                                              "input"
+                                            )
+                                      }`}
+                                      aria-invalid={
+                                        errors?.personalInfo?.addressStreet
+                                          ? "true"
+                                          : "false"
+                                      }
+                                      {...register(
+                                        "personalInfo.addressStreet",
+                                        {
+                                          required: "Straße ist erforderlich",
+                                          setValueAs: (v) =>
+                                            String(v || "").trim(),
+                                        }
+                                      )}
+                                    />
+                                    {errors?.personalInfo?.addressStreet ? (
+                                      <p className="text-error text-sm mt-1">
+                                        {
+                                          errors.personalInfo.addressStreet
+                                            .message
+                                        }
+                                      </p>
+                                    ) : null}
+                                  </div>
+
+                                  <div>
+                                    <label
+                                      className="label"
+                                      htmlFor="personalInfo-addressHouseNumber"
+                                    >
+                                      <RequiredLabel
+                                        className={`label-text ${REQUIRED_STAR_CLASS}`}
+                                      >
+                                        Hausnummer
+                                      </RequiredLabel>
+                                    </label>
+                                    <input
+                                      id="personalInfo-addressHouseNumber"
+                                      type="text"
+                                      placeholder="z.B. 12A"
+                                      className={`input input-bordered w-full ${
+                                        errors?.personalInfo?.addressHouseNumber
+                                          ? "input-error"
+                                          : getSuccessClass(
+                                              "personalInfo.addressHouseNumber",
+                                              addressHouseNumber,
+                                              "input"
+                                            )
+                                      }`}
+                                      aria-invalid={
+                                        errors?.personalInfo?.addressHouseNumber
+                                          ? "true"
+                                          : "false"
+                                      }
+                                      {...register(
+                                        "personalInfo.addressHouseNumber",
+                                        {
+                                          required:
+                                            "Hausnummer ist erforderlich",
+                                          setValueAs: (v) =>
+                                            String(v || "").trim(),
+                                        }
+                                      )}
+                                    />
+                                    {errors?.personalInfo
+                                      ?.addressHouseNumber ? (
+                                      <p className="text-error text-sm mt-1">
+                                        {
+                                          errors.personalInfo.addressHouseNumber
+                                            .message
+                                        }
+                                      </p>
+                                    ) : null}
+                                  </div>
+
+                                  <div>
+                                    <label
+                                      className="label"
+                                      htmlFor="personalInfo-addressPostalCode"
+                                    >
+                                      <RequiredLabel
+                                        className={`label-text ${REQUIRED_STAR_CLASS}`}
+                                      >
+                                        PLZ (Postleitzahl)
+                                      </RequiredLabel>
+                                    </label>
+                                    <input
+                                      id="personalInfo-addressPostalCode"
+                                      type="text"
+                                      inputMode="numeric"
+                                      placeholder="z.B. 123456"
+                                      maxLength={6}
+                                      className={`input input-bordered w-full ${
+                                        errors?.personalInfo?.addressPostalCode
+                                          ? "input-error"
+                                          : getSuccessClass(
+                                              "personalInfo.addressPostalCode",
+                                              addressPostalCode,
+                                              "input"
+                                            )
+                                      }`}
+                                      aria-invalid={
+                                        errors?.personalInfo?.addressPostalCode
+                                          ? "true"
+                                          : "false"
+                                      }
+                                      {...register(
+                                        "personalInfo.addressPostalCode",
+                                        {
+                                          required:
+                                            "PLZ (Postleitzahl) ist erforderlich",
+                                          validate: (v) =>
+                                            /^\d{6}$/.test(
+                                              String(v || "").trim()
+                                            ) || "PLZ muss 6 Ziffern haben",
+                                          setValueAs: (v) =>
+                                            String(v || "")
+                                              .replace(/[^\d]/g, "")
+                                              .slice(0, 6),
+                                        }
+                                      )}
+                                    />
+                                    {errors?.personalInfo?.addressPostalCode ? (
+                                      <p className="text-error text-sm mt-1">
+                                        {
+                                          errors.personalInfo.addressPostalCode
+                                            .message
+                                        }
+                                      </p>
+                                    ) : null}
+                                  </div>
+
+                                  <div>
+                                    <label
+                                      className="label"
+                                      htmlFor="personalInfo-addressCity"
+                                    >
+                                      <RequiredLabel
+                                        className={`label-text ${REQUIRED_STAR_CLASS}`}
+                                      >
+                                        Ort
+                                      </RequiredLabel>
+                                    </label>
+                                    <select
+                                      id="personalInfo-addressCity"
+                                      className={`select select-bordered w-full ${
+                                        errors?.personalInfo?.addressCity
+                                          ? "select-error"
+                                          : getSuccessClass(
+                                              "personalInfo.addressCity",
+                                              addressCity,
+                                              "select"
+                                            )
+                                      }`}
+                                      aria-invalid={
+                                        errors?.personalInfo?.addressCity
+                                          ? "true"
+                                          : "false"
+                                      }
+                                      {...register("personalInfo.addressCity", {
+                                        required: "Ort ist erforderlich",
+                                        setValueAs: (v) =>
+                                          String(v || "").trim(),
+                                      })}
+                                    >
+                                      <option value="">Bitte auswählen</option>
+                                      {UZBEK_REGIONS.map((region) => (
+                                        <option key={region} value={region}>
+                                          {region}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    {errors?.personalInfo?.addressCity ? (
+                                      <p className="text-error text-sm mt-1">
+                                        {
+                                          errors.personalInfo.addressCity
+                                            .message
+                                        }
+                                      </p>
+                                    ) : null}
+                                  </div>
+
+                                  <div className="md:col-span-2">
+                                    <Controller
+                                      control={control}
+                                      name="personalInfo.addressCountry"
+                                      rules={{
+                                        required: "Land ist erforderlich",
+                                      }}
+                                      render={({ field }) => (
+                                        <CountryNameCombobox
+                                          id="personalInfo-addressCountry"
+                                          label={
+                                            <RequiredLabel
+                                              className={`label-text ${REQUIRED_STAR_CLASS}`}
+                                            >
+                                              Land
+                                            </RequiredLabel>
+                                          }
+                                          required
+                                          placeholder="z.B. Usbekistan"
+                                          value={field.value}
+                                          onChange={(v) =>
+                                            field.onChange(
+                                              String(v || "").trim()
+                                            )
+                                          }
+                                          error={
+                                            errors?.personalInfo?.addressCountry
+                                              ?.message
+                                          }
+                                          inputClassName={
+                                            errors?.personalInfo?.addressCountry
+                                              ? ""
+                                              : getSuccessClass(
+                                                  "personalInfo.addressCountry",
+                                                  field.value,
+                                                  "input"
+                                                )
+                                          }
+                                          helperText="Tippen Sie, um zu suchen, oder wählen Sie aus der Liste."
+                                        />
+                                      )}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                            <div className="form-control">
-                              <label className="cursor-pointer flex items-center gap-2 mt-2 md:mt-0">
+                          </div>
+                        </>
+                      ) : null}
+
+                      {currentStep === 1 ? (
+                        <>
+                          <div className="divider mt-0">
+                            <span className="mx-auto inline-flex items-center gap-2">
+                              <FaBriefcase
+                                className="opacity-70"
+                                aria-hidden="true"
+                              />
+                              <span>Berufserfahrung</span>
+                            </span>
+                          </div>
+                          <ExperienceSection
+                            experience={cv.experience}
+                            onAddExperience={addExperience}
+                            onUpdateExperience={updateExperience}
+                            onRemoveExperience={removeExperience}
+                            onAddResponsibility={addResponsibility}
+                            onRemoveResponsibility={removeResponsibility}
+                            showRequiredWarning={showExperienceWarning}
+                            errors={experienceErrors}
+                          />
+                        </>
+                      ) : null}
+
+                      {currentStep === 2 ? (
+                        <>
+                          <div className="divider mt-0">
+                            <span className="mx-auto">
+                              <span className="inline-flex items-center gap-2">
+                                <FaGraduationCap
+                                  className="opacity-70"
+                                  aria-hidden="true"
+                                />
+                                <RequiredLabel className={REQUIRED_STAR_CLASS}>
+                                  Ausbildung
+                                </RequiredLabel>
+                              </span>
+                            </span>
+                          </div>
+                          <EducationSection
+                            education={cv.education}
+                            onAddEducation={addEducation}
+                            onUpdateEducation={updateEducation}
+                            onRemoveEducation={removeEducation}
+                            showRequiredWarning={showEducationWarning}
+                            errors={educationErrors}
+                          />
+                        </>
+                      ) : null}
+
+                      {currentStep === 4 ? (
+                        <>
+                          <div className="divider mt-0">
+                            <span className="mx-auto inline-flex items-center gap-2">
+                              <FaBrain
+                                className="opacity-70"
+                                aria-hidden="true"
+                              />
+                              <span>Fähigkeiten</span>
+                            </span>
+                          </div>
+                          <SkillsSection
+                            softSkills={cv.skills.softSkills}
+                            pcSkills={cv.skills.pcSkills}
+                            onAddSoft={(val) =>
+                              addTag(["skills", "softSkills"], val)
+                            }
+                            onRemoveSoft={(i) =>
+                              removeTag(["skills", "softSkills"], i)
+                            }
+                            onAddPc={(val) =>
+                              addTag(["skills", "pcSkills"], val)
+                            }
+                            onRemovePc={(i) =>
+                              removeTag(["skills", "pcSkills"], i)
+                            }
+                            onAutoAddSoft={() => autoAddSkills("soft")}
+                            onAutoAddPc={() => autoAddSkills("pc")}
+                            isGeneratingSoft={isGeneratingSoft}
+                            isGeneratingPc={isGeneratingPc}
+                            recentlyAddedSoft={recentlyAdded.soft}
+                            recentlyAddedPc={recentlyAdded.pc}
+                          />
+
+                          {/* Führerschein lives inside Fähigkeiten (not a separate step) */}
+                          <div className="divider" />
+                          <div className="grid grid-cols-1 gap-4">
+                            <div className="md:col-span-2">
+                              <div className="flex items-center gap-2 text-sm font-medium opacity-80">
+                                <FaCarSide
+                                  className="opacity-70"
+                                  aria-hidden="true"
+                                />
+                                <span>Führerschein</span>
+                              </div>
+                              <label
+                                className="label"
+                                htmlFor="personalInfo-hasDrivingLicense"
+                              >
+                                <span className="label-text">Führerschein</span>
+                              </label>
+                              <label className="cursor-pointer flex items-center gap-2">
                                 <input
+                                  id="personalInfo-hasDrivingLicense"
                                   type="checkbox"
                                   className="checkbox"
-                                  {...register("personalInfo.noChildren")}
+                                  {...register(
+                                    "personalInfo.hasDrivingLicense"
+                                  )}
                                   onChange={(e) => {
                                     const checked = e.target.checked;
                                     setValue(
-                                      "personalInfo.noChildren",
+                                      "personalInfo.hasDrivingLicense",
                                       checked,
                                       {
                                         shouldDirty: true,
                                         shouldValidate: true,
                                       }
                                     );
-                                    if (checked) {
+                                    if (!checked) {
                                       setValue(
-                                        "personalInfo.childrenCount",
-                                        "",
+                                        "personalInfo.drivingLicenseType",
+                                        [],
                                         {
                                           shouldDirty: true,
                                           shouldValidate: true,
@@ -2344,1386 +3137,767 @@ function Create() {
                                     }
                                   }}
                                   checked={Boolean(
-                                    watch("personalInfo.noChildren")
+                                    watch("personalInfo.hasDrivingLicense")
                                   )}
                                 />
-                                <span className="text-sm">Keine Kinder</span>
+                                <span className="text-sm">Vorhanden</span>
                               </label>
-                            </div>
-                          </div>
-                        </RequiredField>
-                        <Controller
-                          control={control}
-                          name="personalInfo.phone"
-                          rules={{
-                            required: "Telefonnummer ist erforderlich",
-                            validate: (v) => {
-                              const raw = String(v || "").trim();
-                              const firstSpace = raw.indexOf(" ");
-                              if (firstSpace < 0) {
-                                return "Bitte Telefonnummer vollständig eingeben.";
-                              }
-                              const body = raw.slice(firstSpace + 1);
-                              const digits = String(body || "").replace(
-                                /[^\d]/g,
-                                ""
-                              );
-                              if (digits.length !== 9) {
-                                return "Bitte Telefonnummer vollständig eingeben.";
-                              }
-                              return true;
-                            },
-                          }}
-                          render={({ field }) => {
-                            const st = getFieldState("personalInfo.phone");
-                            const touched = Boolean(
-                              st?.isTouched || st?.isDirty
-                            );
-                            const rawPhone = String(field.value || "").trim();
-                            const phoneOk = isPhoneComplete(rawPhone);
-                            const phoneHas = hasNonEmptyValue(rawPhone);
-                            const phoneWarn =
-                              !errors?.personalInfo?.phone &&
-                              touched &&
-                              phoneHas &&
-                              !phoneOk;
-                            const phoneDigits = getPhoneBodyDigits(rawPhone);
-
-                            return (
-                              <RequiredField className="md:col-span-2">
-                                <PhoneInputWithCountry
-                                  label={
-                                    <RequiredLabel
-                                      className={`label-text ${REQUIRED_STAR_CLASS}`}
-                                    >
-                                      Telefonnummer
-                                    </RequiredLabel>
-                                  }
-                                  required
-                                  value={field.value}
-                                  onChange={field.onChange}
-                                  error={errors?.personalInfo?.phone?.message}
-                                  inputClassName={
-                                    errors?.personalInfo?.phone
-                                      ? ""
-                                      : getLiveInputClass(
-                                          "personalInfo.phone",
-                                          field.value,
-                                          isPhoneComplete
-                                        )
-                                  }
-                                  helperText={
-                                    <>
-                                      Beispiel: +998 90 123 45 67
-                                      {phoneWarn ? (
-                                        <>
-                                          <br />
-                                          <span className="text-warning">
-                                            Telefonnummer unvollständig (
-                                            {phoneDigits.length}/9 Ziffern)
-                                          </span>
-                                        </>
-                                      ) : null}
-                                    </>
-                                  }
-                                />
-                              </RequiredField>
-                            );
-                          }}
-                        />
-                        <RequiredField>
-                          <Controller
-                            control={control}
-                            name="personalInfo.email"
-                            rules={{
-                              required: "E-Mail ist erforderlich",
-                              pattern: {
-                                value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                                message: "Bitte gültige E-Mail eingeben",
-                              },
-                            }}
-                            render={({ field }) => {
-                              const st = getFieldState("personalInfo.email");
-                              const touched = Boolean(
-                                st?.isTouched || st?.isDirty
-                              );
-                              const rawEmail = String(field.value || "").trim();
-                              const emailHas = hasNonEmptyValue(rawEmail);
-                              const emailOk = isEmailValid(rawEmail);
-                              const emailWarn =
-                                !errors?.personalInfo?.email &&
-                                touched &&
-                                emailHas &&
-                                !emailOk;
-
-                              return (
-                                <>
-                                  <FormInput
-                                    label={
-                                      <RequiredLabel
-                                        className={REQUIRED_STAR_CLASS}
-                                      >
-                                        E-Mail
-                                      </RequiredLabel>
-                                    }
-                                    placeholder="z.B. name@example.com"
-                                    disabled={isEmailChecking}
-                                    aria-busy={
-                                      isEmailChecking ? "true" : "false"
-                                    }
-                                    rightElement={
-                                      isEmailChecking ? (
-                                        <span
-                                          className="loading loading-spinner loading-sm text-base-content/60 pointer-events-none"
-                                          aria-hidden="true"
-                                        />
-                                      ) : null
-                                    }
-                                    helperText={
-                                      <>
-                                        Bitte geben Sie eine E-Mail ein, die Sie
-                                        regelmäßig nutzen.
-                                        {emailWarn ? (
-                                          <>
-                                            <br />
-                                            <span className="text-warning">
-                                              Bitte gültige E-Mail eingeben.
-                                            </span>
-                                          </>
-                                        ) : null}
-                                      </>
-                                    }
-                                    type="email"
-                                    inputClassName={
-                                      errors?.personalInfo?.email
-                                        ? "input-error"
-                                        : getLiveInputClass(
-                                            "personalInfo.email",
-                                            field.value,
-                                            isEmailValid
+                              {watch("personalInfo.hasDrivingLicense") ? (
+                                <div className="mt-3">
+                                  <Controller
+                                    control={control}
+                                    name="personalInfo.drivingLicenseType"
+                                    rules={{
+                                      validate: (v) => {
+                                        const has = Boolean(
+                                          watch(
+                                            "personalInfo.hasDrivingLicense"
                                           )
-                                    }
-                                    aria-invalid={
-                                      errors?.personalInfo?.email
-                                        ? "true"
-                                        : "false"
-                                    }
-                                    {...field}
-                                  />
-                                  {errors?.personalInfo?.email ? (
-                                    <p className="text-error text-sm mt-1">
-                                      {errors.personalInfo.email.message}
-                                    </p>
-                                  ) : null}
-                                </>
-                              );
-                            }}
-                          />
-                        </RequiredField>
-                        <RequiredField>
-                          <Controller
-                            control={control}
-                            name="personalInfo.passportNumber"
-                            rules={{
-                              required: "Passnummer ist erforderlich",
-                              validate: (v) =>
-                                isPassportNumberValid(v) ||
-                                "Bitte Passnummer im Format AA 0000000 eingeben",
-                            }}
-                            render={({ field }) => {
-                              const st = getFieldState(
-                                "personalInfo.passportNumber"
-                              );
-                              const touched = Boolean(
-                                st?.isTouched || st?.isDirty
-                              );
-                              const raw = String(field.value || "");
-                              const norm = normalizePassportNumber(raw);
-                              const has = hasNonEmptyValue(raw);
-                              const ok = isPassportNumberValid(norm);
-                              const warn =
-                                !errors?.personalInfo?.passportNumber &&
-                                touched &&
-                                has &&
-                                !ok;
-
-                              return (
-                                <>
-                                  <FormInput
-                                    label={
-                                      <RequiredLabel
-                                        className={REQUIRED_STAR_CLASS}
-                                      >
-                                        Passnummer
-                                      </RequiredLabel>
-                                    }
-                                    placeholder="AA 0000000"
-                                    disabled={isPassportChecking}
-                                    aria-busy={
-                                      isPassportChecking ? "true" : "false"
-                                    }
-                                    rightElement={
-                                      isPassportChecking ? (
-                                        <span
-                                          className="loading loading-spinner loading-sm text-base-content/60 pointer-events-none"
-                                          aria-hidden="true"
+                                        );
+                                        if (!has) return true;
+                                        const arr = Array.isArray(v)
+                                          ? v
+                                          : String(v || "")
+                                              .split(",")
+                                              .map((s) => s.trim())
+                                              .filter(Boolean);
+                                        if (!arr.length)
+                                          return "Bitte mindestens eine Führerschein-Klasse auswählen.";
+                                        return true;
+                                      },
+                                    }}
+                                    render={({ field }) => {
+                                      return (
+                                        <DrivingLicenseMultiSelect
+                                          id="personalInfo-drivingLicenseType"
+                                          options={DRIVING_LICENSE_OPTIONS}
+                                          value={field.value}
+                                          onChange={field.onChange}
+                                          error={
+                                            errors?.personalInfo
+                                              ?.drivingLicenseType?.message
+                                          }
                                         />
-                                      ) : null
-                                    }
-                                    helperText={
-                                      <>
-                                        Beispiel: AA 0000000
-                                        {warn ? (
-                                          <>
-                                            <br />
-                                            <span className="text-warning">
-                                              Bitte vollständig eingeben (AA
-                                              0000000).
-                                            </span>
-                                          </>
-                                        ) : null}
-                                      </>
-                                    }
-                                    inputClassName={
-                                      errors?.personalInfo?.passportNumber
-                                        ? "input-error"
-                                        : getLiveInputClass(
-                                            "personalInfo.passportNumber",
-                                            raw,
-                                            isPassportNumberValid
-                                          )
-                                    }
-                                    aria-invalid={
-                                      errors?.personalInfo?.passportNumber
-                                        ? "true"
-                                        : "false"
-                                    }
-                                    name={field.name}
-                                    value={field.value}
-                                    onBlur={field.onBlur}
-                                    onChange={(e) => {
-                                      const next = normalizePassportNumber(
-                                        e?.target?.value
                                       );
-                                      field.onChange(next);
                                     }}
                                   />
-                                  {errors?.personalInfo?.passportNumber ? (
-                                    <p className="text-error text-sm mt-1">
-                                      {
-                                        errors.personalInfo.passportNumber
-                                          .message
-                                      }
-                                    </p>
-                                  ) : null}
-                                </>
-                              );
-                            }}
-                          />
-                        </RequiredField>
-                        <RequiredField className="md:col-span-2">
-                          <label
-                            className="label flex-col items-start gap-1"
-                            htmlFor="personalInfo-photo-file"
-                          >
-                            <RequiredLabel
-                              className={`label-text ${REQUIRED_STAR_CLASS}`}
-                            >
-                              Foto hochladen (JPEG/PNG) (Ihr eigenes Foto)
-                            </RequiredLabel>
-                            <span className="label-text-alt text-xs text-base-content/70">
-                              Eigenes 3×4‑Passfoto. Bis 250 KB
-                            </span>
-                          </label>
-                          <input
-                            type="hidden"
-                            {...register("personalInfo.photo", {
-                              required: "Foto ist erforderlich",
-                            })}
-                          />
-                          <input
-                            id="personalInfo-photo-file"
-                            type="file"
-                            accept="image/*"
-                            className={`file-input file-input-bordered w-full ${
-                              errors?.personalInfo?.photo
-                                ? "file-input-error"
-                                : getSuccessClass(
-                                    "personalInfo.photo",
-                                    watchPhoto,
-                                    "file"
-                                  )
-                            }`}
-                            onChange={handlePhotoFileChange}
-                          />
-                          {photoSizeError ? (
-                            <p className="text-error text-sm mt-1">
-                              Foto ist zu groß. Komprimieren:{" "}
-                              <a
-                                className="link link-primary"
-                                href="https://imagecompressor.com/"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                imagecompressor.com
-                              </a>
-                            </p>
-                          ) : null}
-                        </RequiredField>
-                        <div className="md:col-span-2">
-                          {/* Keep a single `address` field for storage/PDF, but collect it as Germany address parts */}
-                          <input
-                            type="hidden"
-                            {...register("personalInfo.address")}
-                            aria-hidden="true"
-                          />
-
-                          <div className="rounded-box border border-base-300 bg-base-200/40 p-4">
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <div className="font-medium">
-                                  <RequiredLabel
-                                    className={REQUIRED_STAR_CLASS}
-                                  >
-                                    Adresse
-                                  </RequiredLabel>
                                 </div>
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-                              <div>
-                                <label
-                                  className="label"
-                                  htmlFor="personalInfo-addressStreet"
-                                >
-                                  <RequiredLabel
-                                    className={`label-text ${REQUIRED_STAR_CLASS}`}
-                                  >
-                                    Straße
-                                  </RequiredLabel>
-                                </label>
-                                <input
-                                  id="personalInfo-addressStreet"
-                                  type="text"
-                                  placeholder="z.B. Musterstraße"
-                                  className={`input input-bordered w-full ${
-                                    errors?.personalInfo?.addressStreet
-                                      ? "input-error"
-                                      : getSuccessClass(
-                                          "personalInfo.addressStreet",
-                                          addressStreet,
-                                          "input"
-                                        )
-                                  }`}
-                                  aria-invalid={
-                                    errors?.personalInfo?.addressStreet
-                                      ? "true"
-                                      : "false"
-                                  }
-                                  {...register("personalInfo.addressStreet", {
-                                    required: "Straße ist erforderlich",
-                                    setValueAs: (v) => String(v || "").trim(),
-                                  })}
-                                />
-                                {errors?.personalInfo?.addressStreet ? (
-                                  <p className="text-error text-sm mt-1">
-                                    {errors.personalInfo.addressStreet.message}
-                                  </p>
-                                ) : null}
-                              </div>
-
-                              <div>
-                                <label
-                                  className="label"
-                                  htmlFor="personalInfo-addressHouseNumber"
-                                >
-                                  <RequiredLabel
-                                    className={`label-text ${REQUIRED_STAR_CLASS}`}
-                                  >
-                                    Hausnummer
-                                  </RequiredLabel>
-                                </label>
-                                <input
-                                  id="personalInfo-addressHouseNumber"
-                                  type="text"
-                                  placeholder="z.B. 12A"
-                                  className={`input input-bordered w-full ${
-                                    errors?.personalInfo?.addressHouseNumber
-                                      ? "input-error"
-                                      : getSuccessClass(
-                                          "personalInfo.addressHouseNumber",
-                                          addressHouseNumber,
-                                          "input"
-                                        )
-                                  }`}
-                                  aria-invalid={
-                                    errors?.personalInfo?.addressHouseNumber
-                                      ? "true"
-                                      : "false"
-                                  }
-                                  {...register(
-                                    "personalInfo.addressHouseNumber",
-                                    {
-                                      required: "Hausnummer ist erforderlich",
-                                      setValueAs: (v) => String(v || "").trim(),
-                                    }
-                                  )}
-                                />
-                                {errors?.personalInfo?.addressHouseNumber ? (
-                                  <p className="text-error text-sm mt-1">
-                                    {
-                                      errors.personalInfo.addressHouseNumber
-                                        .message
-                                    }
-                                  </p>
-                                ) : null}
-                              </div>
-
-                              <div>
-                                <label
-                                  className="label"
-                                  htmlFor="personalInfo-addressPostalCode"
-                                >
-                                  <RequiredLabel
-                                    className={`label-text ${REQUIRED_STAR_CLASS}`}
-                                  >
-                                    PLZ (Postleitzahl)
-                                  </RequiredLabel>
-                                </label>
-                                <input
-                                  id="personalInfo-addressPostalCode"
-                                  type="text"
-                                  inputMode="numeric"
-                                  placeholder="z.B. 123456"
-                                  maxLength={6}
-                                  className={`input input-bordered w-full ${
-                                    errors?.personalInfo?.addressPostalCode
-                                      ? "input-error"
-                                      : getSuccessClass(
-                                          "personalInfo.addressPostalCode",
-                                          addressPostalCode,
-                                          "input"
-                                        )
-                                  }`}
-                                  aria-invalid={
-                                    errors?.personalInfo?.addressPostalCode
-                                      ? "true"
-                                      : "false"
-                                  }
-                                  {...register(
-                                    "personalInfo.addressPostalCode",
-                                    {
-                                      required:
-                                        "PLZ (Postleitzahl) ist erforderlich",
-                                      validate: (v) =>
-                                        /^\d{6}$/.test(
-                                          String(v || "").trim()
-                                        ) || "PLZ muss 6 Ziffern haben",
-                                      setValueAs: (v) =>
-                                        String(v || "")
-                                          .replace(/[^\d]/g, "")
-                                          .slice(0, 6),
-                                    }
-                                  )}
-                                />
-                                {errors?.personalInfo?.addressPostalCode ? (
-                                  <p className="text-error text-sm mt-1">
-                                    {
-                                      errors.personalInfo.addressPostalCode
-                                        .message
-                                    }
-                                  </p>
-                                ) : null}
-                              </div>
-
-                              <div>
-                                <label
-                                  className="label"
-                                  htmlFor="personalInfo-addressCity"
-                                >
-                                  <RequiredLabel
-                                    className={`label-text ${REQUIRED_STAR_CLASS}`}
-                                  >
-                                    Ort
-                                  </RequiredLabel>
-                                </label>
-                                <select
-                                  id="personalInfo-addressCity"
-                                  className={`select select-bordered w-full ${
-                                    errors?.personalInfo?.addressCity
-                                      ? "select-error"
-                                      : getSuccessClass(
-                                          "personalInfo.addressCity",
-                                          addressCity,
-                                          "select"
-                                        )
-                                  }`}
-                                  aria-invalid={
-                                    errors?.personalInfo?.addressCity
-                                      ? "true"
-                                      : "false"
-                                  }
-                                  {...register("personalInfo.addressCity", {
-                                    required: "Ort ist erforderlich",
-                                    setValueAs: (v) => String(v || "").trim(),
-                                  })}
-                                >
-                                  <option value="">Bitte auswählen</option>
-                                  {UZBEK_REGIONS.map((region) => (
-                                    <option key={region} value={region}>
-                                      {region}
-                                    </option>
-                                  ))}
-                                </select>
-                                {errors?.personalInfo?.addressCity ? (
-                                  <p className="text-error text-sm mt-1">
-                                    {errors.personalInfo.addressCity.message}
-                                  </p>
-                                ) : null}
-                              </div>
-
-                              <div className="md:col-span-2">
-                                <Controller
-                                  control={control}
-                                  name="personalInfo.addressCountry"
-                                  rules={{ required: "Land ist erforderlich" }}
-                                  render={({ field }) => (
-                                    <CountryNameCombobox
-                                      id="personalInfo-addressCountry"
-                                      label={
-                                        <RequiredLabel
-                                          className={`label-text ${REQUIRED_STAR_CLASS}`}
-                                        >
-                                          Land
-                                        </RequiredLabel>
-                                      }
-                                      required
-                                      placeholder="z.B. Usbekistan"
-                                      value={field.value}
-                                      onChange={(v) =>
-                                        field.onChange(String(v || "").trim())
-                                      }
-                                      error={
-                                        errors?.personalInfo?.addressCountry
-                                          ?.message
-                                      }
-                                      inputClassName={
-                                        errors?.personalInfo?.addressCountry
-                                          ? ""
-                                          : getSuccessClass(
-                                              "personalInfo.addressCountry",
-                                              field.value,
-                                              "input"
-                                            )
-                                      }
-                                      helperText="Tippen Sie, um zu suchen, oder wählen Sie aus der Liste."
-                                    />
-                                  )}
-                                />
-                              </div>
+                              ) : null}
                             </div>
                           </div>
-                        </div>
-                      </div>
-                    </>
-                  ) : null}
+                        </>
+                      ) : null}
 
-                  {currentStep === 1 ? (
-                    <>
-                      <div className="divider mt-0">
-                        <span className="mx-auto inline-flex items-center gap-2">
-                          <FaBriefcase
-                            className="opacity-70"
-                            aria-hidden="true"
+                      {currentStep === 3 ? (
+                        <>
+                          <div className="divider mt-0">
+                            <span className="mx-auto inline-flex items-center gap-2">
+                              <FaLanguage
+                                className="opacity-70"
+                                aria-hidden="true"
+                              />
+                              <span>Sprachen</span>
+                            </span>
+                          </div>
+                          <LanguagesSection
+                            languageRows={languageRows}
+                            onAddRow={addLanguageRow}
+                            onUpdateRow={updateLanguageRow}
+                            onRemoveRow={removeLanguageRow}
+                            showRequiredWarning={showLanguageWarning}
+                            errors={languageErrors}
+                            languageOptions={LANGUAGE_OPTIONS}
                           />
-                          <span>Berufserfahrung</span>
-                        </span>
-                      </div>
-                      <ExperienceSection
-                        experience={cv.experience}
-                        onAddExperience={addExperience}
-                        onUpdateExperience={updateExperience}
-                        onRemoveExperience={removeExperience}
-                        onAddResponsibility={addResponsibility}
-                        onRemoveResponsibility={removeResponsibility}
-                        showRequiredWarning={showExperienceWarning}
-                        errors={experienceErrors}
-                      />
-                    </>
-                  ) : null}
+                        </>
+                      ) : null}
 
-                  {currentStep === 2 ? (
-                    <>
-                      <div className="divider mt-0">
-                        <span className="mx-auto">
-                          <span className="inline-flex items-center gap-2">
-                            <FaGraduationCap
-                              className="opacity-70"
-                              aria-hidden="true"
-                            />
-                            <RequiredLabel className={REQUIRED_STAR_CLASS}>
-                              Ausbildung
-                            </RequiredLabel>
-                          </span>
-                        </span>
-                      </div>
-                      <EducationSection
-                        education={cv.education}
-                        onAddEducation={addEducation}
-                        onUpdateEducation={updateEducation}
-                        onRemoveEducation={removeEducation}
-                        showRequiredWarning={showEducationWarning}
-                        errors={educationErrors}
-                      />
-                    </>
-                  ) : null}
-
-                  {currentStep === 3 ? (
-                    <>
-                      <div className="divider mt-0">
-                        <span className="mx-auto inline-flex items-center gap-2">
-                          <FaBrain className="opacity-70" aria-hidden="true" />
-                          <span>Fähigkeiten</span>
-                        </span>
-                      </div>
-                      <SkillsSection
-                        softSkills={cv.skills.softSkills}
-                        pcSkills={cv.skills.pcSkills}
-                        onAddSoft={(val) =>
-                          addTag(["skills", "softSkills"], val)
-                        }
-                        onRemoveSoft={(i) =>
-                          removeTag(["skills", "softSkills"], i)
-                        }
-                        onAddPc={(val) => addTag(["skills", "pcSkills"], val)}
-                        onRemovePc={(i) => removeTag(["skills", "pcSkills"], i)}
-                        onAutoAddSoft={() => autoAddSkills("soft")}
-                        onAutoAddPc={() => autoAddSkills("pc")}
-                        isGeneratingSoft={isGeneratingSoft}
-                        isGeneratingPc={isGeneratingPc}
-                        recentlyAddedSoft={recentlyAdded.soft}
-                        recentlyAddedPc={recentlyAdded.pc}
-                      />
-
-                      {/* Führerschein lives inside Fähigkeiten (not a separate step) */}
-                      <div className="divider" />
-                      <div className="grid grid-cols-1 gap-4">
-                        <div className="md:col-span-2">
-                          <div className="flex items-center gap-2 text-sm font-medium opacity-80">
-                            <FaCarSide className="opacity-70" aria-hidden="true" />
-                            <span>Führerschein</span>
+                      {currentStep === 5 ? (
+                        <>
+                          <div className="divider mt-0">
+                            <span className="mx-auto inline-flex items-center gap-2">
+                              <FaFileAlt
+                                className="opacity-70"
+                                aria-hidden="true"
+                              />
+                              <span>Dokumente</span>
+                            </span>
                           </div>
-                          <label
-                            className="label"
-                            htmlFor="personalInfo-hasDrivingLicense"
-                          >
-                            <span className="label-text">Führerschein</span>
-                          </label>
-                          <label className="cursor-pointer flex items-center gap-2">
-                            <input
-                              id="personalInfo-hasDrivingLicense"
-                              type="checkbox"
-                              className="checkbox"
-                              {...register("personalInfo.hasDrivingLicense")}
-                              onChange={(e) => {
-                                const checked = e.target.checked;
-                                setValue(
-                                  "personalInfo.hasDrivingLicense",
-                                  checked,
-                                  {
-                                    shouldDirty: true,
-                                    shouldValidate: true,
-                                  }
-                                );
-                                if (!checked) {
-                                  setValue(
-                                    "personalInfo.drivingLicenseType",
-                                    [],
-                                    {
-                                      shouldDirty: true,
-                                      shouldValidate: true,
-                                    }
-                                  );
+                          <div className="grid grid-cols-1 gap-4">
+                            {/* Passport first (required) */}
+                            <RequiredField>
+                              <div className="flex items-start justify-between gap-2">
+                                <label
+                                  className="label min-w-0 flex-1"
+                                  htmlFor="doc-passport"
+                                >
+                                  <RequiredLabel
+                                    className={`label-text ${REQUIRED_STAR_CLASS}`}
+                                  >
+                                    Reisepass (PDF)
+                                  </RequiredLabel>
+                                </label>
+                                {Array.isArray(passportFiles) &&
+                                passportFiles.length > 0 ? (
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost btn-xs shrink-0 whitespace-nowrap"
+                                    onClick={() => {
+                                      setPassportFiles([]);
+                                      setPassportSizeError(false);
+                                      setPassportError(false);
+                                    }}
+                                  >
+                                    Alle entfernen
+                                  </button>
+                                ) : null}
+                              </div>
+                              <p className="text-xs text-base-content/70 mb-2">
+                                Falls kein Reisepass vorhanden ist, bitte
+                                Personalausweis oder nationalen Pass (ID Card)
+                                als PDF hochladen. Maximal 2 MB.
+                              </p>
+                              <input
+                                id="doc-passport"
+                                type="file"
+                                accept=".pdf,application/pdf"
+                                className={`file-input file-input-bordered w-full ${
+                                  passportError || passportSizeError
+                                    ? "file-input-error"
+                                    : ""
+                                }`}
+                                aria-invalid={
+                                  passportError || passportSizeError
+                                    ? "true"
+                                    : "false"
                                 }
-                              }}
-                              checked={Boolean(
-                                watch("personalInfo.hasDrivingLicense")
-                              )}
-                            />
-                            <span className="text-sm">Vorhanden</span>
-                          </label>
-                          {watch("personalInfo.hasDrivingLicense") ? (
-                            <div className="mt-3">
-                              <Controller
-                                control={control}
-                                name="personalInfo.drivingLicenseType"
-                                rules={{
-                                  validate: (v) => {
-                                    const has = Boolean(
-                                      watch("personalInfo.hasDrivingLicense")
-                                    );
-                                    if (!has) return true;
-                                    const arr = Array.isArray(v)
-                                      ? v
-                                      : String(v || "")
-                                          .split(",")
-                                          .map((s) => s.trim())
-                                          .filter(Boolean);
-                                    if (!arr.length)
-                                      return "Bitte mindestens eine Führerschein-Klasse auswählen.";
-                                    return true;
-                                  },
-                                }}
-                                render={({ field }) => {
-                                  return (
-                                    <DrivingLicenseMultiSelect
-                                      id="personalInfo-drivingLicenseType"
-                                      options={DRIVING_LICENSE_OPTIONS}
-                                      value={field.value}
-                                      onChange={field.onChange}
-                                      error={
-                                        errors?.personalInfo?.drivingLicenseType
-                                          ?.message
-                                      }
-                                    />
+                                onChange={(e) => {
+                                  const raw = Array.from(e.target.files || []);
+                                  const pdfs = raw.filter(
+                                    (f) =>
+                                      String(f.type).toLowerCase() ===
+                                        "application/pdf" ||
+                                      /\.pdf$/i.test(String(f.name || ""))
                                   );
+                                  const sized = pdfs.filter(
+                                    (f) => (f?.size || 0) <= MAX_PDF_BYTES
+                                  );
+                                  const tooBig = pdfs.length - sized.length;
+                                  const invalid = raw.length - pdfs.length;
+                                  if (invalid > 0) {
+                                    toast.error(
+                                      "Nur PDF-Dateien sind erlaubt."
+                                    );
+                                  }
+                                  if (tooBig > 0) {
+                                    toast.error(
+                                      "PDF-Datei darf maximal 2 MB groß sein."
+                                    );
+                                    setPassportSizeError(true);
+                                  } else {
+                                    setPassportSizeError(false);
+                                  }
+                                  if (sized.length > 0) {
+                                    setPassportError(false);
+                                  }
+                                  setPassportFiles(sized.slice(0, 1));
+                                  e.target.value = "";
                                 }}
                               />
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                    </>
-                  ) : null}
-
-                  {currentStep === 4 ? (
-                    <>
-                      <div className="divider mt-0">
-                        <span className="mx-auto inline-flex items-center gap-2">
-                          <FaLanguage
-                            className="opacity-70"
-                            aria-hidden="true"
-                          />
-                          <span>Sprachen</span>
-                        </span>
-                      </div>
-                      <LanguagesSection
-                        languageRows={languageRows}
-                        onAddRow={addLanguageRow}
-                        onUpdateRow={updateLanguageRow}
-                        onRemoveRow={removeLanguageRow}
-                        showRequiredWarning={showLanguageWarning}
-                        errors={languageErrors}
-                        languageOptions={LANGUAGE_OPTIONS}
-                      />
-                    </>
-                  ) : null}
-
-                  {currentStep === 5 ? (
-                    <>
-                      <div className="divider mt-0">
-                        <span className="mx-auto inline-flex items-center gap-2">
-                          <FaFileAlt
-                            className="opacity-70"
-                            aria-hidden="true"
-                          />
-                          <span>Dokumente</span>
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-1 gap-4">
-                        {/* Passport first (required) */}
-                        <RequiredField>
-                          <div className="flex items-center justify-between">
-                            <label className="label" htmlFor="doc-passport">
-                              <RequiredLabel
-                                className={`label-text ${REQUIRED_STAR_CLASS}`}
-                              >
-                                Reisepass (PDF)
-                              </RequiredLabel>
-                            </label>
-                            {Array.isArray(passportFiles) &&
-                            passportFiles.length > 0 ? (
-                              <button
-                                type="button"
-                                className="btn btn-ghost btn-xs"
-                                onClick={() => {
-                                  setPassportFiles([]);
-                                  setPassportSizeError(false);
-                                  setPassportError(false);
-                                }}
-                              >
-                                Alle entfernen
-                              </button>
-                            ) : null}
-                          </div>
-                          <p className="text-xs text-base-content/70 mb-2">
-                            Falls kein Reisepass vorhanden ist, bitte
-                            Personalausweis oder nationalen Pass (ID Card) als
-                            PDF hochladen. Maximal 2 MB.
-                          </p>
-                          <input
-                            id="doc-passport"
-                            type="file"
-                            accept=".pdf,application/pdf"
-                            className={`file-input file-input-bordered w-full ${
-                              passportError || passportSizeError
-                                ? "file-input-error"
-                                : ""
-                            }`}
-                            aria-invalid={
-                              passportError || passportSizeError
-                                ? "true"
-                                : "false"
-                            }
-                            onChange={(e) => {
-                              const raw = Array.from(e.target.files || []);
-                              const pdfs = raw.filter(
-                                (f) =>
-                                  String(f.type).toLowerCase() ===
-                                    "application/pdf" ||
-                                  /\.pdf$/i.test(String(f.name || ""))
-                              );
-                              const sized = pdfs.filter(
-                                (f) => (f?.size || 0) <= MAX_PDF_BYTES
-                              );
-                              const tooBig = pdfs.length - sized.length;
-                              const invalid = raw.length - pdfs.length;
-                              if (invalid > 0) {
-                                toast.error("Nur PDF-Dateien sind erlaubt.");
-                              }
-                              if (tooBig > 0) {
-                                toast.error(
-                                  "PDF-Datei darf maximal 2 MB groß sein."
-                                );
-                                setPassportSizeError(true);
-                              } else {
-                                setPassportSizeError(false);
-                              }
-                              if (sized.length > 0) {
-                                setPassportError(false);
-                              }
-                              setPassportFiles(sized.slice(0, 1));
-                              e.target.value = "";
-                            }}
-                          />
-                          {passportError ? (
-                            <p className="text-error text-sm mt-1">
-                              Reisepass oder Ausweis (PDF) erforderlich.
-                            </p>
-                          ) : null}
-                          {passportSizeError ? (
-                            <p className="text-error text-sm mt-1">
-                              Datei &gt; 2 MB. Komprimieren:{" "}
-                              <a
-                                className="link link-primary"
-                                href="https://www.ilovepdf.com/compress_pdf"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                iLovePDF
-                              </a>
-                            </p>
-                          ) : null}
-                          {Array.isArray(passportFiles) &&
-                          passportFiles.length > 0 ? (
-                            <div className="mt-2">
-                              <div className="text-xs opacity-70 mb-1">
-                                Nur PDF
-                              </div>
-                              <ul className="space-y-2">
-                                {passportFiles.map((f) => (
-                                  <li
-                                    key={uniqueKey(f)}
-                                    className="flex items-center justify-between gap-2 rounded-box border border-base-300 px-3 py-2"
+                              {passportError ? (
+                                <p className="text-error text-sm mt-1">
+                                  Reisepass oder Ausweis (PDF) erforderlich.
+                                </p>
+                              ) : null}
+                              {passportSizeError ? (
+                                <p className="text-error text-sm mt-1">
+                                  Datei &gt; 2 MB. Komprimieren:{" "}
+                                  <a
+                                    className="link link-primary"
+                                    href="https://www.ilovepdf.com/compress_pdf"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
                                   >
-                                    <div className="min-w-0">
-                                      <div className="truncate font-medium">
-                                        {f.name}
-                                      </div>
-                                      <div className="text-xs opacity-70">
-                                        {(f.size / 1024).toFixed(1)} KB
-                                      </div>
-                                    </div>
-                                    <button
-                                      type="button"
-                                      className="btn btn-ghost btn-xs"
-                                      onClick={() => setPassportFiles([])}
-                                      aria-label="Entfernen"
-                                    >
-                                      ✕
-                                    </button>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          ) : null}
-                        </RequiredField>
-
-                        {/* Language certificates (optional but type required if provided) */}
-                        <div>
-                          <div className="flex items-center justify-between">
-                            <label className="label" htmlFor="doc-langcerts">
-                              <span className="label-text">
-                                Sprachzertifikate (optional)
-                              </span>
-                            </label>
-                            {Array.isArray(langCertFiles) &&
-                            langCertFiles.length > 0 ? (
-                              <button
-                                type="button"
-                                className="btn btn-ghost btn-xs"
-                                onClick={() => {
-                                  setLangCertFiles([]);
-                                  setLangCertSizeError(false);
-                                }}
-                              >
-                                Alle entfernen
-                              </button>
-                            ) : null}
-                          </div>
-                          <label className="cursor-pointer flex items-center gap-2 mb-2">
-                            <input
-                              type="checkbox"
-                              className="checkbox"
-                              checked={noLanguageCertificates}
-                              onChange={(e) => {
-                                const checked = Boolean(e.target.checked);
-                                setNoLanguageCertificates(checked);
-                                if (checked) {
-                                  // If user has no certificates, clear files and related errors.
-                                  setLangCertFiles([]);
-                                  setLangCertSizeError(false);
-                                  setLangCertTypeError(false);
-                                }
-                              }}
-                            />
-                            <span className="text-sm">
-                              Keine Sprachzertifikate vorhanden
-                            </span>
-                          </label>
-                          <p className="text-xs text-base-content/70 mb-2">
-                            Bitte als PDF hochladen.
-                          </p>
-                          <p className="text-xs text-base-content/70 mb-2">
-                            Max. 2 MB pro Datei.
-                          </p>
-                          <input
-                            id="doc-langcerts"
-                            type="file"
-                            multiple
-                            accept=".pdf,application/pdf"
-                            className={`file-input file-input-bordered w-full ${
-                              langCertSizeError ? "file-input-error" : ""
-                            }`}
-                            aria-invalid={langCertSizeError ? "true" : "false"}
-                            disabled={noLanguageCertificates}
-                            onChange={(e) => {
-                              const raw = Array.from(e.target.files || []);
-                              const pdfs = raw.filter(
-                                (f) =>
-                                  String(f.type).toLowerCase() ===
-                                    "application/pdf" ||
-                                  /\.pdf$/i.test(String(f.name || ""))
-                              );
-                              const sized = pdfs.filter(
-                                (f) => (f?.size || 0) <= MAX_PDF_BYTES
-                              );
-                              const tooBig = pdfs.length - sized.length;
-                              const invalid = raw.length - pdfs.length;
-                              if (invalid > 0) {
-                                toast.error("Nur PDF-Dateien sind erlaubt.");
-                              }
-                              if (tooBig > 0) {
-                                toast.error(
-                                  "PDF-Datei darf maximal 2 MB groß sein."
-                                );
-                                setLangCertSizeError(true);
-                              } else {
-                                setLangCertSizeError(false);
-                              }
-                              if (sized.length > 0) {
-                                setNoLanguageCertificates(false);
-                              }
-                              setLangCertFiles((prev) =>
-                                mergeLangCertItems(prev, sized)
-                              );
-                              e.target.value = "";
-                            }}
-                          />
-                          {langCertSizeError ? (
-                            <p className="text-error text-sm mt-1">
-                              Datei &gt; 2 MB. Komprimieren:{" "}
-                              <a
-                                className="link link-primary"
-                                href="https://www.ilovepdf.com/compress_pdf"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                iLovePDF
-                              </a>
-                            </p>
-                          ) : null}
-                          {Array.isArray(langCertFiles) &&
-                          langCertFiles.length > 0 ? (
-                            <div className="mt-2">
-                              <div className="text-xs opacity-70 mb-1">
-                                Nur PDF
-                              </div>
-                              <ul className="space-y-2">
-                                {langCertFiles.map((item, i) => {
-                                  const file = item?.file || item;
-                                  return (
-                                    <li
-                                      key={uniqueKey(file)}
-                                      className="flex flex-col gap-2 rounded-box border border-base-300 px-3 py-2"
-                                    >
-                                      <div className="flex items-center justify-between gap-2">
+                                    iLovePDF
+                                  </a>
+                                </p>
+                              ) : null}
+                              {Array.isArray(passportFiles) &&
+                              passportFiles.length > 0 ? (
+                                <div className="mt-2">
+                                  <div className="text-xs opacity-70 mb-1">
+                                    Nur PDF
+                                  </div>
+                                  <ul className="space-y-2">
+                                    {passportFiles.map((f) => (
+                                      <li
+                                        key={uniqueKey(f)}
+                                        className="flex items-center justify-between gap-2 rounded-box border border-base-300 px-3 py-2"
+                                      >
                                         <div className="min-w-0">
                                           <div className="truncate font-medium">
-                                            {file.name}
+                                            {f.name}
                                           </div>
                                           <div className="text-xs opacity-70">
-                                            {(file.size / 1024).toFixed(1)} KB
+                                            {(f.size / 1024).toFixed(1)} KB
+                                          </div>
+                                        </div>
+                                        <button
+                                          type="button"
+                                          className="btn btn-ghost btn-xs"
+                                          onClick={() => setPassportFiles([])}
+                                          aria-label="Entfernen"
+                                        >
+                                          ✕
+                                        </button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ) : null}
+                            </RequiredField>
+
+                            {/* Language certificates (optional but type required if provided) */}
+                            <div>
+                              <div className="flex items-start justify-between gap-2">
+                                <label
+                                  className="label min-w-0 flex-1"
+                                  htmlFor="doc-langcerts"
+                                >
+                                  <span className="label-text">
+                                    Sprachzertifikate (optional)
+                                  </span>
+                                </label>
+                                {Array.isArray(langCertFiles) &&
+                                langCertFiles.length > 0 ? (
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost btn-xs shrink-0 whitespace-nowrap"
+                                    onClick={() => {
+                                      setLangCertFiles([]);
+                                      setLangCertSizeError(false);
+                                    }}
+                                  >
+                                    Alle entfernen
+                                  </button>
+                                ) : null}
+                              </div>
+                              <label className="cursor-pointer flex items-center gap-2 mb-2">
+                                <input
+                                  type="checkbox"
+                                  className="checkbox"
+                                  checked={noLanguageCertificates}
+                                  onChange={(e) => {
+                                    const checked = Boolean(e.target.checked);
+                                    setNoLanguageCertificates(checked);
+                                    if (checked) {
+                                      // If user has no certificates, clear files and related errors.
+                                      setLangCertFiles([]);
+                                      setLangCertSizeError(false);
+                                      setLangCertTypeError(false);
+                                    }
+                                  }}
+                                />
+                                <span className="text-sm">
+                                  Keine Sprachzertifikate vorhanden
+                                </span>
+                              </label>
+                              <p className="text-xs text-base-content/70 mb-2">
+                                Bitte als PDF hochladen.
+                              </p>
+                              <p className="text-xs text-base-content/70 mb-2">
+                                Max. 2 MB pro Datei.
+                              </p>
+                              <input
+                                id="doc-langcerts"
+                                type="file"
+                                multiple
+                                accept=".pdf,application/pdf"
+                                className={`file-input file-input-bordered w-full ${
+                                  langCertSizeError ? "file-input-error" : ""
+                                }`}
+                                aria-invalid={
+                                  langCertSizeError ? "true" : "false"
+                                }
+                                disabled={noLanguageCertificates}
+                                onChange={(e) => {
+                                  const raw = Array.from(e.target.files || []);
+                                  const pdfs = raw.filter(
+                                    (f) =>
+                                      String(f.type).toLowerCase() ===
+                                        "application/pdf" ||
+                                      /\.pdf$/i.test(String(f.name || ""))
+                                  );
+                                  const sized = pdfs.filter(
+                                    (f) => (f?.size || 0) <= MAX_PDF_BYTES
+                                  );
+                                  const tooBig = pdfs.length - sized.length;
+                                  const invalid = raw.length - pdfs.length;
+                                  if (invalid > 0) {
+                                    toast.error(
+                                      "Nur PDF-Dateien sind erlaubt."
+                                    );
+                                  }
+                                  if (tooBig > 0) {
+                                    toast.error(
+                                      "PDF-Datei darf maximal 2 MB groß sein."
+                                    );
+                                    setLangCertSizeError(true);
+                                  } else {
+                                    setLangCertSizeError(false);
+                                  }
+                                  if (sized.length > 0) {
+                                    setNoLanguageCertificates(false);
+                                  }
+                                  setLangCertFiles((prev) =>
+                                    mergeLangCertItems(prev, sized)
+                                  );
+                                  e.target.value = "";
+                                }}
+                              />
+                              {langCertSizeError ? (
+                                <p className="text-error text-sm mt-1">
+                                  Datei &gt; 2 MB. Komprimieren:{" "}
+                                  <a
+                                    className="link link-primary"
+                                    href="https://www.ilovepdf.com/compress_pdf"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    iLovePDF
+                                  </a>
+                                </p>
+                              ) : null}
+                              {Array.isArray(langCertFiles) &&
+                              langCertFiles.length > 0 ? (
+                                <div className="mt-2">
+                                  <div className="text-xs opacity-70 mb-1">
+                                    Nur PDF
+                                  </div>
+                                  <ul className="space-y-2">
+                                    {langCertFiles.map((item, i) => {
+                                      const file = item?.file || item;
+                                      return (
+                                        <li
+                                          key={uniqueKey(file)}
+                                          className="flex flex-col gap-2 rounded-box border border-base-300 px-3 py-2"
+                                        >
+                                          <div className="flex items-center justify-between gap-2">
+                                            <div className="min-w-0">
+                                              <div className="truncate font-medium">
+                                                {file.name}
+                                              </div>
+                                              <div className="text-xs opacity-70">
+                                                {(file.size / 1024).toFixed(1)}{" "}
+                                                KB
+                                              </div>
+                                            </div>
+                                            <button
+                                              type="button"
+                                              className="btn btn-ghost btn-xs"
+                                              onClick={() =>
+                                                setLangCertFiles((prev) =>
+                                                  removeLangCertAt(prev, i)
+                                                )
+                                              }
+                                              aria-label="Entfernen"
+                                            >
+                                              ✕
+                                            </button>
+                                          </div>
+                                          <div className="grid sm:grid-cols-2 gap-2 items-center">
+                                            <label
+                                              className="label py-0 sm:py-1"
+                                              htmlFor={`langcert-type-${i}`}
+                                            >
+                                              <span className="label-text text-xs sm:text-sm">
+                                                Zertifikat auswählen
+                                              </span>
+                                            </label>
+                                            <select
+                                              id={`langcert-type-${i}`}
+                                              className={`select select-bordered w-full ${
+                                                langCertTypeError &&
+                                                !String(item?.type || "").trim()
+                                                  ? "select-error"
+                                                  : ""
+                                              }`}
+                                              aria-label="Typ des Sprachzertifikats"
+                                              aria-invalid={
+                                                langCertTypeError &&
+                                                !String(item?.type || "").trim()
+                                                  ? "true"
+                                                  : "false"
+                                              }
+                                              value={item?.type || ""}
+                                              onChange={(e) =>
+                                                setLangCertFiles((prev) =>
+                                                  prev.map((entry, idx) =>
+                                                    idx === i
+                                                      ? {
+                                                          ...entry,
+                                                          type: e.target.value,
+                                                        }
+                                                      : entry
+                                                  )
+                                                )
+                                              }
+                                            >
+                                              <option value="">
+                                                Zertifikat auswählen
+                                              </option>
+                                              {LANG_CERT_TYPES.map((opt) => (
+                                                <option key={opt} value={opt}>
+                                                  {opt}
+                                                </option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                          {langCertTypeError &&
+                                          !String(item?.type || "").trim() ? (
+                                            <p className="text-error text-sm">
+                                              Bitte wählen Sie, zu welchem
+                                              Zertifikat die Datei gehört.
+                                            </p>
+                                          ) : null}
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                </div>
+                              ) : null}
+                            </div>
+
+                            {/* Diplomas */}
+                            <RequiredField>
+                              <div className="flex items-start justify-between gap-2">
+                                <label
+                                  className="label min-w-0 flex-1"
+                                  htmlFor="doc-diplomas"
+                                >
+                                  <RequiredLabel
+                                    className={`label-text ${REQUIRED_STAR_CLASS}`}
+                                  >
+                                    Diplome (PDF, mindestens Schulzeugnis)
+                                  </RequiredLabel>
+                                </label>
+                                {Array.isArray(diplomaFiles) &&
+                                diplomaFiles.length > 0 ? (
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost btn-xs shrink-0 whitespace-nowrap"
+                                    onClick={() => {
+                                      setDiplomaFiles([]);
+                                      setDiplomaSizeError(false);
+                                      setDiplomaError(false);
+                                    }}
+                                  >
+                                    Alle entfernen
+                                  </button>
+                                ) : null}
+                              </div>
+                              <p className="text-xs text-base-content/70 mb-2">
+                                Pflicht: Laden Sie mindestens Ihr Schulzeugnis
+                                als PDF hoch.
+                              </p>
+                              <p className="text-xs text-base-content/70 mb-2">
+                                Maximal 2 MB pro Datei.
+                              </p>
+                              <input
+                                id="doc-diplomas"
+                                type="file"
+                                multiple
+                                accept=".pdf,application/pdf"
+                                className={`file-input file-input-bordered w-full ${
+                                  diplomaError || diplomaSizeError
+                                    ? "file-input-error"
+                                    : ""
+                                }`}
+                                aria-invalid={
+                                  diplomaError || diplomaSizeError
+                                    ? "true"
+                                    : "false"
+                                }
+                                onChange={(e) => {
+                                  const raw = Array.from(e.target.files || []);
+                                  const pdfs = raw.filter(
+                                    (f) =>
+                                      String(f.type).toLowerCase() ===
+                                        "application/pdf" ||
+                                      /\.pdf$/i.test(String(f.name || ""))
+                                  );
+                                  const sized = pdfs.filter(
+                                    (f) => (f?.size || 0) <= MAX_PDF_BYTES
+                                  );
+                                  const tooBig = pdfs.length - sized.length;
+                                  const invalid = raw.length - pdfs.length;
+                                  if (invalid > 0) {
+                                    toast.error(
+                                      "Nur PDF-Dateien sind erlaubt."
+                                    );
+                                  }
+                                  if (tooBig > 0) {
+                                    toast.error(
+                                      "PDF-Datei darf maximal 2 MB groß sein."
+                                    );
+                                    setDiplomaSizeError(true);
+                                  } else {
+                                    setDiplomaSizeError(false);
+                                  }
+                                  if (sized.length > 0) {
+                                    setDiplomaError(false);
+                                  }
+                                  setDiplomaFiles((prev) =>
+                                    mergeFiles(prev, sized)
+                                  );
+                                  // reset value to allow picking the same file again if needed
+                                  e.target.value = "";
+                                }}
+                              />
+                              {diplomaError ? (
+                                <p className="text-error text-sm mt-1">
+                                  Mindestens ein Diplom bzw. Schulzeugnis (PDF)
+                                  erforderlich.
+                                </p>
+                              ) : null}
+                              {diplomaSizeError ? (
+                                <p className="text-error text-sm mt-1">
+                                  Datei &gt; 2 MB. Komprimieren:{" "}
+                                  <a
+                                    className="link link-primary"
+                                    href="https://www.ilovepdf.com/compress_pdf"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    iLovePDF
+                                  </a>
+                                </p>
+                              ) : null}
+                              {Array.isArray(diplomaFiles) &&
+                              diplomaFiles.length > 0 ? (
+                                <div className="mt-2">
+                                  <div className="text-xs opacity-70 mb-1">
+                                    Nur PDF
+                                  </div>
+                                  <ul className="space-y-2">
+                                    {diplomaFiles.map((f, i) => (
+                                      <li
+                                        key={uniqueKey(f)}
+                                        className="flex items-center justify-between gap-2 rounded-box border border-base-300 px-3 py-2"
+                                      >
+                                        <div className="min-w-0">
+                                          <div className="truncate font-medium">
+                                            {f.name}
+                                          </div>
+                                          <div className="text-xs opacity-70">
+                                            {(f.size / 1024).toFixed(1)} KB
                                           </div>
                                         </div>
                                         <button
                                           type="button"
                                           className="btn btn-ghost btn-xs"
                                           onClick={() =>
-                                            setLangCertFiles((prev) =>
-                                              removeLangCertAt(prev, i)
+                                            setDiplomaFiles((prev) =>
+                                              removeFileAt(prev, i)
                                             )
                                           }
                                           aria-label="Entfernen"
                                         >
                                           ✕
                                         </button>
-                                      </div>
-                                      <div className="grid sm:grid-cols-2 gap-2 items-center">
-                                        <label
-                                          className="label py-0 sm:py-1"
-                                          htmlFor={`langcert-type-${i}`}
-                                        >
-                                          <span className="label-text text-xs sm:text-sm">
-                                            Zertifikat auswählen
-                                          </span>
-                                        </label>
-                                        <select
-                                          id={`langcert-type-${i}`}
-                                          className={`select select-bordered w-full ${
-                                            langCertTypeError &&
-                                            !String(item?.type || "").trim()
-                                              ? "select-error"
-                                              : ""
-                                          }`}
-                                          aria-label="Typ des Sprachzertifikats"
-                                          aria-invalid={
-                                            langCertTypeError &&
-                                            !String(item?.type || "").trim()
-                                              ? "true"
-                                              : "false"
-                                          }
-                                          value={item?.type || ""}
-                                          onChange={(e) =>
-                                            setLangCertFiles((prev) =>
-                                              prev.map((entry, idx) =>
-                                                idx === i
-                                                  ? {
-                                                      ...entry,
-                                                      type: e.target.value,
-                                                    }
-                                                  : entry
-                                              )
-                                            )
-                                          }
-                                        >
-                                          <option value="">
-                                            Zertifikat auswählen
-                                          </option>
-                                          {LANG_CERT_TYPES.map((opt) => (
-                                            <option key={opt} value={opt}>
-                                              {opt}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      </div>
-                                      {langCertTypeError &&
-                                      !String(item?.type || "").trim() ? (
-                                        <p className="text-error text-sm">
-                                          Bitte wählen Sie, zu welchem
-                                          Zertifikat die Datei gehört.
-                                        </p>
-                                      ) : null}
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            </div>
-                          ) : null}
-                        </div>
-
-                        {/* Diplomas */}
-                        <RequiredField>
-                          <div className="flex items-center justify-between">
-                            <label className="label" htmlFor="doc-diplomas">
-                              <RequiredLabel
-                                className={`label-text ${REQUIRED_STAR_CLASS}`}
-                              >
-                                Diplome (PDF, mindestens Schulzeugnis)
-                              </RequiredLabel>
-                            </label>
-                            {Array.isArray(diplomaFiles) &&
-                            diplomaFiles.length > 0 ? (
-                              <button
-                                type="button"
-                                className="btn btn-ghost btn-xs"
-                                onClick={() => {
-                                  setDiplomaFiles([]);
-                                  setDiplomaSizeError(false);
-                                  setDiplomaError(false);
-                                }}
-                              >
-                                Alle entfernen
-                              </button>
-                            ) : null}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ) : null}
+                            </RequiredField>
                           </div>
-                          <p className="text-xs text-base-content/70 mb-2">
-                            Pflicht: Laden Sie mindestens Ihr Schulzeugnis als
-                            PDF hoch.
-                          </p>
-                          <p className="text-xs text-base-content/70 mb-2">
-                            Maximal 2 MB pro Datei.
-                          </p>
-                          <input
-                            id="doc-diplomas"
-                            type="file"
-                            multiple
-                            accept=".pdf,application/pdf"
-                            className={`file-input file-input-bordered w-full ${
-                              diplomaError || diplomaSizeError
-                                ? "file-input-error"
-                                : ""
-                            }`}
-                            aria-invalid={
-                              diplomaError || diplomaSizeError
-                                ? "true"
-                                : "false"
-                            }
-                            onChange={(e) => {
-                              const raw = Array.from(e.target.files || []);
-                              const pdfs = raw.filter(
-                                (f) =>
-                                  String(f.type).toLowerCase() ===
-                                    "application/pdf" ||
-                                  /\.pdf$/i.test(String(f.name || ""))
-                              );
-                              const sized = pdfs.filter(
-                                (f) => (f?.size || 0) <= MAX_PDF_BYTES
-                              );
-                              const tooBig = pdfs.length - sized.length;
-                              const invalid = raw.length - pdfs.length;
-                              if (invalid > 0) {
-                                toast.error("Nur PDF-Dateien sind erlaubt.");
-                              }
-                              if (tooBig > 0) {
-                                toast.error(
-                                  "PDF-Datei darf maximal 2 MB groß sein."
-                                );
-                                setDiplomaSizeError(true);
-                              } else {
-                                setDiplomaSizeError(false);
-                              }
-                              if (sized.length > 0) {
-                                setDiplomaError(false);
-                              }
-                              setDiplomaFiles((prev) =>
-                                mergeFiles(prev, sized)
-                              );
-                              // reset value to allow picking the same file again if needed
-                              e.target.value = "";
-                            }}
-                          />
-                          {diplomaError ? (
-                            <p className="text-error text-sm mt-1">
-                              Mindestens ein Diplom bzw. Schulzeugnis (PDF)
-                              erforderlich.
-                            </p>
-                          ) : null}
-                          {diplomaSizeError ? (
-                            <p className="text-error text-sm mt-1">
-                              Datei &gt; 2 MB. Komprimieren:{" "}
-                              <a
-                                className="link link-primary"
-                                href="https://www.ilovepdf.com/compress_pdf"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                iLovePDF
-                              </a>
-                            </p>
-                          ) : null}
-                          {Array.isArray(diplomaFiles) &&
-                          diplomaFiles.length > 0 ? (
-                            <div className="mt-2">
-                              <div className="text-xs opacity-70 mb-1">
-                                Nur PDF
-                              </div>
-                              <ul className="space-y-2">
-                                {diplomaFiles.map((f, i) => (
-                                  <li
-                                    key={uniqueKey(f)}
-                                    className="flex items-center justify-between gap-2 rounded-box border border-base-300 px-3 py-2"
+                        </>
+                      ) : null}
+
+                      {currentStep === FINAL_STEP ? (
+                        <>
+                          <div className="divider mt-0" />
+                          <div className="form-control">
+                            <div className="rounded-box border border-base-300 bg-base-200/40 p-4 md:p-5">
+                              <div className="flex items-start gap-3">
+                                <input
+                                  id="agreePrivacy"
+                                  type="checkbox"
+                                  className={`checkbox mt-1 ${
+                                    errors?.agreePrivacy ? "checkbox-error" : ""
+                                  }`}
+                                  aria-invalid={
+                                    errors?.agreePrivacy ? "true" : "false"
+                                  }
+                                  aria-describedby={
+                                    errors?.agreePrivacy
+                                      ? "agreePrivacy-error"
+                                      : undefined
+                                  }
+                                  {...register("agreePrivacy", {
+                                    required: true,
+                                  })}
+                                />
+                                <div className="min-w-0">
+                                  <label
+                                    htmlFor="agreePrivacy"
+                                    className="font-medium leading-6 cursor-pointer"
                                   >
-                                    <div className="min-w-0">
-                                      <div className="truncate font-medium">
-                                        {f.name}
-                                      </div>
-                                      <div className="text-xs opacity-70">
-                                        {(f.size / 1024).toFixed(1)} KB
-                                      </div>
-                                    </div>
+                                    Ich habe die Datenschutzerklärung gelesen
+                                    und stimme zu.
+                                  </label>
+                                  <div className="mt-1 text-sm text-base-content/80 flex flex-wrap items-center gap-2">
                                     <button
                                       type="button"
-                                      className="btn btn-ghost btn-xs"
-                                      onClick={() =>
-                                        setDiplomaFiles((prev) =>
-                                          removeFileAt(prev, i)
-                                        )
-                                      }
-                                      aria-label="Entfernen"
+                                      className="link link-primary"
+                                      onClick={() => setIsPrivacyOpen(true)}
                                     >
-                                      ✕
+                                      Datenschutzrichtlinie
                                     </button>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          ) : null}
-                        </RequiredField>
-                      </div>
-                    </>
-                  ) : null}
-
-                  {currentStep === FINAL_STEP ? (
-                    <>
-                      <div className="divider mt-0" />
-                      <div className="form-control">
-                        <div className="rounded-box border border-base-300 bg-base-200/40 p-4 md:p-5">
-                          <div className="flex items-start gap-3">
-                            <input
-                              id="agreePrivacy"
-                              type="checkbox"
-                              className={`checkbox mt-1 ${
-                                errors?.agreePrivacy ? "checkbox-error" : ""
-                              }`}
-                              aria-invalid={
-                                errors?.agreePrivacy ? "true" : "false"
-                              }
-                              aria-describedby={
-                                errors?.agreePrivacy
-                                  ? "agreePrivacy-error"
-                                  : undefined
-                              }
-                              {...register("agreePrivacy", { required: true })}
-                            />
-                            <div className="min-w-0">
-                              <label
-                                htmlFor="agreePrivacy"
-                                className="font-medium leading-6 cursor-pointer"
-                              >
-                                Ich habe die Datenschutzerklärung gelesen und
-                                stimme zu.
-                              </label>
-                              <div className="mt-1 text-sm text-base-content/80 flex flex-wrap items-center gap-2">
-                                <button
-                                  type="button"
-                                  className="link link-primary"
-                                  onClick={() => setIsPrivacyOpen(true)}
-                                >
-                                  Datenschutzrichtlinie
-                                </button>
+                                  </div>
+                                  {errors?.agreePrivacy ? (
+                                    <p
+                                      id="agreePrivacy-error"
+                                      className="text-error text-sm mt-2"
+                                    >
+                                      Bitte stimmen Sie der Datenschutzerklärung
+                                      zu, um fortzufahren.
+                                    </p>
+                                  ) : null}
+                                </div>
                               </div>
-                              {errors?.agreePrivacy ? (
-                                <p
-                                  id="agreePrivacy-error"
-                                  className="text-error text-sm mt-2"
-                                >
-                                  Bitte stimmen Sie der Datenschutzerklärung zu,
-                                  um fortzufahren.
-                                </p>
-                              ) : null}
                             </div>
                           </div>
+                          <div className="divider" />
+                          <div className="flex justify-center mb-4">
+                            <ReCAPTCHA
+                              sitekey={
+                                import.meta.env.VITE_RECAPTCHA_SITE_KEY ||
+                                "6LdEVycsAAAAAJ11zB8ovl-uNIQPPI06t8Rhwow8"
+                              }
+                              size={captchaSize}
+                              onChange={setCaptchaToken}
+                            />
+                          </div>
+                        </>
+                      ) : null}
+                    </div>
+                    {/* Sticky footer navigation (always visible) */}
+                    <div className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[env(safe-area-inset-bottom)] lg:sticky lg:bottom-0 lg:z-10 lg:px-0 lg:pt-3">
+                      <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-none">
+                        <div className="rounded-2xl border border-base-300 bg-base-100 shadow-sm px-4 py-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <button
+                            type="button"
+                            className="btn"
+                            onClick={goBack}
+                            disabled={currentStep === 0 || isUploading}
+                          >
+                            Zurück
+                          </button>
+
+                          {currentStep === FINAL_STEP ? (
+                            <button
+                              type="submit"
+                              className="btn btn-primary"
+                              disabled={
+                                !watch("agreePrivacy") ||
+                                isUploading ||
+                                majorLoading ||
+                                !majorInfo.collectionName
+                              }
+                            >
+                              {isUploading ? (
+                                "Hochladen..."
+                              ) : (
+                                <>
+                                  <FaPaperPlane className="inline-block mr-2" />
+                                  Absenden
+                                </>
+                              )}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              onClick={goNext}
+                              disabled={isUploading}
+                            >
+                              Weiter
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Mobile actions (keep icons visible but well-aligned on small screens) */}
+                        <div className="mt-3 flex items-center justify-between lg:hidden">
+                          <button
+                            type="button"
+                            className="btn btn-primary btn-circle btn-sm shadow"
+                            aria-label="Vorschau öffnen"
+                            onClick={() => setIsPdfPreviewOpen(true)}
+                          >
+                            <FaFileAlt className="text-base" />
+                            <span className="sr-only">Vorschau</span>
+                          </button>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-circle btn-sm shadow"
+                              aria-label="Video-Guide öffnen"
+                              onClick={() => setIsGuideOpen(true)}
+                            >
+                              <FaVideo className="text-base" />
+                              <span className="sr-only">Video-Guide</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-circle btn-sm shadow"
+                              aria-label="Support via Telegram"
+                              onClick={() =>
+                                window.open(
+                                  TELEGRAM_SUPPORT_URL,
+                                  "_blank",
+                                  "noopener,noreferrer"
+                                )
+                              }
+                            >
+                              <FaTelegramPlane className="text-base" />
+                              <span className="sr-only">Support Chat</span>
+                            </button>
+                          </div>
+                        </div>
                         </div>
                       </div>
-                      <div className="divider" />
-                      <div className="flex justify-center mb-4">
-                        <ReCAPTCHA
-                          sitekey={
-                            import.meta.env.VITE_RECAPTCHA_SITE_KEY ||
-                            "6LdEVycsAAAAAJ11zB8ovl-uNIQPPI06t8Rhwow8"
-                          }
-                          onChange={setCaptchaToken}
-                        />
-                      </div>
-                    </>
-                  ) : null}
+                    </div>
+                  </form>
+                </>
+              )}
+            </div>
+          </section>
 
-                  <div className="divider" />
-                  <div className="flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      className="btn"
-                      onClick={goBack}
-                      disabled={currentStep === 0 || isUploading}
-                    >
-                      Zurück
-                    </button>
-
-                    {currentStep === FINAL_STEP ? (
-                      <button
-                        type="submit"
-                        className="btn btn-primary"
-                        disabled={
-                          !watch("agreePrivacy") ||
-                          isUploading ||
-                          majorLoading ||
-                          !majorInfo.collectionName
-                        }
-                      >
-                        {isUploading ? (
-                          "Hochladen..."
-                        ) : (
-                          <>
-                            <FaPaperPlane className="inline-block mr-2" />
-                            Absenden
-                          </>
-                        )}
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        className="btn btn-primary"
-                        onClick={goNext}
-                        disabled={isUploading}
-                      >
-                        Weiter
-                      </button>
-                    )}
-                  </div>
-                </form>
-              </>
-            )}
-          </div>
-        </section>
+          {/* Desktop: Live Preview on the right */}
+          {isSubmitted === false ? (
+            <LivePreview
+              formCv={previewCv}
+              commentMeta={null}
+              showDocuments={false}
+              showComment={false}
+              showCommentDate={false}
+              onPhotoClick={openPhotoModal}
+              enableClickZoom={true}
+              containerClassName="hidden lg:block lg:flex-1 min-w-0 h-full"
+            />
+          ) : null}
+        </div>
       </div>
       <PrivacyModal
         open={isPrivacyOpen}
         onClose={() => setIsPrivacyOpen(false)}
       />
 
-      <div className="fixed bottom-20 right-4 z-40 flex flex-col gap-3">
+      {/* Desktop floating actions (mobile uses footer actions for better alignment) */}
+      <div className="fixed bottom-20 right-4 z-40 hidden lg:flex flex-col gap-3">
         <button
           type="button"
           className="btn btn-primary btn-circle shadow-lg"
@@ -3747,6 +3921,22 @@ function Create() {
       </div>
 
       <GuideModal open={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
+
+      <PdfPreviewModal
+        open={isPdfPreviewOpen}
+        onClose={() => setIsPdfPreviewOpen(false)}
+        form={previewCv}
+        showDocuments={false}
+        showComment={false}
+        showCommentDate={false}
+        onPhotoClick={openPhotoModal}
+      />
+
+      <PhotoModal
+        open={isPhotoModalOpen}
+        src={photoModalSrc}
+        onClose={closePhotoModal}
+      />
 
       <ExistingEmailModal
         open={isEmailModalOpen}

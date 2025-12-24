@@ -36,11 +36,6 @@ function SkillsSection({
           >
             {isGeneratingSoft ? "Wird generiert..." : "+ Fähigkeit hinzufügen"}
           </button>
-          {recentlyAddedSoft?.length ? (
-            <span className="text-xs text-success">
-              Hinzugefügt: {recentlyAddedSoft.join(", ")}
-            </span>
-          ) : null}
         </div>
       </div>
       <div>
@@ -63,11 +58,6 @@ function SkillsSection({
           >
             {isGeneratingPc ? "Wird generiert..." : "+ Fähigkeit hinzufügen"}
           </button>
-          {recentlyAddedPc?.length ? (
-            <span className="text-xs text-success">
-              Hinzugefügt: {recentlyAddedPc.join(", ")}
-            </span>
-          ) : null}
         </div>
       </div>
     </div>

@@ -1,7 +1,9 @@
 export const PreviewInfoRow = ({ label, value }) => (
-  <div className="flex flex-row items-start mb-[6pt]">
+  <div className="flex flex-row items-start mb-[6pt] min-w-0">
     <div className="w-[110pt] font-bold text-[#334155] shrink-0">{label}</div>
-    <div className="flex-1 text-[#0f172a] ml-[4pt]">{value || "—"}</div>
+    <div className="flex-1 min-w-0 text-[#0f172a] ml-[4pt] wrap-break-word">
+      {value || "—"}
+    </div>
   </div>
 );
 
