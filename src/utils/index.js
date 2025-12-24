@@ -819,6 +819,7 @@ export {
   buildCandidateStatsIncrementsWithFactor,
   deleteCandidateWithCurrentStats,
   updateCandidateWithCurrentStats,
+  updateCandidateWithDualStats,
   rebuildGlobalStatsFromExistingData,
   rebuildCurrentStatsFromExistingData,
   rebuildStatsDocsFromExistingData,

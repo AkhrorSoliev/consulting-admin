@@ -38,7 +38,7 @@ import {
   generateSkills,
   sortTimelineItemsDesc,
   updateDocument,
-  updateCandidateWithCurrentStats,
+  updateCandidateWithDualStats,
   updateEmailRemote,
   getMetaByName,
   hasRichTextContent,
@@ -527,6 +527,7 @@ function Generate() {
   }
 
   const isLimitedAdmin = userRole === "limited_admin";
+  const isSuperAdmin = userRole === "super_admin";
   const commentHtml = useMemo(() => getCommentHtml(formCv), [formCv]);
   const hasComment = useMemo(
     () => hasRichTextContent(commentHtml),
@@ -2014,9 +2015,12 @@ function Generate() {
       if (isLimitedAdmin) {
         await updateDocument(col, docId, payload);
       } else {
-        // Update Firestore and adjust LIVE stats (current only) based on delta(old,new)
-        await updateCandidateWithCurrentStats(col, docId, payload, {
-          majorLabel: resolvedMajor?.title || col,
+        // Update Firestore and adjust BOTH stats:
+        // - LIVE (current): reflects current DB (can decrease on delete)
+        // - ALL‑TIME (global): should NOT decrease on delete, but SHOULD reflect edits
+        await updateCandidateWithDualStats(col, docId, payload, {
+          // Keep keys stable with LIVE stats (Home uses collection name keys)
+          majorLabel: col,
         });
       }
 
@@ -2250,6 +2254,19 @@ function Generate() {
     }
     // Cancel comment edits
     setCommentHtml(String(commentBaseline || ""));
+    setIsCommentEditorOpen(false);
+  }
+
+  function handleClearComment() {
+    if (!isSuperAdmin) {
+      toast.error("Sie haben keine Berechtigung, den Kommentar zu löschen.");
+      return;
+    }
+    const ok = window.confirm(
+      "Kommentar wirklich löschen?\n\nEslatma: bu o'zgarishni saqlash (Saqlash) tugmasini bosmaguningizcha Firestore'ga yuborilmaydi."
+    );
+    if (!ok) return;
+    setCommentHtml("");
     setIsCommentEditorOpen(false);
   }
 
@@ -3306,6 +3323,17 @@ function Generate() {
                           >
                             {commentActionLabel}
                           </button>
+                          {isSuperAdmin && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline btn-error"
+                              onClick={handleClearComment}
+                              disabled={isSaving || loading || notFound}
+                              title="Kommentni tozalash (faqat super admin)"
+                            >
+                              Tozalash
+                            </button>
+                          )}
                         </div>
                       </div>
                     </>
