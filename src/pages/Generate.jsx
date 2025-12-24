@@ -262,6 +262,20 @@ function isGermanAddressComplete(parts) {
 function Generate() {
   const { major, id } = useParams();
   const navigate = useNavigate();
+  const DEBUG_GENERATE = useMemo(() => {
+    try {
+      if (import.meta.env.DEV) return true;
+      // Enable debug logs in production via URL: /generate/...?...&debug=1
+      if (typeof window !== "undefined") {
+        const sp = new URLSearchParams(window.location.search);
+        if (sp.get("debug") === "1") return true;
+      }
+      // Optional build-time flag
+      return String(import.meta.env.VITE_DEBUG_GENERATE || "") === "true";
+    } catch {
+      return false;
+    }
+  }, []);
   const DRIVING_LICENSE_OPTIONS = useMemo(
     () => [
       "AM",
@@ -687,6 +701,26 @@ function Generate() {
           setDocCv(null);
         } else {
           const data = snap.data() || null;
+          if (DEBUG_GENERATE) {
+            const debugPayload = {
+              path: { collection: col, id: docId },
+              data,
+              meta: {
+                hasPendingWrites: Boolean(snap?.metadata?.hasPendingWrites),
+                fromCache: Boolean(snap?.metadata?.fromCache),
+              },
+            };
+            // Expose for easy inspection in DevTools
+            try {
+              window.__generateCandidateSnapshot = debugPayload;
+            } catch {
+              // ignore
+            }
+            console.log(
+              "[Generate] Firestore candidate snapshot:",
+              debugPayload
+            );
+          }
           const status = data?.status || {};
           setStatusValue(
             normalizeCandidateStatusValue(
@@ -724,7 +758,12 @@ function Generate() {
   }, [resolvedMajor.collectionName, id, formInitialized]);
 
   function mapDocToForm(data) {
+    // NOTE: Historically we had multiple Firestore schemas.
+    // - New (Create.jsx): `persoenlicheDaten.email`
+    // - Older: `personalInfo.email` (or sometimes root `email`)
+    // We normalize here so Generate always displays email if it exists anywhere.
     const p = data?.persoenlicheDaten || {};
+    const legacyPersonal = data?.personalInfo || data?.personal || {};
     const rawLicense = p?.fuehrerschein;
     const rawLicenseType = p?.fuehrerscheinTyp;
     const licenseTypeFromLegacy =
@@ -825,7 +864,14 @@ function Generate() {
             data?.reisepassNummer ||
             ""
         ),
-        email: String(p.email || ""),
+        email: String(
+          p.email ||
+            legacyPersonal?.email ||
+            data?.email ||
+            data?.emailAddress ||
+            data?.email_address ||
+            ""
+        ).trim(),
         photo: String(p.foto || ""),
       },
       experience: berufe.map((b) => ({
