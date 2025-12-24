@@ -282,6 +282,7 @@ export const CvPdfDocument = ({
   const fullName = [firstName, lastName].filter(Boolean).join(" ") || "—";
   const address = String(personal.address || "").trim() || "—";
   const birthDate = String(personal.birthDate || "").trim() || "—";
+  const birthPlace = String(personal.birthPlace || "").trim() || "—";
   const maritalStatus = String(personal.maritalStatus || "").trim() || "—";
   const noChildren = Boolean(personal.noChildren);
   const childrenCount = String(personal.childrenCount || "").trim();
@@ -340,6 +341,10 @@ export const CvPdfDocument = ({
                 <View style={pdfStyles.row}>
                   <Text style={pdfStyles.label}>Geburtsdatum</Text>
                   <Text style={pdfStyles.value}>{birthDate}</Text>
+                </View>
+                <View style={pdfStyles.row}>
+                  <Text style={pdfStyles.label}>Geburtsort</Text>
+                  <Text style={pdfStyles.value}>{birthPlace}</Text>
                 </View>
                 <View style={pdfStyles.row}>
                   <Text style={pdfStyles.label}>Familienstand</Text>

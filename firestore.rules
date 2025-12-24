@@ -14,12 +14,40 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.role == 'limited_admin';
     }
 
-    // Limited admin can only touch the "commentar" field on existing docs.
+    function hasKey(m, k) {
+      return m.keys().hasAny([k]);
+    }
+
+    // Limited admin can only touch comment fields on existing docs.
+    // (UI stores the actual comment in `commentar` and audit metadata in `commentarMeta`.)
+    function limitedAdminValidCommentMeta() {
+      // In Security Rules, request.resource.data is the full doc after update.
+      // So we validate `commentarMeta` ONLY when it is being written/changed.
+      return !hasKey(request.resource.data, 'commentarMeta') ||
+        (hasKey(resource.data, 'commentarMeta') &&
+         request.resource.data.commentarMeta == resource.data.commentarMeta) ||
+        (
+          request.resource.data.commentarMeta is map &&
+          request.resource.data.commentarMeta.keys().hasOnly([
+            'updatedAt',
+            'updatedByUid',
+            'updatedByName',
+            'updatedByPhoto'
+          ]) &&
+          // Limited admins may only attribute edits to themselves.
+          request.resource.data.commentarMeta.updatedByUid == request.auth.uid &&
+          request.resource.data.commentarMeta.updatedAt is int &&
+          request.resource.data.commentarMeta.updatedByName is string &&
+          request.resource.data.commentarMeta.updatedByPhoto is string
+        );
+    }
+
     function limitedAdminCanUpdate() {
       let diff = request.resource.data.diff(resource.data);
       return diff.removedKeys().size() == 0 &&
-             diff.addedKeys().hasOnly(['commentar']) &&
-             diff.changedKeys().hasOnly(['commentar']);
+             diff.addedKeys().hasOnly(['commentar', 'commentarMeta']) &&
+             diff.changedKeys().hasOnly(['commentar', 'commentarMeta']) &&
+             limitedAdminValidCommentMeta();
     }
     match /{document=**} {
       allow read: if isSuperAdmin() || isAdmin() || isLimitedAdmin();

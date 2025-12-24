@@ -68,3 +68,5 @@ select {
   margin-left: 0;
   color: oklch(var(--bc) / 0.8);
 }
+
+/* LivePreview zoom range uses daisyUI: https://daisyui.com/components/range/ */
