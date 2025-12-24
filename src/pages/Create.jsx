@@ -668,19 +668,10 @@ function Create() {
   ).trim();
   // Use a single key (not per-major) as requested.
   const draftKey = "createCvDraft";
-  const DRAFT_EXCLUDE_PERSONAL_FIELDS = useMemo(
-    () => new Set(["email", "passportNumber"]),
-    []
-  );
 
   function sanitizeDraftFormSnapshot(formSnapshot) {
     if (!formSnapshot || typeof formSnapshot !== "object") return null;
     const snap = structuredClone(formSnapshot);
-    if (snap?.personalInfo && typeof snap.personalInfo === "object") {
-      for (const k of DRAFT_EXCLUDE_PERSONAL_FIELDS) {
-        if (k in snap.personalInfo) delete snap.personalInfo[k];
-      }
-    }
     // Also exclude agreement/captcha by design (we don't rely on draft for those)
     if ("agreePrivacy" in snap) delete snap.agreePrivacy;
     return snap;
@@ -689,11 +680,6 @@ function Create() {
   function sanitizeDraftCvSnapshot(cvSnapshot) {
     if (!cvSnapshot || typeof cvSnapshot !== "object") return initialCv;
     const snap = structuredClone(cvSnapshot);
-    if (snap?.personalInfo && typeof snap.personalInfo === "object") {
-      for (const k of DRAFT_EXCLUDE_PERSONAL_FIELDS) {
-        if (k in snap.personalInfo) delete snap.personalInfo[k];
-      }
-    }
     return snap;
   }
 
@@ -742,7 +728,7 @@ function Create() {
       const sanitizedForm = sanitizeDraftFormSnapshot(formSnapshot);
       const sanitizedCv = sanitizeDraftCvSnapshot(cv);
       const payload = {
-        v: 2,
+        v: 3,
         updatedAt: Date.now(),
         major: majorCollectionForDraft,
         form: sanitizedForm,
@@ -826,6 +812,8 @@ function Create() {
           "hasDrivingLicense",
           "drivingLicenseType",
           "phone",
+          "email",
+          "passportNumber",
           "photo",
         ];
         fields.forEach((k) => {
