@@ -653,6 +653,73 @@ function deltaToIncrements(delta) {
   return inc;
 }
 
+function mergeCandidatePayloadForStats(oldPayload, patch) {
+  const oldP = oldPayload && typeof oldPayload === "object" ? oldPayload : {};
+  const next = patch && typeof patch === "object" ? patch : {};
+  // Shallow merge at the top-level, plus shallow merges for known nested maps.
+  // This makes delta updates safe even if caller sends a partial patch.
+  return {
+    ...oldP,
+    ...next,
+    persoenlicheDaten: {
+      ...(oldP?.persoenlicheDaten && typeof oldP.persoenlicheDaten === "object"
+        ? oldP.persoenlicheDaten
+        : {}),
+      ...(next?.persoenlicheDaten && typeof next.persoenlicheDaten === "object"
+        ? next.persoenlicheDaten
+        : {}),
+    },
+    faehigkeiten: {
+      ...(oldP?.faehigkeiten && typeof oldP.faehigkeiten === "object"
+        ? oldP.faehigkeiten
+        : {}),
+      ...(next?.faehigkeiten && typeof next.faehigkeiten === "object"
+        ? next.faehigkeiten
+        : {}),
+    },
+    attachments: {
+      ...(oldP?.attachments && typeof oldP.attachments === "object"
+        ? oldP.attachments
+        : {}),
+      ...(next?.attachments && typeof next.attachments === "object"
+        ? next.attachments
+        : {}),
+    },
+    documents: {
+      ...(oldP?.documents && typeof oldP.documents === "object"
+        ? oldP.documents
+        : {}),
+      ...(next?.documents && typeof next.documents === "object"
+        ? next.documents
+        : {}),
+    },
+    tracking: {
+      ...(oldP?.tracking && typeof oldP.tracking === "object" ? oldP.tracking : {}),
+      ...(next?.tracking && typeof next.tracking === "object" ? next.tracking : {}),
+    },
+    meta: {
+      ...(oldP?.meta && typeof oldP.meta === "object" ? oldP.meta : {}),
+      ...(next?.meta && typeof next.meta === "object" ? next.meta : {}),
+    },
+    source: {
+      ...(oldP?.source && typeof oldP.source === "object" ? oldP.source : {}),
+      ...(next?.source && typeof next.source === "object" ? next.source : {}),
+    },
+    dokumente: {
+      ...(oldP?.dokumente && typeof oldP.dokumente === "object"
+        ? oldP.dokumente
+        : {}),
+      ...(next?.dokumente && typeof next.dokumente === "object"
+        ? next.dokumente
+        : {}),
+    },
+    status: {
+      ...(oldP?.status && typeof oldP.status === "object" ? oldP.status : {}),
+      ...(next?.status && typeof next.status === "object" ? next.status : {}),
+    },
+  };
+}
+
 export async function updateCandidateWithCurrentStats(
   major,
   docId,
@@ -693,7 +760,8 @@ export async function updateCandidateWithCurrentStats(
       oldPayload,
       options
     );
-    const newNums = buildCandidateStatsNumbers(safeMajor, payload, options);
+    const mergedForStats = mergeCandidatePayloadForStats(oldPayload, payload);
+    const newNums = buildCandidateStatsNumbers(safeMajor, mergedForStats, options);
     const delta = diffCounters(oldNums, newNums);
     const inc = deltaToIncrements(delta);
     inc["meta.updatedAt"] = Date.now();
@@ -706,6 +774,78 @@ export async function updateCandidateWithCurrentStats(
         { meta: { countersVersion: 1, updatedAt: Date.now() } },
         { merge: true }
       );
+      tx.update(currentRef, inc);
+    }
+  });
+}
+
+// Update candidate doc AND adjust BOTH LIVE(current) and ALL‑TIME(global) stats based on delta(old,new).
+// Important semantics:
+// - candidate TOTAL does not change on edits (delta = 0)
+// - ALL‑TIME must NOT be decremented on delete (delete uses deleteCandidateWithCurrentStats)
+export async function updateCandidateWithDualStats(
+  major,
+  docId,
+  payload,
+  options = {}
+) {
+  const safeMajor = String(major || "").trim();
+  const safeId = String(docId || "").trim();
+  if (!safeMajor || !safeId)
+    throw new Error("updateCandidateWithDualStats: invalid args");
+
+  const candidateRef = doc(db, safeMajor, safeId);
+  const allTimeRef = statsDocRef(GLOBAL_STATS_DOC_ID);
+  const currentRef = statsDocRef(CURRENT_STATS_DOC_ID);
+
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(candidateRef);
+    const oldPayload = snap.exists() ? snap.data() : null;
+    if (!oldPayload) {
+      // If doc doesn't exist, treat as create and increment both stats docs.
+      tx.set(candidateRef, payload, { merge: true });
+      const incCreate = buildCandidateStatsIncrementsWithFactor(
+        safeMajor,
+        payload,
+        1,
+        options
+      );
+      tx.set(
+        allTimeRef,
+        { meta: { countersVersion: 1, updatedAt: Date.now() } },
+        { merge: true }
+      );
+      tx.set(
+        currentRef,
+        { meta: { countersVersion: 1, updatedAt: Date.now() } },
+        { merge: true }
+      );
+      tx.update(allTimeRef, incCreate);
+      tx.update(currentRef, incCreate);
+      return;
+    }
+
+    const oldNums = buildCandidateStatsNumbers(safeMajor, oldPayload, options);
+    const mergedForStats = mergeCandidatePayloadForStats(oldPayload, payload);
+    const newNums = buildCandidateStatsNumbers(safeMajor, mergedForStats, options);
+    const delta = diffCounters(oldNums, newNums);
+    const inc = deltaToIncrements(delta);
+    inc["meta.updatedAt"] = Date.now();
+    inc["meta.countersVersion"] = 1;
+
+    tx.set(candidateRef, payload, { merge: true });
+    if (Object.keys(inc).length > 0) {
+      tx.set(
+        allTimeRef,
+        { meta: { countersVersion: 1, updatedAt: Date.now() } },
+        { merge: true }
+      );
+      tx.set(
+        currentRef,
+        { meta: { countersVersion: 1, updatedAt: Date.now() } },
+        { merge: true }
+      );
+      tx.update(allTimeRef, inc);
       tx.update(currentRef, inc);
     }
   });
@@ -761,7 +901,7 @@ function computeStatsSnapshotFromExistingData() {
 
 export async function rebuildStatsDocsFromExistingData(
   docIds,
-  { toastProgress = true } = {}
+  { toastProgress = true, overwriteGlobal = false } = {}
 ) {
   const list = Array.isArray(docIds) ? docIds.filter(Boolean) : [];
   if (list.length === 0)
@@ -929,9 +1069,20 @@ export async function rebuildStatsDocsFromExistingData(
       });
     }
 
-    // Write computed snapshot to all requested docs
+    // Write computed snapshot to all requested docs.
+    // IMPORTANT: `stats/global` is ALL‑TIME and must not decrease when candidates are deleted.
+    // Therefore by default we DO NOT overwrite global with the current snapshot.
+    // Instead we only "ensure at least" (monotonic) unless caller explicitly opts in.
     await Promise.all(
-      list.map((id) => setDoc(statsDocRef(id), stats, { merge: false }))
+      list.map(async (id) => {
+        const safeId = String(id || "").trim();
+        if (!safeId) return;
+        if (safeId === GLOBAL_STATS_DOC_ID && !overwriteGlobal) {
+          await ensureStatsDocAtLeast(GLOBAL_STATS_DOC_ID, stats);
+          return;
+        }
+        await setDoc(statsDocRef(safeId), stats, { merge: false });
+      })
     );
     if (toastProgress) toast.success("Statistik erfolgreich gespeichert.");
     return stats;
@@ -943,6 +1094,7 @@ export async function rebuildStatsDocsFromExistingData(
 }
 
 export async function rebuildGlobalStatsFromExistingData(opts) {
+  // Default behavior for ALL‑TIME: do NOT overwrite with snapshot (prevents decreases on delete).
   return rebuildStatsDocsFromExistingData([GLOBAL_STATS_DOC_ID], opts);
 }
 
