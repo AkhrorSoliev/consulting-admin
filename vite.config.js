@@ -11,4 +11,16 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  server: {
+    proxy: {
+      // Dev-only helper to bypass CORS for pdf.js when the remote host doesn't send ACAO headers.
+      // Usage from the app: `/__pdf_proxy/<remote-path>` (same-origin).
+      "/__pdf_proxy": {
+        target: "https://json-api.uz",
+        changeOrigin: true,
+        secure: true,
+        rewrite: (p) => p.replace(/^\/__pdf_proxy/, ""),
+      },
+    },
+  },
 });

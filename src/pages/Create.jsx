@@ -40,6 +40,7 @@ import {
   generateSkills,
   sortTimelineItemsDesc,
   uploadFilesToConsulting,
+  deleteConsultingUploadUrlsBestEffort,
   checkEmailFirestore,
   checkPassportFirestore,
   getMetaByName,
@@ -61,6 +62,15 @@ import PhotoModal from "./generate/components/modals/PhotoModal";
 
 function RequiredField({ children, className = "" }) {
   return <div className={className}>{children}</div>;
+}
+
+function isFirestorePermissionDenied(err) {
+  const code = String(err?.code || "").toLowerCase();
+  const msg = String(err?.message || "").toLowerCase();
+  return (
+    code.includes("permission-denied") ||
+    msg.includes("missing or insufficient permissions")
+  );
 }
 
 function Create() {
@@ -589,6 +599,8 @@ function Create() {
   // We debounce to avoid spamming Firestore while the user is still typing.
   const lastCheckedEmailRef = useRef("");
   const lastCheckedPassportRef = useRef("");
+  const emailRegistryCheckUnavailableRef = useRef(false);
+  const passportRegistryCheckUnavailableRef = useRef(false);
   const REMOTE_UNIQUENESS_DEBOUNCE_MS = 600;
 
   useEffect(() => {
@@ -601,6 +613,7 @@ function Create() {
     const email = String(watchEmail || "").trim().toLowerCase();
     if (!email || !isEmailValid(email)) return;
     if (lastCheckedEmailRef.current === email) return;
+    if (emailRegistryCheckUnavailableRef.current) return;
 
     let cancelled = false;
     const t = window.setTimeout(async () => {
@@ -623,7 +636,13 @@ function Create() {
         }
       } catch (e) {
         // Best-effort: don't block typing if remote check fails.
-        console.error("Email live remote check failed:", e);
+        // Public create links may not have Firestore read permissions; in that case, silence and disable further checks.
+        if (isFirestorePermissionDenied(e)) {
+          emailRegistryCheckUnavailableRef.current = true;
+          lastCheckedEmailRef.current = email;
+        } else {
+          console.error("Email live remote check failed:", e);
+        }
       } finally {
         if (!cancelled) setIsEmailChecking(false);
       }
@@ -659,6 +678,7 @@ function Create() {
     );
     if (!passportNumber || !isPassportNumberValid(passportNumber)) return;
     if (lastCheckedPassportRef.current === passportNumber) return;
+    if (passportRegistryCheckUnavailableRef.current) return;
 
     let cancelled = false;
     const t = window.setTimeout(async () => {
@@ -679,7 +699,12 @@ function Create() {
           setIsPassportModalOpen(true);
         }
       } catch (e) {
-        console.error("Passport live remote check failed:", e);
+        if (isFirestorePermissionDenied(e)) {
+          passportRegistryCheckUnavailableRef.current = true;
+          lastCheckedPassportRef.current = passportNumber;
+        } else {
+          console.error("Passport live remote check failed:", e);
+        }
       } finally {
         if (!cancelled) setIsPassportChecking(false);
       }
@@ -1130,7 +1155,11 @@ function Create() {
         String(watch("personalInfo.passportNumber") || "")
       );
 
-      if (email && isEmailValid(email)) {
+      if (
+        email &&
+        isEmailValid(email) &&
+        !emailRegistryCheckUnavailableRef.current
+      ) {
         setIsEmailChecking(true);
         try {
           const { exists, data } = await checkEmailFirestore(email);
@@ -1142,13 +1171,21 @@ function Create() {
           }
         } catch (e) {
           // Best-effort: don't block if remote check fails.
-          console.error("Email remote check failed:", e);
+          if (isFirestorePermissionDenied(e)) {
+            emailRegistryCheckUnavailableRef.current = true;
+          } else {
+            console.error("Email remote check failed:", e);
+          }
         } finally {
           setIsEmailChecking(false);
         }
       }
 
-      if (passportNumber && isPassportNumberValid(passportNumber)) {
+      if (
+        passportNumber &&
+        isPassportNumberValid(passportNumber) &&
+        !passportRegistryCheckUnavailableRef.current
+      ) {
         setIsPassportChecking(true);
         try {
           const { exists, data } = await checkPassportFirestore(passportNumber);
@@ -1160,7 +1197,11 @@ function Create() {
           }
         } catch (e) {
           // Best-effort: don't block if remote check fails.
-          console.error("Passport remote check failed:", e);
+          if (isFirestorePermissionDenied(e)) {
+            passportRegistryCheckUnavailableRef.current = true;
+          } else {
+            console.error("Passport remote check failed:", e);
+          }
         } finally {
           setIsPassportChecking(false);
         }
@@ -1790,24 +1831,32 @@ function Create() {
       const passportNumber = normalizePassportNumber(
         formData?.personalInfo?.passportNumber || ""
       );
+      // Optional pre-checks (best-effort). If Firestore denies reads (public create link),
+      // we still allow submit and rely on server-side 409 handling.
       try {
-        const { exists, data } = await checkEmailFirestore(email);
-        if (exists) {
-          setExistingMajor(data?.major || "Unbekannt");
-          setEnteredEmail(email);
-          setIsEmailModalOpen(true);
-          return;
+        if (!emailRegistryCheckUnavailableRef.current) {
+          const { exists, data } = await checkEmailFirestore(email);
+          if (exists) {
+            setExistingMajor(data?.major || "Unbekannt");
+            setEnteredEmail(email);
+            setIsEmailModalOpen(true);
+            return;
+          }
         }
       } catch (error) {
-        console.error(error);
-        toast.error(
-          "Fehler bei der Überprüfung der E-Mail-Adresse. Bitte versuchen Sie es erneut."
-        );
-        return;
+        if (isFirestorePermissionDenied(error)) {
+          emailRegistryCheckUnavailableRef.current = true;
+        } else {
+          console.error("Email pre-check failed:", error);
+        }
       }
 
       try {
-        if (passportNumber && isPassportNumberValid(passportNumber)) {
+        if (
+          passportNumber &&
+          isPassportNumberValid(passportNumber) &&
+          !passportRegistryCheckUnavailableRef.current
+        ) {
           const { exists, data } = await checkPassportFirestore(passportNumber);
           if (exists) {
             setExistingPassportMajor(data?.major || "Unbekannt");
@@ -1817,16 +1866,26 @@ function Create() {
           }
         }
       } catch (error) {
-        console.error(error);
-        toast.error(
-          "Fehler bei der Überprüfung der Passnummer. Bitte versuchen Sie es erneut."
-        );
-        return;
+        if (isFirestorePermissionDenied(error)) {
+          passportRegistryCheckUnavailableRef.current = true;
+        } else {
+          console.error("Passport pre-check failed:", error);
+        }
       }
 
+      // Upload files first and attach URLs (language certificates optional)
+      // We keep URLs in outer scope so we can clean up on any error/duplicate response.
+      let diplomaUrls = [];
+      let langUrls = [];
+      let passportUrls = [];
+      const uploadedUrlList = () => [
+        ...(diplomaUrls || []),
+        ...(langUrls || []),
+        ...(passportUrls || []),
+      ];
+
       try {
-        // Upload files first and attach URLs (language certificates optional)
-        const [diplomaUrls, langUrls, passportUrls] = await Promise.all([
+        [diplomaUrls, langUrls, passportUrls] = await Promise.all([
           uploadFilesToConsulting(diplomaFiles),
           uploadFilesToConsulting(langCertFiles.map((item) => item?.file)),
           uploadFilesToConsulting(passportFiles),
@@ -1887,6 +1946,12 @@ function Create() {
         if (!res.ok || !json?.ok) {
           // Handle server-side duplicate enforcement (more reliable than client checks).
           if (res.status === 409 && json?.error === "email-exists") {
+            // Clean up uploaded files (best-effort) to avoid orphaned uploads.
+            try {
+              await deleteConsultingUploadUrlsBestEffort(uploadedUrlList());
+            } catch {
+              // ignore cleanup failures
+            }
             setExistingMajor(String(json?.existing?.major || "Unbekannt"));
             setEnteredEmail(
               String(json?.existing?.email || email || "").trim().toLowerCase()
@@ -1895,6 +1960,11 @@ function Create() {
             return;
           }
           if (res.status === 409 && json?.error === "passport-exists") {
+            try {
+              await deleteConsultingUploadUrlsBestEffort(uploadedUrlList());
+            } catch {
+              // ignore cleanup failures
+            }
             setExistingPassportMajor(String(json?.existing?.major || "Unbekannt"));
             setEnteredPassport(
               normalizePassportNumber(
@@ -1924,6 +1994,12 @@ function Create() {
         }
         setIsSubmitted(true);
       } catch (error) {
+        // If we already uploaded files, attempt cleanup (best-effort).
+        try {
+          await deleteConsultingUploadUrlsBestEffort(uploadedUrlList());
+        } catch {
+          // ignore cleanup failures
+        }
         console.error("Fehler beim Senden an Firestore:", error);
         toast.error(`Fehler beim Senden: ${error.message}`);
       }

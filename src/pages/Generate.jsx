@@ -7,7 +7,13 @@ import {
   useNavigate,
   useParams,
 } from "react-router-dom";
-import { deleteDoc, doc, getDoc, increment, onSnapshot } from "firebase/firestore";
+import {
+  deleteDoc,
+  doc,
+  getDoc,
+  increment,
+  onSnapshot,
+} from "firebase/firestore";
 import { db } from "../firebase/config";
 import {
   FaDownload,
@@ -17,6 +23,8 @@ import {
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import { pdf } from "@react-pdf/renderer";
+import * as pdfjsLib from "pdfjs-dist";
+import pdfjsWorkerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import CvPdfDocument from "./generate/pdf/CvPdfDocument";
 import FormInput from "../components/FormInput";
 import PhoneInputWithCountry from "../components/PhoneInputWithCountry";
@@ -45,6 +53,7 @@ import {
   saveArchivedUserSnapshotFirestore,
   saveDeletedUserSnapshotFirestore,
   imageFileToBase64,
+  uploadFileToConsulting,
   toInputDate,
   fromInputDate,
   generateSkills,
@@ -81,6 +90,8 @@ import SelectMajorModal from "../components/SelectMajorModal";
 import { restoreRemoteRecordToFirebase } from "./candidates/remoteUserUtils";
 import { UZBEK_REGIONS } from "../constants/uzbekRegions";
 import { LANGUAGE_OPTIONS } from "../constants/languageOptions";
+import { DOCUMENT_TEMPLATES } from "../constants/documentTemplates";
+import BeratungsvertragPdfDocument from "./contract/pdf/BeratungsvertragPdfDocument";
 import {
   makeEmailTemplateId,
   subscribeToEmailTemplates,
@@ -110,6 +121,287 @@ function safeClone(value) {
     // ignore and fallback to JSON clone
   }
   return JSON.parse(JSON.stringify(value ?? null));
+}
+
+function todayDdMmYyyy() {
+  try {
+    const d = new Date();
+    const dd = String(d.getDate()).padStart(2, "0");
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const yyyy = String(d.getFullYear());
+    return `${dd}.${mm}.${yyyy}`;
+  } catch {
+    return "";
+  }
+}
+
+async function blobToDataUrl(blob) {
+  return await new Promise((resolve, reject) => {
+    try {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
+function normalizeMaybeUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return raw;
+}
+
+function getFunctionsBaseCandidates() {
+  const out = [];
+  const explicit = String(import.meta?.env?.VITE_FUNCTIONS_BASE || "").trim();
+  if (explicit) out.push(explicit);
+
+  // Fallback: derive Functions base from Firebase project id (works in many setups)
+  // Note: HTTP Functions default region is typically `us-central1` unless configured otherwise.
+  const projectId = String(
+    import.meta?.env?.VITE_FIREBASE_PROJECT_ID || ""
+  ).trim();
+  if (projectId) {
+    out.push(`https://us-central1-${projectId}.cloudfunctions.net`);
+    // Some projects deploy in the same region as Firestore (your firebase.json uses europe-west3).
+    out.push(`https://europe-west3-${projectId}.cloudfunctions.net`);
+  }
+
+  const normalized = out
+    .map((b) =>
+      String(b || "")
+        .trim()
+        .replace(/\/+$/, "")
+    )
+    .filter(Boolean);
+  return Array.from(new Set(normalized));
+}
+
+function buildProxyAssetUrlCandidates(rawUrl) {
+  const raw = normalizeMaybeUrl(rawUrl);
+  if (!raw) return [];
+
+  // We only proxy json-api.uz URLs (the backend allowlist enforces this too).
+  let u;
+  try {
+    u = new URL(raw);
+  } catch {
+    return [];
+  }
+  const host = String(u.hostname || "").toLowerCase();
+  const isJsonApi = host === "json-api.uz";
+  if (!isJsonApi) return [];
+
+  // Local dev fallback: Vite proxy (same-origin).
+  try {
+    let isLocalhost = false;
+    try {
+      const lh = String(window?.location?.hostname || "").toLowerCase();
+      isLocalhost =
+        lh === "localhost" ||
+        lh === "127.0.0.1" ||
+        lh === "::1" ||
+        /^192\.168\.\d+\.\d+$/.test(lh);
+    } catch {
+      // ignore
+    }
+    const isDev = Boolean(import.meta?.env?.DEV) || isLocalhost;
+    if (isDev) {
+      return [`/__pdf_proxy${u.pathname}${u.search || ""}`];
+    }
+  } catch {
+    // ignore
+  }
+
+  // Production: Firebase Functions proxy (CORS bypass)
+  const bases = getFunctionsBaseCandidates();
+  return bases.map(
+    (base) => `${String(base)}/proxyPdf?url=${encodeURIComponent(raw)}`
+  );
+}
+
+function buildProxyAssetUrl(rawUrl) {
+  const candidates = buildProxyAssetUrlCandidates(rawUrl);
+  return candidates[0] || normalizeMaybeUrl(rawUrl);
+}
+
+function sniffFileKindFromArrayBuffer(ab) {
+  try {
+    const u8 = new Uint8Array(ab instanceof ArrayBuffer ? ab : []);
+    if (u8.length >= 5) {
+      // %PDF-
+      if (
+        u8[0] === 0x25 &&
+        u8[1] === 0x50 &&
+        u8[2] === 0x44 &&
+        u8[3] === 0x46 &&
+        u8[4] === 0x2d
+      )
+        return "pdf";
+    }
+    if (u8.length >= 3) {
+      // JPEG: FF D8 FF
+      if (u8[0] === 0xff && u8[1] === 0xd8 && u8[2] === 0xff) return "jpeg";
+    }
+    if (u8.length >= 8) {
+      // PNG: 89 50 4E 47 0D 0A 1A 0A
+      if (
+        u8[0] === 0x89 &&
+        u8[1] === 0x50 &&
+        u8[2] === 0x4e &&
+        u8[3] === 0x47 &&
+        u8[4] === 0x0d &&
+        u8[5] === 0x0a &&
+        u8[6] === 0x1a &&
+        u8[7] === 0x0a
+      )
+        return "png";
+    }
+    if (u8.length >= 12) {
+      // WEBP: RIFF....WEBP
+      const riff =
+        u8[0] === 0x52 && u8[1] === 0x49 && u8[2] === 0x46 && u8[3] === 0x46;
+      const webp =
+        u8[8] === 0x57 && u8[9] === 0x45 && u8[10] === 0x42 && u8[11] === 0x50;
+      if (riff && webp) return "webp";
+    }
+  } catch {
+    // ignore
+  }
+  return "unknown";
+}
+
+async function blobToJpegDataUrlBestEffort(blob, { quality = 0.92 } = {}) {
+  try {
+    const b = blob instanceof Blob ? blob : null;
+    if (!b) return "";
+    const objUrl = URL.createObjectURL(b);
+    try {
+      const img = await new Promise((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = reject;
+        el.src = objUrl;
+      });
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth || img.width || 0;
+      canvas.height = img.naturalHeight || img.height || 0;
+      if (!canvas.width || !canvas.height) return "";
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return "";
+      ctx.imageSmoothingEnabled = true;
+      try {
+        ctx.imageSmoothingQuality = "high";
+      } catch {
+        // ignore
+      }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL("image/jpeg", quality);
+    } finally {
+      URL.revokeObjectURL(objUrl);
+    }
+  } catch {
+    return "";
+  }
+}
+
+async function pdfArrayBufferFirstPageToJpegDataUrlBestEffort(
+  arrayBuffer,
+  { scale = 2, quality = 0.92 } = {}
+) {
+  try {
+    // pdfjs needs a worker; set it once (best-effort)
+    try {
+      // eslint-disable-next-line no-param-reassign
+      pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerSrc;
+    } catch {
+      // ignore
+    }
+
+    const ab = arrayBuffer instanceof ArrayBuffer ? arrayBuffer : null;
+    if (!ab) return "";
+    // pdfjs is most reliable with Uint8Array input
+    const doc = await pdfjsLib.getDocument({ data: new Uint8Array(ab) })
+      .promise;
+    const page = await doc.getPage(1);
+    const viewport = page.getViewport({ scale });
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return "";
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    return canvas.toDataURL("image/jpeg", quality);
+  } catch {
+    return "";
+  }
+}
+
+async function fetchUrlAsImageDataUrlBestEffort(url) {
+  const safeUrl = String(url || "").trim();
+  if (!safeUrl) return "";
+  try {
+    const proxyCandidates = buildProxyAssetUrlCandidates(safeUrl);
+    const rawAttempt = normalizeMaybeUrl(safeUrl);
+    // IMPORTANT:
+    // In production, json-api.uz links can work directly (CORS enabled for admin origin).
+    // The Contract template page works even without Functions base by using the raw URL.
+    // So we always try the raw URL first, then fall back to proxies.
+    const tryUrls = Array.from(
+      new Set([rawAttempt, ...(proxyCandidates || [])].filter(Boolean))
+    );
+
+    let res = null;
+    for (const attemptUrl of tryUrls) {
+      try {
+        const r = await fetch(String(attemptUrl || ""), { method: "GET" });
+        if (r && r.ok) {
+          res = r;
+          break;
+        }
+      } catch {
+        // ignore and try next
+      }
+    }
+    if (!res) return "";
+
+    const ct = String(res.headers.get("content-type") || "").toLowerCase();
+    const ab = await res.arrayBuffer();
+    const sniffed = sniffFileKindFromArrayBuffer(ab);
+    const looksPdf =
+      sniffed === "pdf" ||
+      ct.includes("application/pdf") ||
+      safeUrl.toLowerCase().includes(".pdf");
+
+    if (looksPdf) {
+      const jpg = await pdfArrayBufferFirstPageToJpegDataUrlBestEffort(ab);
+      return jpg || "";
+    }
+
+    const mimeFromSniff =
+      sniffed === "jpeg"
+        ? "image/jpeg"
+        : sniffed === "png"
+        ? "image/png"
+        : sniffed === "webp"
+        ? "image/webp"
+        : "";
+    const blob = new Blob([ab], {
+      type:
+        mimeFromSniff ||
+        (ct.startsWith("image/") ? ct : "application/octet-stream"),
+    });
+
+    const jpeg = await blobToJpegDataUrlBestEffort(blob);
+    if (jpeg) return jpeg;
+    return "";
+  } catch {
+    return "";
+  }
 }
 
 function toDateTimeLocalString(value) {
@@ -282,7 +574,9 @@ function Generate() {
     [location?.search]
   );
   const remoteMode = sp.get("remote") === "1";
-  const remoteKind = String(sp.get("kind") || "").trim().toLowerCase();
+  const remoteKind = String(sp.get("kind") || "")
+    .trim()
+    .toLowerCase();
   const remoteRid = String(sp.get("rid") || "").trim();
   const deletedDocId = String(sp.get("deletedDocId") || "").trim();
   const archivedDocId = String(sp.get("archivedDocId") || "").trim();
@@ -566,6 +860,206 @@ function Generate() {
 
   const isLimitedAdmin = userRole === "limited_admin";
   const isSuperAdmin = userRole === "super_admin";
+
+  // ---- Outgoing documents (templates sent to the candidate) ----
+  const candidateCollection = String(
+    resolvedMajor?.collectionName || ""
+  ).trim();
+  const candidateDocId = String(id || "").trim();
+  const [outgoingDocs, setOutgoingDocs] = useState(() => ({}));
+  const [outgoingBusyById, setOutgoingBusyById] = useState(() => ({}));
+
+  useEffect(() => {
+    const raw = docCv?.outgoingDocuments;
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+      setOutgoingDocs(raw);
+    } else {
+      setOutgoingDocs({});
+    }
+  }, [docCv]);
+
+  function getOutgoingDocState(templateId) {
+    const key = String(templateId || "").trim();
+    const raw = outgoingDocs?.[key];
+    return raw && typeof raw === "object" ? raw : {};
+  }
+
+  async function persistOutgoingDocs(nextMap) {
+    if (remoteMode) return false;
+    if (!candidateCollection || !candidateDocId) return false;
+    try {
+      await updateDocument(candidateCollection, candidateDocId, {
+        outgoingDocuments: nextMap || {},
+        outgoingDocumentsUpdatedAt: Date.now(),
+      });
+      setOutgoingDocs(nextMap || {});
+      return true;
+    } catch (e) {
+      console.error("persistOutgoingDocs failed:", e);
+      toast.error("Hujjatlar bo‘limini saqlashda xatolik.");
+      return false;
+    }
+  }
+
+  async function generateAndUploadBeratungsvertrag() {
+    // Load template defaults from Firestore (same source as Contract template page)
+    const templateDoc = await getDocumentDataById(
+      "template_documents",
+      "beratungsvertrag"
+    );
+    const savedForm =
+      templateDoc &&
+      typeof templateDoc === "object" &&
+      templateDoc.form &&
+      typeof templateDoc.form === "object"
+        ? templateDoc.form
+        : null;
+
+    const firstName = String(formCv?.personalInfo?.name || "").trim();
+    const lastName = String(formCv?.personalInfo?.lastName || "").trim();
+    const city =
+      String(addressFields?.city || "").trim() ||
+      String(
+        parseGermanAddress(formCv?.personalInfo?.address || "")?.city || ""
+      ).trim();
+
+    const baseForm = {
+      firstName: "",
+      lastName: "",
+      contractDate: todayDdMmYyyy(),
+      candidateCity: "",
+      pdfGeneratedDate: todayDdMmYyyy(),
+      feeTotalEur: "1200",
+      feeAdvanceEur: "250",
+      signatureCity: "",
+      pdfUrl: "",
+    };
+
+    const merged = {
+      ...baseForm,
+      ...(savedForm ? savedForm : {}),
+      firstName,
+      lastName,
+      candidateCity: city,
+      signatureCity: city,
+      pdfGeneratedDate: todayDdMmYyyy(),
+    };
+
+    const passportUrls = Array.isArray(formCv?.documents?.passport)
+      ? formCv.documents.passport
+          .map((u) => String(u || "").trim())
+          .filter(Boolean)
+      : [];
+    let passportSrc = "";
+    let usedPassportUrl = "";
+    // Try all candidate passport URLs until we can successfully embed one.
+    for (const u of passportUrls) {
+      // eslint-disable-next-line no-await-in-loop
+      const extracted = await fetchUrlAsImageDataUrlBestEffort(u);
+      if (extracted) {
+        passportSrc = extracted;
+        usedPassportUrl = u;
+        break;
+      }
+      // Fallback: if it's a direct image URL and extraction failed, let react-pdf fetch the image itself.
+      const looksImage = /\.(png|jpe?g|webp)$/i.test(u);
+      if (looksImage) {
+        passportSrc = buildProxyAssetUrl(u) || u;
+        usedPassportUrl = u;
+        break;
+      }
+    }
+    if (!passportSrc && passportUrls.length) {
+      console.warn(
+        "[Beratungsvertrag] Passport could not be embedded. Tried URLs:",
+        passportUrls
+      );
+    }
+
+    const fileBase =
+      firstName || lastName
+        ? `Beratungsvertrag ${[firstName, lastName].filter(Boolean).join(" ")}`
+        : "Beratungsvertrag";
+    const safeFileName =
+      fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Beratungsvertrag";
+
+    const blob = await pdf(
+      <BeratungsvertragPdfDocument
+        form={merged}
+        passportImageDataUrl={passportSrc || null}
+      />
+    ).toBlob();
+
+    const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
+      type: "application/pdf",
+    });
+    const url = await uploadFileToConsulting(file);
+    return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
+  }
+
+  async function handleToggleOutgoingDoc(template, nextEnabled, options = {}) {
+    const tpl = template || {};
+    const templateId = String(tpl.id || "").trim();
+    if (!templateId) return;
+    if (remoteMode) return;
+    if (outgoingBusyById?.[templateId]) return;
+    const forceRegenerate = Boolean(options?.forceRegenerate);
+
+    const prev = getOutgoingDocState(templateId);
+    const nextMap = { ...(outgoingDocs || {}) };
+
+    // If turning OFF: just mark disabled (do not delete previously uploaded file).
+    if (!nextEnabled) {
+      nextMap[templateId] = {
+        ...prev,
+        enabled: false,
+        updatedAt: Date.now(),
+      };
+      await persistOutgoingDocs(nextMap);
+      return;
+    }
+
+    // Turning ON:
+    // If we already have an uploaded URL, enable without re-uploading (unless forced).
+    const existingUrl = String(prev?.url || "").trim();
+    if (existingUrl && !forceRegenerate) {
+      nextMap[templateId] = {
+        ...prev,
+        enabled: true,
+        updatedAt: Date.now(),
+      };
+      await persistOutgoingDocs(nextMap);
+      return;
+    }
+
+    try {
+      setOutgoingBusyById((p) => ({ ...(p || {}), [templateId]: true }));
+
+      let generated = null;
+      if (templateId === "beratungsvertrag") {
+        generated = await generateAndUploadBeratungsvertrag();
+      } else {
+        throw new Error(`Unknown document template: ${templateId}`);
+      }
+
+      nextMap[templateId] = {
+        ...prev,
+        enabled: true,
+        url: String(generated?.url || "").trim(),
+        fileName: String(generated?.fileName || "").trim() || null,
+        uploadedAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      await persistOutgoingDocs(nextMap);
+      toast.success("PDF tayyor bo‘ldi va upload qilindi.");
+    } catch (e) {
+      console.error("Outgoing doc generate/upload failed:", e);
+      toast.error("PDF yaratish yoki upload qilishda xatolik.");
+    } finally {
+      setOutgoingBusyById((p) => ({ ...(p || {}), [templateId]: false }));
+    }
+  }
+
   const commentHtml = useMemo(() => getCommentHtml(formCv), [formCv]);
   const hasComment = useMemo(
     () => hasRichTextContent(commentHtml),
@@ -740,7 +1234,9 @@ function Generate() {
           if (archivedDocId) {
             const snap = await getDoc(doc(db, "archived_users", archivedDocId));
             if (!cancelled) {
-              setRemoteRecord(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+              setRemoteRecord(
+                snap.exists() ? { id: snap.id, ...snap.data() } : null
+              );
             }
             return;
           }
@@ -757,7 +1253,9 @@ function Generate() {
           }
           const snap = await getDoc(doc(db, "deleted_users", deletedDocId));
           if (!cancelled) {
-            setRemoteRecord(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+            setRemoteRecord(
+              snap.exists() ? { id: snap.id, ...snap.data() } : null
+            );
           }
         } else {
           if (!cancelled) setRemoteRecord(null);
@@ -1018,7 +1516,9 @@ function Generate() {
           majorLabel: resolvedMeta.title || resolvedMeta.collectionName,
         });
         toast.success(`Wiederhergestellt: ${res.major} (ID=${res.firebaseId})`);
-        navigate(`/generate/${resolvedMeta.linkId || res.major}/${res.firebaseId}`);
+        navigate(
+          `/generate/${resolvedMeta.linkId || res.major}/${res.firebaseId}`
+        );
         return;
       }
 
@@ -1030,14 +1530,22 @@ function Generate() {
             resolvedMeta.title ||
             majorCol;
           const payload = stripArchivedUserMetaForRestore(remoteRecord);
-          const { id: newId } = await addCandidateWithDualStats(majorCol, payload, {
-            majorLabel,
-          });
+          const { id: newId } = await addCandidateWithDualStats(
+            majorCol,
+            payload,
+            {
+              majorLabel,
+            }
+          );
 
           const email = extractEmailFromSnapshot(payload);
           const passportId = extractPassportIdFromSnapshot(payload);
           if (email) {
-            await upsertEmailAndPassIdFirestore({ email, major: majorCol, passportId });
+            await upsertEmailAndPassIdFirestore({
+              email,
+              major: majorCol,
+              passportId,
+            });
           }
 
           await deleteDoc(doc(db, "archived_users", archivedDocId));
@@ -1056,7 +1564,9 @@ function Generate() {
           majorLabel: resolvedMeta.title || resolvedMeta.collectionName,
         });
         toast.success(`Wiederhergestellt: ${res.major} (ID=${res.firebaseId})`);
-        navigate(`/generate/${resolvedMeta.linkId || res.major}/${res.firebaseId}`);
+        navigate(
+          `/generate/${resolvedMeta.linkId || res.major}/${res.firebaseId}`
+        );
         return;
       }
 
@@ -1071,14 +1581,22 @@ function Generate() {
           resolvedMeta.title ||
           majorCol;
         const payload = stripDeletedUserMetaForRestore(remoteRecord);
-        const { id: newId } = await addCandidateWithDualStats(majorCol, payload, {
-          majorLabel,
-        });
+        const { id: newId } = await addCandidateWithDualStats(
+          majorCol,
+          payload,
+          {
+            majorLabel,
+          }
+        );
 
         const email = extractEmailFromSnapshot(payload);
         const passportId = extractPassportIdFromSnapshot(payload);
         if (email) {
-          await upsertEmailAndPassIdFirestore({ email, major: majorCol, passportId });
+          await upsertEmailAndPassIdFirestore({
+            email,
+            major: majorCol,
+            passportId,
+          });
         }
 
         if (deletedDocId) {
@@ -1125,7 +1643,9 @@ function Generate() {
             majorLabel: meta?.title || col,
           });
           toast.success(
-            `Wiederhergestellt: ${meta?.title || res.major} (ID=${res.firebaseId})`
+            `Wiederhergestellt: ${meta?.title || res.major} (ID=${
+              res.firebaseId
+            })`
           );
           navigate(`/generate/${meta.linkId || col}/${res.firebaseId}`);
           return;
@@ -1133,18 +1653,30 @@ function Generate() {
         if (remoteKind === "archived") {
           if (archivedDocId) {
             const majorLabel =
-              String(remoteRecord?.sourceMajorTitle || "").trim() || meta?.title || col;
+              String(remoteRecord?.sourceMajorTitle || "").trim() ||
+              meta?.title ||
+              col;
             const payload = stripArchivedUserMetaForRestore(remoteRecord);
-            const { id: newId } = await addCandidateWithDualStats(col, payload, {
-              majorLabel,
-            });
+            const { id: newId } = await addCandidateWithDualStats(
+              col,
+              payload,
+              {
+                majorLabel,
+              }
+            );
             const email = extractEmailFromSnapshot(payload);
             const passportId = extractPassportIdFromSnapshot(payload);
             if (email) {
-              await upsertEmailAndPassIdFirestore({ email, major: col, passportId });
+              await upsertEmailAndPassIdFirestore({
+                email,
+                major: col,
+                passportId,
+              });
             }
             await deleteDoc(doc(db, "archived_users", archivedDocId));
-            toast.success(`Wiederhergestellt: ${meta?.title || col} (ID=${newId})`);
+            toast.success(
+              `Wiederhergestellt: ${meta?.title || col} (ID=${newId})`
+            );
             navigate(`/generate/${meta.linkId || col}/${newId}`);
             return;
           }
@@ -1157,7 +1689,9 @@ function Generate() {
             majorLabel: meta?.title || col,
           });
           toast.success(
-            `Wiederhergestellt: ${meta?.title || res.major} (ID=${res.firebaseId})`
+            `Wiederhergestellt: ${meta?.title || res.major} (ID=${
+              res.firebaseId
+            })`
           );
           navigate(`/generate/${meta.linkId || col}/${res.firebaseId}`);
           return;
@@ -1171,7 +1705,9 @@ function Generate() {
         }
 
         const majorLabel =
-          String(remoteRecord?.sourceMajorTitle || "").trim() || meta?.title || col;
+          String(remoteRecord?.sourceMajorTitle || "").trim() ||
+          meta?.title ||
+          col;
         const payload = stripDeletedUserMetaForRestore(remoteRecord);
         const { id: newId } = await addCandidateWithDualStats(col, payload, {
           majorLabel,
@@ -1179,7 +1715,11 @@ function Generate() {
         const email = extractEmailFromSnapshot(payload);
         const passportId = extractPassportIdFromSnapshot(payload);
         if (email) {
-          await upsertEmailAndPassIdFirestore({ email, major: col, passportId });
+          await upsertEmailAndPassIdFirestore({
+            email,
+            major: col,
+            passportId,
+          });
         }
         if (deletedDocId) {
           await deleteDoc(doc(db, "deleted_users", deletedDocId));
@@ -1242,16 +1782,39 @@ function Generate() {
     let diplomas = [];
     if (Array.isArray(d?.diplome)) {
       diplomas = d.diplome;
+    } else if (typeof d?.diplome === "string" && String(d.diplome).trim()) {
+      diplomas = [d.diplome];
     } else if (Array.isArray(att?.diplomas)) {
       diplomas = att.diplomas;
+    } else if (
+      typeof att?.diplomas === "string" &&
+      String(att.diplomas).trim()
+    ) {
+      diplomas = [att.diplomas];
     }
+    diplomas = Array.isArray(diplomas)
+      ? diplomas.map((u) => String(u || "").trim()).filter(Boolean)
+      : [];
 
     let certificates = [];
     if (Array.isArray(d?.zertifikate)) {
       certificates = d.zertifikate;
+    } else if (
+      typeof d?.zertifikate === "string" &&
+      String(d.zertifikate).trim()
+    ) {
+      certificates = [d.zertifikate];
     } else if (Array.isArray(att?.languageCertificates)) {
       certificates = att.languageCertificates;
+    } else if (
+      typeof att?.languageCertificates === "string" &&
+      String(att.languageCertificates).trim()
+    ) {
+      certificates = [att.languageCertificates];
     }
+    certificates = Array.isArray(certificates)
+      ? certificates.map((u) => String(u || "").trim()).filter(Boolean)
+      : [];
 
     const passportCandidates = [
       att?.passport,
@@ -1271,11 +1834,25 @@ function Generate() {
       .filter(Boolean);
     // Dedupe (some docs store the same URL in multiple legacy fields)
     const seenPassport = new Set();
-    const passportUnique = passport.filter((u) => {
+    let passportUnique = passport.filter((u) => {
       if (seenPassport.has(u)) return false;
       seenPassport.add(u);
       return true;
     });
+
+    // IMPORTANT fallback (your current data format):
+    // Some candidates store the passport PDF as the FIRST item in `attachments.diplomas`.
+    // If we didn't find a passport anywhere else, treat `diplomas[0]` as passport.
+    if (passportUnique.length === 0 && diplomas.length > 0) {
+      passportUnique = [diplomas[0]];
+      diplomas = diplomas.slice(1);
+    }
+
+    // Avoid showing the same file under both passport and diplomas.
+    if (passportUnique.length > 0 && diplomas.length > 0) {
+      const passSet = new Set(passportUnique);
+      diplomas = diplomas.filter((u) => !passSet.has(u));
+    }
 
     const rawChildrenCount = String(p.kinderAnzahl ?? "").trim();
     const noChildrenFromDoc = Boolean(p.keinKinder);
@@ -2565,7 +3142,9 @@ function Generate() {
 
   async function handleDownloadPdf() {
     if (remoteMode) {
-      toast.error("Stellen Sie den Kandidaten zuerst im passenden Bereich (Major) wieder her.");
+      toast.error(
+        "Stellen Sie den Kandidaten zuerst im passenden Bereich (Major) wieder her."
+      );
       return;
     }
     if (isLimitedAdmin) {
@@ -4002,6 +4581,215 @@ function Generate() {
               : "—"}
             {statusUpdatedBy ? ` • Von: ${statusUpdatedBy}` : ""}
           </div>
+
+          {/* Outgoing documents to the candidate */}
+          <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="card bg-base-100 border border-base-300 shadow-xl">
+              <div className="card-body">
+                <div>
+                  <h3 className="card-title">
+                    Kandidatga jo‘natiladigan hujjatlar
+                  </h3>
+                  <p className="text-sm text-base-content/70">
+                    Switch yoqilsa PDF generatsiya bo‘ladi va avtomatik upload
+                    qilinadi.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  {DOCUMENT_TEMPLATES.map((tpl) => {
+                    const st = getOutgoingDocState(tpl.id);
+                    const checked = Boolean(st?.enabled);
+                    const busy = Boolean(outgoingBusyById?.[tpl.id]);
+                    const disabled =
+                      busy ||
+                      !candidateCollection ||
+                      !candidateDocId ||
+                      Boolean(sendingStepValue);
+                    return (
+                      <div
+                        key={tpl.id}
+                        className="rounded-xl border border-base-300 bg-base-100 p-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <Link
+                              to={tpl.to}
+                              className="link link-hover font-semibold truncate inline-flex items-center gap-2"
+                              title="Template'ni ochish"
+                            >
+                              <span className="truncate">{tpl.title}</span>
+                              <FaExternalLinkAlt className="opacity-70" />
+                            </Link>
+                            {tpl.description ? (
+                              <div className="text-xs text-base-content/60 mt-1">
+                                {tpl.description}
+                              </div>
+                            ) : null}
+                            {String(st?.url || "").trim() ? (
+                              <div className="text-xs text-base-content/60 mt-1">
+                                Upload:{" "}
+                                <a
+                                  className="link"
+                                  href={String(st.url)}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  Link
+                                </a>
+                              </div>
+                            ) : null}
+                            {tpl.id === "beratungsvertrag" && checked ? (
+                              <div className="mt-2">
+                                <button
+                                  type="button"
+                                  className="btn btn-xs btn-outline"
+                                  onClick={() =>
+                                    handleToggleOutgoingDoc(tpl, true, {
+                                      forceRegenerate: true,
+                                    })
+                                  }
+                                  disabled={disabled}
+                                  title="PDF'ni qayta yaratish va qayta upload qilish"
+                                >
+                                  Qayta generatsiya
+                                </button>
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <label className="flex items-center gap-2 shrink-0">
+                            {busy ? (
+                              <span className="loading loading-spinner loading-sm" />
+                            ) : null}
+                            <input
+                              type="checkbox"
+                              className="toggle toggle-primary"
+                              checked={checked}
+                              onChange={(e) =>
+                                handleToggleOutgoingDoc(tpl, e.target.checked)
+                              }
+                              disabled={disabled}
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {DOCUMENT_TEMPLATES.length === 0 ? (
+                    <div className="text-sm opacity-70">
+                      Hozircha template yo‘q.
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <div className="card bg-base-100 border border-base-300 shadow-xl">
+              <div className="card-body">
+                <div>
+                  <h3 className="card-title">Yuborilgan hujjatlar (linklar)</h3>
+                  <p className="text-sm text-base-content/70">
+                    Upload bo‘lgan fayl linklari shu yerda chiqadi.
+                  </p>
+                </div>
+
+                {(() => {
+                  const entries = Object.entries(outgoingDocs || {}).filter(
+                    ([, v]) =>
+                      v && typeof v === "object" && String(v?.url || "").trim()
+                  );
+                  if (entries.length === 0) {
+                    return (
+                      <div className="text-sm opacity-70">
+                        Hozircha upload qilingan hujjat yo‘q.
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="space-y-2">
+                      {entries.map(([docId, v]) => {
+                        const tpl =
+                          DOCUMENT_TEMPLATES.find((t) => t.id === docId) ||
+                          null;
+                        const title = tpl?.title || docId;
+                        const url = String(v?.url || "").trim();
+                        return (
+                          <div
+                            key={docId}
+                            className="rounded-xl border border-base-300 bg-base-100 p-3"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="font-semibold truncate">
+                                  {title}
+                                </div>
+                                <div className="text-xs text-base-content/60 mt-1 break-all">
+                                  {url}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <a
+                                  className="btn btn-sm btn-outline"
+                                  href={url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                >
+                                  <FaExternalLinkAlt />
+                                </a>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline"
+                                  onClick={async () => {
+                                    try {
+                                      if (
+                                        navigator?.clipboard &&
+                                        typeof navigator.clipboard.writeText ===
+                                          "function"
+                                      ) {
+                                        await navigator.clipboard.writeText(
+                                          url
+                                        );
+                                        toast.success("Link nusxalandi.");
+                                      } else {
+                                        throw new Error(
+                                          "clipboard-unavailable"
+                                        );
+                                      }
+                                    } catch {
+                                      try {
+                                        const ta =
+                                          document.createElement("textarea");
+                                        ta.value = url;
+                                        ta.style.position = "fixed";
+                                        ta.style.opacity = "0";
+                                        document.body.appendChild(ta);
+                                        ta.focus();
+                                        ta.select();
+                                        document.execCommand("copy");
+                                        document.body.removeChild(ta);
+                                        toast.success("Link nusxalandi.");
+                                      } catch {
+                                        toast.error(
+                                          "Link nusxalashda xatolik."
+                                        );
+                                      }
+                                    }
+                                  }}
+                                >
+                                  Copy
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -4011,7 +4799,8 @@ function Generate() {
             <div className="card-body">
               <h3 className="card-title">Kandidatenstufen</h3>
               <p className="text-sm text-base-content/70">
-                Um E-Mails senden zu können, müssen Sie den Kandidaten zuerst in den passenden Bereich (Collection/Major){" "}
+                Um E-Mails senden zu können, müssen Sie den Kandidaten zuerst in
+                den passenden Bereich (Collection/Major){" "}
                 <span className="font-semibold">wiederherstellen</span>.
               </p>
               <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
