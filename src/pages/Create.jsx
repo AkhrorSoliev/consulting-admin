@@ -9,6 +9,7 @@ import {
   FaTelegramPlane,
   FaVideo,
   FaChevronRight,
+  FaCheck,
   FaUser,
   FaBriefcase,
   FaGraduationCap,
@@ -39,9 +40,8 @@ import {
   generateSkills,
   sortTimelineItemsDesc,
   uploadFilesToConsulting,
-  checkEmailRemote,
-  registerEmailRemote,
-  checkPassportRemote,
+  checkEmailFirestore,
+  checkPassportFirestore,
   getMetaByName,
 } from "../utils";
 import {
@@ -584,6 +584,125 @@ function Create() {
   const watchDrivingLicenseType = watch("personalInfo.drivingLicenseType");
   const watchAddress = watch("personalInfo.address");
 
+  // ---- Live remote uniqueness checks (email / passportId) ----
+  // Requirement: as soon as user finishes typing a valid email/passportId, check Firestore.
+  // We debounce to avoid spamming Firestore while the user is still typing.
+  const lastCheckedEmailRef = useRef("");
+  const lastCheckedPassportRef = useRef("");
+  const REMOTE_UNIQUENESS_DEBOUNCE_MS = 600;
+
+  useEffect(() => {
+    if (majorLoading) return;
+    if (draftHydratingRef.current) return;
+    if (isSubmitted === true) return;
+    if (currentStep !== 0) return; // checks are relevant on the personal info step
+    if (isEmailModalOpen) return; // avoid re-check loops while modal is shown
+
+    const email = String(watchEmail || "").trim().toLowerCase();
+    if (!email || !isEmailValid(email)) return;
+    if (lastCheckedEmailRef.current === email) return;
+
+    let cancelled = false;
+    const t = window.setTimeout(async () => {
+      // Re-check current value after debounce (user may have continued typing).
+      const latest = String(watch("personalInfo.email") || "")
+        .trim()
+        .toLowerCase();
+      if (!latest || !isEmailValid(latest)) return;
+      if (latest !== email) return;
+
+      setIsEmailChecking(true);
+      try {
+        const { exists, data } = await checkEmailFirestore(email);
+        if (cancelled) return;
+        lastCheckedEmailRef.current = email;
+        if (exists) {
+          setExistingMajor(String(data?.major || "Unbekannt"));
+          setEnteredEmail(email);
+          setIsEmailModalOpen(true);
+        }
+      } catch (e) {
+        // Best-effort: don't block typing if remote check fails.
+        console.error("Email live remote check failed:", e);
+      } finally {
+        if (!cancelled) setIsEmailChecking(false);
+      }
+    }, REMOTE_UNIQUENESS_DEBOUNCE_MS);
+
+    return () => {
+      cancelled = true;
+      try {
+        window.clearTimeout(t);
+      } catch {
+        // ignore
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    watchEmail,
+    currentStep,
+    majorLoading,
+    isEmailModalOpen,
+    isSubmitted,
+    watch,
+  ]);
+
+  useEffect(() => {
+    if (majorLoading) return;
+    if (draftHydratingRef.current) return;
+    if (isSubmitted === true) return;
+    if (currentStep !== 0) return;
+    if (isPassportModalOpen) return;
+
+    const passportNumber = normalizePassportNumber(
+      String(watchPassportNumber || "")
+    );
+    if (!passportNumber || !isPassportNumberValid(passportNumber)) return;
+    if (lastCheckedPassportRef.current === passportNumber) return;
+
+    let cancelled = false;
+    const t = window.setTimeout(async () => {
+      const latest = normalizePassportNumber(
+        String(watch("personalInfo.passportNumber") || "")
+      );
+      if (!latest || !isPassportNumberValid(latest)) return;
+      if (latest !== passportNumber) return;
+
+      setIsPassportChecking(true);
+      try {
+        const { exists, data } = await checkPassportFirestore(passportNumber);
+        if (cancelled) return;
+        lastCheckedPassportRef.current = passportNumber;
+        if (exists) {
+          setExistingPassportMajor(String(data?.major || "Unbekannt"));
+          setEnteredPassport(passportNumber);
+          setIsPassportModalOpen(true);
+        }
+      } catch (e) {
+        console.error("Passport live remote check failed:", e);
+      } finally {
+        if (!cancelled) setIsPassportChecking(false);
+      }
+    }, REMOTE_UNIQUENESS_DEBOUNCE_MS);
+
+    return () => {
+      cancelled = true;
+      try {
+        window.clearTimeout(t);
+      } catch {
+        // ignore
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    watchPassportNumber,
+    currentStep,
+    majorLoading,
+    isPassportModalOpen,
+    isSubmitted,
+    watch,
+  ]);
+
   const previewCv = useMemo(() => {
     const drivingTypeRaw = watchDrivingLicenseType;
     const drivingLicenseType = Array.isArray(drivingTypeRaw)
@@ -1014,7 +1133,7 @@ function Create() {
       if (email && isEmailValid(email)) {
         setIsEmailChecking(true);
         try {
-          const { exists, data } = await checkEmailRemote(email);
+          const { exists, data } = await checkEmailFirestore(email);
           if (exists) {
             setExistingMajor(String(data?.major || "Unbekannt"));
             setEnteredEmail(email);
@@ -1032,7 +1151,7 @@ function Create() {
       if (passportNumber && isPassportNumberValid(passportNumber)) {
         setIsPassportChecking(true);
         try {
-          const { exists, data } = await checkPassportRemote(passportNumber);
+          const { exists, data } = await checkPassportFirestore(passportNumber);
           if (exists) {
             setExistingPassportMajor(String(data?.major || "Unbekannt"));
             setEnteredPassport(passportNumber);
@@ -1672,7 +1791,7 @@ function Create() {
         formData?.personalInfo?.passportNumber || ""
       );
       try {
-        const { exists, data } = await checkEmailRemote(email);
+        const { exists, data } = await checkEmailFirestore(email);
         if (exists) {
           setExistingMajor(data?.major || "Unbekannt");
           setEnteredEmail(email);
@@ -1689,7 +1808,7 @@ function Create() {
 
       try {
         if (passportNumber && isPassportNumberValid(passportNumber)) {
-          const { exists, data } = await checkPassportRemote(passportNumber);
+          const { exists, data } = await checkPassportFirestore(passportNumber);
           if (exists) {
             setExistingPassportMajor(data?.major || "Unbekannt");
             setEnteredPassport(passportNumber);
@@ -1766,6 +1885,28 @@ function Create() {
         });
         const json = await res.json().catch(() => ({}));
         if (!res.ok || !json?.ok) {
+          // Handle server-side duplicate enforcement (more reliable than client checks).
+          if (res.status === 409 && json?.error === "email-exists") {
+            setExistingMajor(String(json?.existing?.major || "Unbekannt"));
+            setEnteredEmail(
+              String(json?.existing?.email || email || "").trim().toLowerCase()
+            );
+            setIsEmailModalOpen(true);
+            return;
+          }
+          if (res.status === 409 && json?.error === "passport-exists") {
+            setExistingPassportMajor(String(json?.existing?.major || "Unbekannt"));
+            setEnteredPassport(
+              normalizePassportNumber(
+                String(
+                  json?.existing?.passportId || passportNumber || ""
+                ).trim()
+              )
+            );
+            setIsPassportModalOpen(true);
+            return;
+          }
+
           const errMsg =
             json?.error ||
             json?.details ||
@@ -1773,11 +1914,6 @@ function Create() {
           throw new Error(errMsg);
         }
 
-        // Remote registry is best-effort and must not break a successful submit.
-        // Passport is stored inside all_Emails as `passportId`.
-        await Promise.allSettled([
-          registerEmailRemote(email, majorCollection, passportNumber),
-        ]);
         toast.success("Daten erfolgreich gesendet!");
         try {
           localStorage.setItem(`createCvSubmitted:${majorCollection}`, "true");
@@ -2524,6 +2660,14 @@ function Create() {
                                               className="loading loading-spinner loading-sm text-base-content/60 pointer-events-none"
                                               aria-hidden="true"
                                             />
+                                          ) : touched &&
+                                            emailHas &&
+                                            emailOk &&
+                                            !st?.invalid ? (
+                                            <FaCheck
+                                              className="text-success opacity-80 pointer-events-none"
+                                              aria-hidden="true"
+                                            />
                                           ) : null
                                         }
                                         helperText={
@@ -2613,6 +2757,11 @@ function Create() {
                                           isPassportChecking ? (
                                             <span
                                               className="loading loading-spinner loading-sm text-base-content/60 pointer-events-none"
+                                              aria-hidden="true"
+                                            />
+                                          ) : touched && has && ok && !st?.invalid ? (
+                                            <FaCheck
+                                              className="text-success opacity-80 pointer-events-none"
                                               aria-hidden="true"
                                             />
                                           ) : null

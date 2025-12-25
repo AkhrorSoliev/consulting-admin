@@ -37,6 +37,24 @@ function buildDefaultForm(stage, decision) {
   };
 }
 
+function formatUpdatedAt(value) {
+  if (!value) return "";
+  try {
+    const d = new Date(Number(value));
+    if (Number.isNaN(d.getTime())) return "";
+    return new Intl.DateTimeFormat("uz-UZ", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(d);
+  } catch {
+    return "";
+  }
+}
+
 function EmailPreview({ subject, to, htmlContent, message }) {
   const safeSubject = String(subject || "").trim();
   const safeTo = String(to || "").trim();
@@ -63,6 +81,22 @@ function EmailPreview({ subject, to, htmlContent, message }) {
     return safeHtml;
   }, [safeHtml]);
 
+  const previewHtml = useMemo(() => {
+    if (!inlineBodyHtml) return "";
+    // Make email preview responsive on tablet/mobile.
+    // Note: this does NOT change the actual sent email HTML, only the settings preview.
+    const style = `
+      <style>
+        html, body { max-width: 100%; overflow-x: hidden; }
+        table { max-width: 100% !important; width: 100% !important; }
+        img { max-width: 100% !important; height: auto !important; }
+        td, div, p, span { word-break: break-word; }
+        a { word-break: break-all; }
+      </style>
+    `;
+    return `${style}${inlineBodyHtml}`;
+  }, [inlineBodyHtml]);
+
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -80,12 +114,12 @@ function EmailPreview({ subject, to, htmlContent, message }) {
 
       {safeHtml ? (
         <div className="rounded-lg border border-base-300 bg-white overflow-hidden">
-          <div className="w-full p-4">
+          <div className="w-full p-4 overflow-x-auto">
             <div
               className="min-h-full"
               // Smooth preview (no iframe reload): render email body HTML inline.
               // This is used only in Settings -> Template Emaillar page.
-              dangerouslySetInnerHTML={{ __html: inlineBodyHtml }}
+              dangerouslySetInnerHTML={{ __html: previewHtml }}
             />
           </div>
         </div>
@@ -123,7 +157,11 @@ export default function TemplateEmailsSettings() {
   const [form, setForm] = useState(() =>
     buildDefaultForm("stage_1", "accepted")
   );
+  const [baselineForm, setBaselineForm] = useState(() =>
+    buildDefaultForm("stage_1", "accepted")
+  );
   const [saving, setSaving] = useState(false);
+  const [previewMode, setPreviewMode] = useState("html"); // html | text
   const debouncedForm = useDebouncedValue(form, 300);
 
   useEffect(() => {
@@ -146,9 +184,10 @@ export default function TemplateEmailsSettings() {
     const base = buildDefaultForm(stage, decision);
     if (!activeTemplate) {
       setForm(base);
+      setBaselineForm(base);
       return;
     }
-    setForm({
+    const next = {
       ...base,
       emailTitle:
         activeTemplate.emailTitle !== undefined
@@ -178,7 +217,9 @@ export default function TemplateEmailsSettings() {
         activeTemplate.emphasizeMainText !== undefined
           ? Boolean(activeTemplate.emphasizeMainText)
           : base.emphasizeMainText,
-    });
+    };
+    setForm(next);
+    setBaselineForm(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [templateId, activeTemplate]);
 
@@ -229,6 +270,14 @@ export default function TemplateEmailsSettings() {
     }
   }, [stage, decision, debouncedForm]);
 
+  const isDirty = useMemo(() => {
+    try {
+      return JSON.stringify(form) !== JSON.stringify(baselineForm);
+    } catch {
+      return true;
+    }
+  }, [form, baselineForm]);
+
   async function handleSave() {
     if (!templateId) return;
     setSaving(true);
@@ -247,6 +296,7 @@ export default function TemplateEmailsSettings() {
         updatedBy: user?.email || user?.uid || "admin",
       });
       toast.success("Vorlage gespeichert.");
+      setBaselineForm(form);
     } catch (e) {
       console.error(e);
       toast.error(e?.message || "Fehler beim Speichern der Vorlage.");
@@ -282,11 +332,39 @@ export default function TemplateEmailsSettings() {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,40rem)_minmax(0,1fr)] gap-4 items-start">
-        <div className="space-y-3 min-w-0">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="w-full sm:w-auto flex flex-col gap-1">
-              <div className="text-sm font-medium">Stufe</div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold leading-tight">
+            E-Mail-Vorlagen
+          </h2>
+          <p className="text-sm text-base-content/60">
+            Passen Sie Texte für Status-E-Mails pro Stufe/Entscheidung an.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-start sm:justify-end gap-2">
+          {activeTemplate ? (
+            <span className="badge badge-primary badge-outline">
+              Überschreibung aktiv
+            </span>
+          ) : (
+            <span className="badge badge-ghost">Standard aktiv</span>
+          )}
+          {isDirty && (
+            <span className="badge badge-warning badge-outline">
+              Ungespeicherte Änderungen
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="rounded-box border border-base-300 bg-base-100 p-3 sm:p-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div className="flex flex-col md:flex-row gap-3 md:items-end min-w-0">
+            <label className="form-control w-full md:w-56">
+              <div className="label py-0">
+                <span className="label-text text-sm font-medium">Stufe</span>
+              </div>
               <select
                 className="select select-bordered w-full"
                 value={stage}
@@ -299,10 +377,14 @@ export default function TemplateEmailsSettings() {
                   </option>
                 ))}
               </select>
-            </div>
+            </label>
 
-            <div className="w-full sm:w-auto flex flex-col gap-1">
-              <div className="text-sm font-medium">Entscheidung</div>
+            <label className="form-control w-full md:w-56">
+              <div className="label py-0">
+                <span className="label-text text-sm font-medium">
+                  Entscheidung
+                </span>
+              </div>
               <select
                 className="select select-bordered w-full"
                 value={decision}
@@ -315,10 +397,34 @@ export default function TemplateEmailsSettings() {
                   </option>
                 ))}
               </select>
+            </label>
+
+            <div className="text-xs text-base-content/60 md:pb-1 min-w-0">
+              {activeTemplate?.updatedAt ? (
+                <div className="truncate">
+                  Letzte Änderung:{" "}
+                  <span className="font-medium">
+                    {formatUpdatedAt(activeTemplate.updatedAt)}
+                  </span>
+                  {activeTemplate?.updatedBy ? (
+                    <>
+                      {" "}
+                      ·{" "}
+                      <span className="font-mono">
+                        {String(activeTemplate.updatedBy)}
+                      </span>
+                    </>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="truncate">
+                  Keine gespeicherte Überschreibung für diese Kombination.
+                </div>
+              )}
             </div>
+          </div>
 
-            <div className="hidden md:block flex-1 min-w-[240px]" />
-
+          <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
             <button
               type="button"
               className="btn btn-outline w-full sm:w-auto"
@@ -333,7 +439,12 @@ export default function TemplateEmailsSettings() {
               type="button"
               className="btn btn-primary w-full sm:w-auto"
               onClick={handleSave}
-              disabled={saving || loading}
+              disabled={saving || loading || !isDirty}
+              title={
+                isDirty
+                  ? "Speichert diese Vorlage."
+                  : "Keine Änderungen zum Speichern."
+              }
             >
               {saving ? (
                 <>
@@ -345,139 +456,222 @@ export default function TemplateEmailsSettings() {
               )}
             </button>
           </div>
-
-          <div className="rounded-box border border-base-300 bg-base-200/30 p-3 sm:p-4 space-y-3">
-            <div className="grid grid-cols-1 gap-3">
-              <div className="flex flex-col gap-1">
-                <div className="text-sm font-medium">
-                  E-Mail-Titel (HTML-Überschrift)
-                </div>
-                <input
-                  className="input input-bordered w-full"
-                  value={form.emailTitle}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, emailTitle: e.target.value }))
-                  }
-                  disabled={saving}
-                />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <div className="text-sm font-medium">Betreff</div>
-                <input
-                  className="input input-bordered w-full"
-                  value={form.subject}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, subject: e.target.value }))
-                  }
-                  disabled={saving}
-                />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <div className="text-sm font-medium">Status</div>
-                <input
-                  className="input input-bordered w-full"
-                  placeholder="z. B.: Stufe 1 (internes Interview)"
-                  value={form.statusLabel}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, statusLabel: e.target.value }))
-                  }
-                  disabled={saving}
-                />
-                <p className="text-xs opacity-60 mt-1">
-                  Wenn leer, wird die Standard-Statusbezeichnung verwendet.
-                </p>
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <div className="text-sm font-medium">Haupttext</div>
-                <textarea
-                  className="textarea textarea-bordered w-full min-h-[90px] sm:min-h-[110px]"
-                  value={form.mainText}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, mainText: e.target.value }))
-                  }
-                  disabled={saving}
-                />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <div className="text-sm font-medium">
-                  Hinweis zum nächsten Schritt
-                </div>
-                <textarea
-                  className="textarea textarea-bordered w-full min-h-[90px] sm:min-h-[110px]"
-                  value={form.nextStepNote}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, nextStepNote: e.target.value }))
-                  }
-                  disabled={saving}
-                />
-              </div>
-
-              <div className="flex flex-col gap-1">
-                <div className="text-sm font-medium">
-                  Text für Kontaktkanäle
-                </div>
-                <textarea
-                  className="textarea textarea-bordered w-full min-h-[90px]"
-                  value={form.channelsText}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, channelsText: e.target.value }))
-                  }
-                  disabled={saving}
-                />
-              </div>
-
-              <label className="flex items-center gap-3 pt-1 select-none">
-                <input
-                  type="checkbox"
-                  className="toggle toggle-primary"
-                  checked={Boolean(form.emphasizeMainText)}
-                  onChange={(e) =>
-                    setForm((p) => ({
-                      ...p,
-                      emphasizeMainText: e.target.checked,
-                    }))
-                  }
-                  disabled={saving}
-                />
-                <span className="text-sm">
-                  Haupttext <span className="font-semibold">fett</span>{" "}
-                  darstellen
-                </span>
-              </label>
-
-              <div className="flex justify-stretch sm:justify-end">
-                <button
-                  type="button"
-                  className="btn btn-error btn-outline w-full sm:w-auto whitespace-normal h-auto leading-snug"
-                  onClick={handleResetToDefault}
-                  disabled={saving || !activeTemplate}
-                >
-                  Auf Standard zurücksetzen (Überschreibung löschen)
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-3 min-w-0">
-          <div className="flex items-center justify-between gap-3 min-w-0">
-            <div className="font-semibold shrink-0">Vorschau</div>
-            <div className="text-xs text-base-content/60 flex-1 min-w-0 text-right truncate">
-              Diese Vorschau verwendet nur Beispieldaten.
-            </div>
-          </div>
-          <EmailPreview
-            to={preview?.to}
-            subject={preview?.subject}
-            htmlContent={preview?.htmlContent}
-            message={preview?.message}
-          />
         </div>
       </div>
+
+      {loading ? (
+        <div className="rounded-box border border-base-300 bg-base-100 p-4">
+          <div className="flex items-center gap-3">
+            <span className="loading loading-spinner loading-sm" />
+            <div className="text-sm text-base-content/70">
+              Vorlagen werden geladen...
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,42rem)_minmax(0,1fr)] gap-4 items-start">
+          <div className="space-y-3 min-w-0">
+            <div className="rounded-box border border-base-300 bg-base-200/30 p-3 sm:p-4 space-y-3">
+              <div className="grid grid-cols-1 gap-3">
+                <label className="form-control w-full">
+                  <div className="label py-0">
+                    <span className="label-text text-sm font-medium">
+                      E-Mail-Titel (HTML-Überschrift)
+                    </span>
+                  </div>
+                  <input
+                    className="input input-bordered w-full"
+                    value={form.emailTitle}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, emailTitle: e.target.value }))
+                    }
+                    disabled={saving}
+                  />
+                </label>
+
+                <label className="form-control w-full">
+                  <div className="label py-0">
+                    <span className="label-text text-sm font-medium">
+                      Betreff
+                    </span>
+                  </div>
+                  <input
+                    className="input input-bordered w-full"
+                    value={form.subject}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, subject: e.target.value }))
+                    }
+                    disabled={saving}
+                  />
+                </label>
+
+                <label className="form-control w-full">
+                  <div className="label py-0">
+                    <span className="label-text text-sm font-medium">
+                      Status (optional)
+                    </span>
+                  </div>
+                  <input
+                    className="input input-bordered w-full"
+                    placeholder="z. B.: Stufe 1 (internes Interview)"
+                    value={form.statusLabel}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, statusLabel: e.target.value }))
+                    }
+                    disabled={saving}
+                  />
+                  <div className="label">
+                    <span className="label-text-alt text-xs text-base-content/60">
+                      Wenn leer, wird die Standard-Statusbezeichnung verwendet.
+                    </span>
+                  </div>
+                </label>
+
+                <label className="form-control w-full">
+                  <div className="label py-0">
+                    <span className="label-text text-sm font-medium">
+                      Haupttext
+                    </span>
+                  </div>
+                  <textarea
+                    className="textarea textarea-bordered w-full min-h-[110px]"
+                    value={form.mainText}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, mainText: e.target.value }))
+                    }
+                    disabled={saving}
+                  />
+                </label>
+
+                <label className="form-control w-full">
+                  <div className="label py-0">
+                    <span className="label-text text-sm font-medium">
+                      Hinweis zum nächsten Schritt
+                    </span>
+                  </div>
+                  <textarea
+                    className="textarea textarea-bordered w-full min-h-[110px]"
+                    value={form.nextStepNote}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, nextStepNote: e.target.value }))
+                    }
+                    disabled={saving}
+                  />
+                </label>
+
+                <label className="form-control w-full">
+                  <div className="label py-0">
+                    <span className="label-text text-sm font-medium">
+                      Text für Kontaktkanäle
+                    </span>
+                  </div>
+                  <textarea
+                    className="textarea textarea-bordered w-full min-h-[90px]"
+                    value={form.channelsText}
+                    onChange={(e) =>
+                      setForm((p) => ({ ...p, channelsText: e.target.value }))
+                    }
+                    disabled={saving}
+                  />
+                </label>
+
+                <label className="flex items-center gap-3 pt-1 select-none">
+                  <input
+                    type="checkbox"
+                    className="toggle toggle-primary"
+                    checked={Boolean(form.emphasizeMainText)}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        emphasizeMainText: e.target.checked,
+                      }))
+                    }
+                    disabled={saving}
+                  />
+                  <span className="text-sm">
+                    Haupttext <span className="font-semibold">fett</span>{" "}
+                    darstellen
+                  </span>
+                </label>
+
+                <div className="flex justify-stretch sm:justify-end">
+                  <button
+                    type="button"
+                    className="btn btn-error btn-outline w-full sm:w-auto whitespace-normal h-auto leading-snug"
+                    onClick={handleResetToDefault}
+                    disabled={saving || !activeTemplate}
+                    title={
+                      activeTemplate
+                        ? "Löscht die Überschreibung (Standardtexte werden wiederhergestellt)."
+                        : "Keine Überschreibung vorhanden."
+                    }
+                  >
+                    Auf Standard zurücksetzen (Überschreibung löschen)
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3 min-w-0 lg:sticky lg:top-4">
+            <div className="flex items-center justify-between gap-3 min-w-0">
+              <div className="font-semibold shrink-0">Vorschau</div>
+              <div className="text-xs text-base-content/60 flex-1 min-w-0 text-right truncate">
+                Diese Vorschau verwendet nur Beispieldaten.
+              </div>
+            </div>
+
+            <div className="tabs tabs-boxed w-full">
+              <button
+                type="button"
+                className={`tab ${previewMode === "html" ? "tab-active" : ""}`}
+                onClick={() => setPreviewMode("html")}
+              >
+                HTML
+              </button>
+              <button
+                type="button"
+                className={`tab ${previewMode === "text" ? "tab-active" : ""}`}
+                onClick={() => setPreviewMode("text")}
+              >
+                Text
+              </button>
+            </div>
+
+            {previewMode === "html" ? (
+              <div className="max-h-[70vh] overflow-auto rounded-box">
+                <EmailPreview
+                  to={preview?.to}
+                  subject={preview?.subject}
+                  htmlContent={preview?.htmlContent}
+                  message={preview?.message}
+                />
+              </div>
+            ) : (
+              <div className="rounded-lg border border-base-300 bg-base-100 p-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <div className="text-xs opacity-60">An</div>
+                    <div className="font-medium wrap-break-word">
+                      {String(preview?.to || "").trim() || "—"}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs opacity-60">Betreff</div>
+                    <div className="font-medium wrap-break-word">
+                      {String(preview?.subject || "").trim() || "—"}
+                    </div>
+                  </div>
+                </div>
+                <div className="divider my-3" />
+                <pre className="whitespace-pre-wrap text-sm leading-relaxed">
+                  {String(preview?.message || "").trim() || "—"}
+                </pre>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

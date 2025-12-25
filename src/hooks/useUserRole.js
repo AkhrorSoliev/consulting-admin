@@ -8,7 +8,9 @@ import { useSelector } from "react-redux";
 export function useUserRole(options = {}) {
   const { user } = useSelector((state) => state.auth);
   const [role, setRole] = useState(null);
-  const [loadingRole, setLoadingRole] = useState(false);
+  // Important: start in "loading" state when we already have an authenticated user.
+  // Otherwise role-gated routes may redirect on the first render before claims are fetched.
+  const [loadingRole, setLoadingRole] = useState(Boolean(user));
 
   const forceRefresh = useMemo(
     () => Boolean(options?.forceRefresh),

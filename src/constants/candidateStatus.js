@@ -15,31 +15,31 @@ export function normalizeCandidateStatusValue(value) {
 export const CANDIDATE_STATUS_OPTIONS = [
   {
     value: "stage_1",
-    label: "1-bosqich kutilmoqda",
+    label: "Stufe 1 (internes Gespräch) – ausstehend",
     badgeTone: "primary",
     emailBody:
-      "1-bosqich (ichki suhbat) bo'yicha qaror yuboriladi (qabul yoki rad).",
+      "Entscheidung zur Stufe 1 (internes Gespräch) wird gesendet (angenommen oder abgelehnt).",
   },
   {
     value: "stage_2",
-    label: "1-bosqich yakunlandi",
+    label: "Stufe 2 – Ergebnis internes Gespräch",
     badgeTone: "info",
     emailBody:
-      "Ichki suhbat natijasi yuboriladi: ichki suhbatdan o'tdi yoki rad etildi.",
+      "Ergebnis des internen Gesprächs wird gesendet: bestanden oder abgelehnt.",
   },
   {
     value: "stage_3",
-    label: "Ish beruvchi bilan suhbatga taklif",
+    label: "Stufe 3 – Einladung Arbeitgebergespräch",
     badgeTone: "warning",
     emailBody:
-      "Ish beruvchi bilan suhbatga taklif yoki qaror yuboriladi.",
+      "Einladung zum Arbeitgebergespräch oder Entscheidung wird gesendet.",
   },
   {
     value: "stage_4",
-    label: "Ish beruvchi qarori",
+    label: "Stufe 4 – Entscheidung Arbeitgeber",
     badgeTone: "success",
     emailBody:
-      "Ish beruvchi rad qildi yoki qabul qildi degan qaror yuboriladi.",
+      "Entscheidung des Arbeitgebers wird gesendet: abgelehnt oder angenommen.",
   },
 ];
 

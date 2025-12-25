@@ -7,16 +7,7 @@ function formatDate(value) {
   try {
     const d = new Date(value);
     if (Number.isNaN(d.getTime())) return "";
-    // Always show timestamps in Toshkent time to avoid confusing offsets (e.g. 8h) on admins' machines.
-    return new Intl.DateTimeFormat("uz-UZ", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-      timeZone: "Asia/Tashkent",
-    }).format(d);
+    return d.toLocaleString("de-DE");
   } catch {
     return "";
   }
@@ -36,8 +27,8 @@ function CandidateStatusPanel({
   updatedBy = "",
 }) {
   const infoLines = [];
-  if (lastUpdated) infoLines.push(`Yangilandi: ${formatDate(lastUpdated)}`);
-  if (updatedBy) infoLines.push(`Kim tomonidan: ${updatedBy}`);
+  if (lastUpdated) infoLines.push(`Aktualisiert: ${formatDate(lastUpdated)}`);
+  if (updatedBy) infoLines.push(`Von: ${updatedBy}`);
 
   return (
     <div className="card bg-base-100 border border-base-300 shadow-sm mb-4">
@@ -45,11 +36,11 @@ function CandidateStatusPanel({
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div>
             <p className="text-sm font-semibold text-primary uppercase tracking-wide">
-              Kandidat statusi
+              Kandidatenstatus
             </p>
             <p className="text-xs opacity-70">
-              Super Admin va Admin statusni yangilashi hamda email yuborishi
-              mumkin.
+              Super-Admin und Admin können den Status aktualisieren und E-Mails
+              senden.
             </p>
           </div>
           <CandidateStatusBadge value={value} />
@@ -58,7 +49,7 @@ function CandidateStatusPanel({
         <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end">
           <div className="form-control">
             <label className="label" htmlFor="candidate-status-select">
-              <span className="label-text font-medium">Bosqichni tanlang</span>
+              <span className="label-text font-medium">Stufe auswählen</span>
             </label>
             <select
               id="candidate-status-select"
@@ -78,7 +69,7 @@ function CandidateStatusPanel({
             )}
             {candidateEmail && (
               <p className="text-xs opacity-80 mt-1">
-                Qabul qiluvchi: {candidateEmail}
+                Empfänger: {candidateEmail}
                 {candidateName ? ` — ${candidateName}` : ""}
               </p>
             )}
@@ -95,7 +86,7 @@ function CandidateStatusPanel({
               ) : (
                 <FaSave />
               )}
-              <span>Statusni saqlash</span>
+              <span>Status speichern</span>
             </button>
             <button
               className="btn btn-outline btn-secondary w-full md:w-auto"
@@ -107,7 +98,7 @@ function CandidateStatusPanel({
               ) : (
                 <FaEnvelope />
               )}
-              <span>Status email yuborish</span>
+              <span>Status-E-Mail senden</span>
             </button>
           </div>
         </div>

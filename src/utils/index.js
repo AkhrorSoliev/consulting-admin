@@ -598,6 +598,215 @@ export async function getDocumentDataById(collectionName, id) {
 // ---- External email API helpers ----
 const EMAIL_API_BASE = "https://json-api.uz/api/project/consultinguz";
 const UPLOAD_DELETE_ENDPOINT = `${EMAIL_API_BASE}/upload/delete`;
+const USERS_ALL_ENDPOINT = `${EMAIL_API_BASE}/all_users`;
+const USERS_DELETED_ENDPOINT = `${EMAIL_API_BASE}/deleted_users`;
+const USERS_ARCHIVED_ENDPOINT = `${EMAIL_API_BASE}/archived_users`;
+// json-api collections in this project historically used inconsistent casing.
+// Prefer `all_Emails`, but keep a lowercase fallback to avoid 404s.
+const ALL_EMAILS_ENDPOINT_PRIMARY = `${EMAIL_API_BASE}/all_Emails`;
+const ALL_EMAILS_ENDPOINT_FALLBACK = `${EMAIL_API_BASE}/all_emails`;
+
+function omitKeys(obj, keys) {
+  const source = obj && typeof obj === "object" ? obj : {};
+  const set = new Set(Array.isArray(keys) ? keys : []);
+  const out = {};
+  Object.keys(source).forEach((k) => {
+    if (!set.has(k)) out[k] = source[k];
+  });
+  return out;
+}
+
+async function safeJsonResponse(res) {
+  try {
+    return await res.json();
+  } catch {
+    return {};
+  }
+}
+
+export async function listRemoteUsers(kind = "all") {
+  const k = String(kind || "").trim().toLowerCase();
+  const endpoint =
+    k === "deleted"
+      ? USERS_DELETED_ENDPOINT
+      : k === "archived"
+      ? USERS_ARCHIVED_ENDPOINT
+      : USERS_ALL_ENDPOINT;
+  const res = await fetch(endpoint, { method: "GET" });
+  if (!res.ok) throw new Error(`Remote list failed: ${res.status}`);
+  const json = await safeJsonResponse(res);
+  return Array.isArray(json?.data) ? json.data : [];
+}
+
+export async function getRemoteUserRecord(kind, recordId) {
+  const safeId = String(recordId || "").trim();
+  if (!safeId) return null;
+  const list = await listRemoteUsers(kind);
+  if (!Array.isArray(list) || list.length === 0) return null;
+
+  const match = list.find((r) => {
+    if (!r || typeof r !== "object") return false;
+    const candidates = [
+      r.id,
+      r._id,
+      r.uuid,
+      r.key,
+      r.docId,
+      r.firebaseId,
+    ]
+      .map((v) => String(v ?? "").trim())
+      .filter(Boolean);
+    return candidates.includes(safeId);
+  });
+  return match || null;
+}
+
+export async function deleteRemoteUserRecord(kind, recordId) {
+  const k = String(kind || "").trim().toLowerCase();
+  const safeId = String(recordId || "").trim();
+  if (!safeId) return { ok: false, reason: "missing-id" };
+  const endpoint =
+    k === "deleted"
+      ? USERS_DELETED_ENDPOINT
+      : k === "archived"
+      ? USERS_ARCHIVED_ENDPOINT
+      : USERS_ALL_ENDPOINT;
+  // Prefer DELETE /collection/:id if supported
+  const url = `${endpoint}/${encodeURIComponent(safeId)}`;
+  const res = await fetch(url, { method: "DELETE" });
+  if (res.ok) return safeJsonResponse(res);
+  // Fallback: some json-api collections support by-property deletes
+  const byPropUrl = `${endpoint}/by-property?property=id&value=${encodeURIComponent(
+    safeId
+  )}&all=false`;
+  const res2 = await fetch(byPropUrl, { method: "DELETE" });
+  if (res2.ok) return safeJsonResponse(res2);
+  return { ok: false, status: res.status, status2: res2.status };
+}
+
+export async function checkUserRemoteByFirebaseId(firebaseId) {
+  const safeId = String(firebaseId || "").trim();
+  if (!safeId) return { exists: false };
+  const url = `${USERS_ALL_ENDPOINT}?firebaseId=${encodeURIComponent(safeId)}`;
+  const res = await fetch(url, { method: "GET" });
+  if (!res.ok) throw new Error(`Remote user check failed: ${res.status}`);
+  const json = await safeJsonResponse(res);
+  const list = Array.isArray(json?.data) ? json.data : [];
+  const match =
+    list.find((item) => String(item?.firebaseId || "").trim() === safeId) ||
+    null;
+  if (match) return { exists: true, data: match };
+  return { exists: false };
+}
+
+export async function upsertUserRemoteAllUsers({
+  firebaseId,
+  major,
+  payload,
+} = {}) {
+  const safeId = String(firebaseId || "").trim();
+  if (!safeId) throw new Error("upsertUserRemoteAllUsers: firebaseId missing");
+  const safeMajor = String(major || "").trim() || null;
+  const body = {
+    firebaseId: safeId,
+    major: safeMajor,
+    ...(payload && typeof payload === "object" ? payload : {}),
+    syncedAt: Date.now(),
+  };
+
+  // Strategy (mirrors updateEmailRemote):
+  // 1) GET /all_users?firebaseId=...
+  // 2) If record has id, PUT /all_users/:id (full replace), fallback PATCH
+  // 3) Else POST /all_users
+  try {
+    const { exists, data } = await checkUserRemoteByFirebaseId(safeId);
+    if (exists && data && typeof data === "object") {
+      const id =
+        data.id ?? data._id ?? data.uuid ?? data.key ?? data.docId ?? null;
+      if (id !== null && id !== undefined && String(id).trim() !== "") {
+        const url = `${USERS_ALL_ENDPOINT}/${encodeURIComponent(String(id))}`;
+        const put = await fetch(url, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (put.ok) return safeJsonResponse(put);
+
+        const patch = await fetch(url, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (patch.ok) return safeJsonResponse(patch);
+
+        // if both failed, fall through to POST as last resort
+      }
+    }
+  } catch (e) {
+    // ignore and fallback to POST
+    console.warn("upsertUserRemoteAllUsers: check/update failed:", e);
+  }
+
+  const res = await fetch(USERS_ALL_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    throw new Error(`Remote user create failed: ${res.status}`);
+  }
+  return safeJsonResponse(res);
+}
+
+export async function addUserRemoteDeleted({
+  major,
+  payload,
+  deletedBy,
+} = {}) {
+  const safeMajor = String(major || "").trim() || null;
+  const safeBy = String(deletedBy || "").trim() || null;
+  const safePayload = payload && typeof payload === "object" ? payload : {};
+  // User asked: firebaseId not required for deleted (we remove from Firebase).
+  const withoutFirebaseId = omitKeys(safePayload, ["firebaseId"]);
+  const res = await fetch(USERS_DELETED_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      major: safeMajor,
+      deletedAt: Date.now(),
+      deletedBy: safeBy,
+      ...withoutFirebaseId,
+    }),
+  });
+  if (!res.ok) throw new Error(`Remote deleted_users POST failed: ${res.status}`);
+  return safeJsonResponse(res);
+}
+
+export async function addUserRemoteArchived({
+  firebaseId,
+  major,
+  payload,
+  archivedBy,
+} = {}) {
+  const safeMajor = String(major || "").trim() || null;
+  const safeBy = String(archivedBy || "").trim() || null;
+  const safePayload = payload && typeof payload === "object" ? payload : {};
+  const safeId = String(firebaseId || "").trim() || null;
+  const res = await fetch(USERS_ARCHIVED_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      major: safeMajor,
+      ...(safeId ? { firebaseId: safeId } : {}),
+      archivedAt: Date.now(),
+      archivedBy: safeBy,
+      ...safePayload,
+    }),
+  });
+  if (!res.ok)
+    throw new Error(`Remote archived_users POST failed: ${res.status}`);
+  return safeJsonResponse(res);
+}
 
 export async function checkEmailRemote(email) {
   const safeEmail = String(email || "")
@@ -605,24 +814,30 @@ export async function checkEmailRemote(email) {
     .toLowerCase();
   if (!safeEmail) return { exists: false };
 
-  const url = `${EMAIL_API_BASE}/all_Emails?email=${encodeURIComponent(
-    safeEmail
-  )}`;
-  const res = await fetch(url, { method: "GET" });
-  if (!res.ok) {
-    throw new Error(`E-Mail Prüfung fehlgeschlagen: ${res.status}`);
-  }
-  const json = await res.json();
-  const list = Array.isArray(json?.data) ? json.data : [];
-  const match =
-    list.find(
-      (item) =>
-        String(item?.email || "")
-          .trim()
-          .toLowerCase() === safeEmail
-    ) || null;
-  if (match) return { exists: true, data: match };
-  return { exists: false };
+  const tryGet = async (base) => {
+    const url = `${base}?email=${encodeURIComponent(safeEmail)}`;
+    const res = await fetch(url, { method: "GET" });
+    if (!res.ok) return { ok: false, status: res.status, data: null };
+    const json = await res.json().catch(() => ({}));
+    const list = Array.isArray(json?.data) ? json.data : [];
+    const match =
+      list.find(
+        (item) =>
+          String(item?.email || "")
+            .trim()
+            .toLowerCase() === safeEmail
+      ) || null;
+    return { ok: true, status: 200, data: match };
+  };
+
+  // Prefer primary endpoint; fall back to lowercase if server is case-sensitive.
+  const a = await tryGet(ALL_EMAILS_ENDPOINT_PRIMARY);
+  if (a.ok) return a.data ? { exists: true, data: a.data } : { exists: false };
+  const b = await tryGet(ALL_EMAILS_ENDPOINT_FALLBACK);
+  if (b.ok) return b.data ? { exists: true, data: b.data } : { exists: false };
+  throw new Error(
+    `E-Mail Prüfung fehlgeschlagen: ${a.status || b.status || "unknown"}`
+  );
 }
 
 export async function checkPassportRemote(passportNumber) {
@@ -659,6 +874,211 @@ export async function checkPassportRemote(passportNumber) {
   return { exists: false };
 }
 
+// ---- Firestore email/passport registry helpers ----
+const EMAIL_AND_PASSID_COLLECTION = "email_and_passId";
+
+function normalizeEmailForRegistry(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+function normalizePassportIdForRegistry(passportId) {
+  const raw = String(passportId || "").trim();
+  if (!raw) return "";
+  // Keep it compatible with existing stored values (import script uses .trim()).
+  // We normalize casing and whitespace to maximize match rate.
+  return raw
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export async function checkEmailFirestore(email) {
+  const safeEmail = normalizeEmailForRegistry(email);
+  if (!safeEmail) return { exists: false };
+  const ref = doc(db, EMAIL_AND_PASSID_COLLECTION, safeEmail);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return { exists: false };
+  return { exists: true, data: { id: snap.id, ...snap.data() } };
+}
+
+export async function checkPassportFirestore(passportId) {
+  const safePassport = normalizePassportIdForRegistry(passportId);
+  if (!safePassport) return { exists: false };
+  const q = query(
+    collection(db, EMAIL_AND_PASSID_COLLECTION),
+    where("passportId", "==", safePassport),
+    limit(1)
+  );
+  const snaps = await getDocs(q);
+  if (snaps.empty) return { exists: false };
+  const d = snaps.docs[0];
+  return { exists: true, data: { id: d.id, ...d.data() } };
+}
+
+function buildDeletedUserDocId({ major, sourceDocId }) {
+  // Firestore doc ids must not contain "/". `encodeURIComponent` ensures that.
+  return `${encodeURIComponent(String(major || "").trim())}__${encodeURIComponent(
+    String(sourceDocId || "").trim()
+  )}`;
+}
+
+function buildArchivedUserDocId({ major, sourceDocId }) {
+  // Same deterministic strategy as deleted_users.
+  return `${encodeURIComponent(String(major || "").trim())}__${encodeURIComponent(
+    String(sourceDocId || "").trim()
+  )}`;
+}
+
+function extractEmailFromCandidatePayload(payload) {
+  const p = payload && typeof payload === "object" ? payload : {};
+  const email =
+    p?.persoenlicheDaten?.email ??
+    p?.personalInfo?.email ??
+    p?.personalData?.email ??
+    p?.email ??
+    "";
+  return String(email || "").trim();
+}
+
+export async function deleteEmailAndPassIdByEmail(email) {
+  const safeEmail = normalizeEmailForRegistry(email);
+  if (!safeEmail) return { ok: false, reason: "missing-email" };
+  await deleteDoc(doc(db, EMAIL_AND_PASSID_COLLECTION, safeEmail));
+  return { ok: true, email: safeEmail };
+}
+
+export async function upsertEmailAndPassIdFirestore({
+  email,
+  major,
+  passportId,
+} = {}) {
+  const safeEmail = normalizeEmailForRegistry(email);
+  if (!safeEmail) return { ok: false, reason: "missing-email" };
+  const safeMajor = String(major || "").trim() || null;
+  const safePassport = normalizePassportIdForRegistry(passportId);
+  await setDoc(
+    doc(db, EMAIL_AND_PASSID_COLLECTION, safeEmail),
+    {
+      email: safeEmail,
+      major: safeMajor,
+      ...(safePassport ? { passportId: safePassport } : {}),
+      updatedAt: Date.now(),
+    },
+    { merge: true }
+  );
+  return { ok: true, email: safeEmail };
+}
+
+export async function saveDeletedUserSnapshotFirestore({
+  major,
+  sourceDocId,
+  payload,
+  deletedBy,
+  majorTitle,
+} = {}) {
+  const safeMajor = String(major || "").trim();
+  const safeId = String(sourceDocId || "").trim();
+  if (!safeMajor || !safeId)
+    throw new Error("saveDeletedUserSnapshotFirestore: invalid args");
+
+  const snapshot =
+    payload && typeof payload === "object" ? structuredClone(payload) : {};
+  const email = extractEmailFromCandidatePayload(snapshot);
+
+  const docId = buildDeletedUserDocId({ major: safeMajor, sourceDocId: safeId });
+  const ref = doc(db, "deleted_users", docId);
+  await setDoc(
+    ref,
+    {
+      sourceMajor: safeMajor,
+      sourceDocId: safeId,
+      sourceMajorTitle: String(majorTitle || "").trim() || null,
+      deletedAt: Date.now(),
+      deletedBy: String(deletedBy || "").trim() || null,
+      ...(email ? { email: normalizeEmailForRegistry(email) } : {}),
+      ...snapshot,
+    },
+    { merge: true }
+  );
+  return { id: docId };
+}
+
+export async function saveArchivedUserSnapshotFirestore({
+  major,
+  sourceDocId,
+  payload,
+  archivedBy,
+  majorTitle,
+} = {}) {
+  const safeMajor = String(major || "").trim();
+  const safeId = String(sourceDocId || "").trim();
+  if (!safeMajor || !safeId)
+    throw new Error("saveArchivedUserSnapshotFirestore: invalid args");
+
+  const snapshot =
+    payload && typeof payload === "object" ? structuredClone(payload) : {};
+  const email = extractEmailFromCandidatePayload(snapshot);
+
+  const docId = buildArchivedUserDocId({ major: safeMajor, sourceDocId: safeId });
+  const ref = doc(db, "archived_users", docId);
+  await setDoc(
+    ref,
+    {
+      sourceMajor: safeMajor,
+      sourceDocId: safeId,
+      sourceMajorTitle: String(majorTitle || "").trim() || null,
+      archivedAt: Date.now(),
+      archivedBy: String(archivedBy || "").trim() || null,
+      ...(email ? { email: normalizeEmailForRegistry(email) } : {}),
+      ...snapshot,
+    },
+    { merge: true }
+  );
+  return { id: docId };
+}
+
+function collectHttpUrlsDeep(value, out) {
+  const acc = out || new Set();
+  if (!value) return acc;
+  if (typeof value === "string") {
+    const s = value.trim();
+    if (/^https?:\/\//.test(s)) acc.add(s);
+    return acc;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((v) => collectHttpUrlsDeep(v, acc));
+    return acc;
+  }
+  if (typeof value === "object") {
+    Object.values(value).forEach((v) => collectHttpUrlsDeep(v, acc));
+  }
+  return acc;
+}
+
+export function extractConsultingUploadUrlsFromSnapshot(snapshot) {
+  const urls = Array.from(collectHttpUrlsDeep(snapshot, new Set()));
+  // Filter to our known upload host/project to avoid deleting unrelated external links.
+  return urls.filter(
+    (u) =>
+      String(u).includes("json-api.uz") &&
+      String(u).includes("/api/project/consultinguz/")
+  );
+}
+
+export async function deleteConsultingUploadUrlsBestEffort(urls) {
+  const list = Array.isArray(urls) ? urls : [];
+  const unique = Array.from(
+    new Set(list.map((u) => String(u || "").trim()).filter(Boolean))
+  );
+  if (unique.length === 0) return { ok: true, deleted: 0, failed: 0 };
+
+  const results = await Promise.allSettled(
+    unique.map((u) => deleteUploadedFileRemote(u))
+  );
+  const failed = results.filter((r) => r.status === "rejected").length;
+  return { ok: failed === 0, deleted: unique.length - failed, failed };
+}
+
 export async function registerEmailRemote(email, major, passportNumber) {
   const safeEmail = String(email || "").trim();
   if (!safeEmail) return;
@@ -667,7 +1087,7 @@ export async function registerEmailRemote(email, major, passportNumber) {
     .trim()
     .toUpperCase();
 
-  const res = await fetch(`${EMAIL_API_BASE}/all_Emails`, {
+  const res = await fetch(ALL_EMAILS_ENDPOINT_PRIMARY, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -677,6 +1097,21 @@ export async function registerEmailRemote(email, major, passportNumber) {
     }),
   });
   if (!res.ok) {
+    // If casing is wrong on the server, retry once with the fallback.
+    if (res.status === 404) {
+      const res2 = await fetch(ALL_EMAILS_ENDPOINT_FALLBACK, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: safeEmail,
+          major: String(major || "").trim() || null,
+          ...(safePassportId ? { passportId: safePassportId } : {}),
+        }),
+      });
+      if (!res2.ok)
+        throw new Error(`E-Mail Registrierung fehlgeschlagen: ${res2.status}`);
+      return res2.json().catch(() => ({}));
+    }
     throw new Error(`E-Mail Registrierung fehlgeschlagen: ${res.status}`);
   }
   return res.json().catch(() => ({}));
@@ -713,14 +1148,51 @@ export async function deleteEmailRemote(email) {
     .toLowerCase();
   if (!safeEmail) return;
 
-  const url = `${EMAIL_API_BASE}/all_Emails/by-property?property=email&value=${encodeURIComponent(
-    safeEmail
-  )}&all=false`;
-  const res = await fetch(url, { method: "DELETE" });
-  if (!res.ok) {
-    throw new Error(`E-Mail Löschung fehlgeschlagen: ${res.status}`);
-  }
-  return res.json().catch(() => ({}));
+  // Deterministic strategy (avoids noisy 404s on unsupported /by-property):
+  // 1) GET by email (supported by our codebase)
+  // 2) DELETE by record id (commonly supported)
+  const tryDeleteById = async (baseEndpoint) => {
+    const getRes = await fetch(
+      `${baseEndpoint}?email=${encodeURIComponent(safeEmail)}`,
+      { method: "GET" }
+    );
+    if (!getRes.ok) return { ok: false, status: getRes.status };
+    const json = await getRes.json().catch(() => ({}));
+    const list = Array.isArray(json?.data) ? json.data : [];
+    const match =
+      list.find(
+        (item) =>
+          String(item?.email || "")
+            .trim()
+            .toLowerCase() === safeEmail
+      ) || null;
+    if (!match) return { ok: true, deleted: false, reason: "not-found" };
+
+    const id =
+      match.id ?? match._id ?? match.uuid ?? match.key ?? match.docId ?? null;
+    if (id !== null && id !== undefined && String(id).trim() !== "") {
+      const delRes = await fetch(
+        `${baseEndpoint}/${encodeURIComponent(String(id))}`,
+        { method: "DELETE" }
+      );
+      if (delRes.ok) return { ok: true, deleted: true, via: "id" };
+      return { ok: false, status: delRes.status };
+    }
+
+    // Fallback: some servers only support by-property deletes.
+    const byPropUrl = `${baseEndpoint}/by-property?property=email&value=${encodeURIComponent(
+      safeEmail
+    )}&all=false`;
+    const del2 = await fetch(byPropUrl, { method: "DELETE" });
+    if (del2.ok) return { ok: true, deleted: true, via: "by-property" };
+    return { ok: false, status: del2.status };
+  };
+
+  const a = await tryDeleteById(ALL_EMAILS_ENDPOINT_PRIMARY);
+  if (a.ok) return a;
+  const b = await tryDeleteById(ALL_EMAILS_ENDPOINT_FALLBACK);
+  if (b.ok) return b;
+  throw new Error(`E-Mail Löschung fehlgeschlagen: ${a.status || b.status}`);
 }
 
 // ---- External upload delete helpers ----

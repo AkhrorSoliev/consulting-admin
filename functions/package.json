@@ -6,7 +6,8 @@
     "shell": "firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
-    "logs": "firebase functions:log"
+    "logs": "firebase functions:log",
+    "seed:email_and_passid": "node scripts/seedEmailAndPassId.js"
   },
   "engines": {
     "node": "20"

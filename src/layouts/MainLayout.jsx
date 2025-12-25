@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import Navbar from "../components/Navbar";
 import { FaHome, FaUserCircle } from "react-icons/fa";
+import { FiUsers } from "react-icons/fi";
 import { MdDarkMode, MdLightMode, MdOutlineLogout, MdSettings } from "react-icons/md";
 import { useLogout } from "../hooks/useLogut";
 import { useTheme } from "../hooks/useTheme";
@@ -76,6 +77,17 @@ function MainLayout() {
           >
             <MdSettings className="text-xl" />
             <span className="font-medium">Einstellungen</span>
+          </Link>
+        )}
+        {!loadingRole && (role === "super_admin" || role === "admin") && (
+          <Link
+            to="/candidates"
+            className="btn btn-ghost gap-2 hidden sm:inline-flex"
+            aria-label="Kandidaten"
+            data-sidebar-toggle
+          >
+            <FiUsers className="text-xl" />
+            <span className="font-medium">Kandidaten</span>
           </Link>
         )}
         <button

@@ -5,17 +5,9 @@ export default function SettingsIndexRedirect() {
   const { role, loadingRole } = useUserRole({ forceRefresh: true });
 
   if (loadingRole) {
-    return (
-      <div className="space-y-3">
-        <p className="text-sm text-base-content/60">Wird geladen...</p>
-      </div>
-    );
+    return <div className="text-sm text-base-content/60">Wird geladen...</div>;
   }
 
-  // Super admin lands on Admins; everyone else lands on template emails.
-  if (role === "super_admin") {
-    return <Navigate to="admins" replace />;
-  }
-
-  return <Navigate to="template-emails" replace />;
+  const target = role === "super_admin" ? "admins" : "template-emails";
+  return <Navigate to={target} replace />;
 }
