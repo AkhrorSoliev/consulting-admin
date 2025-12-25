@@ -34,9 +34,100 @@ function setCors(req, res) {
   if (allowedOrigins.has(origin)) {
     res.set("Access-Control-Allow-Origin", origin);
   }
-  res.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.set("Access-Control-Allow-Headers", "Content-Type");
+  res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Range");
+  res.set(
+    "Access-Control-Expose-Headers",
+    "Content-Type, Content-Length, Content-Range, Accept-Ranges"
+  );
 }
+
+function isAllowedPdfProxyUrl(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return false;
+  let u;
+  try {
+    u = new URL(s);
+  } catch {
+    return false;
+  }
+  const host = String(u.hostname || "").toLowerCase();
+  if (host !== "json-api.uz") return false;
+  const path = String(u.pathname || "");
+  const lower = path.toLowerCase();
+
+  // Allow only known file storage paths (avoid becoming an open proxy).
+  // Real file URLs we see in this project include:
+  // - /mt/... or /mnt/... (direct storage)
+  // - /uploads/... (legacy storage)
+  // - /api/project/consultinguz/... (project-scoped file URLs)
+  //
+  // IMPORTANT: We must NOT allow proxying arbitrary json-api.uz API endpoints
+  // like /api/project/consultinguz/all_users, /all_Emails, etc.
+  if (/^\/(mt|mnt)\//i.test(path)) return true;
+  if (/^\/uploads\//i.test(path)) return true;
+
+  if (/^\/api\/project\/consultinguz\//i.test(path)) {
+    const blockedPrefixes = [
+      "/api/project/consultinguz/upload/delete",
+      "/api/project/consultinguz/upload",
+      "/api/project/consultinguz/all_users",
+      "/api/project/consultinguz/deleted_users",
+      "/api/project/consultinguz/archived_users",
+      "/api/project/consultinguz/all_emails",
+      "/api/project/consultinguz/all_passports",
+    ];
+    if (blockedPrefixes.some((p) => lower.startsWith(p))) return false;
+
+    // Accept only paths that look like a stored file reference.
+    const looksFileLike =
+      lower.includes("/mt/") ||
+      lower.includes("/mnt/") ||
+      lower.includes("/uploads/") ||
+      lower.includes("/file-");
+    return looksFileLike;
+  }
+
+  return false;
+}
+
+// GET /proxyPdf?url=https://json-api.uz/mnt/file-....pdf
+// Purpose: bypass CORS so the frontend can render external PDFs (pdf.js) as images.
+exports.proxyPdf = onRequest(async (req, res) => {
+  try {
+    setCors(req, res);
+    if (req.method === "OPTIONS") return res.status(204).send("");
+    if (req.method !== "GET") {
+      return res.status(405).json({ ok: false, error: "method-not-allowed" });
+    }
+
+    const url = String(req.query?.url || "").trim();
+    if (!isAllowedPdfProxyUrl(url)) {
+      return res.status(400).json({ ok: false, error: "invalid-url" });
+    }
+
+    const upstream = await fetch(url, { method: "GET" });
+    if (!upstream.ok) {
+      return res
+        .status(upstream.status)
+        .json({ ok: false, error: "upstream-failed", status: upstream.status });
+    }
+
+    const ct =
+      upstream.headers.get("content-type") || "application/pdf; charset=binary";
+    res.set("Content-Type", ct);
+    res.set("Cache-Control", "public, max-age=300"); // 5 min
+
+    const ab = await upstream.arrayBuffer();
+    return res.status(200).send(Buffer.from(ab));
+  } catch (e) {
+    logger.error("proxyPdf error", e);
+    setCors(req, res);
+    return res
+      .status(500)
+      .json({ ok: false, error: "internal", details: String(e?.message || e) });
+  }
+});
 
 function findLead(meta, leadParam) {
   const list = Array.isArray(meta?.leadLinks) ? meta.leadLinks : [];

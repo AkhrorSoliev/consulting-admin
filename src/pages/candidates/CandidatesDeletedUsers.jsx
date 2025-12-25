@@ -83,7 +83,8 @@ export default function CandidatesDeletedUsers() {
   const navigate = useNavigate();
   const { user } = useSelector((s) => s.auth);
   const { role, loadingRole } = useUserRole({ forceRefresh: true });
-  const isPrivileged = !loadingRole && (role === "super_admin" || role === "admin");
+  const isPrivileged =
+    !loadingRole && (role === "super_admin" || role === "admin");
 
   const [loading, setLoading] = useState(true);
   const [restoringKey, setRestoringKey] = useState("");
@@ -118,7 +119,9 @@ export default function CandidatesDeletedUsers() {
   }, [isPrivileged]);
 
   const filtered = useMemo(() => {
-    const q = String(query || "").trim().toLowerCase();
+    const q = String(query || "")
+      .trim()
+      .toLowerCase();
     if (!q) return items;
     return items.filter((r) => {
       const name =
@@ -144,7 +147,9 @@ export default function CandidatesDeletedUsers() {
       kind: "restore",
       record,
       title: "Kandidat wiederherstellen?",
-      message: `Major: ${major || "—"}\n\nHinweis: Der Kandidat wird in Firebase wiederhergestellt.`,
+      message: `Major: ${
+        major || "—"
+      }\n\nHinweis: Der Kandidat wird in Firebase wiederhergestellt.`,
       confirmLabel: "Wiederherstellen",
       confirmVariant: "btn-primary",
     });
@@ -240,7 +245,9 @@ export default function CandidatesDeletedUsers() {
   }
 
   if (!loadingRole && !isPrivileged) {
-    return <div className="text-sm text-base-content/70">Keine Berechtigung.</div>;
+    return (
+      <div className="text-sm text-base-content/70">Keine Berechtigung.</div>
+    );
   }
 
   return (
@@ -300,11 +307,17 @@ export default function CandidatesDeletedUsers() {
             const last = String(r?.persoenlicheDaten?.nachname || "").trim();
             const full = [first, last].filter(Boolean).join(" ") || "—";
             const email =
-              String(r?.persoenlicheDaten?.email || r?.email || "").trim() || "—";
-            const photo = String(r?.persoenlicheDaten?.foto || r?.foto || r?.photo || "").trim() || "";
-            const major = String(r?.sourceMajor || r?.major || "").trim() || "—";
+              String(r?.persoenlicheDaten?.email || r?.email || "").trim() ||
+              "—";
+            const photo =
+              String(
+                r?.persoenlicheDaten?.foto || r?.foto || r?.photo || ""
+              ).trim() || "";
+            const major =
+              String(r?.sourceMajor || r?.major || "").trim() || "—";
             const key = String(r?.id || idx);
-            const restoring = restoringKey && String(restoringKey) === String(key);
+            const restoring =
+              restoringKey && String(restoringKey) === String(key);
             const deleting = deletingKey && String(deletingKey) === String(key);
             const disabled = Boolean(restoringKey) || Boolean(deletingKey);
             return (
@@ -318,7 +331,8 @@ export default function CandidatesDeletedUsers() {
                 tone="error"
                 onClick={() => {
                   const majorParam = major && major !== "—" ? major : "unknown";
-                  const idParam = String(r?.sourceDocId || "").trim() || "deleted";
+                  const idParam =
+                    String(r?.sourceDocId || "").trim() || "deleted";
                   navigate(
                     `/generate/${majorParam}/${idParam}?remote=1&kind=deleted&deletedDocId=${encodeURIComponent(
                       String(r?.id || "")
@@ -374,5 +388,3 @@ export default function CandidatesDeletedUsers() {
     </div>
   );
 }
-
-

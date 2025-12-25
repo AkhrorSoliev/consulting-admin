@@ -16,9 +16,11 @@ import { login, setAuthReady } from "./features/authSlice";
 import Create from "./pages/Create";
 import Generate from "./pages/Generate";
 import Profile from "./pages/Profile";
+import Contract from "./pages/Contract";
 import SettingsLayout from "./pages/settings/SettingsLayout";
 import AdminsSettings from "./pages/settings/AdminsSettings";
 import TemplateEmailsSettings from "./pages/settings/TemplateEmailsSettings";
+import DocumentsSettings from "./pages/settings/DocumentsSettings";
 import SettingsIndexRedirect from "./pages/settings/SettingsIndexRedirect";
 import CandidatesLayout from "./pages/candidates/CandidatesLayout";
 import CandidatesIndexRedirect from "./pages/candidates/CandidatesIndexRedirect";
@@ -53,7 +55,12 @@ function App() {
             { index: true, element: <SettingsIndexRedirect /> },
             { path: "admins", element: <AdminsSettings /> },
             { path: "template-emails", element: <TemplateEmailsSettings /> },
+            { path: "documents", element: <DocumentsSettings /> },
           ],
+        },
+        {
+          path: "settings/documents/beratungsvertrag",
+          element: <Contract />,
         },
         {
           path: "collectionCv/:major",
@@ -62,6 +69,10 @@ function App() {
         {
           path: "generate/:major/:id",
           element: <Generate />,
+        },
+        {
+          path: "contract",
+          element: <Navigate to="/settings/documents/beratungsvertrag" replace />,
         },
         {
           path: "candidates",

@@ -1,6 +1,6 @@
 import { NavLink, Outlet } from "react-router-dom";
 import useUserRole from "../../hooks/useUserRole";
-import { MdSettings, MdEmail } from "react-icons/md";
+import { MdSettings, MdEmail, MdDescription } from "react-icons/md";
 import { FiUsers } from "react-icons/fi";
 
 function menuItemClass({ isActive }) {
@@ -37,20 +37,35 @@ export default function SettingsLayout() {
 
           <div className="p-2">
             <ul className="space-y-1">
-            {showAdmins && (
+              {showAdmins && (
+                <li>
+                  <NavLink to="admins" className={menuItemClass} end>
+                    <FiUsers
+                      className="h-[18px] w-[18px] opacity-90"
+                      aria-hidden="true"
+                    />
+                    <span className="flex-1">Admins</span>
+                  </NavLink>
+                </li>
+              )}
               <li>
-                <NavLink to="admins" className={menuItemClass} end>
-                  <FiUsers className="h-[18px] w-[18px] opacity-90" aria-hidden="true" />
-                  <span className="flex-1">Admins</span>
+                <NavLink to="template-emails" className={menuItemClass} end>
+                  <MdEmail
+                    className="h-[18px] w-[18px] opacity-90"
+                    aria-hidden="true"
+                  />
+                  <span className="flex-1">Template E-Mails</span>
                 </NavLink>
               </li>
-            )}
-            <li>
-              <NavLink to="template-emails" className={menuItemClass} end>
-                <MdEmail className="h-[18px] w-[18px] opacity-90" aria-hidden="true" />
-                <span className="flex-1">Template E-Mails</span>
-              </NavLink>
-            </li>
+              <li>
+                <NavLink to="documents" className={menuItemClass} end>
+                  <MdDescription
+                    className="h-[18px] w-[18px] opacity-90"
+                    aria-hidden="true"
+                  />
+                  <span className="flex-1">Documents</span>
+                </NavLink>
+              </li>
             </ul>
           </div>
         </aside>
