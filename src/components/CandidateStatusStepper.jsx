@@ -17,10 +17,10 @@ function CandidateStatusStepper({
     <div className="card bg-base-100 border border-base-300 shadow-sm">
       <div className="card-body space-y-4">
         <div className="flex flex-col gap-1">
-          <h3 className="text-lg font-semibold">Kandidat bosqichlari</h3>
+          <h3 className="text-lg font-semibold">Kandidatenstufen</h3>
           <p className="text-sm opacity-70">
-            Har bir bosqich bo&apos;yicha email yuboring. Email yuborishda
-            qabul/rad tanlanadi. Qabul qilinganda keyingi bosqich ochiladi.
+            Senden Sie für jede Stufe eine E-Mail. Beim Senden wählen Sie
+            „Annehmen/Ablehnen“. Bei Annahme wird die nächste Stufe freigeschaltet.
           </p>
         </div>
 
@@ -40,20 +40,16 @@ function CandidateStatusStepper({
                   <button
                     className="btn btn-sm btn-outline"
                     onClick={() => onSendEmail?.(step.value)}
-                    disabled={disabled || !isCurrent}
+                    disabled={disabled || !isCurrent || isSending}
                   >
                     {isSending ? (
-                      <>
-                        <span className="loading loading-spinner loading-sm" />
-                        Yuborilmoqda...
-                      </>
-                    ) : (
-                      "Email yuborish"
-                    )}
+                      <span className="loading loading-spinner loading-sm" />
+                    ) : null}
+                    E-Mail senden
                   </button>
                   {!isCurrent && (
                     <p className="text-xs opacity-60">
-                      Avvalgi bosqich yakunlangach ochiladi.
+                      Wird nach Abschluss der vorherigen Stufe verfügbar.
                     </p>
                   )}
                 </div>

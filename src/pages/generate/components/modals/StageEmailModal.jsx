@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import CollapsibleSection from "../../../../components/CollapsibleSection";
 
 function InfoRow({ label, value }) {
@@ -6,7 +5,7 @@ function InfoRow({ label, value }) {
   return (
     <div className="flex flex-col gap-1">
       <div className="text-xs opacity-60">{label}</div>
-      <div className="font-medium break-words">{value}</div>
+      <div className="font-medium wrap-break-word">{value}</div>
     </div>
   );
 }
@@ -17,44 +16,26 @@ function EmailPreview({ subject, to, htmlContent, message }) {
   const safeHtml = String(htmlContent || "").trim();
   const safeMsg = String(message || "").trim();
 
-  const inlineBodyHtml = useMemo(() => {
-    if (!safeHtml) return "";
-    // Smooth preview (no iframe reload): extract <body> and render inline.
-    try {
-      if (typeof DOMParser !== "undefined") {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(safeHtml, "text/html");
-        const inner = doc?.body?.innerHTML;
-        if (typeof inner === "string") return inner;
-      }
-    } catch {
-      // ignore and fallback below
-    }
-    const m = safeHtml.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
-    if (m && typeof m[1] === "string") return m[1];
-    return safeHtml;
-  }, [safeHtml]);
-
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <InfoRow label="To" value={safeTo || "—"} />
-        <InfoRow label="Subject" value={safeSubject || "—"} />
+        <InfoRow label="An" value={safeTo || "—"} />
+        <InfoRow label="Betreff" value={safeSubject || "—"} />
       </div>
 
       {safeHtml ? (
-        <div className="rounded-lg border border-base-300 bg-white overflow-hidden">
-          <div className="w-full h-[420px] overflow-auto p-4">
-            <div
-              className="min-h-full"
-              dangerouslySetInnerHTML={{ __html: inlineBodyHtml }}
-            />
-          </div>
+        <div className="rounded-lg border border-base-300 bg-base-100 overflow-hidden">
+          <iframe
+            title="E-Mail-Vorschau"
+            className="w-full h-[420px] bg-white"
+            sandbox="allow-popups allow-popups-to-escape-sandbox"
+            srcDoc={safeHtml}
+          />
         </div>
       ) : (
         <div className="rounded-lg border border-base-300 bg-base-100 p-3">
           <div className="text-xs opacity-60 mb-2">
-            HTML yo&apos;q (text preview)
+            Kein HTML (Textvorschau)
           </div>
           <pre className="whitespace-pre-wrap text-sm leading-relaxed">
             {safeMsg || "—"}
@@ -84,11 +65,6 @@ export default function StageEmailModal({
 }) {
   if (!open) return null;
 
-  const linkType =
-    additionalInfoForm?.linkType === "telegram" ? "telegram" : "zoom";
-  const linkLabel =
-    linkType === "telegram" ? "Telegram link" : "Zoom link";
-
   const showInfoPanel =
     (showAdditionalInfoEditor || previewRows.length > 0) &&
     (!showPreviewWhenAccepted || decision === "accepted");
@@ -100,8 +76,8 @@ export default function StageEmailModal({
         onClick={onClose}
       />
       <div className="relative w-full max-w-3xl mx-4">
-        <div className="bg-base-100 text-base-content rounded-box shadow-2xl border border-base-300 p-6 max-h-[calc(100vh-2rem)] flex flex-col">
-          <div className="flex items-start justify-between gap-3 shrink-0">
+        <div className="bg-base-100 text-base-content rounded-box shadow-2xl border border-base-300 p-6 space-y-4">
+          <div className="flex items-start justify-between gap-3">
             <div>
               <h3 className="text-lg font-bold">{title}</h3>
               {subtitle ? (
@@ -112,16 +88,13 @@ export default function StageEmailModal({
               type="button"
               className="btn btn-ghost btn-sm"
               onClick={onClose}
-              aria-label="Modalni yopish"
+              aria-label="Modal schließen"
             >
               ✕
             </button>
           </div>
 
-          <form
-            className="space-y-4 flex-1 overflow-y-auto pr-1 mt-4"
-            onSubmit={onSubmit}
-          >
+          <form className="space-y-4" onSubmit={onSubmit}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <label
                 className={`card border transition cursor-pointer ${
@@ -140,10 +113,11 @@ export default function StageEmailModal({
                       checked={decision === "accepted"}
                       onChange={() => setDecision?.("accepted")}
                     />
-                    <div className="font-semibold">Qabul qilish</div>
+                    <div className="font-semibold">Annehmen</div>
                   </div>
                   <p className="text-sm opacity-70">
-                    Ijobiy email yuboriladi va keyingi bosqich ochiladi.
+                    Es wird eine positive E-Mail gesendet und die nächste Stufe
+                    wird freigeschaltet.
                   </p>
                 </div>
               </label>
@@ -165,10 +139,11 @@ export default function StageEmailModal({
                       checked={decision === "rejected"}
                       onChange={() => setDecision?.("rejected")}
                     />
-                    <div className="font-semibold">Rad qilish</div>
+                    <div className="font-semibold">Ablehnen</div>
                   </div>
                   <p className="text-sm opacity-70">
-                    Salbiy email yuboriladi. Keyingi bosqichga o&apos;tmaydi.
+                    Es wird eine Absage gesendet. Es geht nicht zur nächsten
+                    Stufe weiter.
                   </p>
                 </div>
               </label>
@@ -177,136 +152,82 @@ export default function StageEmailModal({
             {showInfoPanel && (
               <div className="bg-base-200/60 border border-base-300 rounded-lg p-4 space-y-3">
                 <div className="font-semibold">
-                  {previewTitle || "Emailga qo'shiladigan ma'lumotlar"}
+                  {previewTitle || "Informationen, die der E-Mail hinzugefügt werden"}
                 </div>
                 {showAdditionalInfoEditor ? (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="form-control">
-                        <label className="label" htmlFor="stage-email-datetime">
-                          <span className="label-text font-medium">Vaqt</span>
-                        </label>
-                        <input
-                          id="stage-email-datetime"
-                          type="datetime-local"
-                          className="input input-bordered w-full"
-                          value={String(additionalInfoForm?.dateTime || "")}
-                          onChange={(e) =>
-                            setAdditionalInfoForm?.((prev) => ({
-                              ...(prev || {}),
-                              dateTime: e.target.value,
-                            }))
-                          }
-                        />
-                      </div>
-                      <div className="form-control">
-                        <div className="label flex items-center justify-between">
-                          <span className="label-text font-medium">
-                            Uchrashuv havolasi
-                          </span>
-                          <div className="join join-sm">
-                            <button
-                              type="button"
-                              className={`btn btn-xs join-item ${
-                                linkType === "zoom" ? "btn-primary" : "btn-ghost"
-                              }`}
-                              onClick={() =>
-                                setAdditionalInfoForm?.((prev) => ({
-                                  ...(prev || {}),
-                                  linkType: "zoom",
-                                }))
-                              }
-                            >
-                              Zoom
-                            </button>
-                            <button
-                              type="button"
-                              className={`btn btn-xs join-item ${
-                                linkType === "telegram"
-                                  ? "btn-primary"
-                                  : "btn-ghost"
-                              }`}
-                              onClick={() =>
-                                setAdditionalInfoForm?.((prev) => ({
-                                  ...(prev || {}),
-                                  linkType: "telegram",
-                                }))
-                              }
-                            >
-                              Telegram
-                            </button>
-                          </div>
-                        </div>
-                        <input
-                          id="stage-email-link"
-                          type="url"
-                          className="input input-bordered w-full"
-                          placeholder={
-                            linkType === "telegram"
-                              ? "https://t.me/..."
-                              : "https://zoom.us/j/..."
-                          }
-                          value={String(additionalInfoForm?.link || "")}
-                          onChange={(e) =>
-                            setAdditionalInfoForm?.((prev) => ({
-                              ...(prev || {}),
-                              link: e.target.value,
-                            }))
-                          }
-                        />
-                        <p className="text-xs opacity-60 mt-1">
-                          Emailda “{linkLabel}” sifatida ko&apos;rsatiladi.
-                        </p>
-                      </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="form-control">
+                      <label className="label" htmlFor="stage-email-datetime">
+                        <span className="label-text font-medium">
+                          Datum/Uhrzeit
+                        </span>
+                      </label>
+                      <input
+                        id="stage-email-datetime"
+                        type="datetime-local"
+                        className="input input-bordered w-full"
+                        value={String(additionalInfoForm?.dateTime || "")}
+                        onChange={(e) =>
+                          setAdditionalInfoForm?.((prev) => ({
+                            ...(prev || {}),
+                            dateTime: e.target.value,
+                          }))
+                        }
+                      />
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="form-control">
-                        <label className="label" htmlFor="stage-email-location-name">
-                          <span className="label-text font-medium">
-                            Lokatsiya nomi (ixtiyoriy)
-                          </span>
-                        </label>
-                        <input
-                          id="stage-email-location-name"
-                          type="text"
-                          className="input input-bordered w-full"
-                          placeholder="Masalan: ConsultingUZ ofisi"
-                          value={String(additionalInfoForm?.locationName || "")}
-                          onChange={(e) =>
-                            setAdditionalInfoForm?.((prev) => ({
-                              ...(prev || {}),
-                              locationName: e.target.value,
-                            }))
-                          }
-                        />
-                        <p className="text-xs opacity-60 mt-1">
-                          Oflayn uchrashuv bo&apos;lsa joy nomini kiriting.
-                        </p>
-                      </div>
-                      <div className="form-control">
-                        <label className="label" htmlFor="stage-email-location-url">
-                          <span className="label-text font-medium">
-                            Lokatsiya havolasi (ixtiyoriy)
-                          </span>
-                        </label>
-                        <input
-                          id="stage-email-location-url"
-                          type="url"
-                          className="input input-bordered w-full"
-                          placeholder="https://maps.app.goo.gl/..."
-                          value={String(additionalInfoForm?.locationUrl || "")}
-                          onChange={(e) =>
-                            setAdditionalInfoForm?.((prev) => ({
-                              ...(prev || {}),
-                              locationUrl: e.target.value,
-                            }))
-                          }
-                        />
-                        <p className="text-xs opacity-60 mt-1">
-                          Havola bo&apos;lmasa faqat nomni qoldirish mumkin.
-                        </p>
-                      </div>
+                    <div className="form-control">
+                      <label className="label" htmlFor="stage-email-link">
+                        <span className="label-text font-medium">Link</span>
+                      </label>
+                      <input
+                        id="stage-email-link"
+                        type="url"
+                        className="input input-bordered w-full"
+                        placeholder="https://..."
+                        value={String(additionalInfoForm?.link || "")}
+                        onChange={(e) =>
+                          setAdditionalInfoForm?.((prev) => ({
+                            ...(prev || {}),
+                            link: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="form-control">
+                      <label className="label" htmlFor="stage-email-locationName">
+                        <span className="label-text font-medium">Ort (Name)</span>
+                      </label>
+                      <input
+                        id="stage-email-locationName"
+                        type="text"
+                        className="input input-bordered w-full"
+                        placeholder="z. B. ConsultingUZ Büro"
+                        value={String(additionalInfoForm?.locationName || "")}
+                        onChange={(e) =>
+                          setAdditionalInfoForm?.((prev) => ({
+                            ...(prev || {}),
+                            locationName: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="form-control">
+                      <label className="label" htmlFor="stage-email-locationUrl">
+                        <span className="label-text font-medium">Ort (URL)</span>
+                      </label>
+                      <input
+                        id="stage-email-locationUrl"
+                        type="url"
+                        className="input input-bordered w-full"
+                        placeholder="https://maps.app.goo.gl/..."
+                        value={String(additionalInfoForm?.locationUrl || "")}
+                        onChange={(e) =>
+                          setAdditionalInfoForm?.((prev) => ({
+                            ...(prev || {}),
+                            locationUrl: e.target.value,
+                          }))
+                        }
+                      />
                     </div>
                   </div>
                 ) : (
@@ -325,7 +246,7 @@ export default function StageEmailModal({
 
             {emailPreview ? (
               <CollapsibleSection
-                title="Email preview (qanday ko‘rinishda boradi)"
+                title="E-Mail-Vorschau (so wird sie aussehen)"
                 defaultOpen={false}
                 className="bg-base-200/60"
               >
@@ -338,13 +259,13 @@ export default function StageEmailModal({
               </CollapsibleSection>
             ) : null}
 
-            <div className="flex justify-end gap-2 pt-2 sticky bottom-0 bg-base-100">
+            <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
                 className="btn"
                 onClick={onClose}
               >
-                Bekor qilish
+                Abbrechen
               </button>
               <button
                 type="submit"
@@ -353,10 +274,10 @@ export default function StageEmailModal({
                 {isSending ? (
                   <>
                     <span className="loading loading-spinner loading-sm" />
-                    Yuborilmoqda...
+                    Wird gesendet...
                   </>
                 ) : (
-                  "Jo'natish"
+                  "Senden"
                 )}
               </button>
             </div>

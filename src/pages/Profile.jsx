@@ -67,10 +67,7 @@ function Profile() {
     try {
       if (!user) throw new Error("Avvalo tizimga kiring");
       const updates = {};
-      if (
-        formData.displayName &&
-        formData.displayName !== user.displayName
-      ) {
+      if (formData.displayName && formData.displayName !== user.displayName) {
         updates.displayName = formData.displayName;
       }
       if (selectedFile) {
@@ -104,11 +101,10 @@ function Profile() {
     error: "text-error",
   };
 
-
   return (
     <div className="min-h-screen bg-base-200">
       <div className="max-w-3xl mx-auto px-4 py-10">
-        <div className="rounded-box border border-base-300 bg-base-100 text-base-content shadow-2xl">
+        <div className="rounded-box border border-base-300 bg-bg-base-300 shadow-lg shadow-base-300">
           <div className="px-6 py-8 space-y-6">
             <div className="flex justify-start">
               <button
@@ -121,7 +117,7 @@ function Profile() {
               </button>
             </div>
             <div className="flex flex-col items-center gap-3">
-              <div className="h-32 w-32 rounded-full border-4 border-base-300 bg-base-200 shadow-xl">
+              <div className="h-32 w-32 rounded-full border-4 border-base-200 bg-base-200 shadow-xl">
                 <img
                   src={avatarPreview}
                   alt="Profile avatar"
@@ -205,7 +201,6 @@ function Profile() {
                 </button>
               </form>
             </div>
-
           </div>
         </div>
       </div>
@@ -214,4 +209,3 @@ function Profile() {
 }
 
 export default Profile;
-

@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 import useUserRole from "../../hooks/useUserRole";
-import { FiMail, FiSettings, FiUsers } from "react-icons/fi";
+import { MdSettings, MdEmail } from "react-icons/md";
+import { FiUsers } from "react-icons/fi";
 
 function menuItemClass({ isActive }) {
   const base =
@@ -18,17 +19,17 @@ export default function SettingsLayout() {
 
   return (
     <div className="w-full mx-auto">
-      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6">
         <aside className="md:sticky md:top-0 self-start rounded-box border border-base-300 bg-base-100 shadow">
           <div className="p-4 border-b border-base-200">
             <div className="flex items-center gap-3">
               <div className="grid place-items-center h-10 w-10 rounded-xl bg-primary/10 text-primary">
-                <FiSettings className="h-5 w-5" aria-hidden="true" />
+                <MdSettings className="h-5 w-5" aria-hidden="true" />
               </div>
               <div className="min-w-0">
-                <div className="font-semibold leading-tight">Einstellungen</div>
+                <div className="font-semibold leading-tight">Settings</div>
                 <div className="text-xs text-base-content/60">
-                  Konfiguration &amp; Vorlagen
+                  Admin & Template Einstellungen
                 </div>
               </div>
             </div>
@@ -36,26 +37,20 @@ export default function SettingsLayout() {
 
           <div className="p-2">
             <ul className="space-y-1">
-              {showAdmins && (
-                <li>
-                  <NavLink to="admins" className={menuItemClass} end>
-                    <FiUsers
-                      className="h-[18px] w-[18px] opacity-90"
-                      aria-hidden="true"
-                    />
-                    <span className="flex-1">Admins</span>
-                  </NavLink>
-                </li>
-              )}
+            {showAdmins && (
               <li>
-                <NavLink to="template-emails" className={menuItemClass} end>
-                  <FiMail
-                    className="h-[18px] w-[18px] opacity-90"
-                    aria-hidden="true"
-                  />
-                  <span className="flex-1">E-Mail-Vorlagen</span>
+                <NavLink to="admins" className={menuItemClass} end>
+                  <FiUsers className="h-[18px] w-[18px] opacity-90" aria-hidden="true" />
+                  <span className="flex-1">Admins</span>
                 </NavLink>
               </li>
+            )}
+            <li>
+              <NavLink to="template-emails" className={menuItemClass} end>
+                <MdEmail className="h-[18px] w-[18px] opacity-90" aria-hidden="true" />
+                <span className="flex-1">Template E-Mails</span>
+              </NavLink>
+            </li>
             </ul>
           </div>
         </aside>

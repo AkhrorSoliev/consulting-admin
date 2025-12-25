@@ -1,7 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSelector } from "react-redux";
-import { Link, useBlocker, useNavigate, useParams } from "react-router-dom";
-import { doc, increment, onSnapshot } from "firebase/firestore";
+import {
+  Link,
+  useBlocker,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
+import { deleteDoc, doc, getDoc, increment, onSnapshot } from "firebase/firestore";
 import { db } from "../firebase/config";
 import {
   FaDownload,
@@ -28,10 +34,16 @@ import SkillsSection from "../components/SkillsSection";
 import LanguagesSection from "../components/LanguagesSection";
 import CollapsibleSection from "../components/CollapsibleSection";
 import {
+  addCandidateWithDualStats,
   deleteCandidateWithCurrentStats,
-  deleteEmailRemote,
-  deleteUploadedFilesRemote,
   getDocumentDataById,
+  getRemoteUserRecord,
+  subscribeToCollections,
+  upsertEmailAndPassIdFirestore,
+  upsertUserRemoteAllUsers,
+  deleteEmailAndPassIdByEmail,
+  saveArchivedUserSnapshotFirestore,
+  saveDeletedUserSnapshotFirestore,
   imageFileToBase64,
   toInputDate,
   fromInputDate,
@@ -65,6 +77,8 @@ import PhotoModal from "./generate/components/modals/PhotoModal";
 import StageEmailModal from "./generate/components/modals/StageEmailModal";
 import CustomEmailModal from "./generate/components/modals/CustomEmailModal";
 import LivePreview from "./generate/components/LivePreview";
+import SelectMajorModal from "../components/SelectMajorModal";
+import { restoreRemoteRecordToFirebase } from "./candidates/remoteUserUtils";
 import { UZBEK_REGIONS } from "../constants/uzbekRegions";
 import { LANGUAGE_OPTIONS } from "../constants/languageOptions";
 import {
@@ -226,7 +240,7 @@ function parseGermanAddress(raw) {
   }
 
   // Split off postal code + city at the end, if present:
-  // "... , 12345 Berlin" (DE) or "... , 150100 Farg‘ona" (UZ)
+  // "... , 12345 Berlin" (DE) or "... , 150100 Fergana" (UZ)
   // Create.jsx currently collects 6-digit codes, so we support both 5 and 6 digits
   // to avoid corrupt parsing ("1" leaking into house number, etc.).
   const mPlz = streetLine.match(/^(.*?)(?:,\s*)?(\d{5,6})\s+(.+)$/);
@@ -262,6 +276,22 @@ function isGermanAddressComplete(parts) {
 function Generate() {
   const { major, id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const sp = useMemo(
+    () => new URLSearchParams(String(location?.search || "")),
+    [location?.search]
+  );
+  const remoteMode = sp.get("remote") === "1";
+  const remoteKind = String(sp.get("kind") || "").trim().toLowerCase();
+  const remoteRid = String(sp.get("rid") || "").trim();
+  const deletedDocId = String(sp.get("deletedDocId") || "").trim();
+  const archivedDocId = String(sp.get("archivedDocId") || "").trim();
+  const stateRemoteRecord = useMemo(() => {
+    const st = location?.state;
+    if (!st || typeof st !== "object") return null;
+    const rec = st.remoteRecord;
+    return rec && typeof rec === "object" ? rec : null;
+  }, [location?.state]);
   const DEBUG_GENERATE = useMemo(() => {
     try {
       if (import.meta.env.DEV) return true;
@@ -322,6 +352,14 @@ function Generate() {
 
   const { user } = useSelector((state) => state.auth);
   const { role: userRole } = useUserRole();
+
+  // Remote-mode restore UI (for candidates/* -> Generate)
+  const [remoteRecord, setRemoteRecord] = useState(null);
+  const [remoteLoading, setRemoteLoading] = useState(false);
+  const [restoreBusy, setRestoreBusy] = useState(false);
+  const [majors, setMajors] = useState([]);
+  const [majorModalOpen, setMajorModalOpen] = useState(false);
+  const [majorModalKey, setMajorModalKey] = useState("");
 
   const [isStageEmailModalOpen, setIsStageEmailModalOpen] = useState(false);
   const [pendingStageStep, setPendingStageStep] = useState(null);
@@ -557,9 +595,10 @@ function Generate() {
   );
 
   const hasUnsavedChanges = useMemo(() => {
+    if (remoteMode) return false;
     if (!savedBaselineJson) return false;
     return savedBaselineJson !== currentFormJson;
-  }, [savedBaselineJson, currentFormJson]);
+  }, [savedBaselineJson, currentFormJson, remoteMode]);
 
   const [unsavedModalOpen, setUnsavedModalOpen] = useState(false);
   const unsavedBlocker = useBlocker(
@@ -581,7 +620,7 @@ function Generate() {
   useEffect(() => {
     if (!hasUnsavedChanges) return;
     const message =
-      "Sizda saqlanmagan o‘zgarishlar bor. Sahifani tark etsangiz o‘zgarishlar yo‘qoladi.";
+      "Sie haben ungespeicherte Änderungen. Wenn Sie die Seite verlassen, gehen diese Änderungen verloren.";
     function onBeforeUnload(e) {
       e.preventDefault();
       // Most browsers ignore custom text, but setting returnValue is required to trigger the prompt.
@@ -686,8 +725,75 @@ function Generate() {
   }, [major]);
 
   useEffect(() => {
+    if (!remoteMode) return undefined;
+    // Fast path: if navigation passed the record via route state, render immediately.
+    if (stateRemoteRecord) {
+      setRemoteRecord(stateRemoteRecord);
+      setRemoteLoading(false);
+      return undefined;
+    }
+    setRemoteLoading(true);
+    let cancelled = false;
+    (async () => {
+      try {
+        if (remoteKind === "archived") {
+          if (archivedDocId) {
+            const snap = await getDoc(doc(db, "archived_users", archivedDocId));
+            if (!cancelled) {
+              setRemoteRecord(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+            }
+            return;
+          }
+          // Legacy fallback: allow previewing remote registry records if rid is provided.
+          const rec = await getRemoteUserRecord("archived", remoteRid || id);
+          if (!cancelled) setRemoteRecord(rec || null);
+        } else if (remoteKind === "all") {
+          const rec = await getRemoteUserRecord("all", remoteRid || id);
+          if (!cancelled) setRemoteRecord(rec || null);
+        } else if (remoteKind === "deleted") {
+          if (!deletedDocId) {
+            if (!cancelled) setRemoteRecord(null);
+            return;
+          }
+          const snap = await getDoc(doc(db, "deleted_users", deletedDocId));
+          if (!cancelled) {
+            setRemoteRecord(snap.exists() ? { id: snap.id, ...snap.data() } : null);
+          }
+        } else {
+          if (!cancelled) setRemoteRecord(null);
+        }
+      } catch (e) {
+        console.error("remoteMode load failed:", e);
+        if (!cancelled) setRemoteRecord(null);
+      } finally {
+        if (!cancelled) setRemoteLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    remoteMode,
+    remoteKind,
+    remoteRid,
+    deletedDocId,
+    archivedDocId,
+    id,
+    stateRemoteRecord,
+  ]);
+
+  useEffect(() => {
+    if (!remoteMode) return undefined;
+    const unsub = subscribeToCollections((list) => {
+      setMajors(Array.isArray(list) ? list : []);
+    });
+    return () => unsub?.();
+  }, [remoteMode]);
+
+  useEffect(() => {
     const col = String(resolvedMajor?.collectionName || "").trim();
     const docId = String(id || "").trim();
+    if (remoteMode) return undefined;
     if (!col || !docId) {
       setNotFound(true);
       setLoading(false);
@@ -757,6 +863,340 @@ function Generate() {
     );
     return () => unsub();
   }, [resolvedMajor.collectionName, id, formInitialized]);
+
+  useEffect(() => {
+    if (!remoteMode) return undefined;
+    // In remote-mode we render the page using remoteRecord (read-only preview).
+    // Email send / stage actions are only available after restoring to Firebase.
+    if (remoteLoading) return undefined;
+
+    if (!remoteRecord) {
+      setDocCv(null);
+      setNotFound(true);
+      setLoading(false);
+      return undefined;
+    }
+
+    try {
+      setDocCv(remoteRecord);
+      const mapped = mapDocToForm(remoteRecord);
+      setFormCv(normalizeForm(mapped));
+      setFormInitialized(true);
+      setNotFound(false);
+      setLoading(false);
+    } catch (e) {
+      console.error("remoteMode mapDocToForm failed:", e);
+      setDocCv(null);
+      setNotFound(true);
+      setLoading(false);
+    }
+    return undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remoteMode, remoteLoading, remoteRecord]);
+
+  function pickFirstNonEmptyString(values) {
+    for (const v of values) {
+      const s = String(v ?? "").trim();
+      if (s) return s;
+    }
+    return "";
+  }
+
+  function extractEmailFromSnapshot(record) {
+    const r = record && typeof record === "object" ? record : {};
+    return pickFirstNonEmptyString([
+      r?.persoenlicheDaten?.email,
+      r?.personalInfo?.email,
+      r?.personalData?.email,
+      r?.email,
+    ]);
+  }
+
+  function extractPassportIdFromSnapshot(record) {
+    const r = record && typeof record === "object" ? record : {};
+    return pickFirstNonEmptyString([
+      r?.passportId,
+      r?.passportID,
+      r?.passportNumber,
+      r?.reisepassNummer,
+      r?.persoenlicheDaten?.reisepassNummer,
+      r?.persoenlicheDaten?.passportId,
+      r?.persoenlicheDaten?.passportID,
+      r?.persoenlicheDaten?.passportNumber,
+      r?.personalInfo?.passportNumber,
+      r?.personalInfo?.reisepassNummer,
+      r?.personalData?.passportNumber,
+      r?.personalData?.reisepassNummer,
+    ]);
+  }
+
+  function stripDeletedUserMetaForRestore(record) {
+    const r = record && typeof record === "object" ? record : {};
+    const omit = new Set([
+      "id",
+      "sourceMajor",
+      "sourceDocId",
+      "sourceMajorTitle",
+      "deletedAt",
+      "deletedBy",
+      "email",
+    ]);
+    const out = {};
+    Object.keys(r).forEach((k) => {
+      if (!omit.has(k)) out[k] = r[k];
+    });
+    return out;
+  }
+
+  function stripArchivedUserMetaForRestore(record) {
+    const r = record && typeof record === "object" ? record : {};
+    const omit = new Set([
+      "id",
+      "sourceMajor",
+      "sourceDocId",
+      "sourceMajorTitle",
+      "archivedAt",
+      "archivedBy",
+      "email",
+    ]);
+    const out = {};
+    Object.keys(r).forEach((k) => {
+      if (!omit.has(k)) out[k] = r[k];
+    });
+    return out;
+  }
+
+  async function restoreFromRemoteMode() {
+    if (!remoteMode) return;
+    if (restoreBusy) return;
+    if (!remoteRecord) {
+      toast.error("Remote kandidat topilmadi.");
+      return;
+    }
+    try {
+      setRestoreBusy(true);
+
+      // Resolve default major from record
+      const rawMajor = String(
+        remoteRecord?.sourceMajor ||
+          remoteRecord?.major ||
+          remoteRecord?.collectionName ||
+          ""
+      ).trim();
+
+      let majorKey = rawMajor;
+      let resolvedMeta = null;
+      if (majorKey) {
+        try {
+          resolvedMeta = await getMetaByName(majorKey);
+        } catch {
+          resolvedMeta = null;
+        }
+      }
+
+      // If no major (or unknown) -> ask user to choose
+      if (!majorKey || !resolvedMeta?.collectionName) {
+        setMajorModalKey("");
+        setMajorModalOpen(true);
+        return;
+      }
+
+      const ok = window.confirm(
+        `Möchten Sie den Kandidaten wiederherstellen?\n\nBereich (Major): ${
+          resolvedMeta?.title || resolvedMeta?.collectionName || majorKey
+        }\n\nHinweis: Nach der Wiederherstellung können E-Mails versendet werden.`
+      );
+      if (!ok) return;
+
+      // Restore based on source
+      if (remoteKind === "all") {
+        const res = await restoreRemoteRecordToFirebase({
+          kind: "all",
+          record: remoteRecord,
+          restoredBy: user?.email || user?.uid || "admin",
+          majorOverride: resolvedMeta.collectionName,
+          majorLabel: resolvedMeta.title || resolvedMeta.collectionName,
+        });
+        toast.success(`Wiederhergestellt: ${res.major} (ID=${res.firebaseId})`);
+        navigate(`/generate/${resolvedMeta.linkId || res.major}/${res.firebaseId}`);
+        return;
+      }
+
+      if (remoteKind === "archived") {
+        if (archivedDocId) {
+          const majorCol = resolvedMeta.collectionName;
+          const majorLabel =
+            String(remoteRecord?.sourceMajorTitle || "").trim() ||
+            resolvedMeta.title ||
+            majorCol;
+          const payload = stripArchivedUserMetaForRestore(remoteRecord);
+          const { id: newId } = await addCandidateWithDualStats(majorCol, payload, {
+            majorLabel,
+          });
+
+          const email = extractEmailFromSnapshot(payload);
+          const passportId = extractPassportIdFromSnapshot(payload);
+          if (email) {
+            await upsertEmailAndPassIdFirestore({ email, major: majorCol, passportId });
+          }
+
+          await deleteDoc(doc(db, "archived_users", archivedDocId));
+
+          toast.success(`Wiederhergestellt: ${majorCol} (ID=${newId})`);
+          navigate(`/generate/${resolvedMeta.linkId || majorCol}/${newId}`);
+          return;
+        }
+
+        // Legacy fallback (remote registry)
+        const res = await restoreRemoteRecordToFirebase({
+          kind: "archived",
+          record: remoteRecord,
+          restoredBy: user?.email || user?.uid || "admin",
+          majorOverride: resolvedMeta.collectionName,
+          majorLabel: resolvedMeta.title || resolvedMeta.collectionName,
+        });
+        toast.success(`Wiederhergestellt: ${res.major} (ID=${res.firebaseId})`);
+        navigate(`/generate/${resolvedMeta.linkId || res.major}/${res.firebaseId}`);
+        return;
+      }
+
+      if (remoteKind === "deleted") {
+        if (!deletedDocId) {
+          toast.error("deletedDocId topilmadi.");
+          return;
+        }
+        const majorCol = resolvedMeta.collectionName;
+        const majorLabel =
+          String(remoteRecord?.sourceMajorTitle || "").trim() ||
+          resolvedMeta.title ||
+          majorCol;
+        const payload = stripDeletedUserMetaForRestore(remoteRecord);
+        const { id: newId } = await addCandidateWithDualStats(majorCol, payload, {
+          majorLabel,
+        });
+
+        const email = extractEmailFromSnapshot(payload);
+        const passportId = extractPassportIdFromSnapshot(payload);
+        if (email) {
+          await upsertEmailAndPassIdFirestore({ email, major: majorCol, passportId });
+        }
+
+        if (deletedDocId) {
+          await deleteDoc(doc(db, "deleted_users", deletedDocId));
+        }
+
+        toast.success(`Wiederhergestellt: ${majorCol} (ID=${newId})`);
+        navigate(`/generate/${resolvedMeta.linkId || majorCol}/${newId}`);
+        return;
+      }
+
+      toast.error("Remote manbasi noma’lum (kind).");
+    } catch (e) {
+      console.error(e);
+      toast.error("Tiklashda xato.");
+    } finally {
+      setRestoreBusy(false);
+    }
+  }
+
+  async function confirmRestoreFromModal() {
+    if (!majorModalKey) {
+      toast.error("Bitte wählen Sie zuerst einen Bereich (Major) aus.");
+      return;
+    }
+    try {
+      setRestoreBusy(true);
+      const meta = await getMetaByName(majorModalKey);
+      const col = String(meta?.collectionName || "").trim();
+      if (!col) {
+        toast.error("Bereich (Major) wurde nicht gefunden.");
+        return;
+      }
+      setMajorModalOpen(false);
+
+      if (remoteKind === "archived" || remoteKind === "all") {
+        // Keep legacy remote restore support only for `all`. Archived is Firestore-based when archivedDocId exists.
+        if (remoteKind === "all") {
+          const res = await restoreRemoteRecordToFirebase({
+            kind: "all",
+            record: remoteRecord,
+            restoredBy: user?.email || user?.uid || "admin",
+            majorOverride: col,
+            majorLabel: meta?.title || col,
+          });
+          toast.success(
+            `Wiederhergestellt: ${meta?.title || res.major} (ID=${res.firebaseId})`
+          );
+          navigate(`/generate/${meta.linkId || col}/${res.firebaseId}`);
+          return;
+        }
+        if (remoteKind === "archived") {
+          if (archivedDocId) {
+            const majorLabel =
+              String(remoteRecord?.sourceMajorTitle || "").trim() || meta?.title || col;
+            const payload = stripArchivedUserMetaForRestore(remoteRecord);
+            const { id: newId } = await addCandidateWithDualStats(col, payload, {
+              majorLabel,
+            });
+            const email = extractEmailFromSnapshot(payload);
+            const passportId = extractPassportIdFromSnapshot(payload);
+            if (email) {
+              await upsertEmailAndPassIdFirestore({ email, major: col, passportId });
+            }
+            await deleteDoc(doc(db, "archived_users", archivedDocId));
+            toast.success(`Wiederhergestellt: ${meta?.title || col} (ID=${newId})`);
+            navigate(`/generate/${meta.linkId || col}/${newId}`);
+            return;
+          }
+
+          const res = await restoreRemoteRecordToFirebase({
+            kind: "archived",
+            record: remoteRecord,
+            restoredBy: user?.email || user?.uid || "admin",
+            majorOverride: col,
+            majorLabel: meta?.title || col,
+          });
+          toast.success(
+            `Wiederhergestellt: ${meta?.title || res.major} (ID=${res.firebaseId})`
+          );
+          navigate(`/generate/${meta.linkId || col}/${res.firebaseId}`);
+          return;
+        }
+      }
+
+      if (remoteKind === "deleted") {
+        if (!deletedDocId) {
+          toast.error("deletedDocId topilmadi.");
+          return;
+        }
+
+        const majorLabel =
+          String(remoteRecord?.sourceMajorTitle || "").trim() || meta?.title || col;
+        const payload = stripDeletedUserMetaForRestore(remoteRecord);
+        const { id: newId } = await addCandidateWithDualStats(col, payload, {
+          majorLabel,
+        });
+        const email = extractEmailFromSnapshot(payload);
+        const passportId = extractPassportIdFromSnapshot(payload);
+        if (email) {
+          await upsertEmailAndPassIdFirestore({ email, major: col, passportId });
+        }
+        if (deletedDocId) {
+          await deleteDoc(doc(db, "deleted_users", deletedDocId));
+        }
+        toast.success(`Wiederhergestellt: ${meta?.title || col} (ID=${newId})`);
+        navigate(`/generate/${meta.linkId || col}/${newId}`);
+        return;
+      }
+
+      toast.error("Remote manbasi noma’lum (kind).");
+    } catch (e) {
+      console.error(e);
+      toast.error("Tiklashda xato.");
+    } finally {
+      setRestoreBusy(false);
+    }
+  }
 
   function mapDocToForm(data) {
     // NOTE: Historically we had multiple Firestore schemas.
@@ -1224,16 +1664,19 @@ function Generate() {
     try {
       setIsSavingStatus(true);
       const now = Date.now();
-      const statusMeta = getCandidateStatus(targetValue);
+      // Always persist canonical stage values (backward compatible with legacy status values).
+      const normalizedValue =
+        normalizeCandidateStatusValue(targetValue) || CANDIDATE_STATUS_DEFAULT;
+      const statusMeta = getCandidateStatus(normalizedValue);
       await updateDocument(col, docId, {
         status: {
-          value: targetValue,
+          value: normalizedValue,
           label: statusMeta.label,
           updatedAt: now,
           updatedBy: user?.email || user?.uid || "admin",
         },
       });
-      setStatusValue(targetValue);
+      setStatusValue(normalizedValue);
       setStatusUpdatedAt(now);
       setStatusUpdatedBy(user?.email || user?.uid || "admin");
       if (!silent) {
@@ -1338,7 +1781,7 @@ function Generate() {
         htmlContent,
       });
       if (res?.success === false) {
-        throw new Error("Email yuborilmadi (success=false).");
+        throw new Error("E-Mail wurde nicht gesendet (success=false).");
       }
 
       toast.success("Status-E-Mail wurde gesendet.");
@@ -1417,48 +1860,30 @@ function Generate() {
     try {
       setIsDeletingCandidate(true);
 
-      // 0) Load full candidate doc so we can delete uploaded documents as well
+      // 0) Load full candidate doc so we can snapshot it into deleted_users
       const full = await getDocumentDataById(colName, itemId);
-      const att = full?.attachments || {};
-      const docs = full?.documents || {};
-      const urls = [
-        ...(Array.isArray(att?.diplomas) ? att.diplomas : []),
-        ...(Array.isArray(att?.languageCertificates)
-          ? att.languageCertificates
-          : []),
-        ...(Array.isArray(att?.certificates) ? att.certificates : []),
-        ...(Array.isArray(docs?.diplomas) ? docs.diplomas : []),
-        ...(Array.isArray(docs?.certificates) ? docs.certificates : []),
-        ...(Array.isArray(att?.passports) ? att.passports : []),
-        ...(Array.isArray(att?.passport)
-          ? att.passport
-          : [att?.passport]
-        ).filter(Boolean),
-        ...(Array.isArray(docs?.passport)
-          ? docs.passport
-          : [docs?.passport]
-        ).filter(Boolean),
-        ...(Array.isArray(docs?.passports) ? docs.passports : []),
-        ...(Array.isArray(full?.dokumente?.reisepaesse)
-          ? full.dokumente.reisepaesse
-          : []),
-        ...(Array.isArray(full?.dokumente?.reisepass)
-          ? full.dokumente.reisepass
-          : [full?.dokumente?.reisepass]
-        ).filter(Boolean),
-      ];
-      if (urls.length > 0) {
-        await deleteUploadedFilesRemote(urls);
-      }
+      const remotePayload = full && typeof full === "object" ? full : {};
 
-      // 1) Delete candidate email from external API
+      // 1) Remove from Firestore email registry (`email_and_passId`)
       const emailFromDoc = String(full?.persoenlicheDaten?.email || "").trim();
       const targetEmail = String(deleteTarget?.email || emailFromDoc || "")
         .trim()
         .toLowerCase();
       if (targetEmail) {
-        await deleteEmailRemote(targetEmail);
+        await deleteEmailAndPassIdByEmail(targetEmail);
       }
+
+      // 1.5) Store deleted user snapshot in Firestore `deleted_users`
+      await saveDeletedUserSnapshotFirestore({
+        major: resolvedMajor?.collectionName || colName,
+        sourceDocId: itemId,
+        majorTitle: resolvedMajor?.title || colName,
+        deletedBy: user?.email || user?.uid || "admin",
+        payload: {
+          major: resolvedMajor?.collectionName || colName,
+          ...remotePayload,
+        },
+      });
 
       // 2) Delete from Firestore + update LIVE stats (current only)
       await deleteCandidateWithCurrentStats(colName, itemId, {
@@ -1472,6 +1897,50 @@ function Generate() {
     } catch (err) {
       console.error(err);
       toast.error("Fehler beim Löschen.");
+    } finally {
+      setIsDeletingCandidate(false);
+    }
+  }
+
+  async function confirmArchiveCandidate() {
+    if (isLimitedAdmin) {
+      toast.error("Sie haben keine Berechtigung, Kandidaten zu löschen.");
+      return;
+    }
+    const colName = String(resolvedMajor?.collectionName || "").trim();
+    const itemId = String(deleteTarget?.id || "").trim();
+    if (!colName || !itemId) return;
+    try {
+      setIsDeletingCandidate(true);
+
+      // 0) Load full candidate doc (we do NOT delete uploaded file URLs here)
+      const full = await getDocumentDataById(colName, itemId);
+      const remotePayload = full && typeof full === "object" ? full : {};
+
+      // 1.5) Store archived user snapshot in Firestore `archived_users`
+      await saveArchivedUserSnapshotFirestore({
+        major: resolvedMajor?.collectionName || colName,
+        sourceDocId: itemId,
+        majorTitle: resolvedMajor?.title || colName,
+        archivedBy: user?.email || user?.uid || "admin",
+        payload: {
+          major: resolvedMajor?.collectionName || colName,
+          ...remotePayload,
+        },
+      });
+
+      // 2) Delete from Firestore + update LIVE stats (current only)
+      await deleteCandidateWithCurrentStats(colName, itemId, {
+        majorLabel: resolvedMajor?.title || colName,
+      });
+
+      toast.success("Kandidat wurde archiviert.");
+      setDeleteModalOpen(false);
+      setDeleteTarget(null);
+      navigate(`/collectionCv/${resolvedMajor?.linkId || major}`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Fehler beim Archivieren.");
     } finally {
       setIsDeletingCandidate(false);
     }
@@ -1576,7 +2045,7 @@ function Generate() {
         htmlContent: finalHtml || undefined,
       });
       if (res?.success === false) {
-        throw new Error("Email yuborilmadi (success=false).");
+        throw new Error("E-Mail wurde nicht gesendet (success=false).");
       }
       toast.success("Benutzerdefinierte E-Mail wurde gesendet.");
 
@@ -1622,7 +2091,7 @@ function Generate() {
     if (!col || !docId) return;
 
     const ok = window.confirm(
-      "Kandidat bosqichi boshidan (1-bosqich) boshlansinmi?\n\nEslatma: email hisoblagichi ham 0 ga tushiriladi."
+      "Kandidatenstufen auf Anfang (Stufe 1) zurücksetzen?\n\nHinweis: Der E-Mail-Zähler wird ebenfalls auf 0 gesetzt."
     );
     if (!ok) return;
 
@@ -1836,41 +2305,48 @@ function Generate() {
   function stripDefaultIntroFromCustomPreview(value) {
     const raw = String(value || "");
     if (!raw) return raw;
-    const intro =
-      "Arizangiz holatini yangiladik. Quyidagi sharh va keyingi qadamlarni diqqat bilan ko'rib chiqing:";
+    const intros = [
+      // legacy (Uzbek)
+      "Arizangiz holatini yangiladik. Quyidagi sharh va keyingi qadamlarni diqqat bilan ko'rib chiqing:",
+      // current (German)
+      "Wir haben den Status Ihrer Bewerbung aktualisiert. Bitte lesen Sie die folgenden Hinweise und nächsten Schritte sorgfältig durch:",
+    ];
     // Remove the exact intro line from both HTML and plain text previews (best-effort).
-    return raw
-      .replace(
-        new RegExp(
-          `<p[^>]*>\\s*${intro.replace(
-            /[.*+?^${}()|[\]\\]/g,
-            "\\$&"
-          )}\\s*<\\/p>\\s*`,
-          "g"
-        ),
-        ""
-      )
-      .replace(
-        new RegExp(
-          `\\s*${intro.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\n?`,
-          "g"
-        ),
-        ""
-      )
-      .trim();
+    let out = raw;
+    for (const intro of intros) {
+      out = out
+        .replace(
+          new RegExp(
+            `<p[^>]*>\\s*${intro.replace(
+              /[.*+?^${}()|[\]\\]/g,
+              "\\$&"
+            )}\\s*<\\/p>\\s*`,
+            "g"
+          ),
+          ""
+        )
+        .replace(
+          new RegExp(
+            `\\s*${intro.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\n?`,
+            "g"
+          ),
+          ""
+        );
+    }
+    return out.trim();
   }
 
   function stripStatusLineFromCustomEmail(value) {
     const raw = String(value || "");
     if (!raw) return raw;
-    // HTML header "Holat: <strong>...": remove the entire div line.
+    // HTML header "Status/Holat: <strong>...": remove the entire div line.
     const htmlOut = raw.replace(
-      /<div[^>]*>\s*Holat:\s*<strong>[\s\S]*?<\/strong>\s*<\/div>\s*/gi,
+      /<div[^>]*>\s*(?:Holat|Status):\s*<strong>[\s\S]*?<\/strong>\s*<\/div>\s*/gi,
       ""
     );
-    // Plain text "Holat: ..." line
+    // Plain text "Status/Holat: ..." line
     return htmlOut
-      .replace(/\n?Holat:\s*.*(\n|$)/gi, "\n")
+      .replace(/\n?(?:Holat|Status):\s*.*(\n|$)/gi, "\n")
       .replace(/\n{3,}/g, "\n\n")
       .trim();
   }
@@ -1927,6 +2403,12 @@ function Generate() {
   ]);
 
   async function handleSave() {
+    if (remoteMode) {
+      toast.error(
+        "Stellen Sie den Kandidaten zuerst im passenden Bereich (Major) wieder her. Danach können E-Mails versendet werden."
+      );
+      return;
+    }
     const col = String(resolvedMajor?.collectionName || "").trim();
     const docId = String(id || "").trim();
     if (!col || !docId) return;
@@ -1940,7 +2422,10 @@ function Generate() {
           updatedAt: Date.now(),
           updatedByUid: user?.uid || "",
           updatedByName:
-            user?.displayName || user?.email || user?.phoneNumber || "Nomaʼlum",
+            user?.displayName ||
+            user?.email ||
+            user?.phoneNumber ||
+            "Unbekannt",
           updatedByPhoto: user?.photoURL || "",
         }
       : null;
@@ -2024,6 +2509,21 @@ function Generate() {
         });
       }
 
+      // ---- Sync to external user registry (all_users) (best-effort) ----
+      try {
+        const latest = await getDocumentDataById(col, docId);
+        await upsertUserRemoteAllUsers({
+          firebaseId: docId,
+          major: col,
+          payload: latest && typeof latest === "object" ? latest : payload,
+        });
+      } catch (err) {
+        console.error("all_users sync failed:", err);
+        toast.error(
+          "Firebase saqlandi, lekin tashqi user bazasiga yozishda xato bo'ldi."
+        );
+      }
+
       if (shouldSyncEmail) {
         try {
           await updateEmailRemote(oldEmail, newEmail, col);
@@ -2064,6 +2564,10 @@ function Generate() {
   }
 
   async function handleDownloadPdf() {
+    if (remoteMode) {
+      toast.error("Stellen Sie den Kandidaten zuerst im passenden Bereich (Major) wieder her.");
+      return;
+    }
     if (isLimitedAdmin) {
       toast.error("Sie haben keine Berechtigung zum Herunterladen.");
       return;
@@ -2168,7 +2672,7 @@ function Generate() {
 
   const canSaveComment = commentChanged && !isSaving && !loading && !notFound;
   const showCommentPreview = !isCommentEditorOpen;
-  const commentActionLabel = !isCommentEditorOpen ? "Qo'shish" : "Bekor qilish";
+  const commentActionLabel = !isCommentEditorOpen ? "Hinzufügen" : "Abbrechen";
   const showLimitedCommentSaveButton =
     isLimitedAdmin &&
     isCommentEditorOpen &&
@@ -2214,11 +2718,11 @@ function Generate() {
               )}
               <div className="leading-tight">
                 <div className="text-sm font-semibold text-base-content">
-                  {commentMeta?.updatedByName || "Nomaʼlum foydalanuvchi"}
+                  {commentMeta?.updatedByName || "Unbekannter Benutzer"}
                 </div>
                 {commentMeta?.updatedAt && (
                   <div className="text-[11px] text-base-content/60">
-                    Yangilandi: {formatCommentDate(commentMeta.updatedAt)}
+                    Aktualisiert: {formatCommentDate(commentMeta.updatedAt)}
                   </div>
                 )}
               </div>
@@ -2231,7 +2735,7 @@ function Generate() {
         </div>
       ) : (
         <p className="text-sm text-base-content/60 italic">
-          Kommentariya yo&apos;q.
+          Kein Kommentar vorhanden.
         </p>
       )}
     </div>
@@ -2263,7 +2767,7 @@ function Generate() {
       return;
     }
     const ok = window.confirm(
-      "Kommentar wirklich löschen?\n\nEslatma: bu o'zgarishni saqlash (Saqlash) tugmasini bosmaguningizcha Firestore'ga yuborilmaydi."
+      "Kommentar wirklich löschen?\n\nHinweis: Diese Änderung wird erst in Firestore gespeichert, wenn Sie auf „Speichern“ klicken."
     );
     if (!ok) return;
     setCommentHtml("");
@@ -2305,21 +2809,38 @@ function Generate() {
     metaLoading;
 
   const busyLabel = loading
-    ? "Yuklanmoqda..."
+    ? "Wird geladen..."
     : isSaving
-    ? "Saqlanmoqda..."
+    ? "Wird gespeichert..."
     : isDownloading
-    ? "PDF tayyorlanmoqda..."
+    ? "PDF wird erstellt..."
     : isSavingStatus
-    ? "Status saqlanmoqda..."
+    ? "Status wird gespeichert..."
     : sendingStepValue
-    ? "Email yuborilmoqda..."
+    ? "E-Mail wird gesendet..."
     : metaLoading
-    ? "Maʼlumotlar yuklanmoqda..."
-    : "Iltimos kuting...";
+    ? "Daten werden geladen..."
+    : "Bitte warten...";
 
   return (
     <div className="p-2 bg-base-200 min-h-screen">
+      {remoteMode ? (
+        <SelectMajorModal
+          open={majorModalOpen}
+          majors={majors}
+          selectedKey={majorModalKey}
+          onSelectKey={setMajorModalKey}
+          onCancel={() => {
+            if (restoreBusy) return;
+            setMajorModalOpen(false);
+            setMajorModalKey("");
+          }}
+          onConfirm={confirmRestoreFromModal}
+          confirming={Boolean(restoreBusy)}
+          title="Bereich (Major) auswählen"
+          subtitle="Wählen Sie einen Bereich (Major) für die Wiederherstellung. Danach können E-Mails versendet werden."
+        />
+      ) : null}
       {isPageBusy && (
         <div
           className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-[1px] flex items-center justify-center"
@@ -2336,6 +2857,8 @@ function Generate() {
       <DeleteCandidateModal
         open={deleteModalOpen}
         onClose={closeDeleteModal}
+        onDelete={confirmDeleteCandidate}
+        onArchive={confirmArchiveCandidate}
         onConfirm={confirmDeleteCandidate}
         candidateName={deleteTarget?.name}
         isDeleting={isDeletingCandidate}
@@ -2343,10 +2866,10 @@ function Generate() {
       />
       <UnsavedChangesModal
         open={unsavedModalOpen && unsavedBlocker.state === "blocked"}
-        title="Saqlanmagan o‘zgarishlar bor"
-        message="Sizda saqlanmagan o‘zgarishlar bor. Agar boshqa sahifaga o‘tsangiz yoki sahifani yangilasangiz, o‘zgarishlar yo‘qoladi. Davom etasizmi?"
-        stayText="Qolish"
-        leaveText="Davom etish"
+        title="Ungespeicherte Änderungen"
+        message="Sie haben ungespeicherte Änderungen. Wenn Sie zu einer anderen Seite wechseln oder die Seite neu laden, gehen diese Änderungen verloren. Möchten Sie fortfahren?"
+        stayText="Bleiben"
+        leaveText="Fortfahren"
         onStay={stayOnGeneratePage}
         onLeave={leaveGeneratePage}
       />
@@ -2369,7 +2892,7 @@ function Generate() {
           </div>
 
           <div className="flex items-center gap-2">
-            {!isLimitedAdmin && (
+            {!isLimitedAdmin && !remoteMode && (
               <>
                 <button
                   className="btn btn-sm btn-primary"
@@ -2379,7 +2902,7 @@ function Generate() {
                   }
                 >
                   <FaSave />
-                  <span>Saqlash</span>
+                  <span>Speichern</span>
                 </button>
                 <button
                   className="btn btn-sm"
@@ -2388,7 +2911,7 @@ function Generate() {
                     isSaving || loading || notFound || !hasUnsavedChanges
                   }
                 >
-                  Bekor qilish
+                  Abbrechen
                 </button>
                 <button
                   className="btn btn-sm btn-outline"
@@ -2433,7 +2956,7 @@ function Generate() {
                     <div className="flex justify-center">
                       <div className="flex flex-col items-center gap-3">
                         <p className="text-xs uppercase tracking-[0.2em] text-base-content/60">
-                          Profil rasmi
+                          Profilfoto
                         </p>
                         {photo ? (
                           <button
@@ -2443,13 +2966,13 @@ function Generate() {
                           >
                             <img
                               src={photo}
-                              alt="Kandidat foto"
+                              alt="Kandidatenfoto"
                               className="w-[128pt] h-[160pt] object-cover"
                             />
                           </button>
                         ) : (
                           <div className="w-[128pt] h-[160pt] border border-dashed border-base-300 rounded-md bg-base-200 flex items-center justify-center text-xs uppercase tracking-wide text-base-content/60">
-                            Foto mavjud emas
+                            Kein Foto vorhanden
                           </div>
                         )}
                         {photo && (
@@ -2458,7 +2981,7 @@ function Generate() {
                             className="btn btn-xs btn-primary"
                             onClick={openPhotoModal}
                           >
-                            Katta ko‘rish
+                            Vergrößern
                           </button>
                         )}
                       </div>
@@ -2466,7 +2989,7 @@ function Generate() {
                   )}
 
                   <fieldset
-                    disabled={isLimitedAdmin}
+                    disabled={isLimitedAdmin || remoteMode}
                     className="space-y-4 disabled:opacity-70"
                   >
                     <div className="divider mt-2">Persönliche Daten</div>
@@ -3303,7 +3826,7 @@ function Generate() {
                       <div className="form-control gap-3">
                         <label className="label" htmlFor="comment-admin">
                           <span className="label-text font-medium">
-                            Allgemeiner Kommentar (Kandidat haqida)
+                            Allgemeiner Kommentar (zum Kandidaten)
                           </span>
                         </label>
                         {showCommentPreview && renderCommentPreview()}
@@ -3311,7 +3834,7 @@ function Generate() {
                           <RichTextEditor
                             value={commentHtml}
                             onChange={setCommentHtml}
-                            placeholder='Umumiy fikr: "Kandidat juda mos, faqat foto yangilansin"'
+                            placeholder='Allgemeine Notiz: "Der Kandidat passt sehr gut, nur das Foto sollte aktualisiert werden."'
                           />
                         )}
                         <div className="flex flex-wrap gap-2 mt-2">
@@ -3329,9 +3852,9 @@ function Generate() {
                               className="btn btn-sm btn-outline btn-error"
                               onClick={handleClearComment}
                               disabled={isSaving || loading || notFound}
-                              title="Kommentni tozalash (faqat super admin)"
+                              title="Kommentar löschen (nur Super-Admin)"
                             >
-                              Tozalash
+                              Löschen
                             </button>
                           )}
                         </div>
@@ -3357,7 +3880,7 @@ function Generate() {
                         <div>
                           <h3 className="card-title text-lg mb-1">Kommentar</h3>
                           <p className="text-xs uppercase tracking-[0.2em] text-base-content/60">
-                            Kandidat haqida eslatma
+                            Notiz zum Kandidaten
                           </p>
                         </div>
                         {showCommentPreview && renderCommentPreview("flex-1")}
@@ -3365,7 +3888,7 @@ function Generate() {
                           <RichTextEditor
                             value={commentHtml}
                             onChange={setCommentHtml}
-                            placeholder='Umumiy fikr: "Kandidat juda mos, faqat foto yangilansin"'
+                            placeholder='Allgemeine Notiz: "Der Kandidat passt sehr gut, nur das Foto sollte aktualisiert werden."'
                             className="flex-1"
                             editorClassName="min-h-[220px]"
                           />
@@ -3394,12 +3917,12 @@ function Generate() {
                                 {isSaving ? (
                                   <>
                                     <span className="loading loading-spinner loading-sm" />
-                                    Saqlanmoqda...
+                                    Wird gespeichert...
                                   </>
                                 ) : (
                                   <>
                                     <FaSave />
-                                    <span>Saqlash</span>
+                                    <span>Speichern</span>
                                   </>
                                 )}
                               </button>
@@ -3429,7 +3952,7 @@ function Generate() {
       </div>
 
       {/* Stepper should be below the form & preview */}
-      {!isLimitedAdmin && !loading && !notFound && (
+      {!remoteMode && !isLimitedAdmin && !loading && !notFound && (
         <div className="mt-6">
           <CandidateStatusStepper
             currentValue={statusValue}
@@ -3443,9 +3966,9 @@ function Generate() {
               className="btn btn-sm btn-outline mr-2"
               onClick={resetCandidateStages}
               disabled={Boolean(sendingStepValue)}
-              title="Kandidat bosqichini boshidan (1-bosqich) boshlash va email count'ni 0 qilish"
+              title="Kandidatenstufen auf Anfang (Stufe 1) zurücksetzen und E-Mail-Zähler auf 0 setzen"
             >
-              Bosqich reset
+              Stufen zurücksetzen
             </button>
             <button
               type="button"
@@ -3453,11 +3976,11 @@ function Generate() {
               onClick={openCustomEmailModal}
               disabled={Boolean(sendingStepValue)}
             >
-              Custom email
+              Benutzerdefinierte E-Mail
             </button>
           </div>
           <div className="text-xs opacity-60 mt-2">
-            Oxirgi yangilanish:{" "}
+            Letzte Aktualisierung:{" "}
             {statusUpdatedAt
               ? (() => {
                   try {
@@ -3477,7 +4000,42 @@ function Generate() {
                   }
                 })()
               : "—"}
-            {statusUpdatedBy ? ` • Kim: ${statusUpdatedBy}` : ""}
+            {statusUpdatedBy ? ` • Von: ${statusUpdatedBy}` : ""}
+          </div>
+        </div>
+      )}
+
+      {remoteMode && !loading && !notFound && (
+        <div className="mt-6">
+          <div className="card bg-base-100 border border-base-300 shadow-xl">
+            <div className="card-body">
+              <h3 className="card-title">Kandidatenstufen</h3>
+              <p className="text-sm text-base-content/70">
+                Um E-Mails senden zu können, müssen Sie den Kandidaten zuerst in den passenden Bereich (Collection/Major){" "}
+                <span className="font-semibold">wiederherstellen</span>.
+              </p>
+              <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => navigate(-1)}
+                  disabled={restoreBusy}
+                >
+                  Zurück
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={restoreFromRemoteMode}
+                  disabled={restoreBusy || remoteLoading || !remoteRecord}
+                >
+                  {restoreBusy ? (
+                    <span className="loading loading-spinner loading-sm" />
+                  ) : null}
+                  In Bereich (Major) wiederherstellen
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -3491,15 +4049,15 @@ function Generate() {
       <StageEmailModal
         open={isStageEmailModalOpen}
         onClose={closeStageEmailModal}
-        title="Status email yuborish"
+        title="Status-E-Mail senden"
         subtitle={
           pendingStageStep === "stage_2"
-            ? "2-bosqich emailida link/vaqt yuborilmaydi."
+            ? "In der E-Mail für Stufe 2 werden kein Link und keine Uhrzeit versendet."
             : isLimitedAdmin
-            ? "Email yuborish uchun ruxsat yo'q."
+            ? "Sie haben keine Berechtigung, E-Mails zu senden."
             : metaLoading
-            ? "Zusätzliche Infos yuklanmoqda..."
-            : "Qabul qilinsa, vaqt, link yoki lokatsiya Zusätzliche Infos'dan olinadi va emailga qo'shiladi."
+            ? "Zusätzliche Infos werden geladen..."
+            : "Bei Annahme werden Datum/Uhrzeit, Link oder Standort aus den zusätzlichen Infos übernommen und in die E-Mail eingefügt."
         }
         decision={stageDecision}
         setDecision={setStageDecision}

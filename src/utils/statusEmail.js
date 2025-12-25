@@ -21,24 +21,8 @@ function buildFullName(firstName, lastName) {
 function formatInterviewDateTime(value) {
   if (!value) return "";
   try {
-    // If admin enters a `datetime-local` value (YYYY-MM-DDTHH:mm), it has NO timezone.
-    // In JS, `new Date("YYYY-MM-DDTHH:mm")` is interpreted in the *machine's local TZ*,
-    // which can shift the time (often reported as 8h difference). For our product
-    // we treat that input as **Toshkent vaqti**, so we render it as-is.
-    const raw = String(value).trim();
-    const mLocal = raw.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?$/);
-    if (mLocal) {
-      const [, yyyy, mm, dd, hh, min] = mLocal;
-      return `${yyyy}-${mm}-${dd} ${hh}:${min} (Toshkent vaqti)`;
-    }
-    const mDateOnly = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (mDateOnly) {
-      const [, yyyy, mm, dd] = mDateOnly;
-      return `${yyyy}-${mm}-${dd} 00:00 (Toshkent vaqti)`;
-    }
-
-    const parsed = new Date(raw);
-    if (Number.isNaN(parsed.getTime())) return raw;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return String(value);
 
     const formatter = new Intl.DateTimeFormat("uz-UZ", {
       year: "numeric",
@@ -78,13 +62,13 @@ function normalizeDecision(decisionRaw) {
   return decisionRaw === "rejected" ? "rejected" : "accepted";
 }
 
-export function getStatusEmailCopy(stage, decision) {
+function pickStageCopy(stage, decision) {
   const d = normalizeDecision(decision);
 
   const telegramChannelsText = [
     "Qo'shimcha ma'lumotlar uchun Telegram kanallarimiz:",
-    "ConsultingUz rasmiy kanali: https://t.me/Consulting_UZB",
-    "O‘zbekiston bo‘ylab nemis tili markazlarimiz: https://t.me/dafsprachzentrum",
+    "🔹 ConsultingUz rasmiy kanali: https://t.me/Consulting_UZB",
+    "🔹 O‘zbekiston bo‘ylab nemis tili markazlarimiz: https://t.me/dafsprachzentrum",
   ].join("\n");
 
   const commonClosing = {
@@ -95,12 +79,12 @@ export function getStatusEmailCopy(stage, decision) {
   if (stage === "stage_1") {
     if (d === "accepted") {
       return {
-        subject: "1-bosqich kutilmoqda",
-        title: "1-bosqich (ichki suhbat) kutilmoqda",
+        subject: "1-bosqich: Ichki suhbatga taklif",
+        title: "Ichki suhbatga taklif",
         mainText:
-          "Sizning arizangiz ko‘rib chiqildi. 1-bosqich – ichki suhbat uchun navbat belgilandi.",
+          "Sizning arizangiz ko‘rib chiqildi va Siz 1-bosqich suhbatiga taklif etilganingizni mamnuniyat bilan ma’lum qilamiz.",
         nextStepNote:
-          "Iltimos, belgilangan vaqt va ko‘rsatmalarga amal qiling. Qo‘shimcha ma’lumotlar kerak bo‘lsa, siz bilan bog‘lanamiz.",
+          "1-bosqich suhbatida ishtirok etish uchun iltimos, quyidagi havola orqali Telegram guruhiga qo‘shiling hamda belgilangan vaqtda ishtirok etishingizni tasdiqlang.",
         ...commonClosing,
       };
     }
@@ -118,18 +102,18 @@ export function getStatusEmailCopy(stage, decision) {
   if (stage === "stage_2") {
     if (d === "accepted") {
       return {
-        subject: "Ichki suhbatdan o'tdi",
-        title: "1-bosqich yakunlandi",
+        subject: "2-bosqich: Ariza holati yangilandi",
+        title: "Ichki suhbatdan muvaffaqiyatli o'tdingiz",
         mainText:
-          "Siz ichki suhbatdan muvaffaqiyatli o‘tdingiz. Keyingi bosqichga o‘tish uchun tayyorlaning.",
+          "Siz ichki suhbatdan muvaffaqiyatli o‘tdingiz. Keyingi bosqichlarga tayyorgarlik ko‘rishingizni so‘raymiz.",
         nextStepNote:
-          "Tez orada ish beruvchi bilan suhbatga taklif va tafsilotlar yuboriladi.",
+          "Keyingi jarayonlar bo‘yicha zarur ma’lumotlar Sizga qo‘shimcha ravishda taqdim etiladi. Jarayon davomida qo‘shimcha ma’lumot zarur bo‘lsa, Siz bilan bevosita bog‘lanamiz.",
         ...commonClosing,
       };
     }
     return {
-      subject: "Ichki suhbatdan rad etildi",
-      title: "1-bosqich yakunlandi",
+      subject: "2-bosqich: Rad javobi",
+      title: "Ariza holati yangilandi",
       mainText:
         "Afsuski, tanlov jarayonining ushbu bosqichida Sizning nomzodingiz keyingi bosqichga o‘tkazilmadi.",
       nextStepNote:
@@ -141,8 +125,8 @@ export function getStatusEmailCopy(stage, decision) {
   if (stage === "stage_3") {
     if (d === "accepted") {
       return {
-        subject: "Ish beruvchi bilan suhbatga taklif",
-        title: "Ish beruvchi bilan suhbatga taklif etildingiz",
+        subject: "3-bosqich: Ish beruvchi bilan suhbat",
+        title: "Ish beruvchi bilan suhbatga taklif",
         mainText:
           "Siz tanlov jarayonining keyingi bosqichiga o‘tdingiz. Ish beruvchi bilan suhbatga taklif etilasiz.",
         nextStepNote:
@@ -164,23 +148,54 @@ export function getStatusEmailCopy(stage, decision) {
   // stage_4
   if (d === "accepted") {
     return {
-      subject: "Ish beruvchi qabul qildi",
-      title: "Ish beruvchi qarori: qabul qilindi",
+      subject: "4-bosqich: Hujjatlarni yuklash",
+      title: "Hujjatlarni yuklash",
       mainText:
-        "Tabriklaymiz! Ish beruvchi Sizni qabul qildi. Keyingi hujjatlar va ko‘rsatmalar bilan tanishing.",
+        "Siz ish beruvchi bilan o‘tkazilgan suhbatdan muvaffaqiyatli o‘tdingiz. Iltimos, quyidagi havola orqali tizimga kirib, talab etilgan hujjatlarni yuklang.",
       nextStepNote:
-        "Shartnoma va hujjatlar bo‘yicha ko‘rsatmalarga rioya qiling. Qo‘shimcha savollaringiz bo‘lsa, biz bilan bog‘laning.",
+        "Shuningdek, imzolanishi lozim bo‘lgan hujjatlarni yuklab olib, ularni imzolaganingizdan so‘ng, yana ushbu havola orqali qayta yuklashingizni so‘raymiz.",
       ...commonClosing,
     };
   }
   return {
-    subject: "Ish beruvchi rad qildi",
-    title: "Ish beruvchi qarori: rad etildi",
+    subject: "4-bosqich: Rad javobi",
+    title: "Ariza holati yangilandi",
     mainText:
       "Afsuski, tanlov jarayonining yakuniy bosqichida Sizning nomzodingiz bo‘yicha ijobiy qaror qabul qilinmadi.",
     nextStepNote:
       "Qiziqishingiz va vaqtingiz uchun minnatdorchilik bildiramiz. Kelgusida mos bo‘sh ish o‘rinlarimiz paydo bo‘lsa, Sizni xabardor qilishimiz mumkin.",
     ...commonClosing,
+  };
+}
+
+export function getStatusEmailCopy(stage, decision) {
+  const normalizedStage = String(stage || "").trim() || CANDIDATE_STATUS_DEFAULT;
+  return pickStageCopy(normalizedStage, decision);
+}
+
+function applyCopyOverrides(copy, overrides) {
+  const base = copy && typeof copy === "object" ? copy : {};
+  const o = overrides && typeof overrides === "object" ? overrides : {};
+  return {
+    ...base,
+    emailTitle:
+      o.emailTitle !== undefined ? String(o.emailTitle || "") : base.emailTitle,
+    statusLabel:
+      o.statusLabel !== undefined ? String(o.statusLabel || "") : base.statusLabel,
+    subject: o.subject !== undefined ? String(o.subject || "") : base.subject,
+    mainText: o.mainText !== undefined ? String(o.mainText || "") : base.mainText,
+    nextStepNote:
+      o.nextStepNote !== undefined
+        ? String(o.nextStepNote || "")
+        : base.nextStepNote,
+    channelsText:
+      o.channelsText !== undefined
+        ? String(o.channelsText || "")
+        : base.channelsText,
+    emphasizeMainText:
+      o.emphasizeMainText !== undefined
+        ? Boolean(o.emphasizeMainText)
+        : base.emphasizeMainText,
   };
 }
 
@@ -197,61 +212,26 @@ export function buildStatusEmailTemplate({
   const status = getCandidateStatus(normalizedStatusValue);
   const fullName = buildFullName(firstName, lastName);
 
-  const greeting = `Hurmatli ${fullName},`;
   const decision = normalizeDecision(stageDecision);
-  const baseCopy = getStatusEmailCopy(normalizedStatusValue, decision);
-  const overrides =
-    copyOverrides && typeof copyOverrides === "object" ? copyOverrides : {};
-  const copy = {
-    ...baseCopy,
-    emailTitle:
-      overrides.emailTitle !== undefined && overrides.emailTitle !== null
-        ? String(overrides.emailTitle)
-        : undefined,
-    statusLabel:
-      overrides.statusLabel !== undefined && overrides.statusLabel !== null
-        ? String(overrides.statusLabel)
-        : undefined,
-    emphasizeMainText:
-      overrides.emphasizeMainText !== undefined &&
-      overrides.emphasizeMainText !== null
-        ? Boolean(overrides.emphasizeMainText)
-        : true,
-    subject:
-      overrides.subject !== undefined && overrides.subject !== null
-        ? String(overrides.subject)
-        : baseCopy.subject,
-    mainText:
-      overrides.mainText !== undefined && overrides.mainText !== null
-        ? String(overrides.mainText)
-        : baseCopy.mainText,
-    nextStepNote:
-      overrides.nextStepNote !== undefined && overrides.nextStepNote !== null
-        ? String(overrides.nextStepNote)
-        : baseCopy.nextStepNote,
-    channelsText:
-      overrides.channelsText !== undefined && overrides.channelsText !== null
-        ? String(overrides.channelsText)
-        : baseCopy.channelsText,
-  };
+  const copy = applyCopyOverrides(
+    pickStageCopy(normalizedStatusValue, decision),
+    copyOverrides
+  );
 
-  const statusLabelText = String(copy.statusLabel || "").trim() || status.label;
-  const mainText = copy.mainText;
-  const nextStepNote = copy.nextStepNote;
+  const statusLabelText = String(
+    copy.statusLabel !== undefined && String(copy.statusLabel || "").trim()
+      ? copy.statusLabel
+      : status.label
+  ).trim();
+  const emailTitle = String(copy.emailTitle || "Ariza holati yangilandi").trim();
+  const mainText = String(copy.mainText || "").trim();
+  const nextStepNote = String(copy.nextStepNote || "").trim();
 
   const dateTime = String(additionalInfo?.dateTime || "").trim();
   const link = String(additionalInfo?.link || "").trim();
-  const linkType =
-    additionalInfo?.linkType === "telegram" ? "telegram" : "zoom";
-  const linkLabel = linkType === "telegram" ? "Telegram link" : "Zoom link";
+  const locationName = String(additionalInfo?.locationName || "").trim();
   const locationUrl = String(additionalInfo?.locationUrl || "").trim();
-  const locationNameRaw = String(additionalInfo?.locationName || "").trim();
-  const locationName = locationNameRaw || locationUrl;
-  const displayLocationName = locationName || locationUrl;
-  const locationValue =
-    locationUrl && displayLocationName && displayLocationName !== locationUrl
-      ? `${displayLocationName} - ${locationUrl}`
-      : displayLocationName || locationUrl;
+  const hasLocation = Boolean(locationName || locationUrl);
 
   const extraRows =
     normalizedStatusValue === "stage_2"
@@ -260,11 +240,13 @@ export function buildStatusEmailTemplate({
           dateTime
             ? { label: "Sana / vaqt", value: formatInterviewDateTime(dateTime) }
             : null,
-          link ? { label: linkLabel, value: link } : null,
-          locationValue
+          link ? { label: "Havola", value: link } : null,
+          hasLocation
             ? {
                 label: "Lokatsiya",
-                value: locationValue,
+                value: [locationName || "", locationUrl || ""]
+                  .filter(Boolean)
+                  .join(locationName && locationUrl ? " — " : ""),
               }
             : null,
         ].filter(Boolean);
@@ -277,7 +259,7 @@ export function buildStatusEmailTemplate({
   const channelsBlock = copy.channelsText ? `\n${copy.channelsText}\n` : "";
 
   const parts = [
-    greeting,
+    `Hurmatli ${fullName},`,
     "",
     "Arizangiz holati yangilandi. Quyidagi sharh va keyingi qadamlar bilan diqqat bilan tanishib chiqing.",
     `Holat: ${statusLabelText}`,
@@ -302,10 +284,9 @@ export function buildStatusEmailTemplate({
   const message = parts.join("\n");
 
   const htmlContent = buildHtmlEmail({
-    emailTitle: copy.emailTitle,
-    emphasizeMainText: copy.emphasizeMainText,
     fullName,
     statusLabel: statusLabelText,
+    emailTitle,
     mainText,
     nextStepNote,
     additionalInfo:
@@ -314,12 +295,12 @@ export function buildStatusEmailTemplate({
         : {
             dateTime: dateTime || "",
             link: link || "",
-            linkType,
-            locationName: displayLocationName,
-            locationUrl,
+            locationName: locationName || "",
+            locationUrl: locationUrl || "",
           },
     decisionNote: decisionNote || "",
     channelsHtml: copy.channelsText || "",
+    emphasizeMainText: Boolean(copy.emphasizeMainText),
   });
 
   return {
@@ -331,15 +312,15 @@ export function buildStatusEmailTemplate({
 }
 
 function buildHtmlEmail({
-  emailTitle,
-  emphasizeMainText = true,
   fullName,
   statusLabel,
+  emailTitle,
   mainText,
   nextStepNote,
   decisionNote,
   additionalInfo,
   channelsHtml,
+  emphasizeMainText,
 }) {
   const detailRows = buildDetailRows({
     additionalInfo,
@@ -347,33 +328,22 @@ function buildHtmlEmail({
     channelsText: channelsHtml,
   });
 
-  const safeEmailTitle =
-    String(emailTitle || "").trim() || "Ariza holati yangilandi";
-  const safeMainText = escapeHtml(mainText);
-  const mainTextHtml = emphasizeMainText
-    ? `<strong>${safeMainText}</strong>`
-    : safeMainText;
-
   return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>${escapeHtml(safeEmailTitle)}</title>
-  <style>
-    /* Inter web-font (some email clients may ignore; fallbacks below will apply) */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-  </style>
+  <title>${escapeHtml(emailTitle || "Ariza holati yangilandi")}</title>
 </head>
-<body style="margin:0; padding:0; background-color:#f4f6f8; font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">
+<body style="margin:0; padding:0; background-color:#f4f6f8; font-family:Arial,sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0">
     <tr>
       <td align="center" style="padding:32px 12px;">
-        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:10px; padding:28px; box-shadow:0 4px 12px rgba(0,0,0,0.04); font-family:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;">
+        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:10px; padding:28px; box-shadow:0 4px 12px rgba(0,0,0,0.04);">
           <tr>
             <td style="text-align:center; padding-bottom:16px;">
               <h2 style="margin:0; color:#2c3e50; font-size:22px;">${escapeHtml(
-                safeEmailTitle
+                emailTitle || "Ariza holati yangilandi"
               )}</h2>
               <div style="margin-top:8px; color:#5f6b7a; font-size:14px;">Holat: <strong>${escapeHtml(
                 statusLabel
@@ -386,7 +356,11 @@ function buildHtmlEmail({
                 fullName
               )}</b>,</p>
               <p style="margin:0 0 12px 0;">Arizangiz holatini yangiladik. Quyidagi sharh va keyingi qadamlarni diqqat bilan ko'rib chiqing:</p>
-              <p style="margin:0 0 14px 0; color:#1f2d3d;">${mainTextHtml}</p>
+              <p style="margin:0 0 14px 0; color:#1f2d3d;">${
+                emphasizeMainText
+                  ? `<strong>${escapeHtml(mainText)}</strong>`
+                  : `${escapeHtml(mainText)}`
+              }</p>
               <p style="margin:0 0 14px 0;">${escapeHtml(nextStepNote)}</p>
               ${detailRows}
               ${
@@ -422,95 +396,28 @@ function buildChannelsHtml(channelsText) {
     .filter(Boolean);
   if (lines.length === 0) return "";
 
-  const titleLine = lines[0];
-  const candidateLines = lines.slice(1);
-
-  const telegramIconSvg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" role="img" aria-label="Telegram" style="display:block">
-      <path fill="#1e7dd1" d="M22.5 3.5L2.6 11.2c-1.4.5-1.4 1.3-.3 1.6l5.1 1.6 2 6.1c.3.8.2 1.1.9 1.1.5 0 .7-.2 1-.5l2.9-2.8 6 4.4c1.1.6 1.8.3 2.1-1l3.5-16.5c.4-1.6-.6-2.3-1.8-1.7zM9.6 14.3l9.9-6.2c.5-.3.9-.1.6.2l-8 7.2-.3 4.2-2-6.2c-.1-.3 0-.6.3-.8z"/>
-    </svg>
-  `;
-
-  const websiteIconSvg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" role="img" aria-label="Website" style="display:block">
-      <path fill="#5f6b7a" d="M12 2a10 10 0 100 20 10 10 0 000-20zm7.9 9h-3.2a15.6 15.6 0 00-1.2-5 8.1 8.1 0 014.4 5zM12 4c.9 1.3 1.7 3.5 2.1 7H9.9c.4-3.5 1.2-5.7 2.1-7zM4.9 13h3.2c.2 1.9.7 3.6 1.2 5a8.1 8.1 0 01-4.4-5zm3.2-2H4.9a8.1 8.1 0 014.4-5c-.5 1.4-1 3.1-1.2 5zm1.8 2h4.2c-.4 3.5-1.2 5.7-2.1 7-.9-1.3-1.7-3.5-2.1-7zm6 0h3.2a8.1 8.1 0 01-4.4 5c.5-1.4 1-3.1 1.2-5z"/>
-    </svg>
-  `;
-
-  function isTelegramUrl(url) {
-    const u = String(url || "").toLowerCase();
-    return u.includes("t.me/") || u.includes("telegram.me/") || u.includes("telegram.org/");
-  }
-
-  const rows = candidateLines
+  const items = lines
     .map((line) => {
-      const cleaned = String(line || "")
-        .replace(/\s*::\s*/g, ": ")
-        .replace(/^[•\-–—]+\s*/g, "")
-        .replace(/^🔹\s*/g, "")
-        .trim();
-
-      const m = cleaned.match(/(https?:\/\/\S+)/);
-      if (!m) {
-        return `
-          <tr>
-            <td style="padding:10px 10px; border:1px solid #eef1f4; border-radius:10px; background:#ffffff;">
-              <div style="font-size:13px; color:#3a4a5e; line-height:1.5;">
-                ${escapeHtml(cleaned)}
-              </div>
-            </td>
-          </tr>
-        `;
-      }
-
+      const m = line.match(/(https?:\/\/\S+)/);
+      if (!m) return `<li>${escapeHtml(line)}</li>`;
       const url = m[1];
-      const before = cleaned.slice(0, cleaned.indexOf(url)).trim();
-      const label = before
-        .replace(/\s*:\s*$/g, "")
-        .replace(/\s{2,}/g, " ")
-        .trim();
-
-      const safeLabel = escapeHtml(label || "Telegram kanal");
-      const safeUrl = escapeHtml(url);
-      const isTg = isTelegramUrl(url);
-      const icon = isTg ? telegramIconSvg : websiteIconSvg;
-
-      return `
-        <tr>
-          <td style="padding:0 0 10px 0;">
-            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate; border-spacing:0; border:1px solid #eef1f4; background:#ffffff; border-radius:10px;">
-              <tr>
-                <td style="width:28px; padding:12px 0 12px 12px; vertical-align:top;">
-                  <div style="width:16px; height:16px;">
-                    ${icon}
-                  </div>
-                </td>
-                <td style="padding:12px 12px 12px 10px; vertical-align:top;">
-                  <div style="font-size:13px; font-weight:bold; color:#1f2d3d; margin:0 0 6px 0;">${safeLabel}</div>
-                  <a href="${safeUrl}" style="font-size:13px; color:#1e7dd1; text-decoration:underline; word-break:break-word;">
-                    ${safeUrl}
-                  </a>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      `;
+      const before = line.slice(0, line.indexOf(url)).trim();
+      const after = line.slice(line.indexOf(url) + url.length).trim();
+      const label = [before, after].filter(Boolean).join(" ").trim() || url;
+      return `<li>${escapeHtml(label)}: <a href="${escapeHtml(
+        url
+      )}" style="color:#1e7dd1; text-decoration:none;">${escapeHtml(
+        url
+      )}</a></li>`;
     })
     .join("");
 
-  const titleText = escapeHtml(
-    String(titleLine || "Qo'shimcha ma'lumotlar").replace(/\s*::\s*/g, ": ")
-  );
-
   return `
-    <div style="margin:14px 0 0 0; padding:12px 12px; background:#f8f9fb; border-radius:10px; border:1px solid #eef1f4;">
-      <div style="font-weight:bold; color:#1f2d3d; margin-bottom:10px; font-size:14px;">
-        ${titleText}
-      </div>
-      <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate; border-spacing:0;">
-        ${rows}
-      </table>
+    <div style="margin:14px 0 0 0; padding:12px 12px; background:#f8f9fb; border-radius:8px; border:1px solid #eef1f4;">
+      <div style="font-weight:bold; color:#1f2d3d; margin-bottom:6px;">Qo'shimcha ma'lumotlar</div>
+      <ul style="margin:0; padding-left:18px; color:#3a4a5e; font-size:13px; line-height:1.5;">
+        ${items}
+      </ul>
     </div>
   `;
 }
@@ -521,14 +428,8 @@ function buildDetailRows({ additionalInfo, decisionNote, channelsText }) {
   if (additionalInfo && typeof additionalInfo === "object") {
     const dt = String(additionalInfo.dateTime || "").trim();
     const link = String(additionalInfo.link || "").trim();
-    const linkType =
-      additionalInfo.linkType === "telegram" ? "telegram" : "zoom";
-    const linkLabel =
-      linkType === "telegram" ? "🔗 Telegram link" : "🔗 Zoom link";
-    const locationUrl = String(additionalInfo.locationUrl || "").trim();
-    const locationNameRaw = String(additionalInfo.locationName || "").trim();
-    const locationName = locationNameRaw || locationUrl;
-
+    const locName = String(additionalInfo.locationName || "").trim();
+    const locUrl = String(additionalInfo.locationUrl || "").trim();
     if (dt) {
       rows.push({
         label: "📅 Sana / Vaqt",
@@ -536,21 +437,17 @@ function buildDetailRows({ additionalInfo, decisionNote, channelsText }) {
       });
     }
     if (link) {
-      const safeLink = escapeHtml(link);
       rows.push({
-        label: linkLabel,
-        valueHtml: `<a href="${safeLink}" style="color:#1e7dd1; text-decoration:underline; word-break:break-word;">${safeLink}</a>`,
+        label: "🔗 Havola",
+        value: link,
       });
     }
-    if (locationName || locationUrl) {
-      const safeLocationName = escapeHtml(locationName || locationUrl);
-      const safeUrl = escapeHtml(locationUrl);
-      const valueHtml = locationUrl
-        ? `<a href="${safeUrl}" style="color:#1e7dd1; text-decoration:underline; word-break:break-word;">${safeLocationName}</a>`
-        : safeLocationName;
+    if (locName || locUrl) {
       rows.push({
         label: "📍 Lokatsiya",
-        valueHtml,
+        value: [locName || "", locUrl || ""]
+          .filter(Boolean)
+          .join(locName && locUrl ? " — " : ""),
       });
     }
   }
@@ -565,11 +462,9 @@ function buildDetailRows({ additionalInfo, decisionNote, channelsText }) {
           <td style="padding:6px 8px; width:180px; color:#1f2d3d;"><b>${escapeHtml(
             row.label
           )}:</b></td>
-          <td style="padding:6px 8px; color:#3a4a5e;">${
-            row.valueHtml !== undefined
-              ? row.valueHtml
-              : escapeHtml(row.value)
-          }</td>
+          <td style="padding:6px 8px; color:#3a4a5e;">${escapeHtml(
+            row.value
+          )}</td>
         </tr>`
     )
     .join("");

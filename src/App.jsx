@@ -20,6 +20,11 @@ import SettingsLayout from "./pages/settings/SettingsLayout";
 import AdminsSettings from "./pages/settings/AdminsSettings";
 import TemplateEmailsSettings from "./pages/settings/TemplateEmailsSettings";
 import SettingsIndexRedirect from "./pages/settings/SettingsIndexRedirect";
+import CandidatesLayout from "./pages/candidates/CandidatesLayout";
+import CandidatesIndexRedirect from "./pages/candidates/CandidatesIndexRedirect";
+import CandidatesAllUsers from "./pages/candidates/CandidatesAllUsers";
+import CandidatesArchivedUsers from "./pages/candidates/CandidatesArchivedUsers";
+import CandidatesDeletedUsers from "./pages/candidates/CandidatesDeletedUsers";
 
 function App() {
   const dispatch = useDispatch();
@@ -57,6 +62,16 @@ function App() {
         {
           path: "generate/:major/:id",
           element: <Generate />,
+        },
+        {
+          path: "candidates",
+          element: <CandidatesLayout />,
+          children: [
+            { index: true, element: <CandidatesIndexRedirect /> },
+            { path: "all", element: <CandidatesAllUsers /> },
+            { path: "archived", element: <CandidatesArchivedUsers /> },
+            { path: "deleted", element: <CandidatesDeletedUsers /> },
+          ],
         },
       ],
     },
