@@ -7,7 +7,7 @@ import { FiTrash2 } from "react-icons/fi";
 import { MdOutlineRestorePage } from "react-icons/md";
 import {
   addCandidateWithDualStats,
-  deleteConsultingUploadUrlsBestEffort,
+  deleteConsultingUploadUrlsStrict,
   deleteEmailAndPassIdByEmail,
   extractConsultingUploadUrlsFromSnapshot,
   upsertEmailAndPassIdFirestore,
@@ -217,7 +217,9 @@ export default function CandidatesDeletedUsers() {
         setDeletingKey(key);
 
         const urls = extractConsultingUploadUrlsFromSnapshot(record);
-        await deleteConsultingUploadUrlsBestEffort(urls);
+        // STRICT: if even one remote upload delete fails, do not delete the Firestore snapshot.
+        // This prevents orphaned files in json-api.uz storage.
+        await deleteConsultingUploadUrlsStrict(urls);
 
         const email = extractEmailFromSnapshot(record);
         if (email) {
