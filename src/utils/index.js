@@ -17,7 +17,10 @@ import {
 import { incrementDirectionsTotal } from "./stats";
 
 function generateUuid() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
     return crypto.randomUUID();
   }
   // Fallback: simple random string
@@ -57,10 +60,7 @@ export async function createCollection(name, createdBy) {
   try {
     // Normalize name defensively here as well; we only add meta now
     const rawTitle = String(name || "").trim();
-    const normalizedName = rawTitle
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, "-");
+    const normalizedName = rawTitle.trim().toLowerCase().replace(/\s+/g, "-");
 
     if (!normalizedName) {
       toast.error("Der Name des Berufsfelds darf nicht leer sein.");
@@ -107,7 +107,9 @@ export async function createCollection(name, createdBy) {
       // non-blocking: major creation should still succeed
     }
 
-    toast.success(`„${rawTitle || normalizedName}“ wurde zur Meta-Liste hinzugefügt!`);
+    toast.success(
+      `„${rawTitle || normalizedName}“ wurde zur Meta-Liste hinzugefügt!`
+    );
     return {
       created: true,
       name: normalizedName,
@@ -143,11 +145,7 @@ export async function getMetaByName(name) {
 
   // 3) Try lookup by slug/name field (legacy)
   const byNameSnap = await getDocs(
-    query(
-      collection(db, "meta"),
-      where("collectionName", "==", safe),
-      limit(1)
-    )
+    query(collection(db, "meta"), where("collectionName", "==", safe), limit(1))
   );
   if (!byNameSnap.empty) {
     return normalizeMajorMeta(byNameSnap.docs[0]);
@@ -174,7 +172,11 @@ export function subscribeToCollections(callback) {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const list = snapshot.docs
         .map((d) => normalizeMajorMeta(d))
-        .filter((n) => typeof n.collectionName === "string" && n.collectionName.trim().length > 0);
+        .filter(
+          (n) =>
+            typeof n.collectionName === "string" &&
+            n.collectionName.trim().length > 0
+        );
       callback(list);
     });
 
@@ -625,7 +627,9 @@ async function safeJsonResponse(res) {
 }
 
 export async function listRemoteUsers(kind = "all") {
-  const k = String(kind || "").trim().toLowerCase();
+  const k = String(kind || "")
+    .trim()
+    .toLowerCase();
   const endpoint =
     k === "deleted"
       ? USERS_DELETED_ENDPOINT
@@ -646,14 +650,7 @@ export async function getRemoteUserRecord(kind, recordId) {
 
   const match = list.find((r) => {
     if (!r || typeof r !== "object") return false;
-    const candidates = [
-      r.id,
-      r._id,
-      r.uuid,
-      r.key,
-      r.docId,
-      r.firebaseId,
-    ]
+    const candidates = [r.id, r._id, r.uuid, r.key, r.docId, r.firebaseId]
       .map((v) => String(v ?? "").trim())
       .filter(Boolean);
     return candidates.includes(safeId);
@@ -662,7 +659,9 @@ export async function getRemoteUserRecord(kind, recordId) {
 }
 
 export async function deleteRemoteUserRecord(kind, recordId) {
-  const k = String(kind || "").trim().toLowerCase();
+  const k = String(kind || "")
+    .trim()
+    .toLowerCase();
   const safeId = String(recordId || "").trim();
   if (!safeId) return { ok: false, reason: "missing-id" };
   const endpoint =
@@ -758,11 +757,7 @@ export async function upsertUserRemoteAllUsers({
   return safeJsonResponse(res);
 }
 
-export async function addUserRemoteDeleted({
-  major,
-  payload,
-  deletedBy,
-} = {}) {
+export async function addUserRemoteDeleted({ major, payload, deletedBy } = {}) {
   const safeMajor = String(major || "").trim() || null;
   const safeBy = String(deletedBy || "").trim() || null;
   const safePayload = payload && typeof payload === "object" ? payload : {};
@@ -778,7 +773,8 @@ export async function addUserRemoteDeleted({
       ...withoutFirebaseId,
     }),
   });
-  if (!res.ok) throw new Error(`Remote deleted_users POST failed: ${res.status}`);
+  if (!res.ok)
+    throw new Error(`Remote deleted_users POST failed: ${res.status}`);
   return safeJsonResponse(res);
 }
 
@@ -878,7 +874,9 @@ export async function checkPassportRemote(passportNumber) {
 const EMAIL_AND_PASSID_COLLECTION = "email_and_passId";
 
 function normalizeEmailForRegistry(email) {
-  return String(email || "").trim().toLowerCase();
+  return String(email || "")
+    .trim()
+    .toLowerCase();
 }
 
 function normalizePassportIdForRegistry(passportId) {
@@ -886,10 +884,7 @@ function normalizePassportIdForRegistry(passportId) {
   if (!raw) return "";
   // Keep it compatible with existing stored values (import script uses .trim()).
   // We normalize casing and whitespace to maximize match rate.
-  return raw
-    .toUpperCase()
-    .replace(/\s+/g, " ")
-    .trim();
+  return raw.toUpperCase().replace(/\s+/g, " ").trim();
 }
 
 export async function checkEmailFirestore(email) {
@@ -917,16 +912,16 @@ export async function checkPassportFirestore(passportId) {
 
 function buildDeletedUserDocId({ major, sourceDocId }) {
   // Firestore doc ids must not contain "/". `encodeURIComponent` ensures that.
-  return `${encodeURIComponent(String(major || "").trim())}__${encodeURIComponent(
-    String(sourceDocId || "").trim()
-  )}`;
+  return `${encodeURIComponent(
+    String(major || "").trim()
+  )}__${encodeURIComponent(String(sourceDocId || "").trim())}`;
 }
 
 function buildArchivedUserDocId({ major, sourceDocId }) {
   // Same deterministic strategy as deleted_users.
-  return `${encodeURIComponent(String(major || "").trim())}__${encodeURIComponent(
-    String(sourceDocId || "").trim()
-  )}`;
+  return `${encodeURIComponent(
+    String(major || "").trim()
+  )}__${encodeURIComponent(String(sourceDocId || "").trim())}`;
 }
 
 function extractEmailFromCandidatePayload(payload) {
@@ -985,7 +980,10 @@ export async function saveDeletedUserSnapshotFirestore({
     payload && typeof payload === "object" ? structuredClone(payload) : {};
   const email = extractEmailFromCandidatePayload(snapshot);
 
-  const docId = buildDeletedUserDocId({ major: safeMajor, sourceDocId: safeId });
+  const docId = buildDeletedUserDocId({
+    major: safeMajor,
+    sourceDocId: safeId,
+  });
   const ref = doc(db, "deleted_users", docId);
   await setDoc(
     ref,
@@ -1019,7 +1017,10 @@ export async function saveArchivedUserSnapshotFirestore({
     payload && typeof payload === "object" ? structuredClone(payload) : {};
   const email = extractEmailFromCandidatePayload(snapshot);
 
-  const docId = buildArchivedUserDocId({ major: safeMajor, sourceDocId: safeId });
+  const docId = buildArchivedUserDocId({
+    major: safeMajor,
+    sourceDocId: safeId,
+  });
   const ref = doc(db, "archived_users", docId);
   await setDoc(
     ref,
@@ -1057,12 +1058,53 @@ function collectHttpUrlsDeep(value, out) {
 
 export function extractConsultingUploadUrlsFromSnapshot(snapshot) {
   const urls = Array.from(collectHttpUrlsDeep(snapshot, new Set()));
-  // Filter to our known upload host/project to avoid deleting unrelated external links.
-  return urls.filter(
-    (u) =>
-      String(u).includes("json-api.uz") &&
-      String(u).includes("/api/project/consultinguz/")
-  );
+  // Filter to our known host/project to avoid deleting unrelated external links.
+  // NOTE: Real-world file URLs can vary; keep this permissive enough to catch all consultinguz files.
+  return urls.filter((u) => {
+    const s = String(u || "").trim();
+    const lower = s.toLowerCase();
+    if (!/^https?:\/\//.test(s)) return false;
+    if (!lower.includes("json-api.uz")) return false;
+
+    // Parse to make path checks reliable (ignore query/hash).
+    let url;
+    try {
+      url = new URL(s);
+    } catch {
+      return false;
+    }
+    const host = String(url.hostname || "").toLowerCase();
+    if (!host.endsWith("json-api.uz")) return false;
+    const path = String(url.pathname || "").toLowerCase();
+
+    // Exclude known non-file API endpoints (we never want to "delete" these).
+    const blocked = [
+      "/upload/delete",
+      "/all_users",
+      "/deleted_users",
+      "/archived_users",
+      "/all_emails",
+      "/all_passports",
+    ];
+    if (blocked.some((p) => path.includes(p))) return false;
+
+    // Exclude the upload endpoint itself (POST target), just in case it appears somewhere.
+    if (path.endsWith("/upload")) return false;
+
+    // Accept either:
+    // - project upload file urls (may include /api/project/consultinguz/...)
+    // - direct storage urls used by the app (e.g. /mt/file-...pdf)
+    const looksLikeProjectScoped =
+      path.includes("/api/project/consultinguz/") ||
+      lower.includes("consultinguz");
+    const looksLikeStorageFile =
+      path.startsWith("/mt/") ||
+      path.startsWith("/mnt/") ||
+      path.includes("/uploads/") ||
+      path.includes("/file-");
+
+    return looksLikeProjectScoped || looksLikeStorageFile;
+  });
 }
 
 export async function deleteConsultingUploadUrlsBestEffort(urls) {
@@ -1077,6 +1119,38 @@ export async function deleteConsultingUploadUrlsBestEffort(urls) {
   );
   const failed = results.filter((r) => r.status === "rejected").length;
   return { ok: failed === 0, deleted: unique.length - failed, failed };
+}
+
+// Strict variant: deletes ALL urls (parallel) and throws if any delete fails.
+// Use this for hard-delete flows where leaving orphaned remote files is unacceptable.
+export async function deleteConsultingUploadUrlsStrict(urls) {
+  const list = Array.isArray(urls) ? urls : [];
+  const unique = Array.from(
+    new Set(list.map((u) => String(u || "").trim()).filter(Boolean))
+  );
+  if (unique.length === 0) {
+    console.debug(
+      "[upload-delete] No consultinguz file URLs found in snapshot."
+    );
+    return { ok: true, deleted: 0 };
+  }
+
+  // Promise.all to match expected behavior; enrich error with url for debugging.
+  console.debug("[upload-delete] Deleting consultinguz files:", unique);
+  await Promise.all(
+    unique.map((u) =>
+      deleteUploadedFileRemote(u).catch((e) => {
+        const err =
+          e instanceof Error
+            ? e
+            : new Error(String(e || "Upload delete failed"));
+        // attach context (non-standard field, but useful in console logs)
+        err.url = u;
+        throw err;
+      })
+    )
+  );
+  return { ok: true, deleted: unique.length };
 }
 
 export async function registerEmailRemote(email, major, passportNumber) {
@@ -1138,7 +1212,8 @@ export async function registerPassportRemote(passportNumber, major) {
     );
     return { ok: false, unavailable: true, status: 404 };
   }
-  if (!res.ok) throw new Error(`Passnummer Registrierung fehlgeschlagen: ${res.status}`);
+  if (!res.ok)
+    throw new Error(`Passnummer Registrierung fehlgeschlagen: ${res.status}`);
   return res.json().catch(() => ({}));
 }
 
