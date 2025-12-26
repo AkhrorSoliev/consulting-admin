@@ -154,6 +154,113 @@ export async function getMetaByName(name) {
   return null;
 }
 
+// Live subscribe to a single meta document by either:
+// - doc id (uuid/linkId)
+// - uuid field
+// - collectionName field (legacy)
+//
+// Callback receives normalized meta object or null when not found.
+export function subscribeToMetaByName(name, callback, onError) {
+  const safe = String(name || "").trim();
+  const cb = typeof callback === "function" ? callback : () => {};
+  const errCb =
+    typeof onError === "function"
+      ? onError
+      : (e) => console.error("subscribeToMetaByName error:", e);
+
+  if (!safe) {
+    try {
+      cb(null);
+    } catch {
+      // ignore
+    }
+    return () => {};
+  }
+
+  let cancelled = false;
+  let unsub = null;
+  let triedResolve = false;
+
+  function cleanup() {
+    cancelled = true;
+    try {
+      unsub?.();
+    } catch {
+      // ignore
+    }
+    unsub = null;
+  }
+
+  function subscribeDocId(docId) {
+    const id = String(docId || "").trim();
+    if (!id) return;
+    const ref = doc(db, "meta", id);
+    unsub = onSnapshot(
+      ref,
+      (snap) => {
+        if (cancelled) return;
+        if (!snap.exists()) {
+          cb(null);
+          return;
+        }
+        cb(normalizeMajorMeta(snap));
+      },
+      (e) => {
+        if (cancelled) return;
+        errCb(e);
+      }
+    );
+  }
+
+  // First: try subscribing as direct doc id (fast path).
+  // If it doesn't exist, resolve once via queries and resubscribe to the real doc id.
+  // This avoids requiring a page refresh when meta fields are edited in Settings.
+  const directRef = doc(db, "meta", safe);
+  unsub = onSnapshot(
+    directRef,
+    (snap) => {
+      if (cancelled) return;
+      if (snap.exists()) {
+        cb(normalizeMajorMeta(snap));
+        return;
+      }
+
+      if (triedResolve) {
+        cb(null);
+        return;
+      }
+      triedResolve = true;
+
+      (async () => {
+        try {
+          const resolved = await getMetaByName(safe);
+          if (cancelled) return;
+          const targetId = String(resolved?.id || "").trim();
+          if (targetId && targetId !== safe) {
+            // Switch subscription to the resolved doc id.
+            try {
+              unsub?.();
+            } catch {
+              // ignore
+            }
+            unsub = null;
+            subscribeDocId(targetId);
+          } else {
+            cb(null);
+          }
+        } catch (e) {
+          if (!cancelled) errCb(e);
+        }
+      })();
+    },
+    (e) => {
+      if (!cancelled) errCb(e);
+    }
+  );
+
+  return cleanup;
+}
+
 export async function updateMetaByName(name, data) {
   const safe = String(name || "").trim();
   if (!safe) throw new Error("updateMetaByName: name is empty");

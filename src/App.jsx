@@ -1,7 +1,9 @@
 import {
   createBrowserRouter,
   Navigate,
+  Outlet,
   RouterProvider,
+  useParams,
 } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout";
 import Home from "./pages/Home";
@@ -22,11 +24,18 @@ import AdminsSettings from "./pages/settings/AdminsSettings";
 import TemplateEmailsSettings from "./pages/settings/TemplateEmailsSettings";
 import DocumentsSettings from "./pages/settings/DocumentsSettings";
 import SettingsIndexRedirect from "./pages/settings/SettingsIndexRedirect";
+import TelegramGroupsSettings from "./pages/settings/TelegramGroupsSettings";
 import CandidatesLayout from "./pages/candidates/CandidatesLayout";
 import CandidatesIndexRedirect from "./pages/candidates/CandidatesIndexRedirect";
 import CandidatesAllUsers from "./pages/candidates/CandidatesAllUsers";
 import CandidatesArchivedUsers from "./pages/candidates/CandidatesArchivedUsers";
 import CandidatesDeletedUsers from "./pages/candidates/CandidatesDeletedUsers";
+
+function DocumentsLegacyRedirect() {
+  const { templateId } = useParams();
+  const t = String(templateId || "").trim();
+  return <Navigate to={t ? `/settings/documents/${t}` : "/settings/documents"} replace />;
+}
 
 function App() {
   const dispatch = useDispatch();
@@ -49,18 +58,27 @@ function App() {
           element: <Profile />,
         },
         {
+          // legacy/short links
+          path: "documents/:templateId",
+          element: <DocumentsLegacyRedirect />,
+        },
+        {
           path: "settings",
           element: <SettingsLayout />,
           children: [
             { index: true, element: <SettingsIndexRedirect /> },
             { path: "admins", element: <AdminsSettings /> },
+            { path: "telegram-groups", element: <TelegramGroupsSettings /> },
             { path: "template-emails", element: <TemplateEmailsSettings /> },
-            { path: "documents", element: <DocumentsSettings /> },
+            {
+              path: "documents",
+              element: <Outlet />,
+              children: [
+                { index: true, element: <DocumentsSettings /> },
+                { path: "beratungsvertrag", element: <Contract /> },
+              ],
+            },
           ],
-        },
-        {
-          path: "settings/documents/beratungsvertrag",
-          element: <Contract />,
         },
         {
           path: "collectionCv/:major",
@@ -69,10 +87,6 @@ function App() {
         {
           path: "generate/:major/:id",
           element: <Generate />,
-        },
-        {
-          path: "contract",
-          element: <Navigate to="/settings/documents/beratungsvertrag" replace />,
         },
         {
           path: "candidates",

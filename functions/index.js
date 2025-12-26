@@ -1,14 +1,24 @@
 const { setGlobalOptions } = require("firebase-functions");
-const { onRequest } = require("firebase-functions/https");
+const { onRequest } = require("firebase-functions/v2/https");
 const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { defineSecret } = require("firebase-functions/params");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
+const {
+  createOneTimeChatInviteLink,
+  getTelegramChatsFromUpdates,
+} = require("./src/services/telegram");
 
 admin.initializeApp(); // Admin SDK bypasses security rules
 const db = admin.firestore();
 
 setGlobalOptions({ maxInstances: 10 });
+
+// ---- Secrets ----
+// Store via: firebase functions:secrets:set TELEGRAM_BOT_TOKEN
+// Never hardcode bot tokens in code or frontend.
+const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
 
 const REMOTE_API_BASE = "https://json-api.uz/api/project/consultinguz";
 const REMOTE_ALL_USERS = `${REMOTE_API_BASE}/all_users`;
@@ -35,11 +45,62 @@ function setCors(req, res) {
     res.set("Access-Control-Allow-Origin", origin);
   }
   res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.set("Access-Control-Allow-Headers", "Content-Type, Range");
+  // Authorization header is required for protected endpoints like /generateInvite.
+  res.set("Access-Control-Allow-Headers", "Content-Type, Range, Authorization");
   res.set(
     "Access-Control-Expose-Headers",
     "Content-Type, Content-Length, Content-Range, Accept-Ranges"
   );
+}
+
+async function verifyFirebaseIdToken(req) {
+  const raw = String(req.get("Authorization") || "").trim();
+  if (!raw || !raw.toLowerCase().startsWith("bearer ")) {
+    const e = new Error("missing-authorization");
+    e.code = "missing-authorization";
+    e.status = 401;
+    throw e;
+  }
+  const token = raw.slice("bearer ".length).trim();
+  if (!token) {
+    const e = new Error("missing-token");
+    e.code = "missing-token";
+    e.status = 401;
+    throw e;
+  }
+  try {
+    return await admin.auth().verifyIdToken(token);
+  } catch (err) {
+    const e = new Error("invalid-token");
+    e.code = "invalid-token";
+    e.status = 401;
+    e.details = String(err?.message || err);
+    throw e;
+  }
+}
+
+function assertAdminLikeClaims(decodedToken) {
+  const role = String(decodedToken?.role || decodedToken?.claims?.role || "");
+  // The project uses custom claims { role } on Firebase Auth user.
+  // Allow admin and super_admin to generate invites.
+  if (role !== "admin" && role !== "super_admin") {
+    const e = new Error("permission-denied");
+    e.code = "permission-denied";
+    e.status = 403;
+    throw e;
+  }
+  return { role };
+}
+
+function assertSuperAdminClaims(decodedToken) {
+  const role = String(decodedToken?.role || decodedToken?.claims?.role || "");
+  if (role !== "super_admin") {
+    const e = new Error("permission-denied");
+    e.code = "permission-denied";
+    e.status = 403;
+    throw e;
+  }
+  return { role };
 }
 
 function isAllowedPdfProxyUrl(raw) {
@@ -128,6 +189,213 @@ exports.proxyPdf = onRequest(async (req, res) => {
       .json({ ok: false, error: "internal", details: String(e?.message || e) });
   }
 });
+
+// POST /generateInvite
+// Body: { groupId: string }
+// Returns: { ok: true, invite_link: string }
+//
+// Security:
+// - Requires Firebase Auth ID token (Authorization: Bearer <token>)
+// - Requires role=admin or role=super_admin
+// - Frontend never sees chat_id or bot token
+exports.generateInvite = onRequest(
+  { secrets: [TELEGRAM_BOT_TOKEN] },
+  async (req, res) => {
+    try {
+      setCors(req, res);
+      if (req.method === "OPTIONS") return res.status(204).send("");
+      if (req.method !== "POST") {
+        return res.status(405).json({ ok: false, error: "method-not-allowed" });
+      }
+
+      // Auth (admin-only)
+      const decoded = await verifyFirebaseIdToken(req);
+      assertAdminLikeClaims(decoded);
+
+      const groupId = String(req.body?.groupId || "").trim();
+      if (!groupId) {
+        return res.status(400).json({ ok: false, error: "missing-groupId" });
+      }
+
+      const snap = await db.collection("telegram_groups").doc(groupId).get();
+      if (!snap.exists) {
+        return res.status(404).json({ ok: false, error: "group-not-found" });
+      }
+      const data = snap.data() || {};
+      if (data.active === false) {
+        return res.status(403).json({ ok: false, error: "group-inactive" });
+      }
+      const chatId = String(data.chat_id || "").trim();
+      if (!chatId) {
+        return res
+          .status(500)
+          .json({ ok: false, error: "group-missing-chat_id" });
+      }
+
+      const botToken = String(TELEGRAM_BOT_TOKEN.value() || "").trim();
+      if (!botToken) {
+        return res.status(500).json({ ok: false, error: "bot-token-missing" });
+      }
+
+      // No time limit; only 1 join.
+      const { invite_link } = await createOneTimeChatInviteLink({
+        botToken,
+        chatId,
+        expireSeconds: null,
+        memberLimit: 1,
+      });
+
+      // Counter: track how many invite links were generated/sent for this group.
+      // Stored on the group doc so /settings/telegram-groups can show per-group stats.
+      try {
+        await db
+          .collection("telegram_groups")
+          .doc(groupId)
+          .set(
+            {
+              // Legacy field name kept for backwards compatibility (historically "sent").
+              linksSentCount: admin.firestore.FieldValue.increment(1),
+              linksSentLastAt: admin.firestore.FieldValue.serverTimestamp(),
+              // New, clearer field names:
+              linksGeneratedCount: admin.firestore.FieldValue.increment(1),
+              linksGeneratedLastAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+      } catch (e) {
+        // Don't fail the invite generation if stats update fails.
+        logger.warn("generateInvite stats update failed", {
+          groupId,
+          err: String(e?.message || e),
+        });
+      }
+
+      return res.status(200).json({
+        ok: true,
+        invite_link,
+      });
+    } catch (err) {
+      logger.error("generateInvite error", err);
+      setCors(req, res);
+      const status = Number(err?.status) || 500;
+      const code = String(err?.code || "internal");
+      const details =
+        status >= 500
+          ? String(err?.message || err)
+          : String(err?.details || err?.message || "");
+      return res
+        .status(status)
+        .json({ ok: false, error: code, details: details || undefined });
+    }
+  }
+);
+
+// POST /trackInviteSent
+// Body: { groupId: string, count?: number }
+//
+// Purpose:
+// - Count how many invite links were actually dispatched (e.g. email sent) per group.
+// - This is separate from /generateInvite which tracks generated links.
+//
+// Security:
+// - Requires Firebase Auth ID token
+// - Requires role=admin or role=super_admin
+exports.trackInviteSent = onRequest(async (req, res) => {
+  try {
+    setCors(req, res);
+    if (req.method === "OPTIONS") return res.status(204).send("");
+    if (req.method !== "POST") {
+      return res.status(405).json({ ok: false, error: "method-not-allowed" });
+    }
+
+    const decoded = await verifyFirebaseIdToken(req);
+    assertAdminLikeClaims(decoded);
+
+    const groupId = String(req.body?.groupId || "").trim();
+    if (!groupId) {
+      return res.status(400).json({ ok: false, error: "missing-groupId" });
+    }
+
+    const countRaw = Number(req.body?.count);
+    const count = Number.isFinite(countRaw) ? Math.floor(countRaw) : 1;
+    if (count <= 0 || count > 1000) {
+      return res.status(400).json({ ok: false, error: "invalid-count" });
+    }
+
+    const ref = db.collection("telegram_groups").doc(groupId);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      return res.status(404).json({ ok: false, error: "group-not-found" });
+    }
+
+    await ref.set(
+      {
+        linksDispatchedCount: admin.firestore.FieldValue.increment(count),
+        linksDispatchedLastAt: admin.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    logger.error("trackInviteSent error", err);
+    setCors(req, res);
+    const status = Number(err?.status) || 500;
+    const code = String(err?.code || "internal");
+    const details =
+      status >= 500
+        ? String(err?.message || err)
+        : String(err?.details || err?.message || "");
+    return res
+      .status(status)
+      .json({ ok: false, error: code, details: details || undefined });
+  }
+});
+
+// GET /telegramGroupsFromUpdates
+// Returns recent groups/channels that appear in bot updates.
+// Auth: super_admin only
+exports.telegramGroupsFromUpdates = onRequest(
+  { secrets: [TELEGRAM_BOT_TOKEN] },
+  async (req, res) => {
+    try {
+      setCors(req, res);
+      if (req.method === "OPTIONS") return res.status(204).send("");
+      if (req.method !== "GET") {
+        return res.status(405).json({ ok: false, error: "method-not-allowed" });
+      }
+
+      const decoded = await verifyFirebaseIdToken(req);
+      assertSuperAdminClaims(decoded);
+
+      const botToken = String(TELEGRAM_BOT_TOKEN.value() || "").trim();
+      if (!botToken) {
+        return res.status(500).json({ ok: false, error: "bot-token-missing" });
+      }
+
+      const limitRaw = Number(req.query?.limit);
+      const limit = Number.isFinite(limitRaw)
+        ? Math.max(1, Math.min(100, Math.floor(limitRaw)))
+        : 100;
+
+      const chats = await getTelegramChatsFromUpdates({ botToken, limit });
+      return res.status(200).json({ ok: true, chats });
+    } catch (err) {
+      logger.error("telegramGroupsFromUpdates error", err);
+      setCors(req, res);
+      const status = Number(err?.status) || 500;
+      const code = String(err?.code || "internal");
+      return res.status(status).json({
+        ok: false,
+        error: code,
+        details:
+          status >= 500
+            ? String(err?.message || err)
+            : String(err?.details || ""),
+      });
+    }
+  }
+);
 
 function findLead(meta, leadParam) {
   const list = Array.isArray(meta?.leadLinks) ? meta.leadLinks : [];

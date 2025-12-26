@@ -20,11 +20,13 @@ import {
   FaArrowLeft,
   FaExternalLinkAlt,
   FaSave,
+  FaTrash,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import { pdf } from "@react-pdf/renderer";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorkerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { extractPassportCanvasFromCanvas } from "../utils/passportImageProcessing";
 import CvPdfDocument from "./generate/pdf/CvPdfDocument";
 import FormInput from "../components/FormInput";
 import PhoneInputWithCountry from "../components/PhoneInputWithCountry";
@@ -47,6 +49,7 @@ import {
   getDocumentDataById,
   getRemoteUserRecord,
   subscribeToCollections,
+  subscribeToMetaByName,
   upsertEmailAndPassIdFirestore,
   upsertUserRemoteAllUsers,
   deleteEmailAndPassIdByEmail,
@@ -65,6 +68,7 @@ import {
   hasRichTextContent,
   commentHtmlToPlainText,
   DEFAULT_COMMENT_TEMPLATE_HTML,
+  deleteUploadedFileRemote,
 } from "../utils";
 import CandidateStatusStepper from "../components/CandidateStatusStepper";
 import {
@@ -77,6 +81,10 @@ import {
   buildStatusEmailTemplate,
   getStatusEmailCopy,
 } from "../utils/statusEmail";
+import {
+  generateTelegramInviteLink,
+  trackTelegramInviteSent,
+} from "../utils/telegramInvites";
 import { sendBrevoEmail } from "../utils/brevo";
 import RichTextEditor from "../components/RichTextEditor";
 import { useUserRole } from "../hooks/useUserRole";
@@ -275,6 +283,28 @@ function sniffFileKindFromArrayBuffer(ab) {
   return "unknown";
 }
 
+function rotateCanvas180(srcCanvas) {
+  try {
+    const sw = srcCanvas?.width || 0;
+    const sh = srcCanvas?.height || 0;
+    if (!sw || !sh) return null;
+    const out = document.createElement("canvas");
+    out.width = sw;
+    out.height = sh;
+    const ctx = out.getContext("2d", { alpha: false });
+    if (!ctx) return null;
+    // white background
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.translate(out.width, out.height);
+    ctx.rotate(Math.PI);
+    ctx.drawImage(srcCanvas, 0, 0);
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 async function blobToJpegDataUrlBestEffort(blob, { quality = 0.92 } = {}) {
   try {
     const b = blob instanceof Blob ? blob : null;
@@ -300,7 +330,16 @@ async function blobToJpegDataUrlBestEffort(blob, { quality = 0.92 } = {}) {
         // ignore
       }
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      return canvas.toDataURL("image/jpeg", quality);
+      const processed =
+        extractPassportCanvasFromCanvas(canvas, {
+          paddingLeftRightPx: 40,
+          paddingBottomPx: 60,
+          paddingTopPx: 8,
+        }) || canvas;
+      // Keep same behavior as /settings/documents/beratungsvertrag live preview:
+      // After robust crop+rotation normalization, rotate 180° to match scan output.
+      const rotated = rotateCanvas180(processed) || processed;
+      return rotated.toDataURL("image/jpeg", quality);
     } finally {
       URL.revokeObjectURL(objUrl);
     }
@@ -311,7 +350,16 @@ async function blobToJpegDataUrlBestEffort(blob, { quality = 0.92 } = {}) {
 
 async function pdfArrayBufferFirstPageToJpegDataUrlBestEffort(
   arrayBuffer,
-  { scale = 2, quality = 0.92 } = {}
+  {
+    scale = 2,
+    quality = 0.92,
+    // Crop away blank margins so embedded passport images don't look tiny in PDFs.
+    crop = true,
+    whiteThreshold = 245,
+    cropPaddingTopBottomPx = 60,
+    cropPaddingLeftRightPx = 40,
+    forcePortrait = true,
+  } = {}
 ) {
   try {
     // pdfjs needs a worker; set it once (best-effort)
@@ -335,7 +383,25 @@ async function pdfArrayBufferFirstPageToJpegDataUrlBestEffort(
     const ctx = canvas.getContext("2d");
     if (!ctx) return "";
     await page.render({ canvasContext: ctx, viewport }).promise;
-    return canvas.toDataURL("image/jpeg", quality);
+
+    if (!crop) return canvas.toDataURL("image/jpeg", quality);
+
+    // ---- Robust crop + rotation normalization (passport-only) ----
+    try {
+      const processed =
+        extractPassportCanvasFromCanvas(canvas, {
+          paddingLeftRightPx: cropPaddingLeftRightPx,
+          paddingBottomPx: cropPaddingTopBottomPx,
+          paddingTopPx: 8,
+        }) || canvas;
+      // Keep same behavior as /settings/documents/beratungsvertrag live preview:
+      // After robust crop+rotation normalization, rotate 180° to match scan output.
+      const rotated = rotateCanvas180(processed) || processed;
+      // forcePortrait kept for compatibility; extractor already prefers portrait
+      return rotated.toDataURL("image/jpeg", quality);
+    } catch {
+      return canvas.toDataURL("image/jpeg", quality);
+    }
   } catch {
     return "";
   }
@@ -479,8 +545,60 @@ function createEmptyStageInfo() {
     dateTime: "",
     link: "",
     linkType: "zoom",
+    useGeneratedLink: false,
     locationName: "",
     locationUrl: "",
+  };
+}
+
+function getTelegramGroupIdForStage(metaInfo, stageValue) {
+  const meta = metaInfo && typeof metaInfo === "object" ? metaInfo : {};
+  const internalType = String(
+    meta?.interviewInternal?.linkType || ""
+  ).toLowerCase();
+  const employerType = String(
+    meta?.interviewEmployer?.linkType || ""
+  ).toLowerCase();
+  const internal =
+    internalType === "telegram"
+      ? String(meta?.interviewInternal?.telegramGroupId || "").trim()
+      : "";
+  const employer =
+    employerType === "telegram"
+      ? String(meta?.interviewEmployer?.telegramGroupId || "").trim()
+      : "";
+  const stage = String(stageValue || "").trim();
+  if (stage === "stage_1" || stage === "stage_2") return internal || "";
+  if (stage === "stage_3" || stage === "stage_4")
+    return employer || internal || "";
+  return internal || employer || "";
+}
+
+function ensureTelegramGroupNameFactory({
+  getDocFn,
+  docFn,
+  dbRef,
+  cacheRef,
+  setMap,
+}) {
+  return async function ensureTelegramGroupName(groupDocId) {
+    const id = String(groupDocId || "").trim();
+    if (!id) return "";
+    const cached = cacheRef.current?.[id];
+    if (cached) return String(cached || "");
+    try {
+      const snap = await getDocFn(docFn(dbRef, "telegram_groups", id));
+      const data = snap.exists() ? snap.data() || {} : {};
+      const name = String(data?.name || "").trim() || id;
+      cacheRef.current = { ...(cacheRef.current || {}), [id]: name };
+      setMap((prev) => ({ ...(prev || {}), [id]: name }));
+      return name;
+    } catch {
+      const fallback = id;
+      cacheRef.current = { ...(cacheRef.current || {}), [id]: fallback };
+      setMap((prev) => ({ ...(prev || {}), [id]: fallback }));
+      return fallback;
+    }
   };
 }
 
@@ -638,11 +756,26 @@ function Generate() {
 
   const [metaInfo, setMetaInfo] = useState(null);
   const [metaLoading, setMetaLoading] = useState(false);
+  // Cache telegram group names by Firestore doc id (telegram_groups/{id})
+  const telegramGroupNameCacheRef = useRef({});
+  const [telegramGroupNameById, setTelegramGroupNameById] = useState({});
   const [resolvedMajor, setResolvedMajor] = useState({
     collectionName: "",
     title: "",
     linkId: "",
   });
+
+  const ensureTelegramGroupName = useMemo(() => {
+    // stable function that can update local cache + state
+    return ensureTelegramGroupNameFactory({
+      getDocFn: getDoc,
+      docFn: doc,
+      dbRef: db,
+      cacheRef: telegramGroupNameCacheRef,
+      setMap: setTelegramGroupNameById,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const { user } = useSelector((state) => state.auth);
   const { role: userRole } = useUserRole();
@@ -950,10 +1083,24 @@ function Generate() {
           .map((u) => String(u || "").trim())
           .filter(Boolean)
       : [];
+    const diplomaUrls = Array.isArray(formCv?.documents?.diplomas)
+      ? formCv.documents.diplomas
+          .map((u) => String(u || "").trim())
+          .filter(Boolean)
+      : [];
+    // Source priority:
+    // 1) Reisepass (passport) — desired default for Beratungsvertrag page
+    // 2) Fallback: Diplome (if passport is missing)
+    const docUrls = Array.from(
+      new Set([
+        ...(passportUrls.length ? passportUrls : []),
+        ...(!passportUrls.length ? diplomaUrls : []),
+      ])
+    );
     let passportSrc = "";
     let usedPassportUrl = "";
     // Try all candidate passport URLs until we can successfully embed one.
-    for (const u of passportUrls) {
+    for (const u of docUrls) {
       // eslint-disable-next-line no-await-in-loop
       const extracted = await fetchUrlAsImageDataUrlBestEffort(u);
       if (extracted) {
@@ -969,10 +1116,10 @@ function Generate() {
         break;
       }
     }
-    if (!passportSrc && passportUrls.length) {
+    if (!passportSrc && docUrls.length) {
       console.warn(
-        "[Beratungsvertrag] Passport could not be embedded. Tried URLs:",
-        passportUrls
+        "[Beratungsvertrag] Attachment could not be embedded. Tried URLs:",
+        docUrls
       );
     }
 
@@ -1057,6 +1204,32 @@ function Generate() {
       toast.error("PDF yaratish yoki upload qilishda xatolik.");
     } finally {
       setOutgoingBusyById((p) => ({ ...(p || {}), [templateId]: false }));
+    }
+  }
+
+  async function handleDeleteOutgoingDoc(templateId) {
+    const tplId = String(templateId || "").trim();
+    if (!tplId) return;
+    if (remoteMode) return;
+    if (outgoingBusyById?.[tplId]) return;
+
+    const current = getOutgoingDocState(tplId);
+    const url = String(current?.url || "").trim();
+
+    try {
+      setOutgoingBusyById((p) => ({ ...(p || {}), [tplId]: true }));
+      if (url) {
+        await deleteUploadedFileRemote(url);
+      }
+      const nextMap = { ...(outgoingDocs || {}) };
+      delete nextMap[tplId];
+      await persistOutgoingDocs(nextMap);
+      toast.success("Link o‘chirildi.");
+    } catch (e) {
+      console.error("Outgoing doc delete failed:", e);
+      toast.error("Linkni o‘chirishda xatolik.");
+    } finally {
+      setOutgoingBusyById((p) => ({ ...(p || {}), [tplId]: false }));
     }
   }
 
@@ -1171,19 +1344,21 @@ function Generate() {
 
   useEffect(() => {
     const key = String(major || "").trim();
-    let cancelled = false;
+    if (!key) {
+      setResolvedMajor({ collectionName: "", title: "", linkId: "" });
+      setMetaInfo(null);
+      setNotFound(true);
+      setLoading(false);
+      setMetaLoading(false);
+      return () => {};
+    }
+
     setMetaLoading(true);
-    (async () => {
-      try {
-        if (!key) {
-          setResolvedMajor({ collectionName: "", title: "", linkId: "" });
-          setMetaInfo(null);
-          setNotFound(true);
-          setLoading(false);
-          return;
-        }
-        const data = await getMetaByName(key);
-        if (cancelled) return;
+    let gotFirst = false;
+    const unsub = subscribeToMetaByName(
+      key,
+      (data) => {
+        gotFirst = true;
         if (data) {
           setResolvedMajor({
             collectionName:
@@ -1193,6 +1368,7 @@ function Generate() {
           });
           setMetaInfo(data || null);
         } else {
+          // Meta doc is optional; candidate collection can still exist.
           setResolvedMajor({
             collectionName: key,
             title: key,
@@ -1200,23 +1376,42 @@ function Generate() {
           });
           setMetaInfo(null);
         }
-      } catch (e) {
-        if (!cancelled) {
+        setMetaLoading(false);
+      },
+      (e) => {
+        console.error("subscribeToMetaByName failed:", e);
+        if (!gotFirst) {
           setResolvedMajor({
             collectionName: key,
             title: key,
             linkId: key,
           });
           setMetaInfo(null);
+          setMetaLoading(false);
         }
-      } finally {
-        if (!cancelled) setMetaLoading(false);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    );
+
+    return () => unsub?.();
   }, [major]);
+
+  // Preload telegram group names when meta changes (best-effort)
+  useEffect(() => {
+    const ids = [
+      String(metaInfo?.interviewInternal?.telegramGroupId || "").trim(),
+      String(metaInfo?.interviewEmployer?.telegramGroupId || "").trim(),
+    ].filter(Boolean);
+    if (ids.length === 0) return;
+    ids.forEach((id) => {
+      if (telegramGroupNameCacheRef.current?.[id]) return;
+      // best-effort (no await)
+      ensureTelegramGroupName(id);
+    });
+  }, [
+    metaInfo?.interviewInternal?.telegramGroupId,
+    metaInfo?.interviewEmployer?.telegramGroupId,
+    ensureTelegramGroupName,
+  ]);
 
   useEffect(() => {
     if (!remoteMode) return undefined;
@@ -1840,12 +2035,17 @@ function Generate() {
       return true;
     });
 
-    // IMPORTANT fallback (your current data format):
-    // Some candidates store the passport PDF as the FIRST item in `attachments.diplomas`.
-    // If we didn't find a passport anywhere else, treat `diplomas[0]` as passport.
+    // Conservative fallback: only treat a diploma entry as passport if its name
+    // looks like a passport (contains "pass" / "reisepass"). This avoids
+    // misclassifying real diplomas as passport files.
     if (passportUnique.length === 0 && diplomas.length > 0) {
-      passportUnique = [diplomas[0]];
-      diplomas = diplomas.slice(1);
+      const passIdx = diplomas.findIndex((u) =>
+        /pass|reisepass/i.test(String(u || ""))
+      );
+      if (passIdx >= 0) {
+        passportUnique = [diplomas[passIdx]];
+        diplomas = diplomas.filter((_, i) => i !== passIdx);
+      }
     }
 
     // Avoid showing the same file under both passport and diplomas.
@@ -2324,8 +2524,16 @@ function Generate() {
             : normalizeStageFormInfo(additionalInfo)
           : createEmptyStageInfo();
 
+      const telegramGroupIdForStage = getTelegramGroupIdForStage(
+        metaInfo,
+        stepValue
+      );
+
       if (normalizedDecision === "accepted" && stepValue !== "stage_2") {
-        const hasLink = Boolean(info.link);
+        const wantsGeneratedLink = Boolean(info?.useGeneratedLink);
+        const hasLink =
+          Boolean(info.link) ||
+          (wantsGeneratedLink && Boolean(telegramGroupIdForStage));
         const hasLocation = Boolean(info.locationName || info.locationUrl);
         if (!info.dateTime) {
           toast.error("Datum/Uhrzeit fehlt.");
@@ -2335,6 +2543,31 @@ function Generate() {
           toast.error("Bitte Link oder Standort angeben.");
           return;
         }
+      }
+
+      if (
+        normalizedDecision === "accepted" &&
+        Boolean(info?.useGeneratedLink) &&
+        telegramGroupIdForStage
+      ) {
+        try {
+          const { invite_link } = await generateTelegramInviteLink({
+            groupId: telegramGroupIdForStage,
+          });
+          info.link = invite_link;
+          info.linkType = "telegram";
+        } catch (e) {
+          console.error("generateTelegramInviteLink failed:", e);
+          toast.error("Telegram invite link yaratib bo‘lmadi.");
+          return;
+        }
+      } else if (
+        normalizedDecision === "accepted" &&
+        Boolean(info?.useGeneratedLink) &&
+        !telegramGroupIdForStage
+      ) {
+        toast.error("Telegram guruh sozlanmagan (Einstellungen’dan tanlang).");
+        return;
       }
 
       const templateId = makeEmailTemplateId(stepValue, normalizedDecision);
@@ -2359,6 +2592,21 @@ function Generate() {
       });
       if (res?.success === false) {
         throw new Error("E-Mail wurde nicht gesendet (success=false).");
+      }
+
+      // Count "dispatched" invites when a Telegram invite link was used for this send.
+      try {
+        const usedTelegramLink =
+          String(info?.linkType || "").toLowerCase() === "telegram" &&
+          Boolean(telegramGroupIdForStage);
+        if (usedTelegramLink) {
+          await trackTelegramInviteSent({
+            groupId: telegramGroupIdForStage,
+            count: 1,
+          });
+        }
+      } catch (e) {
+        console.error("trackTelegramInviteSent failed:", e);
       }
 
       toast.success("Status-E-Mail wurde gesendet.");
@@ -2736,6 +2984,7 @@ function Generate() {
       dateTime: String(raw?.dateTime || "").trim(),
       link,
       linkType,
+      useGeneratedLink: Boolean(raw?.useGeneratedLink),
       locationName,
       locationUrl,
     };
@@ -2743,14 +2992,27 @@ function Generate() {
 
   function handleSendStatusEmail(stepValue) {
     if (isLimitedAdmin) {
-      toast.error("Sie haben keine Berechtigung, E-Mails zu senden.");
+      toast.error("Sizda e-mail yuborish uchun ruxsat yo‘q.");
       return;
     }
     if (stepValue !== statusValue) {
-      toast.error("E-Mails können nur für die aktuelle Stufe gesendet werden.");
+      toast.error("E-mail faqat joriy bosqich uchun yuboriladi.");
       return;
     }
     const initialInfo = getStageAdditionalInfo(stepValue);
+    const telegramGroupIdForStage = getTelegramGroupIdForStage(
+      metaInfo,
+      stepValue
+    );
+    const canGenerateTelegramLinkForStage = Boolean(telegramGroupIdForStage);
+    // Best-effort: preload group name so modal can show it immediately.
+    if (telegramGroupIdForStage) {
+      try {
+        ensureTelegramGroupName(telegramGroupIdForStage);
+      } catch {
+        // ignore
+      }
+    }
     setPendingStageStep(stepValue);
     setStageDecision("accepted");
     setStageAdditionalInfoForm({
@@ -2760,6 +3022,10 @@ function Generate() {
         initialInfo?.linkType === "telegram"
           ? "telegram"
           : inferLinkType(initialInfo?.link, "zoom"),
+      useGeneratedLink:
+        initialInfo?.linkType === "telegram" &&
+        canGenerateTelegramLinkForStage &&
+        !String(initialInfo?.link || "").trim(),
       locationName: String(initialInfo?.locationName || ""),
       locationUrl: String(initialInfo?.locationUrl || ""),
     });
@@ -2820,6 +3086,24 @@ function Generate() {
           : normalizeStageFormInfo(stageAdditionalInfoForm)
         : createEmptyStageInfo();
     try {
+      // Preview should reflect the *effective* link choice:
+      // - If manual link is used: show it
+      // - If auto-generate is selected: show a placeholder (real invite is generated on send)
+      const telegramGroupIdForStage = getTelegramGroupIdForStage(
+        metaInfo,
+        pendingStageStep
+      );
+      const wantsGeneratedLink = Boolean(info?.useGeneratedLink);
+      if (
+        normalizedDecision === "accepted" &&
+        pendingStageStep !== "stage_2" &&
+        wantsGeneratedLink &&
+        telegramGroupIdForStage
+      ) {
+        info.linkType = "telegram";
+        info.link = "Telegram invite link (send paytida avtomatik yaratiladi)";
+      }
+
       const templateId = makeEmailTemplateId(
         pendingStageStep,
         normalizedDecision
@@ -2860,6 +3144,7 @@ function Generate() {
     formCv.personalInfo.name,
     formCv.personalInfo.lastName,
     emailTemplatesMap,
+    telegramGroupNameById,
   ]);
 
   const customEmailDefaults = useMemo(() => {
@@ -4714,6 +4999,12 @@ function Generate() {
                           null;
                         const title = tpl?.title || docId;
                         const url = String(v?.url || "").trim();
+                        const busy = Boolean(outgoingBusyById?.[docId]);
+                        const disabled =
+                          busy ||
+                          !candidateCollection ||
+                          !candidateDocId ||
+                          Boolean(sendingStepValue);
                         return (
                           <div
                             key={docId}
@@ -4779,6 +5070,19 @@ function Generate() {
                                 >
                                   Copy
                                 </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline btn-error"
+                                  onClick={() => handleDeleteOutgoingDoc(docId)}
+                                  disabled={disabled}
+                                  title="Linkni o‘chirish (remote va Firestore)"
+                                >
+                                  {busy ? (
+                                    <span className="loading loading-spinner loading-sm" />
+                                  ) : (
+                                    <FaTrash />
+                                  )}
+                                </button>
                               </div>
                             </div>
                           </div>
@@ -4838,15 +5142,15 @@ function Generate() {
       <StageEmailModal
         open={isStageEmailModalOpen}
         onClose={closeStageEmailModal}
-        title="Status-E-Mail senden"
+        title="Status e-mail yuborish"
         subtitle={
           pendingStageStep === "stage_2"
-            ? "In der E-Mail für Stufe 2 werden kein Link und keine Uhrzeit versendet."
+            ? "2-bosqich e-mailida link va sana/vaqt yuborilmaydi."
             : isLimitedAdmin
-            ? "Sie haben keine Berechtigung, E-Mails zu senden."
+            ? "Sizda e-mail yuborish uchun ruxsat yo‘q."
             : metaLoading
-            ? "Zusätzliche Infos werden geladen..."
-            : "Bei Annahme werden Datum/Uhrzeit, Link oder Standort aus den zusätzlichen Infos übernommen und in die E-Mail eingefügt."
+            ? "Qo‘shimcha ma’lumotlar yuklanmoqda..."
+            : "Qabul qilinganda sana/vaqt va link (yoki lokatsiya) e-mailga qo‘shiladi."
         }
         decision={stageDecision}
         setDecision={setStageDecision}
@@ -4861,6 +5165,21 @@ function Generate() {
         }
         additionalInfoForm={stageAdditionalInfoForm}
         setAdditionalInfoForm={setStageAdditionalInfoForm}
+        canGenerateTelegramLink={Boolean(
+          pendingStageStep &&
+            getTelegramGroupIdForStage(metaInfo, pendingStageStep)
+        )}
+        autoTelegramGroupLabel={(() => {
+          try {
+            const gid = pendingStageStep
+              ? getTelegramGroupIdForStage(metaInfo, pendingStageStep)
+              : "";
+            if (!gid) return "";
+            return String(telegramGroupNameById?.[gid] || gid).trim();
+          } catch {
+            return "";
+          }
+        })()}
         emailPreview={stageEmailPreview}
       />
 

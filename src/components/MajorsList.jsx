@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   subscribeToCollections,
@@ -16,7 +16,19 @@ import {
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import { useUserRole } from "../hooks/useUserRole";
-import { collection, getCountFromServer } from "firebase/firestore";
+import { sendBrevoEmail } from "../utils/brevo";
+import {
+  generateTelegramInviteLink,
+  trackTelegramInviteSent,
+} from "../utils/telegramInvites";
+import {
+  collection,
+  getCountFromServer,
+  getDocs,
+  limit,
+  query,
+  where,
+} from "firebase/firestore";
 import { db } from "../firebase/config";
 
 function toInputDateString(value) {
@@ -148,6 +160,48 @@ function MajorSettingsModal({
   const [newLeadName, setNewLeadName] = useState("");
   const [deleteLead, setDeleteLead] = useState(null); // { id, name }
 
+  // ---- Telegram groups (used for interview link shortcuts) ----
+  const [tgGroups, setTgGroups] = useState([]);
+  const [internalTelegramGroupId, setInternalTelegramGroupId] = useState("");
+  const [employerTelegramGroupId, setEmployerTelegramGroupId] = useState("");
+  const [inviteCopyLoading, setInviteCopyLoading] = useState({
+    internal: false,
+    employer: false,
+  });
+
+  const resolveMajorCollectionName = (m) => {
+    return String(m?.collectionName || m?.slug || m?.name || "").trim();
+  };
+
+  const extractEmailFromCandidate = (payload) => {
+    const p = payload && typeof payload === "object" ? payload : {};
+    const email =
+      p?.persoenlicheDaten?.email ??
+      p?.personalInfo?.email ??
+      p?.personalData?.email ??
+      p?.email ??
+      "";
+    return String(email || "")
+      .trim()
+      .toLowerCase();
+  };
+
+  async function loadTelegramGroupsOnce() {
+    try {
+      const q = query(
+        collection(db, "telegram_groups"),
+        where("active", "==", true),
+        limit(200)
+      );
+      const snap = await getDocs(q);
+      const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() || {}) }));
+      setTgGroups(list);
+    } catch (e) {
+      console.error("load telegram groups failed:", e);
+      setTgGroups([]);
+    }
+  }
+
   useEffect(() => {
     if (!open || !majorKey) return;
     let cancelled = false;
@@ -186,6 +240,12 @@ function MajorSettingsModal({
         setEmployerLocationUrl(
           String(data?.interviewEmployer?.locationUrl || "")
         );
+        setInternalTelegramGroupId(
+          String(data?.interviewInternal?.telegramGroupId || "").trim()
+        );
+        setEmployerTelegramGroupId(
+          String(data?.interviewEmployer?.telegramGroupId || "").trim()
+        );
 
         setLeadLinksActive(data?.leadLinksActive !== false);
         const rows = Array.isArray(data?.leadLinks) ? data.leadLinks : [];
@@ -195,6 +255,9 @@ function MajorSettingsModal({
         setLeadLinks(normalized);
         setNewLeadName("");
         setDeleteLead(null);
+
+        // Load Telegram groups (active only) for bulk email.
+        loadTelegramGroupsOnce();
       } catch (e) {
         if (!cancelled) {
           toast.error("Meta-Daten konnten nicht geladen werden.");
@@ -209,6 +272,128 @@ function MajorSettingsModal({
       cancelled = true;
     };
   }, [open, majorKey]);
+
+  async function sendTelegramInvitesToAllUsers() {
+    if (!major) return;
+    if (tgSendingLock.current) {
+      toast("Jarayon ketmoqda, iltimos kuting...");
+      return;
+    }
+    const colName = resolveMajorCollectionName(major);
+    if (!colName) {
+      toast.error("Berufsfeld collection aniqlanmadi.");
+      return;
+    }
+    const safeGroupId = String(tgGroupId || "").trim();
+    if (!safeGroupId) {
+      toast.error("Telegram guruh tanlang.");
+      return;
+    }
+    const subject = String(tgSubject || "").trim();
+    if (!subject) {
+      toast.error("Email subject bo‘sh bo‘lmasin.");
+      return;
+    }
+    const bodyTemplate = String(tgBody || "").trim();
+    if (!bodyTemplate || !bodyTemplate.includes("{{invite_link}}")) {
+      toast.error("Email body ichida {{invite_link}} bo‘lishi kerak.");
+      return;
+    }
+
+    const ok = window.confirm(
+      `Hamma foydalanuvchilarga Telegram invite link yuborilsinmi?\n\nCollection: ${colName}\nGroup: ${safeGroupId}\n\nEslatma: har bir email uchun alohida 1-martalik link yaratiladi.`
+    );
+    if (!ok) return;
+
+    tgSendingLock.current = true;
+    setTgSending(true);
+    try {
+      const snap = await getDocs(collection(db, colName));
+      const emails = Array.from(
+        new Set(
+          snap.docs
+            .map((d) => extractEmailFromCandidate(d.data()))
+            .filter((e) => e && e.includes("@"))
+        )
+      );
+
+      if (emails.length === 0) {
+        toast.error("Bu collection’da email topilmadi.");
+        return;
+      }
+
+      const concurrency = 3;
+      let idx = 0;
+      let sent = 0;
+      let failed = 0;
+
+      async function worker() {
+        while (idx < emails.length) {
+          const i = idx++;
+          const to = emails[i];
+          try {
+            const { invite_link } = await generateTelegramInviteLink({
+              groupId: safeGroupId,
+            });
+            const body = bodyTemplate.replace("{{invite_link}}", invite_link);
+            await sendBrevoEmail({
+              to,
+              subject,
+              message: body,
+              htmlContent: undefined,
+            });
+            sent += 1;
+          } catch (e) {
+            failed += 1;
+            console.error("telegram invite email failed for", to, e);
+          }
+        }
+      }
+
+      await Promise.all(
+        Array.from({ length: Math.min(concurrency, emails.length) }, () =>
+          worker()
+        )
+      );
+
+      // Track how many invites were actually sent successfully (single batched increment).
+      try {
+        if (sent > 0) {
+          await trackTelegramInviteSent({ groupId: safeGroupId, count: sent });
+        }
+      } catch (e) {
+        console.error("trackTelegramInviteSent failed:", e);
+      }
+
+      toast.success(
+        `Tayyor: yuborildi=${sent}, xato=${failed}, jami=${emails.length}`
+      );
+    } finally {
+      setTgSending(false);
+      tgSendingLock.current = false;
+    }
+  }
+
+  const handleGenerateAndCopyInvite = async (groupId, scope) => {
+    const safe = String(groupId || "").trim();
+    if (!safe) {
+      toast.error("Telegram group tanlanmagan.");
+      return;
+    }
+    setInviteCopyLoading((p) => ({ ...p, [scope]: true }));
+    try {
+      const { invite_link } = await generateTelegramInviteLink({
+        groupId: safe,
+      });
+      await navigator.clipboard.writeText(invite_link);
+      toast.success("Invite link nusxalandi.");
+    } catch (e) {
+      console.error("generate/copy invite failed", e);
+      toast.error("Invite link yaratib bo‘lmadi.");
+    } finally {
+      setInviteCopyLoading((p) => ({ ...p, [scope]: false }));
+    }
+  };
 
   const persistLeadSettings = async (nextLeadLinks, nextLeadLinksActive) => {
     if (!majorKey) return;
@@ -291,6 +476,10 @@ function MajorSettingsModal({
             internalLocationUrl
           ),
           locationUrl: internalLocationUrl || "",
+          telegramGroupId:
+            internalLinkType === "telegram"
+              ? internalTelegramGroupId || ""
+              : "",
           updatedAt: now,
         },
         interviewEmployer: {
@@ -302,6 +491,10 @@ function MajorSettingsModal({
             employerLocationUrl
           ),
           locationUrl: employerLocationUrl || "",
+          telegramGroupId:
+            employerLinkType === "telegram"
+              ? employerTelegramGroupId || ""
+              : "",
           updatedAt: now,
         },
         updatedAt: now,
@@ -636,19 +829,57 @@ function MajorSettingsModal({
                             </button>
                           </div>
                         </div>
-                        <input
-                          id="ms-internal-link"
-                          type="url"
-                          className="input input-bordered w-full"
-                          placeholder={
-                            internalLinkType === "telegram"
-                              ? "https://t.me/..."
-                              : "https://zoom.us/j/..."
-                          }
-                          value={internalLink}
-                          onChange={(e) => setInternalLink(e.target.value)}
-                          disabled={isSaving}
-                        />
+                        {internalLinkType === "telegram" ? (
+                          <div className="space-y-2">
+                            <select
+                              id="ms-internal-telegram-group"
+                              className="select select-bordered w-full"
+                              value={internalTelegramGroupId}
+                              onChange={(e) =>
+                                setInternalTelegramGroupId(e.target.value)
+                              }
+                              disabled={isSaving || tgGroups.length === 0}
+                            >
+                              <option value="">
+                                Telegram group (Ichki) — (tanlanmagan)
+                              </option>
+                              {tgGroups.map((g) => (
+                                <option key={g.id} value={g.id}>
+                                  {String(g?.name || g.id)}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              className="btn btn-outline w-full"
+                              onClick={() =>
+                                handleGenerateAndCopyInvite(
+                                  internalTelegramGroupId,
+                                  "internal"
+                                )
+                              }
+                              disabled={
+                                !internalTelegramGroupId ||
+                                inviteCopyLoading.internal ||
+                                isSaving
+                              }
+                            >
+                              {inviteCopyLoading.internal
+                                ? "Invite yaratilmoqda..."
+                                : "Invite link yaratish va copy"}
+                            </button>
+                          </div>
+                        ) : (
+                          <input
+                            id="ms-internal-link"
+                            type="url"
+                            className="input input-bordered w-full"
+                            placeholder="https://zoom.us/j/..."
+                            value={internalLink}
+                            onChange={(e) => setInternalLink(e.target.value)}
+                            disabled={isSaving}
+                          />
+                        )}
                       </div>
                     </div>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -740,19 +971,57 @@ function MajorSettingsModal({
                             </button>
                           </div>
                         </div>
-                        <input
-                          id="ms-employer-link"
-                          type="url"
-                          className="input input-bordered w-full"
-                          placeholder={
-                            employerLinkType === "telegram"
-                              ? "https://t.me/..."
-                              : "https://zoom.us/j/..."
-                          }
-                          value={employerLink}
-                          onChange={(e) => setEmployerLink(e.target.value)}
-                          disabled={isSaving}
-                        />
+                        {employerLinkType === "telegram" ? (
+                          <div className="space-y-2">
+                            <select
+                              id="ms-employer-telegram-group"
+                              className="select select-bordered w-full"
+                              value={employerTelegramGroupId}
+                              onChange={(e) =>
+                                setEmployerTelegramGroupId(e.target.value)
+                              }
+                              disabled={isSaving || tgGroups.length === 0}
+                            >
+                              <option value="">
+                                Telegram group (Ish beruvchi) — (tanlanmagan)
+                              </option>
+                              {tgGroups.map((g) => (
+                                <option key={g.id} value={g.id}>
+                                  {String(g?.name || g.id)}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              className="btn btn-outline w-full"
+                              onClick={() =>
+                                handleGenerateAndCopyInvite(
+                                  employerTelegramGroupId,
+                                  "employer"
+                                )
+                              }
+                              disabled={
+                                !employerTelegramGroupId ||
+                                inviteCopyLoading.employer ||
+                                isSaving
+                              }
+                            >
+                              {inviteCopyLoading.employer
+                                ? "Invite yaratilmoqda..."
+                                : "Invite link yaratish va copy"}
+                            </button>
+                          </div>
+                        ) : (
+                          <input
+                            id="ms-employer-link"
+                            type="url"
+                            className="input input-bordered w-full"
+                            placeholder="https://zoom.us/j/..."
+                            value={employerLink}
+                            onChange={(e) => setEmployerLink(e.target.value)}
+                            disabled={isSaving}
+                          />
+                        )}
                       </div>
                     </div>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

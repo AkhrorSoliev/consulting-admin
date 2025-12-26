@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import CollapsibleSection from "../../../../components/CollapsibleSection";
 
 function InfoRow({ label, value }) {
@@ -19,14 +20,14 @@ function EmailPreview({ subject, to, htmlContent, message }) {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <InfoRow label="An" value={safeTo || "—"} />
-        <InfoRow label="Betreff" value={safeSubject || "—"} />
+        <InfoRow label="Kimga" value={safeTo || "—"} />
+        <InfoRow label="Mavzu" value={safeSubject || "—"} />
       </div>
 
       {safeHtml ? (
         <div className="rounded-lg border border-base-300 bg-base-100 overflow-hidden">
           <iframe
-            title="E-Mail-Vorschau"
+            title="E-mail ko‘rinishi"
             className="w-full h-[420px] bg-white"
             sandbox="allow-popups allow-popups-to-escape-sandbox"
             srcDoc={safeHtml}
@@ -35,7 +36,7 @@ function EmailPreview({ subject, to, htmlContent, message }) {
       ) : (
         <div className="rounded-lg border border-base-300 bg-base-100 p-3">
           <div className="text-xs opacity-60 mb-2">
-            Kein HTML (Textvorschau)
+            HTML yo‘q (matn ko‘rinishi)
           </div>
           <pre className="whitespace-pre-wrap text-sm leading-relaxed">
             {safeMsg || "—"}
@@ -62,12 +63,38 @@ export default function StageEmailModal({
   additionalInfoForm,
   setAdditionalInfoForm,
   emailPreview,
+  canGenerateTelegramLink = false,
+  autoTelegramGroupLabel = "",
 }) {
   if (!open) return null;
 
   const showInfoPanel =
     (showAdditionalInfoEditor || previewRows.length > 0) &&
     (!showPreviewWhenAccepted || decision === "accepted");
+
+  const resolvedLinkType =
+    String(additionalInfoForm?.linkType || "").toLowerCase() || "zoom";
+  const allowAutoGenerateTelegram =
+    resolvedLinkType === "telegram" && Boolean(canGenerateTelegramLink);
+  const useGeneratedLink = Boolean(additionalInfoForm?.useGeneratedLink);
+
+  // If Telegram group is unset in Einstellungen (canGenerateTelegramLink=false),
+  // ensure we don't keep a stale "auto-generate" selection that would later
+  // block sending (Generate.jsx validates telegram group presence when enabled).
+  useEffect(() => {
+    if (!open) return;
+    if (useGeneratedLink && !allowAutoGenerateTelegram) {
+      setAdditionalInfoForm?.((prev) => ({
+        ...(prev || {}),
+        useGeneratedLink: false,
+      }));
+    }
+  }, [
+    open,
+    useGeneratedLink,
+    allowAutoGenerateTelegram,
+    setAdditionalInfoForm,
+  ]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center print:hidden">
@@ -88,7 +115,7 @@ export default function StageEmailModal({
               type="button"
               className="btn btn-ghost btn-sm"
               onClick={onClose}
-              aria-label="Modal schließen"
+              aria-label="Yopish"
             >
               ✕
             </button>
@@ -113,11 +140,10 @@ export default function StageEmailModal({
                       checked={decision === "accepted"}
                       onChange={() => setDecision?.("accepted")}
                     />
-                    <div className="font-semibold">Annehmen</div>
+                    <div className="font-semibold">Qabul qilish</div>
                   </div>
                   <p className="text-sm opacity-70">
-                    Es wird eine positive E-Mail gesendet und die nächste Stufe
-                    wird freigeschaltet.
+                    Ijobiy e-mail yuboriladi va keyingi bosqichga o‘tiladi.
                   </p>
                 </div>
               </label>
@@ -139,11 +165,10 @@ export default function StageEmailModal({
                       checked={decision === "rejected"}
                       onChange={() => setDecision?.("rejected")}
                     />
-                    <div className="font-semibold">Ablehnen</div>
+                    <div className="font-semibold">Rad etish</div>
                   </div>
                   <p className="text-sm opacity-70">
-                    Es wird eine Absage gesendet. Es geht nicht zur nächsten
-                    Stufe weiter.
+                    Rad javobi e-mail yuboriladi. Keyingi bosqichga o‘tilmaydi.
                   </p>
                 </div>
               </label>
@@ -152,14 +177,14 @@ export default function StageEmailModal({
             {showInfoPanel && (
               <div className="bg-base-200/60 border border-base-300 rounded-lg p-4 space-y-3">
                 <div className="font-semibold">
-                  {previewTitle || "Informationen, die der E-Mail hinzugefügt werden"}
+                  {previewTitle || "E-mailga qo‘shiladigan ma’lumotlar"}
                 </div>
                 {showAdditionalInfoEditor ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="form-control">
                       <label className="label" htmlFor="stage-email-datetime">
                         <span className="label-text font-medium">
-                          Datum/Uhrzeit
+                          Sana / vaqt
                         </span>
                       </label>
                       <input
@@ -179,11 +204,47 @@ export default function StageEmailModal({
                       <label className="label" htmlFor="stage-email-link">
                         <span className="label-text font-medium">Link</span>
                       </label>
+                      <div className="flex items-center gap-2 mb-2">
+                        <input
+                          id="stage-email-link-generate"
+                          type="checkbox"
+                          className="checkbox checkbox-sm"
+                          checked={useGeneratedLink}
+                          disabled={!allowAutoGenerateTelegram}
+                          onChange={(e) =>
+                            setAdditionalInfoForm?.((prev) => ({
+                              ...(prev || {}),
+                              useGeneratedLink: Boolean(e.target.checked),
+                            }))
+                          }
+                        />
+                        <label
+                          htmlFor="stage-email-link-generate"
+                          className={`text-sm ${
+                            allowAutoGenerateTelegram ? "" : "opacity-60"
+                          }`}
+                        >
+                          {allowAutoGenerateTelegram ? (
+                            <span className="text-xs opacity-70">
+                              Telegram guruh nomi:{" "}
+                              <span className="font-semibold">
+                                {String(autoTelegramGroupLabel || "—")}
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-xs opacity-60">Guruh: —</span>
+                          )}
+                        </label>
+                      </div>
                       <input
                         id="stage-email-link"
                         type="url"
                         className="input input-bordered w-full"
-                        placeholder="https://..."
+                        placeholder={
+                          useGeneratedLink && allowAutoGenerateTelegram
+                            ? "Invite link send paytida avtomatik yaratiladi"
+                            : "https://..."
+                        }
                         value={String(additionalInfoForm?.link || "")}
                         onChange={(e) =>
                           setAdditionalInfoForm?.((prev) => ({
@@ -191,11 +252,17 @@ export default function StageEmailModal({
                             link: e.target.value,
                           }))
                         }
+                        disabled={useGeneratedLink && allowAutoGenerateTelegram}
                       />
                     </div>
                     <div className="form-control">
-                      <label className="label" htmlFor="stage-email-locationName">
-                        <span className="label-text font-medium">Ort (Name)</span>
+                      <label
+                        className="label"
+                        htmlFor="stage-email-locationName"
+                      >
+                        <span className="label-text font-medium">
+                          Lokatsiya (nomi)
+                        </span>
                       </label>
                       <input
                         id="stage-email-locationName"
@@ -212,8 +279,13 @@ export default function StageEmailModal({
                       />
                     </div>
                     <div className="form-control">
-                      <label className="label" htmlFor="stage-email-locationUrl">
-                        <span className="label-text font-medium">Ort (URL)</span>
+                      <label
+                        className="label"
+                        htmlFor="stage-email-locationUrl"
+                      >
+                        <span className="label-text font-medium">
+                          Lokatsiya (URL)
+                        </span>
                       </label>
                       <input
                         id="stage-email-locationUrl"
@@ -260,17 +332,10 @@ export default function StageEmailModal({
             ) : null}
 
             <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                className="btn"
-                onClick={onClose}
-              >
+              <button type="button" className="btn" onClick={onClose}>
                 Abbrechen
               </button>
-              <button
-                type="submit"
-                className="btn btn-primary"
-              >
+              <button type="submit" className="btn btn-primary">
                 {isSending ? (
                   <>
                     <span className="loading loading-spinner loading-sm" />
@@ -287,5 +352,3 @@ export default function StageEmailModal({
     </div>
   );
 }
-
-
