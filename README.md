@@ -14,3 +14,45 @@ The React Compiler is not enabled on this template because of its impact on dev 
 ## Expanding the ESLint configuration
 
 If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project)
+
+## Telegram one-time invite links (admin-only)
+
+This project supports generating **one-time** Telegram group invite links via Firebase Cloud Functions.
+
+### Firestore structure
+
+Collection: `telegram_groups`
+
+- docId (auto or custom)
+  - `name`: string
+  - `chat_id`: string (e.g. `-1001234567890`)
+  - `active`: boolean
+  - `createdAt`: timestamp
+
+### Backend endpoint
+
+- **POST** `generateInvite`
+  - Body: `{ "groupId": "..." }`
+  - Auth: Firebase ID token required (header `Authorization: Bearer <idToken>`)
+  - Role: `admin` or `super_admin`
+  - Response: `{ ok: true, invite_link, expire_date }`
+
+Invite link parameters:
+
+- `member_limit = 1`
+- `expire_date = now + 1 hour`
+
+### Secret: Telegram bot token
+
+Never commit bot tokens to code or frontend.
+
+Configure via Firebase Functions secrets:
+
+```bash
+firebase functions:secrets:set TELEGRAM_BOT_TOKEN
+firebase deploy --only functions
+```
+
+### Admin UI
+
+Settings → **Telegram Groups** page allows super admins to add/remove groups (stored in Firestore).

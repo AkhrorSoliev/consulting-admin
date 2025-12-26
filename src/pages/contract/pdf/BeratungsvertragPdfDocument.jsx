@@ -68,6 +68,15 @@ const s = StyleSheet.create({
   sigTopName: { fontSize: 11, fontWeight: 600, marginTop: 14 },
 });
 
+// react-pdf uses points, and percentage strings like "78.4%" are NOT reliable for sizing.
+// Keep explicit A4 content width so embedded images don't end up tiny.
+const A4_WIDTH_PT = 595;
+const A4_HEIGHT_PT = 842;
+const PAGE_PADDING_PT = 72;
+const CONTENT_WIDTH_PT = A4_WIDTH_PT - PAGE_PADDING_PT * 2; // 451pt
+const CONTENT_HEIGHT_PT = A4_HEIGHT_PT - PAGE_PADDING_PT * 2; // 698pt
+const PASSPORT_BOX_HEIGHT_PT = Math.floor(CONTENT_HEIGHT_PT * 0.5); // ~50% page
+
 function safeDate(d) {
   const v = String(d || "").trim();
   return v || "____.__.____";
@@ -370,15 +379,17 @@ export default function BeratungsvertragPdfDocument({ form, passportImageDataUrl
 
       {/* Passport image page (render only if we have an extracted image) */}
       {passportSrc ? (
-        <Page size="A4" style={s.page}>
+        // Keep this as a single page (never wrap to an extra page).
+        <Page size="A4" style={s.page} wrap={false}>
           {/* Start from top of the content area (not centered / bottom-aligned) */}
           <View style={{ flex: 1, justifyContent: "flex-start", alignItems: "center" }}>
-            <View style={{ width: "78.4%" }}>
+            {/* Use explicit content width (points) so the image fills the page correctly */}
+            <View style={{ width: CONTENT_WIDTH_PT }}>
               <Image
                 src={passportSrc}
                 style={{
-                  width: "100%",
-                  aspectRatio: 1,
+                  width: CONTENT_WIDTH_PT,
+                  height: PASSPORT_BOX_HEIGHT_PT,
                   objectFit: "contain",
                   backgroundColor: "#ffffff",
                 }}

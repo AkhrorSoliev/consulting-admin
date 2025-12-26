@@ -2,6 +2,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import useUserRole from "../../hooks/useUserRole";
 import { MdSettings, MdEmail, MdDescription } from "react-icons/md";
 import { FiUsers } from "react-icons/fi";
+import { FaTelegramPlane } from "react-icons/fa";
 
 function menuItemClass({ isActive }) {
   const base =
@@ -16,6 +17,7 @@ function menuItemClass({ isActive }) {
 export default function SettingsLayout() {
   const { role, loadingRole } = useUserRole({ forceRefresh: true });
   const showAdmins = !loadingRole && role === "super_admin";
+  const showTelegramGroups = showAdmins;
 
   return (
     <div className="w-full mx-auto">
@@ -45,6 +47,17 @@ export default function SettingsLayout() {
                       aria-hidden="true"
                     />
                     <span className="flex-1">Admins</span>
+                  </NavLink>
+                </li>
+              )}
+              {showTelegramGroups && (
+                <li>
+                  <NavLink to="telegram-groups" className={menuItemClass} end>
+                    <FaTelegramPlane
+                      className="h-[18px] w-[18px] opacity-90"
+                      aria-hidden="true"
+                    />
+                    <span className="flex-1">Telegram Groups</span>
                   </NavLink>
                 </li>
               )}

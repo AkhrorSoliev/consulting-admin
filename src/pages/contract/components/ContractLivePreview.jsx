@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import * as pdfjsLib from "pdfjs-dist";
 import pdfjsWorkerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { extractPassportCanvasFromCanvas } from "../../../utils/passportImageProcessing";
 
 function arePageIndexGroupsEqual(a, b) {
   if (a === b) return true;
@@ -299,14 +300,35 @@ function rotateCanvas90(srcCanvas, direction = "cw") {
   return out;
 }
 
-async function pdfFirstPageToPassportSquareJpegDataUrl(
+function rotateCanvas180(srcCanvas) {
+  const sw = srcCanvas?.width || 0;
+  const sh = srcCanvas?.height || 0;
+  if (!sw || !sh) return null;
+
+  const out = document.createElement("canvas");
+  out.width = sw;
+  out.height = sh;
+  const ctx = out.getContext("2d", { alpha: false });
+  if (!ctx) return null;
+
+  // white background
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, out.width, out.height);
+
+  ctx.translate(out.width, out.height);
+  ctx.rotate(Math.PI);
+  ctx.drawImage(srcCanvas, 0, 0);
+  return out;
+}
+
+async function pdfFirstPageToPassportImages(
   pdfUrl,
   {
     scale = 2,
     outSize = 720,
     whiteThreshold = 245,
-    cropPaddingTopBottomPx = 8,
-    cropPaddingLeftRightPx = 8,
+    cropPaddingTopBottomPx = 60,
+    cropPaddingLeftRightPx = 40,
     forceOrientation = "portrait",
     outputMarginTopBottomPx = 100,
     outputMarginLeftRightPx = 50,
@@ -343,65 +365,30 @@ async function pdfFirstPageToPassportSquareJpegDataUrl(
   canvas.height = Math.ceil(viewport.height);
   await page.render({ canvasContext: ctx, viewport }).promise;
 
-  // Find the "real content" box (passport block) and crop away blank margins.
-  let bbox = null;
-  try {
-    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    bbox = findNonWhiteBoundingBox(imgData, canvas.width, canvas.height, {
-      whiteThreshold,
-      step: 2,
-      paddingX: cropPaddingLeftRightPx,
-      paddingY: cropPaddingTopBottomPx,
-    });
-  } catch {
-    // ignore
-  }
+  // Robust passport extraction (crop + rotation normalization)
+  // Note: `whiteThreshold` is kept for backwards compatibility but the extractor is adaptive.
+  const extracted =
+    extractPassportCanvasFromCanvas(canvas, {
+      paddingLeftRightPx: cropPaddingLeftRightPx,
+      paddingBottomPx: cropPaddingTopBottomPx,
+      paddingTopPx: 8,
+    }) || canvas;
 
-  const crop = document.createElement("canvas");
-  const cctx = crop.getContext("2d", { alpha: false });
-  if (!cctx) throw new Error("Canvas 2D context not available");
-
-  if (bbox) {
-    crop.width = bbox.w;
-    crop.height = bbox.h;
-    cctx.drawImage(
-      canvas,
-      bbox.x,
-      bbox.y,
-      bbox.w,
-      bbox.h,
-      0,
-      0,
-      bbox.w,
-      bbox.h
-    );
-  } else {
-    // fallback: whole page
-    crop.width = canvas.width;
-    crop.height = canvas.height;
-    cctx.drawImage(canvas, 0, 0);
-  }
-
-  let oriented = crop;
-  try {
-    const w = crop.width || 0;
-    const h = crop.height || 0;
-    if (forceOrientation === "portrait" && w > h) {
-      oriented = rotateCanvas90(crop, "cw") || crop;
-    } else if (forceOrientation === "landscape" && h > w) {
-      oriented = rotateCanvas90(crop, "cw") || crop;
-    }
-  } catch {
-    // ignore
-  }
+  // For Beratungsvertrag: rotate passport image 180deg (scanner output is upside down)
+  const extractedRotated = rotateCanvas180(extracted) || extracted;
 
   const fill = Math.max(0.5, Math.min(3, Number(outputFillFactor) || 1));
-  const outCanvas = drawCoverToSquareCanvas(oriented, outSize, {
+  const outCanvas = drawCoverToSquareCanvas(extractedRotated, outSize, {
     marginX: (Number(outputMarginLeftRightPx) || 0) / fill,
     marginY: (Number(outputMarginTopBottomPx) || 0) / fill,
   });
-  const finalCanvas = outCanvas || oriented;
-  return finalCanvas.toDataURL("image/jpeg", 0.92);
+  const previewCanvas = outCanvas || extractedRotated;
+  return {
+    // For PDF export: use the real cropped (non-square) image so it can fill the page width.
+    exportDataUrl: extractedRotated.toDataURL("image/jpeg", 0.92),
+    // For UI preview: keep the square preview (as before).
+    previewDataUrl: previewCanvas.toDataURL("image/jpeg", 0.92),
+  };
 }
 
 function buildContractBlocks({
@@ -1056,28 +1043,30 @@ export default function ContractLivePreview({
 
     if (!url) return () => {};
 
-    // Extract "passport part" from an A4 scan and show it as a 1:1 square preview.
-    // Heuristic: crop non-white content bbox, then cover-fit into a square.
-    pdfFirstPageToPassportSquareJpegDataUrl(url, {
+    // Extract "passport part" from an A4 scan:
+    // - UI preview remains a 1:1 square (so the live preview layout stays stable)
+    // - PDF export gets a real cropped (non-square) image to avoid "shrinking" the passport
+    pdfFirstPageToPassportImages(url, {
       scale: 2,
       outSize: 820,
       whiteThreshold: 245,
       forceOrientation: "portrait",
-      // Expand OUTSIDE the detected crop bbox (so it doesn't feel too tight)
-      cropPaddingTopBottomPx: 150,
-      cropPaddingLeftRightPx: 50,
-      // No extra inner margins needed now; we already expand the crop bbox itself.
+      // Mild padding so we don't cut edges; keeps passport larger in export.
+      cropPaddingTopBottomPx: 60,
+      cropPaddingLeftRightPx: 40,
+      // No extra inner margins needed.
       outputMarginTopBottomPx: 0,
       outputMarginLeftRightPx: 0,
       outputFillFactor: 1,
     })
-      .then((dataUrl) => {
+      .then((out) => {
         if (!alive) return;
-        const next = dataUrl || null;
-        setPdfPreviewUrl(next);
+        const preview = String(out?.previewDataUrl || "").trim() || null;
+        const exported = String(out?.exportDataUrl || "").trim() || preview || null;
+        setPdfPreviewUrl(preview);
         try {
           if (typeof onPassportPreviewReady === "function") {
-            onPassportPreviewReady(next);
+            onPassportPreviewReady(exported);
           }
         } catch {
           // ignore

@@ -11,6 +11,8 @@ const ROLE_OPTIONS = [
   { value: "user", label: "User" },
 ];
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 function sortByCreatedDesc(list) {
   const toTs = (item) => {
     if (Number.isFinite(item?.createdAtTs)) return item.createdAtTs;
@@ -63,8 +65,10 @@ function SuperAdminUserManagement() {
         });
         return next;
       });
+      return visible;
     } catch (err) {
       toast.error(err?.message || "Benutzerliste konnte nicht geladen werden.");
+      return null;
     } finally {
       setLoading(false);
     }
@@ -86,12 +90,39 @@ function SuperAdminUserManagement() {
     setLoading(true);
     try {
       const res = await call("createUser")({ email: e, password: p });
-      toast.success(`Benutzer erstellt: ${res?.data?.email || e}`);
+      const createdUid = String(res?.data?.uid || "").trim();
+      const createdEmail = String(res?.data?.email || e).trim();
+
+      // Optimistic update: show user immediately in the table.
+      if (createdUid) {
+        const nowIso = new Date().toISOString();
+        const optimisticUser = {
+          uid: createdUid,
+          email: createdEmail,
+          disabled: false,
+          role: "user",
+          createdAt: nowIso,
+          createdAtTs: Date.now(),
+        };
+        setUsers((prev) => sortByCreatedDesc([...prev, optimisticUser]));
+        setRoleDrafts((prev) => ({ ...prev, [createdUid]: "user" }));
+      }
+
+      toast.success(`Benutzer erstellt: ${createdEmail || e}`);
       setEmail("");
       setPassword("");
       setShowCreatePassword(false);
-      setTokenStack([]);
-      await loadUsers();
+
+      // Ensure the backend list includes the new user before replacing the table.
+      if (createdUid) {
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const list = await loadUsers();
+          if (Array.isArray(list) && list.some((u) => u?.uid === createdUid)) break;
+          await sleep(500);
+        }
+      } else {
+        await loadUsers();
+      }
     } catch (err) {
       toast.error(err?.message || "Benutzer konnte nicht erstellt werden.");
     } finally {
