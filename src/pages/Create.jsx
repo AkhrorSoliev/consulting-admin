@@ -191,6 +191,7 @@ function Create() {
   const [photoSizeError, setPhotoSizeError] = useState(false);
   const [captchaToken, setCaptchaToken] = useState(null);
   const [captchaSize, setCaptchaSize] = useState("normal");
+  const captchaRef = useRef(null);
   const [showEducationWarning, setShowEducationWarning] = useState(false);
   const [showExperienceWarning, setShowExperienceWarning] = useState(false);
   const [educationErrors, setEducationErrors] = useState([]);
@@ -2220,10 +2221,27 @@ function Create() {
           return;
         }
         if (!res.ok || !json?.ok) {
-          const errMsg =
+          const base =
             json?.error ||
             json?.details ||
             `Submit failed (${res.status || ""})`;
+          const meta = [];
+          if (json?.reason) meta.push(`reason: ${json.reason}`);
+          if (Array.isArray(json?.codes) && json.codes.length) {
+            meta.push(`codes: ${json.codes.join(",")}`);
+          }
+
+          // If reCAPTCHA failed, force a fresh challenge to avoid duplicate/expired tokens.
+          if (String(json?.error || "") === "recaptcha-failed") {
+            try {
+              captchaRef.current?.reset?.();
+            } catch {
+              // ignore
+            }
+            setCaptchaToken(null);
+          }
+
+          const errMsg = meta.length ? `${base} (${meta.join(" | ")})` : base;
           throw new Error(errMsg);
         }
 
@@ -4654,12 +4672,15 @@ function Create() {
                           <div className="divider" />
                           <div className="flex justify-center mb-4">
                             <ReCAPTCHA
+                              ref={captchaRef}
                               sitekey={
                                 import.meta.env.VITE_RECAPTCHA_SITE_KEY ||
                                 "6LdEVycsAAAAAJ11zB8ovl-uNIQPPI06t8Rhwow8"
                               }
                               size={captchaSize}
                               onChange={setCaptchaToken}
+                              onExpired={() => setCaptchaToken(null)}
+                              onErrored={() => setCaptchaToken(null)}
                             />
                           </div>
                         </>

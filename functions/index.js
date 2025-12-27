@@ -39,15 +39,15 @@ exports.health = onRequest((req, res) => {
 
 // ---- Helper ----
 function setCors(req, res) {
-  const allowedOrigins = new Set([
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "https://admin.consultinguz.de",
-  ]);
   const origin = req.get("Origin") || "";
-  if (allowedOrigins.has(origin)) {
-    res.set("Access-Control-Allow-Origin", origin);
-  }
+  // Allow production origin + any localhost/127.0.0.1 port for local development.
+  // This prevents CORS failures when Vite picks a different port (5174, etc.).
+  const isProd = origin === "https://admin.consultinguz.de";
+  const isLocalhost =
+    /^http:\/\/localhost:\d+$/i.test(origin) ||
+    /^http:\/\/127\.0\.0\.1:\d+$/i.test(origin);
+  if (isProd || isLocalhost) res.set("Access-Control-Allow-Origin", origin);
+
   res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   // Authorization header is required for protected endpoints like /generateInvite.
   res.set("Access-Control-Allow-Headers", "Content-Type, Range, Authorization");
@@ -57,7 +57,7 @@ function setCors(req, res) {
   );
 }
 
-async function verifyRecaptchaV2({ token, remoteIp, secret }) {
+async function verifyRecaptchaV2({ token, secret }) {
   const t = String(token || "").trim();
   if (!t) return { ok: false, reason: "missing-token" };
   const s = String(secret || "").trim();
@@ -66,7 +66,9 @@ async function verifyRecaptchaV2({ token, remoteIp, secret }) {
   const params = new URLSearchParams();
   params.set("secret", s);
   params.set("response", t);
-  if (remoteIp) params.set("remoteip", String(remoteIp).trim());
+  // NOTE: We intentionally do NOT send the optional `remoteip` parameter.
+  // In serverless/proxied environments (CDN, Firebase, etc.) it can be unreliable
+  // and cause false negatives (e.g. invalid/unknown/mismatched IP).
 
   const resp = await fetch("https://www.google.com/recaptcha/api/siteverify", {
     method: "POST",
@@ -80,7 +82,9 @@ async function verifyRecaptchaV2({ token, remoteIp, secret }) {
 }
 
 function base64UrlEncode(input) {
-  const b = Buffer.isBuffer(input) ? input : Buffer.from(String(input || ""), "utf8");
+  const b = Buffer.isBuffer(input)
+    ? input
+    : Buffer.from(String(input || ""), "utf8");
   return b
     .toString("base64")
     .replace(/\+/g, "-")
@@ -326,61 +330,57 @@ exports.proxyPdf = onRequest(async (req, res) => {
 // - Rate limiting (best-effort per instance) - main protection for this read-only endpoint
 // - Returns minimal data (no PII, only optional major)
 // Note: No reCAPTCHA here for speed - main abuse protection is rate limit + submit has reCAPTCHA
-exports.checkRegistry = onRequest(
-  async (req, res) => {
-    try {
-      setCors(req, res);
-      res.set("Cache-Control", "no-store");
-      if (req.method === "OPTIONS") return res.status(204).send("");
-      if (req.method !== "POST") {
-        return res.status(405).json({ ok: false, error: "method-not-allowed" });
-      }
-
-      const rl = enforceCheckRegistryRateLimit(req, res);
-      if (!rl.ok) {
-        return res.status(429).json({ ok: false, error: "rate-limited" });
-      }
-
-      const emailRaw = String(req.body?.email || "").trim();
-      const passportRaw = String(req.body?.passportId || "").trim();
-      if (!emailRaw && !passportRaw) {
-        return res
-          .status(400)
-          .json({ ok: false, error: "missing-email-or-passportId" });
-      }
-
-      const out = { ok: true };
-
-      if (emailRaw) {
-        const safeEmail = normalizeEmailForRegistry(emailRaw);
-        const r = await checkEmailRegistry(safeEmail);
-        out.email = {
-          exists: Boolean(r.exists),
-          ...(r.exists ? { major: String(r?.data?.major || null) || null } : {}),
-        };
-      }
-
-      if (passportRaw) {
-        const safePassport = normalizePassportIdForRegistry(passportRaw);
-        const r = await checkPassportRegistry(safePassport);
-        out.passport = {
-          exists: Boolean(r.exists),
-          ...(r.exists
-            ? { major: String(r?.data?.major || null) || null }
-            : {}),
-        };
-      }
-
-      return res.json(out);
-    } catch (e) {
-      logger.error("checkRegistry error", e);
-      setCors(req, res);
-      return res
-        .status(500)
-        .json({ ok: false, error: "internal", details: String(e?.message || e) });
+exports.checkRegistry = onRequest(async (req, res) => {
+  try {
+    setCors(req, res);
+    res.set("Cache-Control", "no-store");
+    if (req.method === "OPTIONS") return res.status(204).send("");
+    if (req.method !== "POST") {
+      return res.status(405).json({ ok: false, error: "method-not-allowed" });
     }
+
+    const rl = enforceCheckRegistryRateLimit(req, res);
+    if (!rl.ok) {
+      return res.status(429).json({ ok: false, error: "rate-limited" });
+    }
+
+    const emailRaw = String(req.body?.email || "").trim();
+    const passportRaw = String(req.body?.passportId || "").trim();
+    if (!emailRaw && !passportRaw) {
+      return res
+        .status(400)
+        .json({ ok: false, error: "missing-email-or-passportId" });
+    }
+
+    const out = { ok: true };
+
+    if (emailRaw) {
+      const safeEmail = normalizeEmailForRegistry(emailRaw);
+      const r = await checkEmailRegistry(safeEmail);
+      out.email = {
+        exists: Boolean(r.exists),
+        ...(r.exists ? { major: String(r?.data?.major || null) || null } : {}),
+      };
+    }
+
+    if (passportRaw) {
+      const safePassport = normalizePassportIdForRegistry(passportRaw);
+      const r = await checkPassportRegistry(safePassport);
+      out.passport = {
+        exists: Boolean(r.exists),
+        ...(r.exists ? { major: String(r?.data?.major || null) || null } : {}),
+      };
+    }
+
+    return res.json(out);
+  } catch (e) {
+    logger.error("checkRegistry error", e);
+    setCors(req, res);
+    return res
+      .status(500)
+      .json({ ok: false, error: "internal", details: String(e?.message || e) });
   }
-);
+});
 
 // POST /generateInvite
 // Body: { groupId: string }
@@ -450,7 +450,8 @@ exports.generateInvite = onRequest(
               linksSentLastAt: admin.firestore.FieldValue.serverTimestamp(),
               // New, clearer field names:
               linksGeneratedCount: admin.firestore.FieldValue.increment(1),
-              linksGeneratedLastAt: admin.firestore.FieldValue.serverTimestamp(),
+              linksGeneratedLastAt:
+                admin.firestore.FieldValue.serverTimestamp(),
             },
             { merge: true }
           );
@@ -822,219 +823,235 @@ exports.syncEmailAndPassIdRegistry = onDocumentWritten(
 exports.submitCandidate = onRequest(
   { secrets: [RECAPTCHA_SECRET_KEY] },
   async (req, res) => {
-  try {
-    setCors(req, res);
-    if (req.method === "OPTIONS") {
-      return res.status(204).send("");
-    }
-
-    if (req.method !== "POST") {
-      return res.status(405).json({ ok: false, error: "method-not-allowed" });
-    }
-
-    const { major, payload } = req.body || {};
-    const recaptchaToken = String(req.body?.recaptchaToken || "").trim();
-    const safeMajor = String(major || "").trim();
-    if (!safeMajor || !payload) {
-      return res
-        .status(400)
-        .json({ ok: false, error: "missing-major-or-payload" });
-    }
-
-    // Public endpoint protection: verify reCAPTCHA server-side.
-    if (!recaptchaToken) {
-      return res.status(400).json({ ok: false, error: "missing-recaptchaToken" });
-    }
-    const secret = String(RECAPTCHA_SECRET_KEY.value() || "").trim();
-    if (!secret) {
-      return res
-        .status(500)
-        .json({ ok: false, error: "recaptcha-not-configured" });
-    }
-    const verify = await verifyRecaptchaV2({
-      token: recaptchaToken,
-      remoteIp: getClientIp(req),
-      secret,
-    });
-    if (!verify.ok) {
-      return res.status(403).json({
-        ok: false,
-        error: "recaptcha-failed",
-        reason: verify.reason,
-      });
-    }
-
-    // 1) Meta topish (doc id yoki collectionName bo‘yicha)
-    let metaSnap = await db.collection("meta").doc(safeMajor).get();
-    if (!metaSnap.exists) {
-      const q = await db
-        .collection("meta")
-        .where("collectionName", "==", safeMajor)
-        .limit(1)
-        .get();
-      if (!q.empty) metaSnap = q.docs[0];
-    }
-    if (!metaSnap.exists) {
-      return res.status(404).json({ ok: false, error: "meta-not-found" });
-    }
-    const meta = metaSnap.data();
-
-    // 2) Link aktyorligini tekshirish
-    if (meta.linkActive === false) {
-      return res.status(403).json({ ok: false, error: "link-inactive" });
-    }
-
-    // 3) Lead tekshiruvi (agar lead parametr bor bo‘lsa)
-    const leadParam = String(payload?.lead || "").trim();
-    if (leadParam) {
-      const leadsGloballyActive = meta.leadLinksActive !== false;
-      const match = findLead(meta, leadParam);
-      const leadActive = match ? match?.active !== false : false;
-      if (!leadsGloballyActive) {
-        return res
-          .status(403)
-          .json({ ok: false, error: "lead-links-inactive" });
-      }
-      if (!match) {
-        return res.status(403).json({ ok: false, error: "lead-not-found" });
-      }
-      if (!leadActive) {
-        return res.status(403).json({ ok: false, error: "lead-inactive" });
-      }
-    }
-
-    // 4) Kandidatni yozish (Admin SDK — rules cheklanmaydi)
-    const targetCol =
-      meta.collectionName || meta.slug || meta.name || safeMajor || "unknown";
-
-    // 4.1) Duplicate checks against Firestore registry (server-side enforcement)
-    const emailFromPayload =
-      payload?.persoenlicheDaten?.email ??
-      payload?.personalInfo?.email ??
-      payload?.email ??
-      "";
-    const passportFromPayload =
-      payload?.passportId ??
-      payload?.passportID ??
-      payload?.passportNumber ??
-      payload?.reisepassNummer ??
-      payload?.persoenlicheDaten?.reisepassNummer ??
-      payload?.personalInfo?.passportNumber ??
-      "";
-
-    const safeEmail = normalizeEmailForRegistry(emailFromPayload);
-    const safePassport = normalizePassportIdForRegistry(passportFromPayload);
-
-    // Email must be present for the registry (and to reliably prevent duplicates).
-    if (!safeEmail) {
-      return res.status(400).json({ ok: false, error: "missing-email" });
-    }
-
-    // 4.2) Write candidate + registry atomically to guarantee `email_and_passId` is saved.
-    // This also protects against race conditions between "duplicate check" and "write".
-    const candidateRef = db.collection(targetCol).doc();
-    const registryRef = db
-      .collection(EMAIL_AND_PASSID_COLLECTION)
-      .doc(safeEmail);
     try {
-      await db.runTransaction(async (tx) => {
-        // (a) Email duplicate check
-        const emailSnap = await tx.get(registryRef);
-        if (emailSnap.exists) {
-          const d = emailSnap.data() || {};
-          const err = new Error("email-exists");
-          err.status = 409;
-          err.code = "email-exists";
-          err.existing = {
-            email: d.email || safeEmail,
-            major: d.major || null,
-          };
-          throw err;
-        }
+      setCors(req, res);
+      if (req.method === "OPTIONS") {
+        return res.status(204).send("");
+      }
 
-        // (b) Passport duplicate check (best-effort if provided)
-        if (safePassport) {
-          const q = db
-            .collection(EMAIL_AND_PASSID_COLLECTION)
-            .where("passportId", "==", safePassport)
-            .limit(1);
-          const qSnap = await tx.get(q);
-          if (!qSnap.empty) {
-            const d = qSnap.docs[0];
-            const data = d.data() || {};
-            const err = new Error("passport-exists");
+      if (req.method !== "POST") {
+        return res.status(405).json({ ok: false, error: "method-not-allowed" });
+      }
+
+      const { major, payload } = req.body || {};
+      const recaptchaToken = String(req.body?.recaptchaToken || "").trim();
+      const safeMajor = String(major || "").trim();
+      if (!safeMajor || !payload) {
+        return res
+          .status(400)
+          .json({ ok: false, error: "missing-major-or-payload" });
+      }
+
+      // Public endpoint protection: verify reCAPTCHA server-side.
+      if (!recaptchaToken) {
+        return res
+          .status(400)
+          .json({ ok: false, error: "missing-recaptchaToken" });
+      }
+      // Debug (safe): helps diagnose "invalid-input-response" by confirming token is present and well-formed.
+      // We only log length + origin, never the token itself.
+      const origin = String(req.get("Origin") || "").trim();
+      logger.info("submitCandidate reCAPTCHA token received", {
+        origin: origin || "unknown",
+        tokenLen: recaptchaToken.length,
+      });
+      const secret = String(RECAPTCHA_SECRET_KEY.value() || "").trim();
+      if (!secret) {
+        return res
+          .status(500)
+          .json({ ok: false, error: "recaptcha-not-configured" });
+      }
+      const verify = await verifyRecaptchaV2({ token: recaptchaToken, secret });
+      if (!verify.ok) {
+        const out = {
+          ok: false,
+          error: "recaptcha-failed",
+          reason: verify.reason,
+        };
+        const codes = Array.isArray(verify?.details?.["error-codes"])
+          ? verify.details["error-codes"]
+          : null;
+        if (codes && codes.length) out.codes = codes;
+        logger.warn("submitCandidate reCAPTCHA verify failed", {
+          reason: verify.reason,
+          codes: codes || undefined,
+          origin: origin || "unknown",
+          tokenLen: recaptchaToken.length,
+        });
+        return res.status(403).json(out);
+      }
+
+      // 1) Meta topish (doc id yoki collectionName bo‘yicha)
+      let metaSnap = await db.collection("meta").doc(safeMajor).get();
+      if (!metaSnap.exists) {
+        const q = await db
+          .collection("meta")
+          .where("collectionName", "==", safeMajor)
+          .limit(1)
+          .get();
+        if (!q.empty) metaSnap = q.docs[0];
+      }
+      if (!metaSnap.exists) {
+        return res.status(404).json({ ok: false, error: "meta-not-found" });
+      }
+      const meta = metaSnap.data();
+
+      // 2) Link aktyorligini tekshirish
+      if (meta.linkActive === false) {
+        return res.status(403).json({ ok: false, error: "link-inactive" });
+      }
+
+      // 3) Lead tekshiruvi (agar lead parametr bor bo‘lsa)
+      const leadParam = String(payload?.lead || "").trim();
+      if (leadParam) {
+        const leadsGloballyActive = meta.leadLinksActive !== false;
+        const match = findLead(meta, leadParam);
+        const leadActive = match ? match?.active !== false : false;
+        if (!leadsGloballyActive) {
+          return res
+            .status(403)
+            .json({ ok: false, error: "lead-links-inactive" });
+        }
+        if (!match) {
+          return res.status(403).json({ ok: false, error: "lead-not-found" });
+        }
+        if (!leadActive) {
+          return res.status(403).json({ ok: false, error: "lead-inactive" });
+        }
+      }
+
+      // 4) Kandidatni yozish (Admin SDK — rules cheklanmaydi)
+      const targetCol =
+        meta.collectionName || meta.slug || meta.name || safeMajor || "unknown";
+
+      // 4.1) Duplicate checks against Firestore registry (server-side enforcement)
+      const emailFromPayload =
+        payload?.persoenlicheDaten?.email ??
+        payload?.personalInfo?.email ??
+        payload?.email ??
+        "";
+      const passportFromPayload =
+        payload?.passportId ??
+        payload?.passportID ??
+        payload?.passportNumber ??
+        payload?.reisepassNummer ??
+        payload?.persoenlicheDaten?.reisepassNummer ??
+        payload?.personalInfo?.passportNumber ??
+        "";
+
+      const safeEmail = normalizeEmailForRegistry(emailFromPayload);
+      const safePassport = normalizePassportIdForRegistry(passportFromPayload);
+
+      // Email must be present for the registry (and to reliably prevent duplicates).
+      if (!safeEmail) {
+        return res.status(400).json({ ok: false, error: "missing-email" });
+      }
+
+      // 4.2) Write candidate + registry atomically to guarantee `email_and_passId` is saved.
+      // This also protects against race conditions between "duplicate check" and "write".
+      const candidateRef = db.collection(targetCol).doc();
+      const registryRef = db
+        .collection(EMAIL_AND_PASSID_COLLECTION)
+        .doc(safeEmail);
+      try {
+        await db.runTransaction(async (tx) => {
+          // (a) Email duplicate check
+          const emailSnap = await tx.get(registryRef);
+          if (emailSnap.exists) {
+            const d = emailSnap.data() || {};
+            const err = new Error("email-exists");
             err.status = 409;
-            err.code = "passport-exists";
+            err.code = "email-exists";
             err.existing = {
-              email: data.email || d.id || null,
-              major: data.major || null,
-              passportId: data.passportId || safePassport,
+              email: d.email || safeEmail,
+              major: d.major || null,
             };
             throw err;
           }
+
+          // (b) Passport duplicate check (best-effort if provided)
+          if (safePassport) {
+            const q = db
+              .collection(EMAIL_AND_PASSID_COLLECTION)
+              .where("passportId", "==", safePassport)
+              .limit(1);
+            const qSnap = await tx.get(q);
+            if (!qSnap.empty) {
+              const d = qSnap.docs[0];
+              const data = d.data() || {};
+              const err = new Error("passport-exists");
+              err.status = 409;
+              err.code = "passport-exists";
+              err.existing = {
+                email: data.email || d.id || null,
+                major: data.major || null,
+                passportId: data.passportId || safePassport,
+              };
+              throw err;
+            }
+          }
+
+          // (c) Create candidate doc
+          tx.set(candidateRef, {
+            ...payload,
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          // (d) Create registry entry (same email => deterministic doc id)
+          tx.set(registryRef, {
+            email: safeEmail,
+            major: String(targetCol || "").trim() || null,
+            ...(safePassport ? { passportId: safePassport } : {}),
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        });
+      } catch (e) {
+        const status = Number(e?.status) || 0;
+        const code = String(e?.code || "");
+        if (status === 409 && code === "email-exists") {
+          return res.status(409).json({
+            ok: false,
+            error: "email-exists",
+            existing: e.existing || { email: safeEmail, major: null },
+          });
         }
-
-        // (c) Create candidate doc
-        tx.set(candidateRef, {
-          ...payload,
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-
-        // (d) Create registry entry (same email => deterministic doc id)
-        tx.set(registryRef, {
-          email: safeEmail,
-          major: String(targetCol || "").trim() || null,
-          ...(safePassport ? { passportId: safePassport } : {}),
-          createdAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-      });
-    } catch (e) {
-      const status = Number(e?.status) || 0;
-      const code = String(e?.code || "");
-      if (status === 409 && code === "email-exists") {
-        return res.status(409).json({
-          ok: false,
-          error: "email-exists",
-          existing: e.existing || { email: safeEmail, major: null },
-        });
+        if (status === 409 && code === "passport-exists") {
+          return res.status(409).json({
+            ok: false,
+            error: "passport-exists",
+            existing: e.existing || {
+              email: null,
+              major: null,
+              passportId: safePassport,
+            },
+          });
+        }
+        throw e;
       }
-      if (status === 409 && code === "passport-exists") {
-        return res.status(409).json({
-          ok: false,
-          error: "passport-exists",
-          existing: e.existing || {
-            email: null,
-            major: null,
-            passportId: safePassport,
-          },
+
+      // 5) Sync to remote user registry (best-effort; should not fail a successful submit)
+      try {
+        const snap = await candidateRef.get();
+        const data = snap.exists ? snap.data() : payload;
+        await upsertRemoteAllUsers({
+          firebaseId: candidateRef.id,
+          major: targetCol,
+          payload: data,
         });
+      } catch (e) {
+        logger.error("remote all_users sync failed", e);
+        // do not block submit
       }
-      throw e;
-    }
 
-    // 5) Sync to remote user registry (best-effort; should not fail a successful submit)
-    try {
-      const snap = await candidateRef.get();
-      const data = snap.exists ? snap.data() : payload;
-      await upsertRemoteAllUsers({
-        firebaseId: candidateRef.id,
-        major: targetCol,
-        payload: data,
-      });
-    } catch (e) {
-      logger.error("remote all_users sync failed", e);
-      // do not block submit
+      return res.json({ ok: true, id: candidateRef.id });
+    } catch (err) {
+      logger.error("submitCandidate error", err);
+      setCors(req, res);
+      return res
+        .status(500)
+        .json({ ok: false, error: "internal", details: err.message });
     }
-
-    return res.json({ ok: true, id: candidateRef.id });
-  } catch (err) {
-    logger.error("submitCandidate error", err);
-    setCors(req, res);
-    return res
-      .status(500)
-      .json({ ok: false, error: "internal", details: err.message });
-  }
   }
 );
 
