@@ -5,6 +5,7 @@ const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
+const crypto = require("crypto");
 const {
   createOneTimeChatInviteLink,
   getTelegramChatsFromUpdates,
@@ -19,6 +20,9 @@ setGlobalOptions({ maxInstances: 10 });
 // Store via: firebase functions:secrets:set TELEGRAM_BOT_TOKEN
 // Never hardcode bot tokens in code or frontend.
 const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
+// Store via: firebase functions:secrets:set RECAPTCHA_SECRET_KEY
+// Used to protect public endpoints (Create form) from abuse.
+const RECAPTCHA_SECRET_KEY = defineSecret("RECAPTCHA_SECRET_KEY");
 
 const REMOTE_API_BASE = "https://json-api.uz/api/project/consultinguz";
 const REMOTE_ALL_USERS = `${REMOTE_API_BASE}/all_users`;
@@ -51,6 +55,129 @@ function setCors(req, res) {
     "Access-Control-Expose-Headers",
     "Content-Type, Content-Length, Content-Range, Accept-Ranges"
   );
+}
+
+async function verifyRecaptchaV2({ token, remoteIp, secret }) {
+  const t = String(token || "").trim();
+  if (!t) return { ok: false, reason: "missing-token" };
+  const s = String(secret || "").trim();
+  if (!s) return { ok: false, reason: "missing-secret" };
+
+  const params = new URLSearchParams();
+  params.set("secret", s);
+  params.set("response", t);
+  if (remoteIp) params.set("remoteip", String(remoteIp).trim());
+
+  const resp = await fetch("https://www.google.com/recaptcha/api/siteverify", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString(),
+  });
+  if (!resp.ok) return { ok: false, reason: "upstream-failed" };
+  const json = await resp.json().catch(() => ({}));
+  if (!json?.success) return { ok: false, reason: "invalid", details: json };
+  return { ok: true, details: json };
+}
+
+function base64UrlEncode(input) {
+  const b = Buffer.isBuffer(input) ? input : Buffer.from(String(input || ""), "utf8");
+  return b
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function base64UrlDecodeToString(b64url) {
+  const s = String(b64url || "").trim();
+  if (!s) return "";
+  const pad = s.length % 4 === 0 ? "" : "=".repeat(4 - (s.length % 4));
+  const b64 = s.replace(/-/g, "+").replace(/_/g, "/") + pad;
+  return Buffer.from(b64, "base64").toString("utf8");
+}
+
+function safeTimingEqual(a, b) {
+  const aa = Buffer.from(String(a || ""), "utf8");
+  const bb = Buffer.from(String(b || ""), "utf8");
+  if (aa.length !== bb.length) return false;
+  try {
+    return crypto.timingSafeEqual(aa, bb);
+  } catch {
+    return false;
+  }
+}
+
+function signCheckRegistrySession({ secret, ttlMs = 10 * 60 * 1000 } = {}) {
+  const s = String(secret || "").trim();
+  if (!s) return "";
+  const now = Date.now();
+  const payload = {
+    v: 1,
+    iat: now,
+    exp: now + Math.max(30_000, Number(ttlMs) || 0),
+    nonce: crypto.randomBytes(16).toString("hex"),
+  };
+  const body = base64UrlEncode(JSON.stringify(payload));
+  const sig = base64UrlEncode(
+    crypto.createHmac("sha256", s).update(body).digest()
+  );
+  return `${body}.${sig}`;
+}
+
+function verifyCheckRegistrySession({ token, secret }) {
+  const t = String(token || "").trim();
+  const s = String(secret || "").trim();
+  if (!t || !s) return { ok: false, reason: "missing" };
+  const parts = t.split(".");
+  if (parts.length !== 2) return { ok: false, reason: "invalid-format" };
+  const [body, sig] = parts;
+  if (!body || !sig) return { ok: false, reason: "invalid-format" };
+  const expected = base64UrlEncode(
+    crypto.createHmac("sha256", s).update(body).digest()
+  );
+  if (!safeTimingEqual(sig, expected)) return { ok: false, reason: "bad-sig" };
+  const jsonText = base64UrlDecodeToString(body);
+  let payload;
+  try {
+    payload = JSON.parse(jsonText);
+  } catch {
+    return { ok: false, reason: "bad-json" };
+  }
+  const exp = Number(payload?.exp || 0);
+  if (!exp || Date.now() > exp) return { ok: false, reason: "expired" };
+  return { ok: true, payload };
+}
+
+// Best-effort in-memory rate limiting (per instance).
+const CHECK_REGISTRY_RATE_WINDOW_MS = 60_000;
+const CHECK_REGISTRY_RATE_MAX = 30;
+const checkRegistryRateBuckets = new Map();
+
+function getClientIp(req) {
+  // Firebase Functions provides req.ip; keep a fallback for safety.
+  const raw = String(req?.ip || "").trim();
+  if (raw) return raw;
+  const xf = String(req?.get?.("x-forwarded-for") || "").trim();
+  if (!xf) return "unknown";
+  return xf.split(",")[0].trim() || "unknown";
+}
+
+function enforceCheckRegistryRateLimit(req, res) {
+  const key = getClientIp(req);
+  const now = Date.now();
+  const cur = checkRegistryRateBuckets.get(key);
+  if (!cur || now - cur.start > CHECK_REGISTRY_RATE_WINDOW_MS) {
+    checkRegistryRateBuckets.set(key, { start: now, count: 1 });
+    return { ok: true };
+  }
+  if (cur.count >= CHECK_REGISTRY_RATE_MAX) {
+    const retryMs = CHECK_REGISTRY_RATE_WINDOW_MS - (now - cur.start);
+    const retrySec = Math.max(1, Math.ceil(retryMs / 1000));
+    res.set("Retry-After", String(retrySec));
+    return { ok: false, retryAfterSec: retrySec };
+  }
+  cur.count += 1;
+  return { ok: true };
 }
 
 async function verifyFirebaseIdToken(req) {
@@ -189,6 +316,71 @@ exports.proxyPdf = onRequest(async (req, res) => {
       .json({ ok: false, error: "internal", details: String(e?.message || e) });
   }
 });
+
+// POST /checkRegistry
+// Body: { email?: string, passportId?: string }
+// Returns: { ok: true, email?: { exists: boolean, major?: string|null }, passport?: { exists: boolean, major?: string|null } }
+//
+// Security:
+// - CORS allowlist (same as other public endpoints)
+// - Rate limiting (best-effort per instance) - main protection for this read-only endpoint
+// - Returns minimal data (no PII, only optional major)
+// Note: No reCAPTCHA here for speed - main abuse protection is rate limit + submit has reCAPTCHA
+exports.checkRegistry = onRequest(
+  async (req, res) => {
+    try {
+      setCors(req, res);
+      res.set("Cache-Control", "no-store");
+      if (req.method === "OPTIONS") return res.status(204).send("");
+      if (req.method !== "POST") {
+        return res.status(405).json({ ok: false, error: "method-not-allowed" });
+      }
+
+      const rl = enforceCheckRegistryRateLimit(req, res);
+      if (!rl.ok) {
+        return res.status(429).json({ ok: false, error: "rate-limited" });
+      }
+
+      const emailRaw = String(req.body?.email || "").trim();
+      const passportRaw = String(req.body?.passportId || "").trim();
+      if (!emailRaw && !passportRaw) {
+        return res
+          .status(400)
+          .json({ ok: false, error: "missing-email-or-passportId" });
+      }
+
+      const out = { ok: true };
+
+      if (emailRaw) {
+        const safeEmail = normalizeEmailForRegistry(emailRaw);
+        const r = await checkEmailRegistry(safeEmail);
+        out.email = {
+          exists: Boolean(r.exists),
+          ...(r.exists ? { major: String(r?.data?.major || null) || null } : {}),
+        };
+      }
+
+      if (passportRaw) {
+        const safePassport = normalizePassportIdForRegistry(passportRaw);
+        const r = await checkPassportRegistry(safePassport);
+        out.passport = {
+          exists: Boolean(r.exists),
+          ...(r.exists
+            ? { major: String(r?.data?.major || null) || null }
+            : {}),
+        };
+      }
+
+      return res.json(out);
+    } catch (e) {
+      logger.error("checkRegistry error", e);
+      setCors(req, res);
+      return res
+        .status(500)
+        .json({ ok: false, error: "internal", details: String(e?.message || e) });
+    }
+  }
+);
 
 // POST /generateInvite
 // Body: { groupId: string }
@@ -627,7 +819,9 @@ exports.syncEmailAndPassIdRegistry = onDocumentWritten(
 
 // POST /submitCandidate
 // Body: { major: string, payload: object, recaptchaToken?: string }
-exports.submitCandidate = onRequest(async (req, res) => {
+exports.submitCandidate = onRequest(
+  { secrets: [RECAPTCHA_SECRET_KEY] },
+  async (req, res) => {
   try {
     setCors(req, res);
     if (req.method === "OPTIONS") {
@@ -639,11 +833,35 @@ exports.submitCandidate = onRequest(async (req, res) => {
     }
 
     const { major, payload } = req.body || {};
+    const recaptchaToken = String(req.body?.recaptchaToken || "").trim();
     const safeMajor = String(major || "").trim();
     if (!safeMajor || !payload) {
       return res
         .status(400)
         .json({ ok: false, error: "missing-major-or-payload" });
+    }
+
+    // Public endpoint protection: verify reCAPTCHA server-side.
+    if (!recaptchaToken) {
+      return res.status(400).json({ ok: false, error: "missing-recaptchaToken" });
+    }
+    const secret = String(RECAPTCHA_SECRET_KEY.value() || "").trim();
+    if (!secret) {
+      return res
+        .status(500)
+        .json({ ok: false, error: "recaptcha-not-configured" });
+    }
+    const verify = await verifyRecaptchaV2({
+      token: recaptchaToken,
+      remoteIp: getClientIp(req),
+      secret,
+    });
+    if (!verify.ok) {
+      return res.status(403).json({
+        ok: false,
+        error: "recaptcha-failed",
+        reason: verify.reason,
+      });
     }
 
     // 1) Meta topish (doc id yoki collectionName bo‘yicha)
@@ -817,7 +1035,8 @@ exports.submitCandidate = onRequest(async (req, res) => {
       .status(500)
       .json({ ok: false, error: "internal", details: err.message });
   }
-});
+  }
+);
 
 // ---- Callable (super_admin only) user management ----
 function assertSuperAdmin(request) {

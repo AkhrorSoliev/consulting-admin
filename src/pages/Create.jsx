@@ -31,7 +31,7 @@ import {
   isPassportNumberValid,
   normalizePassportNumber,
 } from "../utils/validation";
-import CountryNameCombobox from "../components/CountryNameCombobox";
+import countries from "../utils/const";
 import {
   imageFileToBase64,
   toInputDate,
@@ -39,9 +39,8 @@ import {
   generateSkills,
   sortTimelineItemsDesc,
   uploadFilesToConsulting,
-  checkEmailRemote,
-  registerEmailRemote,
-  checkPassportRemote,
+  deleteUploadedFileRemote,
+  deleteUploadedFilesRemote,
   getMetaByName,
 } from "../utils";
 import {
@@ -171,10 +170,17 @@ function Create() {
   const [existingPassportMajor, setExistingPassportMajor] = useState("");
   const [enteredPassport, setEnteredPassport] = useState("");
   const [searchParams] = useSearchParams();
+  // Documents are stored as uploaded URLs + metadata so refresh doesn't lose progress.
+  // Shapes:
+  // - diplomas/passport: [{ url, name, size }]
+  // - langCertFiles: [{ url, name, size, type }]
   const [diplomaFiles, setDiplomaFiles] = useState([]);
   const [langCertFiles, setLangCertFiles] = useState([]);
   const [noLanguageCertificates, setNoLanguageCertificates] = useState(false);
   const [passportFiles, setPassportFiles] = useState([]);
+  const [isUploadingPassportDoc, setIsUploadingPassportDoc] = useState(false);
+  const [isUploadingDiplomaDocs, setIsUploadingDiplomaDocs] = useState(false);
+  const [isUploadingLangCertDocs, setIsUploadingLangCertDocs] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [diplomaError, setDiplomaError] = useState(false);
   const [diplomaSizeError, setDiplomaSizeError] = useState(false);
@@ -202,17 +208,25 @@ function Create() {
   });
   const [majorLoading, setMajorLoading] = useState(false);
   const [isEmailChecking, setIsEmailChecking] = useState(false);
-  const lastEmailCheckRef = useRef({ email: "", exists: false });
-  const emailCheckSeqRef = useRef(0);
-  const lastEmailExistsModalRef = useRef("");
   const [isPassportChecking, setIsPassportChecking] = useState(false);
+  const lastEmailCheckRef = useRef({ email: "", exists: false });
   const lastPassportCheckRef = useRef({ passport: "", exists: false });
+  const emailCheckSeqRef = useRef(0);
   const passportCheckSeqRef = useRef(0);
+  const lastEmailExistsModalRef = useRef("");
   const lastPassportExistsModalRef = useRef("");
   const [isPdfPreviewOpen, setIsPdfPreviewOpen] = useState(false);
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [photoModalSrc, setPhotoModalSrc] = useState("");
   const formScrollRef = useRef(null);
+  const [showCityPicker, setShowCityPicker] = useState(false);
+  const [showBirthPlacePicker, setShowBirthPlacePicker] = useState(false);
+  const [showCountryPicker, setShowCountryPicker] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerWidth < 1024;
+  });
+  const [isInputFocused, setIsInputFocused] = useState(false);
 
   // Wizard steps: show one section at a time to reduce perceived form size
   const STEPS = useMemo(
@@ -264,6 +278,53 @@ function Create() {
       mq.addListener(update);
       return () => mq.removeListener(update);
     }
+  }, []);
+
+  useEffect(() => {
+    // Track window size for mobile vs desktop UI
+    if (typeof window === "undefined") return;
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    // Hide bottom navigation when input is focused on mobile
+    if (typeof window === "undefined") return;
+
+    const handleFocus = (e) => {
+      const target = e.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement
+      ) {
+        if (window.innerWidth < 1024) {
+          setIsInputFocused(true);
+        }
+      }
+    };
+
+    const handleBlur = (e) => {
+      const target = e.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement
+      ) {
+        setIsInputFocused(false);
+      }
+    };
+
+    document.addEventListener("focusin", handleFocus);
+    document.addEventListener("focusout", handleBlur);
+
+    return () => {
+      document.removeEventListener("focusin", handleFocus);
+      document.removeEventListener("focusout", handleBlur);
+    };
   }, []);
 
   useEffect(() => {
@@ -375,6 +436,11 @@ function Create() {
   }
 
   function uniqueKey(file) {
+    // Supports both File objects and our uploaded metadata objects.
+    if (file && typeof file === "object" && typeof file.url === "string") {
+      const u = String(file.url || "").trim();
+      if (u) return u;
+    }
     return `${file?.name || ""}__${file?.size || 0}__${
       file?.lastModified || 0
     }`;
@@ -469,6 +535,10 @@ function Create() {
   }
 
   const TELEGRAM_SUPPORT_URL = "https://t.me/consultinguz_kundensupport";
+  const CHECK_REGISTRY_ENDPOINT =
+    import.meta.env.VITE_CHECK_REGISTRY_URL ||
+    (import.meta.env.VITE_FUNCTIONS_BASE &&
+      `${import.meta.env.VITE_FUNCTIONS_BASE}/checkRegistry`);
   const SUBMIT_ENDPOINT =
     import.meta.env.VITE_SUBMIT_CANDIDATE_URL ||
     (import.meta.env.VITE_FUNCTIONS_BASE &&
@@ -691,8 +761,17 @@ function Create() {
   ).trim();
   // Use a single key (not per-major) as requested.
   const draftKey = "createCvDraft";
+  // Draft expiration (privacy + storage). After TTL we auto-clear stale drafts.
+  const DRAFT_TTL_MS = 72 * 60 * 60 * 1000; // 72 hours
+  // Photo is kept only for the current tab session (refresh-safe, but not long-term stored).
+  const photoSessionKey = useMemo(() => {
+    const m = String(majorCollectionForDraft || "").trim();
+    return m ? `createCvPhoto:${m}` : "createCvPhoto";
+  }, [majorCollectionForDraft]);
   const DRAFT_EXCLUDE_PERSONAL_FIELDS = useMemo(
-    () => new Set(["email", "passportNumber"]),
+    // Never persist sensitive fields to localStorage.
+    // Note: `photo` can be large (base64) and is sensitive PII; keep it out of drafts.
+    () => new Set(["email", "passportNumber", "photo"]),
     []
   );
 
@@ -789,6 +868,36 @@ function Create() {
     }
   }
 
+  function normalizeUploadedDocs(raw) {
+    const docs = raw && typeof raw === "object" ? raw : {};
+    const normList = (arr, withType = false) => {
+      if (!Array.isArray(arr)) return [];
+      return arr
+        .map((it) => {
+          if (!it || typeof it !== "object") return null;
+          const url = String(it.url || "").trim();
+          if (!/^https?:\/\//.test(url)) return null;
+          const name = String(it.name || "").trim();
+          const size = Number(it.size || 0) || 0;
+          const base = { url, name, size };
+          if (withType) {
+            return { ...base, type: String(it.type || "") };
+          }
+          return base;
+        })
+        .filter(Boolean);
+    };
+    return {
+      diplomas: normList(docs.diplomas, false),
+      passports: normList(docs.passports || docs.passport, false),
+      langCerts: normList(
+        docs.langCerts || docs.languageCertificatesDetailed,
+        true
+      ),
+      noLanguageCertificates: Boolean(docs.noLanguageCertificates),
+    };
+  }
+
   useEffect(() => {
     // Load draft once major is known and not loading (prevents flicker / wrong restore).
     if (majorLoading) return;
@@ -797,6 +906,49 @@ function Create() {
       const raw = localStorage.getItem(draftKey);
       const parsed = safeParseJson(raw, null);
       if (!parsed || typeof parsed !== "object") return;
+
+      // Expire old drafts (privacy + prevent stale data surprises).
+      const updatedAt = Number(parsed?.updatedAt || 0);
+      if (updatedAt > 0 && Date.now() - updatedAt > DRAFT_TTL_MS) {
+        clearDraftNow();
+        return;
+      }
+
+      // If old drafts contain excluded fields (e.g. photo), strip them and rewrite,
+      // so localStorage doesn't keep large/sensitive leftovers.
+      try {
+        const hadPhoto =
+          Boolean(
+            parsed?.form?.personalInfo && "photo" in parsed.form.personalInfo
+          ) ||
+          Boolean(
+            parsed?.cv?.personalInfo && "photo" in parsed.cv.personalInfo
+          );
+        if (hadPhoto) {
+          const nextForm = sanitizeDraftFormSnapshot(parsed?.form);
+          const nextCv = sanitizeDraftCvSnapshot(parsed?.cv);
+          const nextPayload = {
+            ...(parsed || {}),
+            v: Number(parsed?.v || 2),
+            form: nextForm,
+            cv: nextCv,
+          };
+          localStorage.setItem(draftKey, JSON.stringify(nextPayload));
+        }
+      } catch {
+        // ignore rewrite errors
+      }
+
+      // Restore documents (uploaded URLs)
+      try {
+        const docs = normalizeUploadedDocs(parsed?.docs);
+        setDiplomaFiles(docs.diplomas);
+        setPassportFiles(docs.passports.slice(0, 1));
+        setLangCertFiles(docs.langCerts);
+        setNoLanguageCertificates(Boolean(docs.noLanguageCertificates));
+      } catch {
+        // ignore docs restore errors
+      }
 
       // Migrate old wizard step indices (v1 -> v2) after swapping Languages/Skills.
       const draftVersion = Number(parsed?.v || 1);
@@ -851,7 +1003,6 @@ function Create() {
           "hasDrivingLicense",
           "drivingLicenseType",
           "phone",
-          "photo",
         ];
         fields.forEach((k) => {
           setValue(`personalInfo.${k}`, p?.[k], {
@@ -874,6 +1025,49 @@ function Create() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [majorCollectionForDraft, majorLoading]);
+
+  useEffect(() => {
+    // Restore photo from sessionStorage (refresh-safe without long-term storage).
+    if (majorLoading) return;
+    const current = String(watchPhoto || "").trim();
+    if (current) return;
+    try {
+      const v = String(sessionStorage.getItem(photoSessionKey) || "").trim();
+      if (v && /^data:image\//.test(v)) {
+        setValue("personalInfo.photo", v, {
+          shouldDirty: false,
+          shouldTouch: false,
+          shouldValidate: false,
+        });
+      }
+    } catch {
+      // ignore
+    }
+  }, [majorLoading, photoSessionKey, setValue, watchPhoto]);
+
+  useEffect(() => {
+    // Persist photo only in sessionStorage (debounced).
+    if (majorLoading) return;
+    let t = null;
+    const v = String(watchPhoto || "").trim();
+    t = window.setTimeout(() => {
+      try {
+        if (!v) {
+          sessionStorage.removeItem(photoSessionKey);
+          return;
+        }
+        if (!/^data:image\//.test(v)) return;
+        // Keep a hard cap to avoid quota issues (base64 expands size).
+        if (v.length > 900_000) return;
+        sessionStorage.setItem(photoSessionKey, v);
+      } catch {
+        // ignore
+      }
+    }, 300);
+    return () => {
+      if (t) window.clearTimeout(t);
+    };
+  }, [majorLoading, photoSessionKey, watchPhoto]);
 
   useEffect(() => {
     // If the user has submitted for this major, clear any stale draft.
@@ -920,11 +1114,81 @@ function Create() {
   }, [cv, currentStep, maxUnlockedStep, majorCollectionForDraft, majorLoading]);
 
   useEffect(() => {
+    // Autosave documents (uploaded URLs) + the "no certificates" flag.
+    if (majorLoading) return;
+    if (draftHydratingRef.current) return;
+    const t = window.setTimeout(() => {
+      try {
+        const raw = localStorage.getItem(draftKey);
+        const parsed = safeParseJson(raw, {});
+        const next = {
+          ...(parsed && typeof parsed === "object" ? parsed : {}),
+          v: Number(parsed?.v || 2),
+          updatedAt: Date.now(),
+          major: majorCollectionForDraft,
+          docs: {
+            diplomas: Array.isArray(diplomaFiles) ? diplomaFiles : [],
+            passports: Array.isArray(passportFiles) ? passportFiles : [],
+            langCerts: Array.isArray(langCertFiles) ? langCertFiles : [],
+            noLanguageCertificates: Boolean(noLanguageCertificates),
+          },
+        };
+        localStorage.setItem(draftKey, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+    }, 600);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    diplomaFiles,
+    passportFiles,
+    langCertFiles,
+    noLanguageCertificates,
+    majorCollectionForDraft,
+    majorLoading,
+    draftKey,
+  ]);
+
+  // NOTE:
+  // We intentionally DO NOT live-check email/passport against Firestore from the public form,
+  // because Firestore rules require auth (admin-only reads).
+  // Duplicate checks are enforced server-side inside `submitCandidate` against
+  // Firestore collection `email_and_passId` and surfaced back as HTTP 409.
+  //
+  // However, for better UX we DO provide a public Cloud Function `/checkRegistry`
+  // protected by CORS + rate limiting, and use it here for live checks.
+
+  async function checkRegistryLive({ email, passportId }) {
+    if (!CHECK_REGISTRY_ENDPOINT) {
+      // If not configured, skip live checks (submit will still enforce duplicates).
+      return { ok: false, skipped: true };
+    }
+    const ac = new AbortController();
+    const t = window.setTimeout(() => ac.abort(), 5000);
+    try {
+      const res = await fetch(CHECK_REGISTRY_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: ac.signal,
+        body: JSON.stringify({
+          ...(email ? { email } : {}),
+          ...(passportId ? { passportId } : {}),
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      return { ok: Boolean(res.ok && json?.ok), status: res.status, json };
+    } catch (e) {
+      return { ok: false, error: "network", details: String(e?.message || e) };
+    } finally {
+      window.clearTimeout(t);
+    }
+  }
+
+  useEffect(() => {
     const raw = String(watchEmail || "").trim();
     const email = raw.toLowerCase();
 
-    // If the user edits the email while the "already used" modal is open,
-    // close the modal to avoid stale information.
     if (
       isEmailModalOpen &&
       email &&
@@ -936,7 +1200,6 @@ function Create() {
       setIsEmailModalOpen(false);
     }
 
-    // Clear remote "exists" error immediately when user edits the email.
     const st = getFieldState("personalInfo.email");
     if (
       st?.error?.type === "remoteExists" &&
@@ -946,13 +1209,11 @@ function Create() {
       clearErrors("personalInfo.email");
     }
 
-    // Don't remote-check if empty or syntactically invalid.
     if (!email || !isEmailValid(email)) {
       setIsEmailChecking(false);
       return;
     }
 
-    // Avoid repeating the same check.
     if (email === String(lastEmailCheckRef.current?.email || "")) {
       setIsEmailChecking(false);
       return;
@@ -962,21 +1223,20 @@ function Create() {
     const t = setTimeout(async () => {
       setIsEmailChecking(true);
       try {
-        const { exists, data } = await checkEmailRemote(email);
+        const r = await checkRegistryLive({ email });
         if (emailCheckSeqRef.current !== seq) return;
+        if (!r.ok) return;
 
-        lastEmailCheckRef.current = { email, exists: Boolean(exists) };
-
+        const exists = Boolean(r?.json?.email?.exists);
+        lastEmailCheckRef.current = { email, exists };
         if (exists) {
-          const major = String(data?.major || "Unbekannt");
+          const major = String(r?.json?.email?.major || "Unbekannt");
           setExistingMajor(major);
           setEnteredEmail(email);
           setError("personalInfo.email", {
             type: "remoteExists",
             message: `Diese E-Mail ist bereits für „${major}“ registriert.`,
           });
-
-          // Show the "Achtung!" modal immediately on live-check.
           if (lastEmailExistsModalRef.current !== email) {
             setIsEmailModalOpen(true);
             lastEmailExistsModalRef.current = email;
@@ -988,9 +1248,7 @@ function Create() {
           }
         }
       } catch (e) {
-        // Best-effort: don't block the form if remote check fails.
-        // User will still be checked on submit.
-        console.error("Email remote check failed:", e);
+        console.error("Email registry live check failed:", e);
       } finally {
         if (emailCheckSeqRef.current === seq) {
           setIsEmailChecking(false);
@@ -1001,6 +1259,7 @@ function Create() {
     return () => clearTimeout(t);
   }, [
     watchEmail,
+    CHECK_REGISTRY_ENDPOINT,
     clearErrors,
     getFieldState,
     setError,
@@ -1012,8 +1271,6 @@ function Create() {
     const raw = String(watchPassportNumber || "");
     const passport = normalizePassportNumber(raw);
 
-    // If the user edits the passport while the "already used" modal is open,
-    // close the modal to avoid stale information.
     if (
       isPassportModalOpen &&
       passport &&
@@ -1022,7 +1279,6 @@ function Create() {
       setIsPassportModalOpen(false);
     }
 
-    // Clear remote "exists" error immediately when user edits the passport.
     const st = getFieldState("personalInfo.passportNumber");
     if (
       st?.error?.type === "remoteExists" &&
@@ -1032,13 +1288,11 @@ function Create() {
       clearErrors("personalInfo.passportNumber");
     }
 
-    // Don't remote-check if empty or syntactically invalid.
     if (!passport || !isPassportNumberValid(passport)) {
       setIsPassportChecking(false);
       return;
     }
 
-    // Avoid repeating the same check.
     if (passport === String(lastPassportCheckRef.current?.passport || "")) {
       setIsPassportChecking(false);
       return;
@@ -1048,21 +1302,20 @@ function Create() {
     const t = setTimeout(async () => {
       setIsPassportChecking(true);
       try {
-        const { exists, data } = await checkPassportRemote(passport);
+        const r = await checkRegistryLive({ passportId: passport });
         if (passportCheckSeqRef.current !== seq) return;
+        if (!r.ok) return;
 
-        lastPassportCheckRef.current = { passport, exists: Boolean(exists) };
-
+        const exists = Boolean(r?.json?.passport?.exists);
+        lastPassportCheckRef.current = { passport, exists };
         if (exists) {
-          const major = String(data?.major || "Unbekannt");
+          const major = String(r?.json?.passport?.major || "Unbekannt");
           setExistingPassportMajor(major);
           setEnteredPassport(passport);
           setError("personalInfo.passportNumber", {
             type: "remoteExists",
             message: `Diese Passnummer ist bereits für „${major}“ registriert.`,
           });
-
-          // Show the "Achtung!" modal immediately on live-check.
           if (lastPassportExistsModalRef.current !== passport) {
             setIsPassportModalOpen(true);
             lastPassportExistsModalRef.current = passport;
@@ -1074,9 +1327,7 @@ function Create() {
           }
         }
       } catch (e) {
-        // Best-effort: don't block the form if remote check fails.
-        // User will still be checked on submit.
-        console.error("Passport remote check failed:", e);
+        console.error("Passport registry live check failed:", e);
       } finally {
         if (passportCheckSeqRef.current === seq) {
           setIsPassportChecking(false);
@@ -1087,6 +1338,7 @@ function Create() {
     return () => clearTimeout(t);
   }, [
     watchPassportNumber,
+    CHECK_REGISTRY_ENDPOINT,
     clearErrors,
     getFieldState,
     setError,
@@ -1841,70 +2093,40 @@ function Create() {
       const passportNumber = normalizePassportNumber(
         formData?.personalInfo?.passportNumber || ""
       );
-      try {
-        const { exists, data } = await checkEmailRemote(email);
-        if (exists) {
-          setExistingMajor(data?.major || "Unbekannt");
-          setEnteredEmail(email);
-          setIsEmailModalOpen(true);
-          return;
-        }
-      } catch (error) {
-        console.error(error);
-        toast.error(
-          "Fehler bei der Überprüfung der E-Mail-Adresse. Bitte versuchen Sie es erneut."
-        );
-        return;
-      }
 
       try {
-        if (passportNumber && isPassportNumberValid(passportNumber)) {
-          const { exists, data } = await checkPassportRemote(passportNumber);
-          if (exists) {
-            setExistingPassportMajor(data?.major || "Unbekannt");
-            setEnteredPassport(passportNumber);
-            setIsPassportModalOpen(true);
-            return;
-          }
-        }
-      } catch (error) {
-        console.error(error);
-        toast.error(
-          "Fehler bei der Überprüfung der Passnummer. Bitte versuchen Sie es erneut."
-        );
-        return;
-      }
+        // Documents are already uploaded while the user selects them (refresh-safe).
+        const safeDiplomaUrls = (
+          Array.isArray(diplomaFiles) ? diplomaFiles : []
+        )
+          .map((d) => String(d?.url || "").trim())
+          .filter((u) => /^https?:\/\//.test(u));
+        const safePassportUrls = (
+          Array.isArray(passportFiles) ? passportFiles : []
+        )
+          .map((d) => String(d?.url || "").trim())
+          .filter((u) => /^https?:\/\//.test(u));
+        const safeLangUrls = (Array.isArray(langCertFiles) ? langCertFiles : [])
+          .map((d) => String(d?.url || "").trim())
+          .filter((u) => /^https?:\/\//.test(u));
 
-      try {
-        // Upload files first and attach URLs (language certificates optional)
-        const [diplomaUrls, langUrls, passportUrls] = await Promise.all([
-          uploadFilesToConsulting(diplomaFiles),
-          uploadFilesToConsulting(langCertFiles.map((item) => item?.file)),
-          uploadFilesToConsulting(passportFiles),
-        ]);
-
-        const safeDiplomaUrls = Array.isArray(diplomaUrls) ? diplomaUrls : [];
-        const safePassportUrls = Array.isArray(passportUrls) ? passportUrls : [];
-        const safeLangUrls = Array.isArray(langUrls) ? langUrls : [];
-
-        // Defensive: do not allow a successful submit without required documents.
-        // This addresses rare edge cases where the upload helper returns [] unexpectedly.
         if (safeDiplomaUrls.length === 0) {
           throw new Error(
-            "Diplom/Zeugnis Upload fehlgeschlagen. Bitte erneut versuchen."
+            "Diplome fehlen. Bitte laden Sie mindestens ein PDF hoch."
           );
         }
         if (safePassportUrls.length === 0) {
-          throw new Error(
-            "Reisepass/ID Upload fehlgeschlagen. Bitte erneut versuchen."
-          );
+          throw new Error("Reisepass/ID fehlt. Bitte laden Sie ein PDF hoch.");
         }
 
-        const langCertTypes = langCertFiles.map((item) => item?.type || "");
-        const langCertDetailed = safeLangUrls.map((url, idx) => ({
-          url,
-          type: langCertTypes[idx] || "",
-        }));
+        const langCertDetailed = (
+          Array.isArray(langCertFiles) ? langCertFiles : []
+        )
+          .map((it) => ({
+            url: String(it?.url || "").trim(),
+            type: String(it?.type || ""),
+          }))
+          .filter((it) => /^https?:\/\//.test(it.url));
 
         const payload = {
           ...lebenslauf,
@@ -1965,6 +2187,38 @@ function Create() {
           }),
         });
         const json = await res.json().catch(() => ({}));
+        // Duplicate checks are enforced server-side via Firestore `email_and_passId`.
+        // Surface them with the same UX as before (modal + field error).
+        if (
+          res.status === 409 &&
+          String(json?.error || "") === "email-exists"
+        ) {
+          const major = String(json?.existing?.major || "Unbekannt");
+          setExistingMajor(major);
+          setEnteredEmail(String(json?.existing?.email || email).trim());
+          setError("personalInfo.email", {
+            type: "remoteExists",
+            message: `Diese E-Mail ist bereits für „${major}“ registriert.`,
+          });
+          setIsEmailModalOpen(true);
+          return;
+        }
+        if (
+          res.status === 409 &&
+          String(json?.error || "") === "passport-exists"
+        ) {
+          const major = String(json?.existing?.major || "Unbekannt");
+          setExistingPassportMajor(major);
+          setEnteredPassport(
+            String(json?.existing?.passportId || passportNumber).trim()
+          );
+          setError("personalInfo.passportNumber", {
+            type: "remoteExists",
+            message: `Diese Passnummer ist bereits für „${major}“ registriert.`,
+          });
+          setIsPassportModalOpen(true);
+          return;
+        }
         if (!res.ok || !json?.ok) {
           const errMsg =
             json?.error ||
@@ -1973,11 +2227,6 @@ function Create() {
           throw new Error(errMsg);
         }
 
-        // Remote registry is best-effort and must not break a successful submit.
-        // Passport is stored inside all_Emails as `passportId`.
-        await Promise.allSettled([
-          registerEmailRemote(email, majorCollection, passportNumber),
-        ]);
         toast.success("Daten erfolgreich gesendet!");
         try {
           localStorage.setItem(`createCvSubmitted:${majorCollection}`, "true");
@@ -2369,65 +2618,108 @@ function Create() {
                               />
                             </RequiredField>
                             <RequiredField>
-                              <Controller
-                                control={control}
-                                name="personalInfo.birthPlace"
-                                rules={{
-                                  required: "Geburtsort ist erforderlich",
-                                }}
-                                render={({ field }) => (
-                                  <>
-                                    <label
-                                      className="label"
-                                      htmlFor="personalInfo-birthPlace"
-                                    >
-                                      <RequiredLabel
-                                        className={`label-text ${REQUIRED_STAR_CLASS}`}
-                                      >
-                                        Geburtsort
-                                      </RequiredLabel>
-                                    </label>
-                                    <select
-                                      id="personalInfo-birthPlace"
-                                      {...field}
-                                      className={`select select-bordered w-full ${
-                                        errors?.personalInfo?.birthPlace
-                                          ? "select-error"
-                                          : getSuccessClass(
-                                              "personalInfo.birthPlace",
-                                              field.value,
-                                              "select"
-                                            )
-                                      }`}
-                                      aria-invalid={
-                                        errors?.personalInfo?.birthPlace
-                                          ? "true"
-                                          : "false"
+                              <label
+                                className="label"
+                                htmlFor="personalInfo-birthPlace"
+                              >
+                                <RequiredLabel
+                                  className={`label-text ${REQUIRED_STAR_CLASS}`}
+                                >
+                                  Geburtsort
+                                </RequiredLabel>
+                              </label>
+                              {isMobile ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setShowBirthPlacePicker(true)
+                                    }
+                                    className={`
+                                      w-full h-12 px-4 rounded-lg border-2 text-left flex items-center justify-between
+                                      transition-all active:scale-98
+                                      ${
+                                        watchBirthPlace
+                                          ? "border-success bg-success/5 text-base-content"
+                                          : "border-base-300 bg-base-100 text-base-content/60"
                                       }
-                                      value={field.value || ""}
-                                      onChange={(e) => {
-                                        const v = String(e.target.value || "");
-                                        field.onChange(v);
-                                        // Ensure the error state clears immediately after selecting a value
-                                        clearErrors("personalInfo.birthPlace");
-                                        trigger("personalInfo.birthPlace");
-                                      }}
+                                      ${
+                                        errors?.personalInfo?.birthPlace
+                                          ? "border-error"
+                                          : ""
+                                      }
+                                    `}
+                                  >
+                                    <span className="text-base">
+                                      {watchBirthPlace || "Shaharni tanlang"}
+                                    </span>
+                                    <svg
+                                      className="w-5 h-5 opacity-50"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
                                     >
-                                      <option value="">Bitte auswählen</option>
-                                      {UZBEK_REGIONS.map((region) => (
-                                        <option key={region} value={region}>
-                                          {region}
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M19 9l-7 7-7-7"
+                                      />
+                                    </svg>
+                                  </button>
+                                  {errors?.personalInfo?.birthPlace && (
+                                    <p className="text-error text-sm mt-1">
+                                      {errors.personalInfo.birthPlace.message}
+                                    </p>
+                                  )}
+                                </>
+                              ) : (
+                                <Controller
+                                  control={control}
+                                  name="personalInfo.birthPlace"
+                                  rules={{
+                                    required: "Bitte Geburtsort auswählen",
+                                  }}
+                                  render={({ field }) => (
+                                    <>
+                                      <select
+                                        id="personalInfo-birthPlace"
+                                        className={`select select-bordered w-full ${
+                                          errors?.personalInfo?.birthPlace
+                                            ? "select-error"
+                                            : getSuccessClass(
+                                                field.value,
+                                                "personalInfo.birthPlace"
+                                              )
+                                        }`}
+                                        aria-invalid={
+                                          errors?.personalInfo?.birthPlace
+                                            ? "true"
+                                            : "false"
+                                        }
+                                        {...field}
+                                      >
+                                        <option value="">
+                                          Bitte auswählen
                                         </option>
-                                      ))}
-                                    </select>
-                                  </>
-                                )}
-                              />
-                              {errors?.personalInfo?.birthPlace ? (
-                                <p className="text-error text-sm mt-1">
-                                  {errors.personalInfo.birthPlace.message}
-                                </p>
-                              ) : null}
+                                        {UZBEK_REGIONS.map((city) => (
+                                          <option key={city} value={city}>
+                                            {city}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      {errors?.personalInfo?.birthPlace && (
+                                        <p className="text-error text-sm mt-1">
+                                          {
+                                            errors.personalInfo.birthPlace
+                                              .message
+                                          }
+                                        </p>
+                                      )}
+                                    </>
+                                  )}
+                                />
+                              )}
                             </RequiredField>
                             <RequiredField>
                               <Controller
@@ -2704,6 +2996,17 @@ function Create() {
                                     emailHas &&
                                     !emailOk;
 
+                                  const emailChecked = Boolean(
+                                    lastEmailCheckRef.current?.email ===
+                                      rawEmail
+                                  );
+                                  const emailValid =
+                                    emailOk && !errors?.personalInfo?.email;
+                                  const showEmailSuccess =
+                                    emailChecked &&
+                                    emailValid &&
+                                    !lastEmailCheckRef.current?.exists;
+
                                   return (
                                     <>
                                       <FormInput
@@ -2725,6 +3028,13 @@ function Create() {
                                               className="loading loading-spinner loading-sm text-base-content/60 pointer-events-none"
                                               aria-hidden="true"
                                             />
+                                          ) : showEmailSuccess ? (
+                                            <span
+                                              className="text-success text-xl pointer-events-none"
+                                              aria-hidden="true"
+                                            >
+                                              ✓
+                                            </span>
                                           ) : null
                                         }
                                         helperText={
@@ -2795,6 +3105,17 @@ function Create() {
                                     has &&
                                     !ok;
 
+                                  const passportChecked = Boolean(
+                                    lastPassportCheckRef.current?.passport ===
+                                      norm
+                                  );
+                                  const passportValid =
+                                    ok && !errors?.personalInfo?.passportNumber;
+                                  const showPassportSuccess =
+                                    passportChecked &&
+                                    passportValid &&
+                                    !lastPassportCheckRef.current?.exists;
+
                                   return (
                                     <>
                                       <FormInput
@@ -2816,6 +3137,13 @@ function Create() {
                                               className="loading loading-spinner loading-sm text-base-content/60 pointer-events-none"
                                               aria-hidden="true"
                                             />
+                                          ) : showPassportSuccess ? (
+                                            <span
+                                              className="text-success text-xl pointer-events-none"
+                                              aria-hidden="true"
+                                            >
+                                              ✓
+                                            </span>
                                           ) : null
                                         }
                                         helperText={
@@ -3106,87 +3434,250 @@ function Create() {
                                         Ort
                                       </RequiredLabel>
                                     </label>
-                                    <select
-                                      id="personalInfo-addressCity"
-                                      className={`select select-bordered w-full ${
-                                        errors?.personalInfo?.addressCity
-                                          ? "select-error"
-                                          : getSuccessClass(
-                                              "personalInfo.addressCity",
-                                              addressCity,
-                                              "select"
-                                            )
-                                      }`}
-                                      aria-invalid={
-                                        errors?.personalInfo?.addressCity
-                                          ? "true"
-                                          : "false"
-                                      }
-                                      {...register("personalInfo.addressCity", {
-                                        required: "Ort ist erforderlich",
-                                        setValueAs: (v) =>
-                                          String(v || "").trim(),
-                                      })}
-                                    >
-                                      <option value="">Bitte auswählen</option>
-                                      {UZBEK_REGIONS.map((region) => (
-                                        <option key={region} value={region}>
-                                          {region}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    {errors?.personalInfo?.addressCity ? (
-                                      <p className="text-error text-sm mt-1">
-                                        {
-                                          errors.personalInfo.addressCity
-                                            .message
-                                        }
-                                      </p>
-                                    ) : null}
+                                    {isMobile ? (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setShowCityPicker(true)
+                                          }
+                                          className={`
+                                            w-full h-12 px-4 rounded-lg border-2 text-left flex items-center justify-between
+                                            transition-all active:scale-98
+                                            ${
+                                              addressCity
+                                                ? "border-success bg-success/5 text-base-content"
+                                                : "border-base-300 bg-base-100 text-base-content/60"
+                                            }
+                                            ${
+                                              errors?.personalInfo?.addressCity
+                                                ? "border-error"
+                                                : ""
+                                            }
+                                          `}
+                                        >
+                                          <span className="text-base">
+                                            {addressCity || "Shaharni tanlang"}
+                                          </span>
+                                          <svg
+                                            className="w-5 h-5 opacity-50"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                          >
+                                            <path
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                              strokeWidth={2}
+                                              d="M19 9l-7 7-7-7"
+                                            />
+                                          </svg>
+                                        </button>
+                                        {errors?.personalInfo?.addressCity && (
+                                          <p className="text-error text-sm mt-1">
+                                            {
+                                              errors.personalInfo.addressCity
+                                                .message
+                                            }
+                                          </p>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <Controller
+                                        control={control}
+                                        name="personalInfo.addressCity"
+                                        rules={{
+                                          required: "Bitte Ort auswählen",
+                                        }}
+                                        render={({ field }) => (
+                                          <>
+                                            <select
+                                              id="personalInfo-addressCity"
+                                              className={`select select-bordered w-full ${
+                                                errors?.personalInfo
+                                                  ?.addressCity
+                                                  ? "select-error"
+                                                  : getSuccessClass(
+                                                      field.value,
+                                                      "personalInfo.addressCity"
+                                                    )
+                                              }`}
+                                              aria-invalid={
+                                                errors?.personalInfo
+                                                  ?.addressCity
+                                                  ? "true"
+                                                  : "false"
+                                              }
+                                              {...field}
+                                            >
+                                              <option value="">
+                                                Bitte auswählen
+                                              </option>
+                                              {UZBEK_REGIONS.map((city) => (
+                                                <option key={city} value={city}>
+                                                  {city}
+                                                </option>
+                                              ))}
+                                            </select>
+                                            {errors?.personalInfo
+                                              ?.addressCity && (
+                                              <p className="text-error text-sm mt-1">
+                                                {
+                                                  errors.personalInfo
+                                                    .addressCity.message
+                                                }
+                                              </p>
+                                            )}
+                                          </>
+                                        )}
+                                      />
+                                    )}
                                   </div>
 
                                   <div className="md:col-span-2">
-                                    <Controller
-                                      control={control}
-                                      name="personalInfo.addressCountry"
-                                      rules={{
-                                        required: "Land ist erforderlich",
-                                      }}
-                                      render={({ field }) => (
-                                        <CountryNameCombobox
-                                          id="personalInfo-addressCountry"
-                                          label={
-                                            <RequiredLabel
-                                              className={`label-text ${REQUIRED_STAR_CLASS}`}
+                                    <label
+                                      className="label"
+                                      htmlFor="personalInfo-addressCountry"
+                                    >
+                                      <RequiredLabel
+                                        className={`label-text ${REQUIRED_STAR_CLASS}`}
+                                      >
+                                        Land
+                                      </RequiredLabel>
+                                    </label>
+                                    {isMobile ? (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setShowCountryPicker(true)
+                                          }
+                                          className={`
+                                            w-full h-12 px-4 rounded-lg border-2 text-left flex items-center justify-between
+                                            transition-all active:scale-98
+                                            ${
+                                              addressCountry
+                                                ? "border-success bg-success/5 text-base-content"
+                                                : "border-base-300 bg-base-100 text-base-content/60"
+                                            }
+                                            ${
+                                              errors?.personalInfo
+                                                ?.addressCountry
+                                                ? "border-error"
+                                                : ""
+                                            }
+                                          `}
+                                        >
+                                          <span className="text-base">
+                                            {addressCountry || "Land auswählen"}
+                                          </span>
+                                          <svg
+                                            className="w-5 h-5 opacity-50"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            viewBox="0 0 24 24"
+                                          >
+                                            <path
+                                              strokeLinecap="round"
+                                              strokeLinejoin="round"
+                                              strokeWidth={2}
+                                              d="M19 9l-7 7-7-7"
+                                            />
+                                          </svg>
+                                        </button>
+                                        {errors?.personalInfo
+                                          ?.addressCountry && (
+                                          <p className="text-error text-sm mt-1">
+                                            {
+                                              errors.personalInfo.addressCountry
+                                                .message
+                                            }
+                                          </p>
+                                        )}
+                                      </>
+                                    ) : (
+                                      <Controller
+                                        control={control}
+                                        name="personalInfo.addressCountry"
+                                        rules={{
+                                          required: "Bitte Land auswählen",
+                                        }}
+                                        render={({ field }) => (
+                                          <>
+                                            <select
+                                              id="personalInfo-addressCountry"
+                                              className={`select select-bordered w-full ${
+                                                errors?.personalInfo
+                                                  ?.addressCountry
+                                                  ? "select-error"
+                                                  : getSuccessClass(
+                                                      field.value,
+                                                      "personalInfo.addressCountry"
+                                                    )
+                                              }`}
+                                              aria-invalid={
+                                                errors?.personalInfo
+                                                  ?.addressCountry
+                                                  ? "true"
+                                                  : "false"
+                                              }
+                                              {...field}
                                             >
-                                              Land
-                                            </RequiredLabel>
-                                          }
-                                          required
-                                          placeholder="z.B. Usbekistan"
-                                          value={field.value}
-                                          onChange={(v) =>
-                                            field.onChange(
-                                              String(v || "").trim()
-                                            )
-                                          }
-                                          error={
-                                            errors?.personalInfo?.addressCountry
-                                              ?.message
-                                          }
-                                          inputClassName={
-                                            errors?.personalInfo?.addressCountry
-                                              ? ""
-                                              : getSuccessClass(
-                                                  "personalInfo.addressCountry",
-                                                  field.value,
-                                                  "input"
-                                                )
-                                          }
-                                          helperText="Tippen Sie, um zu suchen, oder wählen Sie aus der Liste."
-                                        />
-                                      )}
-                                    />
+                                              <option value="">
+                                                Bitte auswählen
+                                              </option>
+                                              {countries
+                                                .sort((a, b) => {
+                                                  // Priority countries at top
+                                                  const priority = [
+                                                    "Usbekistan",
+                                                    "Deutschland",
+                                                    "Russland",
+                                                    "Südkorea",
+                                                  ];
+                                                  const aIndex =
+                                                    priority.indexOf(a.deu);
+                                                  const bIndex =
+                                                    priority.indexOf(b.deu);
+                                                  if (
+                                                    aIndex !== -1 &&
+                                                    bIndex !== -1
+                                                  )
+                                                    return aIndex - bIndex;
+                                                  if (aIndex !== -1) return -1;
+                                                  if (bIndex !== -1) return 1;
+                                                  return a.deu.localeCompare(
+                                                    b.deu
+                                                  );
+                                                })
+                                                .map((country) => {
+                                                  const name = String(
+                                                    country?.deu || ""
+                                                  ).trim();
+                                                  if (!name) return null;
+                                                  return (
+                                                    <option
+                                                      key={name}
+                                                      value={name}
+                                                    >
+                                                      {name}
+                                                    </option>
+                                                  );
+                                                })}
+                                            </select>
+                                            {errors?.personalInfo
+                                              ?.addressCountry && (
+                                              <p className="text-error text-sm mt-1">
+                                                {
+                                                  errors.personalInfo
+                                                    .addressCountry.message
+                                                }
+                                              </p>
+                                            )}
+                                          </>
+                                        )}
+                                      />
+                                    )}
                                   </div>
                                 </div>
                               </div>
@@ -3431,6 +3922,13 @@ function Create() {
                                     type="button"
                                     className="btn btn-ghost btn-xs shrink-0 whitespace-nowrap"
                                     onClick={() => {
+                                      // Best-effort delete already uploaded file
+                                      const urls = (passportFiles || [])
+                                        .map((d) => d?.url)
+                                        .filter(Boolean);
+                                      Promise.resolve(
+                                        deleteUploadedFilesRemote(urls)
+                                      ).catch(() => {});
                                       setPassportFiles([]);
                                       setPassportSizeError(false);
                                       setPassportError(false);
@@ -3459,37 +3957,68 @@ function Create() {
                                     ? "true"
                                     : "false"
                                 }
+                                disabled={isUploadingPassportDoc}
                                 onChange={(e) => {
                                   const raw = Array.from(e.target.files || []);
-                                  const pdfs = raw.filter(
-                                    (f) =>
-                                      String(f.type).toLowerCase() ===
-                                        "application/pdf" ||
-                                      /\.pdf$/i.test(String(f.name || ""))
-                                  );
-                                  const sized = pdfs.filter(
-                                    (f) => (f?.size || 0) <= MAX_PDF_BYTES
-                                  );
-                                  const tooBig = pdfs.length - sized.length;
-                                  const invalid = raw.length - pdfs.length;
-                                  if (invalid > 0) {
+                                  const f = raw?.[0];
+                                  e.target.value = "";
+                                  if (!f) return;
+
+                                  const isPdf =
+                                    String(f.type).toLowerCase() ===
+                                      "application/pdf" ||
+                                    /\.pdf$/i.test(String(f.name || ""));
+                                  if (!isPdf) {
                                     toast.error(
                                       "Nur PDF-Dateien sind erlaubt."
                                     );
+                                    return;
                                   }
-                                  if (tooBig > 0) {
+                                  if ((f?.size || 0) > MAX_PDF_BYTES) {
                                     toast.error(
                                       "PDF-Datei darf maximal 2 MB groß sein."
                                     );
                                     setPassportSizeError(true);
-                                  } else {
-                                    setPassportSizeError(false);
+                                    return;
                                   }
-                                  if (sized.length > 0) {
-                                    setPassportError(false);
-                                  }
-                                  setPassportFiles(sized.slice(0, 1));
-                                  e.target.value = "";
+
+                                  setPassportSizeError(false);
+                                  setPassportError(false);
+                                  setIsUploadingPassportDoc(true);
+
+                                  (async () => {
+                                    try {
+                                      const [url] =
+                                        await uploadFilesToConsulting([f]);
+                                      if (!url) {
+                                        throw new Error(
+                                          "Upload returned empty URL"
+                                        );
+                                      }
+                                      // If replacing an existing file, delete it best-effort.
+                                      const oldUrl = String(
+                                        passportFiles?.[0]?.url || ""
+                                      ).trim();
+                                      if (oldUrl) {
+                                        Promise.resolve(
+                                          deleteUploadedFileRemote(oldUrl)
+                                        ).catch(() => {});
+                                      }
+                                      setPassportFiles([
+                                        { url, name: f.name, size: f.size },
+                                      ]);
+                                    } catch (err) {
+                                      console.error(
+                                        "Passport upload failed:",
+                                        err
+                                      );
+                                      toast.error(
+                                        "Upload fehlgeschlagen. Bitte erneut versuchen."
+                                      );
+                                    } finally {
+                                      setIsUploadingPassportDoc(false);
+                                    }
+                                  })();
                                 }}
                               />
                               {passportError ? (
@@ -3524,16 +4053,30 @@ function Create() {
                                       >
                                         <div className="min-w-0">
                                           <div className="truncate font-medium">
-                                            {f.name}
+                                            {f.name || "passport.pdf"}
                                           </div>
                                           <div className="text-xs opacity-70">
-                                            {(f.size / 1024).toFixed(1)} KB
+                                            {f.size
+                                              ? `${(f.size / 1024).toFixed(
+                                                  1
+                                                )} KB`
+                                              : "Uploaded"}
                                           </div>
                                         </div>
                                         <button
                                           type="button"
                                           className="btn btn-ghost btn-xs"
-                                          onClick={() => setPassportFiles([])}
+                                          onClick={() => {
+                                            const url = String(
+                                              f?.url || ""
+                                            ).trim();
+                                            if (url) {
+                                              Promise.resolve(
+                                                deleteUploadedFileRemote(url)
+                                              ).catch(() => {});
+                                            }
+                                            setPassportFiles([]);
+                                          }}
                                           aria-label="Entfernen"
                                         >
                                           ✕
@@ -3542,6 +4085,11 @@ function Create() {
                                     ))}
                                   </ul>
                                 </div>
+                              ) : null}
+                              {isUploadingPassportDoc ? (
+                                <p className="text-xs mt-2 opacity-70">
+                                  Wird hochgeladen...
+                                </p>
                               ) : null}
                             </RequiredField>
 
@@ -3562,6 +4110,12 @@ function Create() {
                                     type="button"
                                     className="btn btn-ghost btn-xs shrink-0 whitespace-nowrap"
                                     onClick={() => {
+                                      const urls = (langCertFiles || [])
+                                        .map((d) => d?.url)
+                                        .filter(Boolean);
+                                      Promise.resolve(
+                                        deleteUploadedFilesRemote(urls)
+                                      ).catch(() => {});
                                       setLangCertFiles([]);
                                       setLangCertSizeError(false);
                                     }}
@@ -3580,6 +4134,12 @@ function Create() {
                                     setNoLanguageCertificates(checked);
                                     if (checked) {
                                       // If user has no certificates, clear files and related errors.
+                                      const urls = (langCertFiles || [])
+                                        .map((d) => d?.url)
+                                        .filter(Boolean);
+                                      Promise.resolve(
+                                        deleteUploadedFilesRemote(urls)
+                                      ).catch(() => {});
                                       setLangCertFiles([]);
                                       setLangCertSizeError(false);
                                       setLangCertTypeError(false);
@@ -3607,9 +4167,13 @@ function Create() {
                                 aria-invalid={
                                   langCertSizeError ? "true" : "false"
                                 }
-                                disabled={noLanguageCertificates}
+                                disabled={
+                                  noLanguageCertificates ||
+                                  isUploadingLangCertDocs
+                                }
                                 onChange={(e) => {
                                   const raw = Array.from(e.target.files || []);
+                                  e.target.value = "";
                                   const pdfs = raw.filter(
                                     (f) =>
                                       String(f.type).toLowerCase() ===
@@ -3637,10 +4201,51 @@ function Create() {
                                   if (sized.length > 0) {
                                     setNoLanguageCertificates(false);
                                   }
-                                  setLangCertFiles((prev) =>
-                                    mergeLangCertItems(prev, sized)
-                                  );
-                                  e.target.value = "";
+                                  if (sized.length === 0) return;
+
+                                  setIsUploadingLangCertDocs(true);
+                                  (async () => {
+                                    try {
+                                      const urls =
+                                        await uploadFilesToConsulting(sized);
+                                      const nextItems = urls.map(
+                                        (url, idx) => ({
+                                          url,
+                                          name: sized[idx]?.name,
+                                          size: sized[idx]?.size,
+                                          type: "",
+                                        })
+                                      );
+                                      setLangCertFiles((prev) => {
+                                        const prevArr = Array.isArray(prev)
+                                          ? prev
+                                          : [];
+                                        const map = new Map(
+                                          prevArr.map((it) => [
+                                            String(it?.url || uniqueKey(it)),
+                                            it,
+                                          ])
+                                        );
+                                        nextItems.forEach((it) => {
+                                          const key = String(
+                                            it?.url || uniqueKey(it)
+                                          );
+                                          if (!map.has(key)) map.set(key, it);
+                                        });
+                                        return Array.from(map.values());
+                                      });
+                                    } catch (err) {
+                                      console.error(
+                                        "Lang cert upload failed:",
+                                        err
+                                      );
+                                      toast.error(
+                                        "Upload fehlgeschlagen. Bitte erneut versuchen."
+                                      );
+                                    } finally {
+                                      setIsUploadingLangCertDocs(false);
+                                    }
+                                  })();
                                 }}
                               />
                               {langCertSizeError ? (
@@ -3664,30 +4269,48 @@ function Create() {
                                   </div>
                                   <ul className="space-y-2">
                                     {langCertFiles.map((item, i) => {
-                                      const file = item?.file || item;
                                       return (
                                         <li
-                                          key={uniqueKey(file)}
+                                          key={uniqueKey(item)}
                                           className="flex flex-col gap-2 rounded-box border border-base-300 px-3 py-2"
                                         >
                                           <div className="flex items-center justify-between gap-2">
                                             <div className="min-w-0">
                                               <div className="truncate font-medium">
-                                                {file.name}
+                                                {item?.name ||
+                                                  "certificate.pdf"}
                                               </div>
                                               <div className="text-xs opacity-70">
-                                                {(file.size / 1024).toFixed(1)}{" "}
-                                                KB
+                                                {item?.size
+                                                  ? `${(
+                                                      item.size / 1024
+                                                    ).toFixed(1)} KB`
+                                                  : "Uploaded"}
                                               </div>
                                             </div>
                                             <button
                                               type="button"
                                               className="btn btn-ghost btn-xs"
-                                              onClick={() =>
+                                              onClick={() => {
+                                                const url = String(
+                                                  item?.url || ""
+                                                ).trim();
+                                                if (url) {
+                                                  Promise.resolve(
+                                                    deleteUploadedFileRemote(
+                                                      url
+                                                    )
+                                                  ).catch(() => {});
+                                                }
                                                 setLangCertFiles((prev) =>
-                                                  removeLangCertAt(prev, i)
-                                                )
-                                              }
+                                                  (Array.isArray(prev)
+                                                    ? prev
+                                                    : []
+                                                  ).filter(
+                                                    (_, idx) => idx !== i
+                                                  )
+                                                );
+                                              }}
                                               aria-label="Entfernen"
                                             >
                                               ✕
@@ -3754,6 +4377,11 @@ function Create() {
                                   </ul>
                                 </div>
                               ) : null}
+                              {isUploadingLangCertDocs ? (
+                                <p className="text-xs mt-2 opacity-70">
+                                  Wird hochgeladen...
+                                </p>
+                              ) : null}
                             </div>
 
                             {/* Diplomas */}
@@ -3775,6 +4403,12 @@ function Create() {
                                     type="button"
                                     className="btn btn-ghost btn-xs shrink-0 whitespace-nowrap"
                                     onClick={() => {
+                                      const urls = (diplomaFiles || [])
+                                        .map((d) => d?.url)
+                                        .filter(Boolean);
+                                      Promise.resolve(
+                                        deleteUploadedFilesRemote(urls)
+                                      ).catch(() => {});
                                       setDiplomaFiles([]);
                                       setDiplomaSizeError(false);
                                       setDiplomaError(false);
@@ -3806,8 +4440,10 @@ function Create() {
                                     ? "true"
                                     : "false"
                                 }
+                                disabled={isUploadingDiplomaDocs}
                                 onChange={(e) => {
                                   const raw = Array.from(e.target.files || []);
+                                  e.target.value = "";
                                   const pdfs = raw.filter(
                                     (f) =>
                                       String(f.type).toLowerCase() ===
@@ -3835,11 +4471,49 @@ function Create() {
                                   if (sized.length > 0) {
                                     setDiplomaError(false);
                                   }
-                                  setDiplomaFiles((prev) =>
-                                    mergeFiles(prev, sized)
-                                  );
-                                  // reset value to allow picking the same file again if needed
-                                  e.target.value = "";
+                                  if (sized.length === 0) return;
+                                  setIsUploadingDiplomaDocs(true);
+                                  (async () => {
+                                    try {
+                                      const urls =
+                                        await uploadFilesToConsulting(sized);
+                                      const nextItems = urls.map(
+                                        (url, idx) => ({
+                                          url,
+                                          name: sized[idx]?.name,
+                                          size: sized[idx]?.size,
+                                        })
+                                      );
+                                      setDiplomaFiles((prev) => {
+                                        const prevArr = Array.isArray(prev)
+                                          ? prev
+                                          : [];
+                                        const map = new Map(
+                                          prevArr.map((it) => [
+                                            String(it?.url || uniqueKey(it)),
+                                            it,
+                                          ])
+                                        );
+                                        nextItems.forEach((it) => {
+                                          const key = String(
+                                            it?.url || uniqueKey(it)
+                                          );
+                                          if (!map.has(key)) map.set(key, it);
+                                        });
+                                        return Array.from(map.values());
+                                      });
+                                    } catch (err) {
+                                      console.error(
+                                        "Diploma upload failed:",
+                                        err
+                                      );
+                                      toast.error(
+                                        "Upload fehlgeschlagen. Bitte erneut versuchen."
+                                      );
+                                    } finally {
+                                      setIsUploadingDiplomaDocs(false);
+                                    }
+                                  })();
                                 }}
                               />
                               {diplomaError ? (
@@ -3875,20 +4549,35 @@ function Create() {
                                       >
                                         <div className="min-w-0">
                                           <div className="truncate font-medium">
-                                            {f.name}
+                                            {f.name || "diploma.pdf"}
                                           </div>
                                           <div className="text-xs opacity-70">
-                                            {(f.size / 1024).toFixed(1)} KB
+                                            {f.size
+                                              ? `${(f.size / 1024).toFixed(
+                                                  1
+                                                )} KB`
+                                              : "Uploaded"}
                                           </div>
                                         </div>
                                         <button
                                           type="button"
                                           className="btn btn-ghost btn-xs"
-                                          onClick={() =>
+                                          onClick={() => {
+                                            const url = String(
+                                              f?.url || ""
+                                            ).trim();
+                                            if (url) {
+                                              Promise.resolve(
+                                                deleteUploadedFileRemote(url)
+                                              ).catch(() => {});
+                                            }
                                             setDiplomaFiles((prev) =>
-                                              removeFileAt(prev, i)
-                                            )
-                                          }
+                                              (Array.isArray(prev)
+                                                ? prev
+                                                : []
+                                              ).filter((_, idx) => idx !== i)
+                                            );
+                                          }}
                                           aria-label="Entfernen"
                                         >
                                           ✕
@@ -3897,6 +4586,11 @@ function Create() {
                                     ))}
                                   </ul>
                                 </div>
+                              ) : null}
+                              {isUploadingDiplomaDocs ? (
+                                <p className="text-xs mt-2 opacity-70">
+                                  Wird hochgeladen...
+                                </p>
                               ) : null}
                             </RequiredField>
                           </div>
@@ -3972,90 +4666,96 @@ function Create() {
                       ) : null}
                     </div>
                     {/* Sticky footer navigation (always visible) */}
-                    <div className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[env(safe-area-inset-bottom)] lg:sticky lg:bottom-0 lg:z-10 lg:px-0 lg:pt-3">
+                    <div
+                      className={`fixed inset-x-0 bottom-0 z-40 px-3 pb-[env(safe-area-inset-bottom)] lg:sticky lg:bottom-0 lg:z-10 lg:px-0 lg:pt-3 transition-transform duration-200 ${
+                        isInputFocused && isMobile
+                          ? "translate-y-full"
+                          : "translate-y-0"
+                      }`}
+                    >
                       <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-none">
                         <div className="rounded-2xl border border-base-300 bg-base-100 shadow-sm px-4 py-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <button
-                            type="button"
-                            className="btn"
-                            onClick={goBack}
-                            disabled={currentStep === 0 || isUploading}
-                          >
-                            Zurück
-                          </button>
-
-                          {currentStep === FINAL_STEP ? (
-                            <button
-                              type="submit"
-                              className="btn btn-primary"
-                              disabled={
-                                !watch("agreePrivacy") ||
-                                isUploading ||
-                                majorLoading ||
-                                !majorInfo.collectionName
-                              }
-                            >
-                              {isUploading ? (
-                                "Hochladen..."
-                              ) : (
-                                <>
-                                  <FaPaperPlane className="inline-block mr-2" />
-                                  Absenden
-                                </>
-                              )}
-                            </button>
-                          ) : (
+                          <div className="flex items-center justify-between gap-3">
                             <button
                               type="button"
-                              className="btn btn-primary"
-                              onClick={goNext}
-                              disabled={isUploading}
+                              className="btn"
+                              onClick={goBack}
+                              disabled={currentStep === 0 || isUploading}
                             >
-                              Weiter
+                              Zurück
                             </button>
-                          )}
-                        </div>
 
-                        {/* Mobile actions (keep icons visible but well-aligned on small screens) */}
-                        <div className="mt-3 flex items-center justify-between lg:hidden">
-                          <button
-                            type="button"
-                            className="btn btn-primary btn-circle btn-sm shadow"
-                            aria-label="Vorschau öffnen"
-                            onClick={() => setIsPdfPreviewOpen(true)}
-                          >
-                            <FaFileAlt className="text-base" />
-                            <span className="sr-only">Vorschau</span>
-                          </button>
+                            {currentStep === FINAL_STEP ? (
+                              <button
+                                type="submit"
+                                className="btn btn-primary"
+                                disabled={
+                                  !watch("agreePrivacy") ||
+                                  isUploading ||
+                                  majorLoading ||
+                                  !majorInfo.collectionName
+                                }
+                              >
+                                {isUploading ? (
+                                  "Hochladen..."
+                                ) : (
+                                  <>
+                                    <FaPaperPlane className="inline-block mr-2" />
+                                    Absenden
+                                  </>
+                                )}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="btn btn-primary"
+                                onClick={goNext}
+                                disabled={isUploading}
+                              >
+                                Weiter
+                              </button>
+                            )}
+                          </div>
 
-                          <div className="flex items-center gap-2">
+                          {/* Mobile actions (keep icons visible but well-aligned on small screens) */}
+                          <div className="mt-3 flex items-center justify-between lg:hidden">
                             <button
                               type="button"
                               className="btn btn-primary btn-circle btn-sm shadow"
-                              aria-label="Video-Guide öffnen"
-                              onClick={() => setIsGuideOpen(true)}
+                              aria-label="Vorschau öffnen"
+                              onClick={() => setIsPdfPreviewOpen(true)}
                             >
-                              <FaVideo className="text-base" />
-                              <span className="sr-only">Video-Guide</span>
+                              <FaFileAlt className="text-base" />
+                              <span className="sr-only">Vorschau</span>
                             </button>
-                            <button
-                              type="button"
-                              className="btn btn-secondary btn-circle btn-sm shadow"
-                              aria-label="Support via Telegram"
-                              onClick={() =>
-                                window.open(
-                                  TELEGRAM_SUPPORT_URL,
-                                  "_blank",
-                                  "noopener,noreferrer"
-                                )
-                              }
-                            >
-                              <FaTelegramPlane className="text-base" />
-                              <span className="sr-only">Support Chat</span>
-                            </button>
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-circle btn-sm shadow"
+                                aria-label="Video-Guide öffnen"
+                                onClick={() => setIsGuideOpen(true)}
+                              >
+                                <FaVideo className="text-base" />
+                                <span className="sr-only">Video-Guide</span>
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-secondary btn-circle btn-sm shadow"
+                                aria-label="Support via Telegram"
+                                onClick={() =>
+                                  window.open(
+                                    TELEGRAM_SUPPORT_URL,
+                                    "_blank",
+                                    "noopener,noreferrer"
+                                  )
+                                }
+                              >
+                                <FaTelegramPlane className="text-base" />
+                                <span className="sr-only">Support Chat</span>
+                              </button>
+                            </div>
                           </div>
-                        </div>
                         </div>
                       </div>
                     </div>
@@ -4182,6 +4882,211 @@ function Create() {
         enteredPassport={enteredPassport}
         existingMajor={existingPassportMajor}
       />
+
+      {/* Bottom Sheet: City Picker (Mobile Only) */}
+      {isMobile && showCityPicker && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 animate-in fade-in duration-200"
+          onClick={() => setShowCityPicker(false)}
+        >
+          <div
+            className="fixed inset-x-0 bottom-0 bg-base-100 rounded-t-3xl max-h-[70vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Handle bar */}
+            <div className="shrink-0 pt-3 pb-2 flex justify-center">
+              <div className="w-12 h-1 bg-base-300 rounded-full" />
+            </div>
+
+            {/* Header */}
+            <div className="shrink-0 px-4 pb-3 border-b border-base-200">
+              <h3 className="font-bold text-lg text-center">
+                Shaharni tanlang
+              </h3>
+              <p className="text-sm text-center text-base-content/60 mt-1">
+                Ort
+              </p>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto overscroll-contain">
+              <div className="p-3 space-y-1">
+                {UZBEK_REGIONS.map((city) => (
+                  <button
+                    key={city}
+                    type="button"
+                    onClick={() => {
+                      setValue("personalInfo.addressCity", city, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                        shouldTouch: true,
+                      });
+                      clearErrors("personalInfo.addressCity");
+                      setShowCityPicker(false);
+                    }}
+                    className={`
+                      w-full text-left px-4 py-4 rounded-xl transition-all text-base font-medium
+                      active:scale-98
+                      ${
+                        addressCity === city
+                          ? "bg-primary text-primary-content"
+                          : "hover:bg-base-200 active:bg-base-300"
+                      }
+                    `}
+                  >
+                    {city}
+                    {addressCity === city && (
+                      <span className="float-right">✓</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom Sheet: Country Picker (Mobile Only) */}
+      {isMobile && showCountryPicker && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 animate-in fade-in duration-200"
+          onClick={() => setShowCountryPicker(false)}
+        >
+          <div
+            className="fixed inset-x-0 bottom-0 bg-base-100 rounded-t-3xl max-h-[70vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Handle bar */}
+            <div className="shrink-0 pt-3 pb-2 flex justify-center">
+              <div className="w-12 h-1 bg-base-300 rounded-full" />
+            </div>
+
+            {/* Header */}
+            <div className="shrink-0 px-4 pb-3 border-b border-base-200">
+              <h3 className="font-bold text-lg text-center">
+                Davlatni tanlang
+              </h3>
+              <p className="text-sm text-center text-base-content/60 mt-1">
+                Land
+              </p>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto overscroll-contain">
+              <div className="p-3 space-y-1">
+                {countries
+                  .sort((a, b) => {
+                    // Priority countries at top
+                    const priority = [
+                      "Usbekistan",
+                      "Deutschland",
+                      "Russland",
+                      "Südkorea",
+                    ];
+                    const aIndex = priority.indexOf(a.deu);
+                    const bIndex = priority.indexOf(b.deu);
+                    if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
+                    if (aIndex !== -1) return -1;
+                    if (bIndex !== -1) return 1;
+                    return a.deu.localeCompare(b.deu);
+                  })
+                  .map((country) => (
+                    <button
+                      key={country.deu}
+                      type="button"
+                      onClick={() => {
+                        setValue("personalInfo.addressCountry", country.deu, {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                          shouldTouch: true,
+                        });
+                        clearErrors("personalInfo.addressCountry");
+                        setShowCountryPicker(false);
+                      }}
+                      className={`
+                      w-full text-left px-4 py-4 rounded-xl transition-all text-base font-medium
+                      active:scale-98
+                      ${
+                        addressCountry === country.deu
+                          ? "bg-primary text-primary-content"
+                          : "hover:bg-base-200 active:bg-base-300"
+                      }
+                    `}
+                    >
+                      {country.deu}
+                      {addressCountry === country.deu && (
+                        <span className="float-right">✓</span>
+                      )}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom Sheet: Birth Place Picker (Mobile Only) */}
+      {isMobile && showBirthPlacePicker && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 animate-in fade-in duration-200"
+          onClick={() => setShowBirthPlacePicker(false)}
+        >
+          <div
+            className="fixed inset-x-0 bottom-0 bg-base-100 rounded-t-3xl max-h-[70vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Handle bar */}
+            <div className="shrink-0 pt-3 pb-2 flex justify-center">
+              <div className="w-12 h-1 bg-base-300 rounded-full" />
+            </div>
+
+            {/* Header */}
+            <div className="shrink-0 px-4 pb-3 border-b border-base-200">
+              <h3 className="font-bold text-lg text-center">
+                Tug'ilgan shahar
+              </h3>
+              <p className="text-sm text-center text-base-content/60 mt-1">
+                Geburtsort
+              </p>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto overscroll-contain">
+              <div className="p-3 space-y-1">
+                {UZBEK_REGIONS.map((city) => (
+                  <button
+                    key={city}
+                    type="button"
+                    onClick={() => {
+                      setValue("personalInfo.birthPlace", city, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                        shouldTouch: true,
+                      });
+                      clearErrors("personalInfo.birthPlace");
+                      setShowBirthPlacePicker(false);
+                    }}
+                    className={`
+                      w-full text-left px-4 py-4 rounded-xl transition-all text-base font-medium
+                      active:scale-98
+                      ${
+                        watchBirthPlace === city
+                          ? "bg-primary text-primary-content"
+                          : "hover:bg-base-200 active:bg-base-300"
+                      }
+                    `}
+                  >
+                    {city}
+                    {watchBirthPlace === city && (
+                      <span className="float-right">✓</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
