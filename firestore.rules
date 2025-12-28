@@ -18,7 +18,7 @@ service cloud.firestore {
       return m.keys().hasAny([k]);
     }
 
-    // Limited admin can only touch comment fields on existing docs.
+    // Limited admin can touch comment, berufserfahrung, and ausbildung fields on existing docs.
     // (UI stores the actual comment in `commentar` and audit metadata in `commentarMeta`.)
     function limitedAdminValidCommentMeta() {
       // In Security Rules, request.resource.data is the full doc after update.
@@ -45,8 +45,8 @@ service cloud.firestore {
     function limitedAdminCanUpdate() {
       let diff = request.resource.data.diff(resource.data);
       return diff.removedKeys().size() == 0 &&
-             diff.addedKeys().hasOnly(['commentar', 'commentarMeta']) &&
-             diff.changedKeys().hasOnly(['commentar', 'commentarMeta']) &&
+             diff.addedKeys().hasOnly(['commentar', 'commentarMeta', 'berufserfahrung', 'ausbildung']) &&
+             diff.changedKeys().hasOnly(['commentar', 'commentarMeta', 'berufserfahrung', 'ausbildung']) &&
              limitedAdminValidCommentMeta();
     }
     match /{document=**} {

@@ -8,35 +8,37 @@ export default function CollapsibleSection({
   count,
   meta,
   className = "",
+  contentClassName = "",
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className={`bg-base-100 rounded-lg ${className}`}>
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between p-4 text-left hover:bg-base-200/50 transition-colors rounded-t-lg"
-      >
+    <div
+      className={`collapse ${
+        isOpen ? "collapse-open" : ""
+      } bg-base-100 shadow border border-base-200 ${className}`}
+    >
+      <input
+        type="checkbox"
+        checked={isOpen}
+        onChange={(e) => setIsOpen(e.target.checked)}
+        className="min-h-0"
+      />
+      <div className="collapse-title text-lg font-semibold flex items-center justify-between p-4">
         <div className="flex items-center gap-3">
-          <h3 className="text-lg font-semibold">{title}</h3>
+          {title}
           {count !== undefined && (
             <span className="badge badge-primary badge-sm">{count}</span>
           )}
-          {meta && (
-            <span className="text-sm text-base-content/60">{meta}</span>
-          )}
+          {meta && <span className="text-sm text-base-content/60">{meta}</span>}
         </div>
         <div className="text-base-content/60">
           {isOpen ? <FaChevronUp /> : <FaChevronDown />}
         </div>
-      </button>
-      
-      {isOpen && (
-        <div className="border-t border-base-300">
-          {children}
-        </div>
-      )}
+      </div>
+      <div className={`collapse-content ${contentClassName || "p-4 pt-0"}`}>
+        {children}
+      </div>
     </div>
   );
 }
