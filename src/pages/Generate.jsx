@@ -2240,7 +2240,6 @@ function Generate() {
 
   // Experience handlers
   function addExperience() {
-    if (isLimitedAdmin) return;
     setFormCv((prev) => {
       const next = [
         ...(Array.isArray(prev.experience) ? prev.experience : []),
@@ -2257,7 +2256,6 @@ function Generate() {
     });
   }
   function updateExperience(idx, field, value) {
-    if (isLimitedAdmin) return;
     setFormCv((prev) => {
       const next = [...prev.experience];
       next[idx] = { ...next[idx], [field]: value };
@@ -2265,14 +2263,12 @@ function Generate() {
     });
   }
   function removeExperience(idx) {
-    if (isLimitedAdmin) return;
     setFormCv((prev) => {
       const next = prev.experience.filter((_, i) => i !== idx);
       return { ...prev, experience: sortTimelineItemsDesc(next) };
     });
   }
   function addResponsibility(expIdx, text) {
-    if (isLimitedAdmin) return;
     if (!text?.trim()) return;
     setFormCv((prev) => {
       const next = [...prev.experience];
@@ -2282,7 +2278,6 @@ function Generate() {
     });
   }
   function removeResponsibility(expIdx, respIdx) {
-    if (isLimitedAdmin) return;
     setFormCv((prev) => {
       const next = [...prev.experience];
       const resp = next[expIdx].responsibilities.filter(
@@ -2295,7 +2290,6 @@ function Generate() {
 
   // Education handlers
   function addEducation() {
-    if (isLimitedAdmin) return;
     setFormCv((prev) => {
       const next = [
         ...(Array.isArray(prev.education) ? prev.education : []),
@@ -2305,7 +2299,6 @@ function Generate() {
     });
   }
   function updateEducation(idx, field, value) {
-    if (isLimitedAdmin) return;
     setFormCv((prev) => {
       const next = [...prev.education];
       next[idx] = { ...next[idx], [field]: value };
@@ -2313,7 +2306,6 @@ function Generate() {
     });
   }
   function removeEducation(idx) {
-    if (isLimitedAdmin) return;
     setFormCv((prev) => {
       const next = prev.education.filter((_, i) => i !== idx);
       return { ...prev, education: sortTimelineItemsDesc(next) };
@@ -3402,7 +3394,11 @@ function Generate() {
     try {
       setIsSaving(true);
       const payload = isLimitedAdmin
-        ? { commentar: String(commentHtml || "") }
+        ? {
+            commentar: String(commentHtml || ""),
+            berufserfahrung: formCv.experience || [],
+            ausbildung: formCv.education || [],
+          }
         : mapFormToDoc(formCv);
       if (nextCommentMeta) {
         payload.commentarMeta = nextCommentMeta;
@@ -3618,6 +3614,9 @@ function Generate() {
     !loading &&
     !notFound;
 
+  const showLimitedAdminSaveButton =
+    isLimitedAdmin && !isSaving && !loading && !notFound;
+
   function formatCommentDate(val) {
     if (!val) return "";
     try {
@@ -3831,7 +3830,7 @@ function Generate() {
           </div>
 
           <div className="flex items-center gap-2">
-            {!isLimitedAdmin && !remoteMode && (
+            {(!isLimitedAdmin || showLimitedAdminSaveButton) && !remoteMode && (
               <>
                 <button
                   className="btn btn-sm btn-primary"
@@ -4436,37 +4435,39 @@ function Generate() {
                         </div>
                       </div>
                     </div>
+                  </fieldset>
 
-                    <CollapsibleSection
-                      title="Berufserfahrung"
-                      count={experienceCount}
-                    >
-                      <ExperienceSection
-                        experience={formCv.experience}
-                        onAddExperience={addExperience}
-                        onUpdateExperience={updateExperience}
-                        onRemoveExperience={removeExperience}
-                        onAddResponsibility={addResponsibility}
-                        onRemoveResponsibility={removeResponsibility}
-                      />
-                    </CollapsibleSection>
+                  <CollapsibleSection
+                    title="Berufserfahrung"
+                    count={experienceCount}
+                  >
+                    <ExperienceSection
+                      experience={formCv.experience}
+                      onAddExperience={addExperience}
+                      onUpdateExperience={updateExperience}
+                      onRemoveExperience={removeExperience}
+                      onAddResponsibility={addResponsibility}
+                      onRemoveResponsibility={removeResponsibility}
+                    />
+                  </CollapsibleSection>
 
-                    <CollapsibleSection
-                      title="Ausbildung"
-                      count={educationCount}
-                    >
-                      <EducationSection
-                        education={formCv.education}
-                        onAddEducation={addEducation}
-                        onUpdateEducation={updateEducation}
-                        onRemoveEducation={removeEducation}
-                      />
-                    </CollapsibleSection>
+                  <CollapsibleSection title="Ausbildung" count={educationCount}>
+                    <EducationSection
+                      education={formCv.education}
+                      onAddEducation={addEducation}
+                      onUpdateEducation={updateEducation}
+                      onRemoveEducation={removeEducation}
+                    />
+                  </CollapsibleSection>
 
+                  <fieldset
+                    disabled={isLimitedAdmin || remoteMode}
+                    className="space-y-4 disabled:opacity-70"
+                  >
                     <CollapsibleSection
                       title="Fähigkeiten"
                       className="!overflow-visible"
-                      contentClassName="!overflow-visible"
+                      contentClassName="p-0"
                       openClassName="relative z-[80]"
                     >
                       <div className="mb-4 rounded-box border border-base-300 bg-base-200/40 p-4">
@@ -4910,32 +4911,7 @@ function Generate() {
                             {commentActionLabel}
                           </button>
                         </div>
-                        <div className="pt-2">
-                          {showLimitedCommentSaveButton && (
-                            <div className="flex flex-col gap-2">
-                              <button
-                                type="button"
-                                className={`btn btn-primary w-full ${
-                                  !canSaveComment ? "btn-disabled" : ""
-                                }`}
-                                onClick={handleSave}
-                                disabled={!canSaveComment}
-                              >
-                                {isSaving ? (
-                                  <>
-                                    <span className="loading loading-spinner loading-sm" />
-                                    Wird gespeichert...
-                                  </>
-                                ) : (
-                                  <>
-                                    <FaSave />
-                                    <span>Speichern</span>
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          )}
-                        </div>
+                        <div className="pt-2"></div>
                       </div>
                     </div>
                   </aside>
