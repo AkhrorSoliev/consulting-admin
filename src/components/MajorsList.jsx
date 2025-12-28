@@ -69,9 +69,9 @@ function resolveLinkType(rawType, link) {
 
 // Create-link origin (manual switch):
 // Local test:
-const CREATE_LINK_ORIGIN = "http://localhost:5173";
+// const CREATE_LINK_ORIGIN = "http://localhost:5173";
 // Production:
-// const CREATE_LINK_ORIGIN = "https://admin.consultinguz.de";
+const CREATE_LINK_ORIGIN = "https://admin.consultinguz.de";
 
 function buildCreateLink(major, lead) {
   const linkId =
