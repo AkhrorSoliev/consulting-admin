@@ -15,6 +15,7 @@ export default function DeleteCandidateModal({
   cancelLabel = "Abbrechen",
   archiveLabel = "Archivieren",
   deleteLabel = "Löschen",
+  skipCountdown = false,
 }) {
   const displayName = useMemo(() => {
     const n = String(candidateName || "").trim();
@@ -26,13 +27,14 @@ export default function DeleteCandidateModal({
 
   useEffect(() => {
     if (!open) return;
-    setSecondsLeft(seconds);
+    setSecondsLeft(skipCountdown ? 0 : seconds);
     setPendingAction("");
+    if (skipCountdown) return;
     const id = window.setInterval(() => {
       setSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => window.clearInterval(id);
-  }, [open, seconds]);
+  }, [open, seconds, skipCountdown]);
 
   if (!open) return null;
 

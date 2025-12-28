@@ -27,7 +27,8 @@ function todayDdMmYyyy() {
 
 export default function Contract() {
   const { role, loadingRole } = useUserRole();
-  const canWriteTemplate = !loadingRole && (role === "super_admin" || role === "admin");
+  const canWriteTemplate =
+    !loadingRole && (role === "super_admin" || role === "admin");
   const { user } = useSelector((state) => state.auth);
 
   const [form, setForm] = useState(() => ({
@@ -72,7 +73,10 @@ export default function Contract() {
 
       const data = snap.data() || {};
       const savedForm =
-        data && typeof data === "object" && data.form && typeof data.form === "object"
+        data &&
+        typeof data === "object" &&
+        data.form &&
+        typeof data.form === "object"
           ? data.form
           : null;
 
@@ -93,7 +97,7 @@ export default function Contract() {
       }
     } catch (e) {
       console.error(e);
-      toast.error("Template yuklashda xatolik.");
+      toast.error("Fehler beim Laden der Vorlage.");
       didHydrateRef.current = true;
     } finally {
       setIsLoadingTemplate(false);
@@ -119,7 +123,9 @@ export default function Contract() {
         updatedByEmail: user?.email || null,
       };
 
-      await setDoc(doc(db, TEMPLATE_COLLECTION, TEMPLATE_ID), payload, { merge: true });
+      await setDoc(doc(db, TEMPLATE_COLLECTION, TEMPLATE_ID), payload, {
+        merge: true,
+      });
 
       lastSavedJsonRef.current = JSON.stringify(form);
       setHasUnsavedTemplate(false);
@@ -127,7 +133,7 @@ export default function Contract() {
       return true;
     } catch (e) {
       console.error(e);
-      if (!silent) toast.error("Template saqlashda xatolik.");
+      if (!silent) toast.error("Fehler beim Speichern der Vorlage.");
       return false;
     } finally {
       saveInFlightRef.current = false;
@@ -179,7 +185,8 @@ export default function Contract() {
       const fileBase = clientFullName
         ? `Beratungsvertrag ${clientFullName}`
         : "Beratungsvertrag";
-      const safeFileName = fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Beratungsvertrag";
+      const safeFileName =
+        fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Beratungsvertrag";
       const blob = await pdf(
         <BeratungsvertragPdfDocument
           form={form}
@@ -201,7 +208,8 @@ export default function Contract() {
     }
   }
 
-  const layoutClass = "flex flex-col lg:flex-row gap-6 items-start lg:items-stretch";
+  const layoutClass =
+    "flex flex-col lg:flex-row gap-6 items-start lg:items-stretch";
   const formCard =
     "card bg-base-100 shadow-2xl border border-base-300 rounded-2xl w-full lg:max-w-[520px] shrink-0 max-h-[calc(100vh-2rem)] lg:sticky lg:top-2 overflow-y-auto";
 
@@ -213,7 +221,10 @@ export default function Contract() {
           <div className="breadcrumbs text-sm">
             <ul>
               <li>
-                <Link to="/settings/documents" className="link flex items-center gap-2">
+                <Link
+                  to="/settings/documents"
+                  className="link flex items-center gap-2"
+                >
                   <FaArrowLeft /> Zurück
                 </Link>
               </li>
@@ -234,7 +245,12 @@ export default function Contract() {
               type="button"
               className="btn btn-sm btn-primary"
               onClick={() => saveTemplate({ silent: false })}
-              disabled={isLoadingTemplate || isSavingTemplate || !hasUnsavedTemplate || !canWriteTemplate}
+              disabled={
+                isLoadingTemplate ||
+                isSavingTemplate ||
+                !hasUnsavedTemplate ||
+                !canWriteTemplate
+              }
               title={
                 !canWriteTemplate
                   ? "Saqlash uchun admin huquqi kerak"
@@ -260,16 +276,18 @@ export default function Contract() {
           </div>
         </div>
       </div>
-      <div className="h-14 print:hidden" />
+      <div className="h-20 print:hidden" />
 
       <div className={layoutClass}>
         <section className={formCard}>
           <div className="card-body space-y-4">
             <h2 className="card-title text-2xl font-bold">Vertrag ausfüllen</h2>
             <p className="text-sm opacity-70">
-              Nur die wichtigsten Felder: <span className="font-semibold">Name</span>,{" "}
+              Nur die wichtigsten Felder:{" "}
+              <span className="font-semibold">Name</span>,{" "}
               <span className="font-semibold">Nachname</span>,{" "}
-              <span className="font-semibold">Datum</span>. Vorschau aktualisiert sofort.
+              <span className="font-semibold">Datum</span>. Vorschau
+              aktualisiert sofort.
             </p>
 
             <div className="divider">Auftraggeber</div>
@@ -297,11 +315,15 @@ export default function Contract() {
               placeholder="YYYY-MM-DD"
               value={toInputDate(form.contractDate)}
               onChange={(e) =>
-                setForm((p) => ({ ...p, contractDate: fromInputDate(e.target.value) }))
+                setForm((p) => ({
+                  ...p,
+                  contractDate: fromInputDate(e.target.value),
+                }))
               }
               helperText={
                 <span className="text-xs opacity-70">
-                  Im Vertrag als <span className="font-semibold">dd.mm.yyyy</span> verwendet.
+                  Im Vertrag als{" "}
+                  <span className="font-semibold">dd.mm.yyyy</span> verwendet.
                 </span>
               }
             />
@@ -315,7 +337,8 @@ export default function Contract() {
               }
               helperText={
                 <span className="text-xs opacity-70">
-                  Wird unten als <span className="font-semibold">„Ort, Datum“</span> angezeigt.
+                  Wird unten als{" "}
+                  <span className="font-semibold">„Ort, Datum“</span> angezeigt.
                 </span>
               }
             />
@@ -329,7 +352,9 @@ export default function Contract() {
               }
               helperText={
                 <span className="text-xs opacity-70">
-                  Wird unter dem Passbild als <span className="font-semibold">„Datum: Ort, Datum“</span> angezeigt.
+                  Wird unter dem Passbild als{" "}
+                  <span className="font-semibold">„Datum: Ort, Datum“</span>{" "}
+                  angezeigt.
                 </span>
               }
             />
@@ -340,7 +365,10 @@ export default function Contract() {
               placeholder="YYYY-MM-DD"
               value={toInputDate(form.pdfGeneratedDate)}
               onChange={(e) =>
-                setForm((p) => ({ ...p, pdfGeneratedDate: fromInputDate(e.target.value) }))
+                setForm((p) => ({
+                  ...p,
+                  pdfGeneratedDate: fromInputDate(e.target.value),
+                }))
               }
               helperText={
                 <span className="text-xs opacity-70">
@@ -353,10 +381,13 @@ export default function Contract() {
               label="PDF link (test)"
               placeholder="https://example.com/file.pdf"
               value={form.pdfUrl}
-              onChange={(e) => setForm((p) => ({ ...p, pdfUrl: e.target.value }))}
+              onChange={(e) =>
+                setForm((p) => ({ ...p, pdfUrl: e.target.value }))
+              }
               helperText={
                 <span className="text-xs opacity-70">
-                  Faqat PDF URL’ni qo‘ying (console error matnini emas). CORS bo‘lsa, proxy orqali aylanib o‘tamiz.
+                  Faqat PDF URL’ni qo‘ying (console error matnini emas). CORS
+                  bo‘lsa, proxy orqali aylanib o‘tamiz.
                   {String(form.pdfUrl || "").trim() ? (
                     <>
                       {" "}
@@ -398,7 +429,10 @@ export default function Contract() {
               onChange={(e) =>
                 setForm((p) => ({
                   ...p,
-                  feeAdvanceEur: String(e.target.value || "").replace(/\D+/g, ""),
+                  feeAdvanceEur: String(e.target.value || "").replace(
+                    /\D+/g,
+                    ""
+                  ),
                 }))
               }
             />
@@ -412,7 +446,9 @@ export default function Contract() {
               inputClassName="opacity-70"
               helperText={
                 <span className="text-xs opacity-70">
-                  Wird automatisch als <span className="font-semibold">Gesamt − Anzahlung</span> berechnet.
+                  Wird automatisch als{" "}
+                  <span className="font-semibold">Gesamt − Anzahlung</span>{" "}
+                  berechnet.
                 </span>
               }
             />
@@ -421,7 +457,8 @@ export default function Contract() {
             <div className="text-sm">
               <div className="font-semibold mb-1">Tipp</div>
               <div className="opacity-70">
-                Wenn Name leer bleibt, werden im Vertrag Platzhalter‑Linien angezeigt.
+                Wenn Name leer bleibt, werden im Vertrag Platzhalter‑Linien
+                angezeigt.
               </div>
             </div>
           </div>
@@ -436,5 +473,3 @@ export default function Contract() {
     </div>
   );
 }
-
-

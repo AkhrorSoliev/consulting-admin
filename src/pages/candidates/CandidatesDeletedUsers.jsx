@@ -159,7 +159,7 @@ export default function CandidatesDeletedUsers() {
     if (!isPrivileged) return;
     const docId = String(record?.id || "").trim();
     if (!docId) {
-      toast.error("deleted_users docId topilmadi.");
+      toast.error("deleted_users docId nicht gefunden.");
       return;
     }
 
@@ -203,12 +203,12 @@ export default function CandidatesDeletedUsers() {
           await deleteDoc(doc(db, "deleted_users", String(record.id).trim()));
         }
 
-        toast.success(`Tiklandi: ${major} (id=${newId})`);
+        toast.success(`Wiederhergestellt: ${major} (id=${newId})`);
         setConfirmState(null);
         await load();
       } catch (e) {
         console.error(e);
-        toast.error("Tiklashda xato.");
+        toast.error("Fehler beim Wiederherstellen.");
       } finally {
         setRestoringKey("");
       }
@@ -232,12 +232,12 @@ export default function CandidatesDeletedUsers() {
         }
 
         await deleteDoc(doc(db, "deleted_users", docId));
-        toast.success("Butunlay o‘chirildi (deleted_users + files).");
+        toast.success("Endgültig gelöscht (deleted_users + Dateien).");
         setConfirmState(null);
         await load();
       } catch (e) {
         console.error(e);
-        toast.error("O‘chirishda xato.");
+        toast.error("Fehler beim Löschen.");
       } finally {
         setDeletingKey("");
       }

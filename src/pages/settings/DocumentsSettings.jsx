@@ -5,6 +5,8 @@ import { DOCUMENT_TEMPLATES } from "../../constants/documentTemplates";
 export default function DocumentsSettings() {
   const { role, loadingRole } = useUserRole({ forceRefresh: true });
   const isSuperAdmin = role === "super_admin";
+  const isAdmin = role === "admin";
+  const canAccess = isSuperAdmin || isAdmin;
 
   if (loadingRole) {
     return (
@@ -22,10 +24,11 @@ export default function DocumentsSettings() {
           Hier finden Sie gespeicherte Dokument‑Templates. Klicken Sie ein
           Template an, um es zu öffnen.
         </p>
-        {!isSuperAdmin ? (
+        {!canAccess ? (
           <div className="alert alert-info mt-3">
             <span className="text-sm">
               Hinweis: Einige administrative Dokument‑Funktionen sind nur für{" "}
+              <span className="font-mono">role=admin</span> oder{" "}
               <span className="font-mono">role=super_admin</span> verfügbar.
             </span>
           </div>

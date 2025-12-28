@@ -55,7 +55,7 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
     const TOP = 12;
     const top = items.slice(0, TOP);
     const others = items.slice(TOP).reduce((sum, x) => sum + (x.count || 0), 0);
-    const labels = [...top.map((x) => x.name), ...(others > 0 ? ["Boshqalar"] : [])];
+    const labels = [...top.map((x) => x.name), ...(others > 0 ? ["Andere"] : [])];
     const values = [...top.map((x) => x.count || 0), ...(others > 0 ? [others] : [])];
 
     return {
@@ -179,7 +179,7 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
       labels: leadCharts.labels,
       datasets: [
         {
-          label: "Soni",
+          label: "Anzahl",
           data: leadCharts.values,
           backgroundColor: leadCharts.values.map(
             (_, i) => COLORS[i % COLORS.length]
@@ -197,7 +197,7 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
       labels: leadCharts.labels,
       datasets: [
         {
-          label: "Soni",
+          label: "Anzahl",
           data: leadCharts.values,
           backgroundColor: leadCharts.values.map(
             (_, i) => COLORS[i % COLORS.length]
@@ -380,7 +380,7 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
           ticks: {
             autoSkip: false,
             callback: function (val) {
-              // Chart.js gives tick value; convert to label
+              // Chart.js gibt Tick-Wert; in Label umwandeln
               const label = this.getLabelForValue(val);
               const s = String(label || "");
               return s.length > 22 ? `${s.slice(0, 22)}…` : s;
@@ -421,8 +421,8 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
               <div className="stat-value text-primary">{totalUsers}</div>
               <div className="stat-desc">
                 {kind === "allTime"
-                  ? "Tarixiy yig‘indi (delete bo‘lsa ham kamaymaydi)"
-                  : "Hozirgi holat (delete bo‘lsa kamayadi)"}
+                  ? "Historische Summe (wird bei Löschung nicht reduziert)"
+                  : "Aktueller Stand (wird bei Löschung reduziert)"}
               </div>
             </div>
 
@@ -430,7 +430,7 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
               <div className="stat-title">Sammlungen ({kindLabel})</div>
               <div className="stat-value text-secondary">{totalCollections}</div>
               <div className="stat-desc">
-                {kind === "allTime" ? "Tarixiy ro‘yxat" : "Aktiv kategoriyalar"}
+                {kind === "allTime" ? "Historische Liste" : "Aktive Kategorien"}
               </div>
             </div>
 
@@ -481,27 +481,27 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
             <div className="card bg-base-100 shadow border border-base-200">
               <div className="card-body">
                 <h2 className="card-title text-lg mb-4">
-                  Lead bo‘yicha statistika
+                  Lead-Statistik
                 </h2>
                 {leadCounts.length === 0 ? (
-                  <div className="opacity-70 text-sm">Lead ma’lumot yo‘q.</div>
+                  <div className="opacity-70 text-sm">Keine Lead-Daten verfügbar.</div>
                 ) : (
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div className="stat bg-base-200/30 rounded-box border border-base-200">
-                        <div className="stat-title">Unique lead</div>
+                        <div className="stat-title">Einzigartige Leads</div>
                         <div className="stat-value text-primary text-2xl">
                           {leadCharts.unique}
                         </div>
                       </div>
                       <div className="stat bg-base-200/30 rounded-box border border-base-200">
-                        <div className="stat-title">Jami lead</div>
+                        <div className="stat-title">Gesamt Leads</div>
                         <div className="stat-value text-secondary text-2xl">
                           {leadCharts.total}
                         </div>
                       </div>
                       <div className="stat bg-base-200/30 rounded-box border border-base-200">
-                        <div className="stat-title">Top lead</div>
+                        <div className="stat-title">Top Lead</div>
                         <div className="stat-value text-accent text-2xl">
                           {leadCounts?.[0]?.count ?? 0}
                         </div>
@@ -514,21 +514,21 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                       <div className="rounded-box border border-base-200 p-4">
                         <div className="font-medium mb-3">
-                          Top leadlar (bar)
+                          Top Leads (Balkendiagramm)
                         </div>
                         <div className="h-72">
                           <Bar data={leadBarData} options={leadBarOptions} />
                         </div>
                         {leadCharts.others > 0 ? (
                           <div className="text-xs opacity-70 mt-2">
-                            “Boshqalar” = top 12 dan tashqari jami
+                            "Andere" = Summe außerhalb der Top 12
                           </div>
                         ) : null}
                       </div>
 
                       <div className="rounded-box border border-base-200 p-4">
                         <div className="font-medium mb-3">
-                          Ulush (pie)
+                          Anteil (Kreisdiagramm)
                         </div>
                         <div className="h-72">
                           <Pie data={leadPieData} options={pieOptions} />
@@ -558,7 +558,7 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
                             <thead>
                               <tr>
                                 <th>Lead</th>
-                                <th className="text-right">Soni</th>
+                                <th className="text-right">Anzahl</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -576,7 +576,7 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
                   {perMajorLeadCounts.filter((x) => x.leads?.length > 0)
                     .length === 0 ? (
                     <div className="opacity-70 text-sm">
-                      Berufsfeld+Lead ma’lumot yo‘q.
+                      Keine Berufsfeld+Lead Daten verfügbar.
                     </div>
                   ) : null}
                 </div>
@@ -722,21 +722,21 @@ function Home() {
     };
   }, []);
 
-  // Auto-initialize / auto-repair ALL-TIME (no button).
-  // Rules:
-  // - ALL-TIME must NEVER be below LIVE.
-  // - We only ever increment `stats/global` fields that are smaller than LIVE (monotonic).
+  // Auto-Initialisierung / Auto-Reparatur ALL-TIME (kein Button).
+  // Regeln:
+  // - ALL-TIME darf NIEMALS unter LIVE liegen.
+  // - Wir erhöhen nur `stats/global` Felder, die kleiner als LIVE sind (monoton).
   useEffect(() => {
     if (!canInitAllTime) return;
     if (!liveStats) return;
 
-    // Avoid spamming transactions: only attempt when ALL-TIME is missing or totals look behind.
+    // Transaktions-Spam vermeiden: nur versuchen, wenn ALL-TIME fehlt oder Summen dahinter liegen.
     const liveTotal = Number(liveStats?.totals?.candidates || 0);
     const allTotal = allTimeStats ? Number(allTimeStats?.totals?.candidates || 0) : null;
     const shouldFix = allTotal === null || allTotal < liveTotal;
     if (!shouldFix) return;
 
-    // debounce / throttle: schedule one repair shortly after LIVE settles
+    // Debounce / Throttle: eine Reparatur kurz nach LIVE-Stabilisierung einplanen
     if (ensureInFlightRef.current) return;
     if (ensureTimerRef.current) window.clearTimeout(ensureTimerRef.current);
     ensureTimerRef.current = window.setTimeout(async () => {
@@ -744,7 +744,7 @@ function Home() {
         ensureInFlightRef.current = true;
         await ensureStatsDocAtLeast("global", liveStats);
       } catch (e) {
-        console.error("ALL-TIME ensureStatsDocAtLeast failed:", e);
+        console.error("ALL-TIME ensureStatsDocAtLeast fehlgeschlagen:", e);
       } finally {
         ensureInFlightRef.current = false;
       }
@@ -777,7 +777,7 @@ function Home() {
       };
     }
 
-    // ---- Helpers (same logic as before) ----
+    // ---- Hilfsfunktionen (gleiche Logik wie zuvor) ----
     const toAge = (ddmmyyyy) => {
       try {
         if (!ddmmyyyy || typeof ddmmyyyy !== "string") return null;
@@ -1069,7 +1069,7 @@ function Home() {
           onAnyUpdate();
         },
         (err) => {
-          console.error("LIVE onSnapshot error:", err);
+          console.error("LIVE onSnapshot Fehler:", err);
           if (cancelled) return;
           setError("Fehler beim Laden der Live-Daten.");
           setLoading(false);
@@ -1092,7 +1092,7 @@ function Home() {
           <div>
             <h1 className="text-3xl font-bold mb-2">Dashboard & Statistiken</h1>
             <p className="text-base opacity-70">
-              Live (ayni vaqtdagi) va Jami (all-time) statistikalar.
+              Live (aktuell) und Gesamt (historisch) Statistiken.
             </p>
           </div>
         </div>
@@ -1108,9 +1108,9 @@ function Home() {
         </div>
       ) : !liveStats && !allTimeStats ? (
         <div className="text-center py-24 opacity-70">
-          <h3 className="text-xl font-medium">Statistika topilmadi</h3>
+          <h3 className="text-xl font-medium">Keine Statistiken gefunden</h3>
           <p className="mt-2">
-            Statistika doc’lari hali yaratilmagan. Yangi kandidat qo‘shilganda avtomatik yaratiladi.
+            Statistikdokumente wurden noch nicht erstellt. Sie werden automatisch erstellt, wenn neue Kandidaten hinzugefügt werden.
           </p>
         </div>
       ) : (
@@ -1118,9 +1118,9 @@ function Home() {
           <div className="collapse collapse-arrow bg-base-100 shadow border border-base-200">
             <input type="checkbox" defaultChecked={true} />
             <div className="collapse-title text-xl font-semibold">
-              Ayni vaqtdagi statistika (LIVE)
+              Aktuelle Statistik (LIVE)
               <div className="text-sm font-normal opacity-70 mt-1">
-                Bazadagi hozirgi holat. Delete bo‘lsa kamayadi.
+                Aktueller Datenbankstand. Wird bei Löschung reduziert.
               </div>
             </div>
             <div className="collapse-content">
@@ -1128,10 +1128,10 @@ function Home() {
                 {!liveStats ? (
                   <div className="text-center py-10 opacity-70">
                     <h3 className="text-xl font-medium">
-                      Live statistika yo‘q
+                      Keine Live-Statistik verfügbar
                     </h3>
                     <p className="mt-2">
-                      Berufsfelder bo‘yicha ma’lumot topilmadi.
+                      Keine Daten nach Berufsfeldern gefunden.
                     </p>
                   </div>
                 ) : (
@@ -1150,9 +1150,9 @@ function Home() {
           <div className="collapse collapse-arrow bg-base-100 shadow border border-base-200">
             <input type="checkbox" defaultChecked={false} />
             <div className="collapse-title text-xl font-semibold">
-              Jami statistika (ALL‑TIME)
+              Gesamtstatistik (HISTORISCH)
               <div className="text-sm font-normal opacity-70 mt-1">
-                Tarixiy yig‘ilgan. Delete bo‘lsa kamaymaydi.
+                Historisch gesammelt. Wird bei Löschung nicht reduziert.
               </div>
             </div>
             <div className="collapse-content">
@@ -1160,10 +1160,10 @@ function Home() {
                 {!allTimeStats ? (
                   <div className="text-center py-10 opacity-70">
                     <h3 className="text-xl font-medium">
-                      Jami statistika yo‘q (stats/global)
+                      Keine Gesamtstatistik verfügbar (stats/global)
                     </h3>
                     <p className="mt-2">
-                      Yangi kandidat qo‘shilganda avtomatik paydo bo‘ladi.
+                      Wird automatisch erstellt, wenn neue Kandidaten hinzugefügt werden.
                     </p>
                   </div>
                 ) : (
