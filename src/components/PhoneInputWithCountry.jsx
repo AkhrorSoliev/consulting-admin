@@ -296,7 +296,7 @@ export default function PhoneInputWithCountry({
               <div className="p-3 space-y-1">
                 {filtered.length === 0 ? (
                   <div className="p-3 text-sm opacity-70 text-center">
-                    Natija topilmadi
+                    Keine Ergebnisse gefunden
                   </div>
                 ) : (
                   filtered.map((c) => {

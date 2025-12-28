@@ -17,7 +17,7 @@ function menuItemClass({ isActive }) {
 export default function SettingsLayout() {
   const { role, loadingRole } = useUserRole({ forceRefresh: true });
   const showAdmins = !loadingRole && role === "super_admin";
-  const showTelegramGroups = showAdmins;
+  const showTelegramGroups = !loadingRole && (role === "super_admin" || role === "admin");
 
   return (
     <div className="w-full mx-auto">

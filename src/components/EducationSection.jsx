@@ -1,6 +1,9 @@
+import { useState, useEffect } from "react";
 import FormInput from "./FormInput";
 import RequiredLabel from "./RequiredLabel";
+import CollapsibleSection from "./CollapsibleSection";
 import { toInputMonth, fromInputMonth } from "../utils";
+import { Trash2 } from "lucide-react";
 
 function EducationSection({
   education,
@@ -13,31 +16,98 @@ function EducationSection({
 }) {
   const fieldInput = "input input-bordered w-full";
 
+  const [openIndex, setOpenIndex] = useState(education.length - 1);
+
+  // When a new education is added, open the last one
+  useEffect(() => {
+    setOpenIndex(education.length - 1);
+  }, [education.length]);
+
+  // Check if current education is filled
+  const isEducationFilled = (edu) => {
+    return (
+      edu.startDate &&
+      edu.endDate &&
+      edu.institution &&
+      edu.degree
+    );
+  };
+
+  // Check if education is completely empty
+  const isEducationEmpty = (edu) => {
+    return (
+      !edu.startDate &&
+      !edu.endDate &&
+      !edu.institution &&
+      !edu.degree
+    );
+  };
+
+  // Check if education is partially filled (some fields filled, but not all)
+  const isEducationPartiallyFilled = (edu) => {
+    return !isEducationFilled(edu) && !isEducationEmpty(edu);
+  };
+
+  const canAddNew = () => {
+    if (education.length === 0) return true;
+    const lastEdu = education[education.length - 1];
+    return isEducationFilled(lastEdu);
+  };
+
+  const handleAddEducation = () => {
+    if (canAddNew()) {
+      onAddEducation();
+      // Set the next index to be open immediately
+      setTimeout(() => {
+        setOpenIndex(education.length);
+      }, 0);
+    }
+  };
+
+  const handleToggle = (idx, newOpen) => {
+    // If opening this item, set it as the open index
+    // If closing, set -1 (no item open)
+    if (newOpen) {
+      setOpenIndex(idx);
+    } else {
+      setOpenIndex(-1);
+    }
+  };
+
   return (
-    <div className="space-y-6">
-      {(!Array.isArray(education) || education.length === 0) ? (
+    <div className="space-y-3">
+      {education.length === 0 && (
         <div className="alert alert-info text-sm">
           Bitte fügen Sie mindestens eine vollständige Ausbildungsstation hinzu
           und füllen Sie alle Felder aus (z. B. Schule).
         </div>
-      ) : null}
-      {education.map((edu, idx) => (
-        <div
+      )}
+      {education.map((edu, idx) => {
+        const isFilled = isEducationFilled(edu);
+        const hasErrors = errors[idx] && Object.values(errors[idx]).some(Boolean);
+        
+        return (
+        <CollapsibleSection
           key={idx}
-          className="p-4 sm:p-5 rounded-xl border border-base-300 bg-base-100 shadow-sm space-y-3 ring-1 ring-base-200/80"
+          title={`Ausbildung #${idx + 1}`}
+          isOpen={idx === openIndex}
+          onToggle={(newOpen) => handleToggle(idx, newOpen)}
+          className={`
+            ${hasErrors ? "border-error/60 shadow-error/25 shadow" : 
+              isFilled ? "border-success/60 shadow-success/25 shadow" : "shadow-sm"}
+          `}
+          contentClassName="space-y-3"
         >
-          <div className="flex items-center justify-between mb-1">
-            <h3 className="font-semibold text-base">Ausbildung #{idx + 1}</h3>
-            <div className="flex items-center gap-2">
-              {typeof renderItemActions === "function" ? renderItemActions(idx, edu) : null}
-              <button
-                type="button"
-                className="btn btn-ghost btn-xs text-error hover:bg-error/10"
-                onClick={() => onRemoveEducation(idx)}
-              >
-                Entfernen
-              </button>
-            </div>
+          <div className="flex items-center justify-end gap-2 mb-3">
+            {typeof renderItemActions === "function" ? renderItemActions(idx, edu) : null}
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs text-error hover:bg-error/10"
+              onClick={() => onRemoveEducation(idx)}
+              title="Entfernen"
+            >
+              <Trash2 size={16} />
+            </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -103,17 +173,24 @@ function EducationSection({
               onChange={(e) => onUpdateEducation(idx, "degree", e.target.value)}
             />
           </div>
-        </div>
-      ))}
+        </CollapsibleSection>
+        );
+      })}
       <button
         type="button"
         className={`btn btn-outline btn-sm ${
           showRequiredWarning ? "btn-error border-error/60 text-error" : ""
-        }`}
-        onClick={onAddEducation}
+        } ${!canAddNew() ? "btn-disabled opacity-50" : ""}`}
+        onClick={handleAddEducation}
+        disabled={!canAddNew()}
       >
         + Ausbildungsstation hinzufügen
       </button>
+      {education.length > 0 && isEducationPartiallyFilled(education[education.length - 1]) && (
+        <div className="mt-2 alert alert-warning text-sm">
+          Bitte füllen Sie alle Felder der aktuellen Ausbildung aus, bevor Sie eine neue hinzufügen.
+        </div>
+      )}
       {showRequiredWarning ? (
         <div className="mt-2 alert alert-warning text-sm">
           Bitte fügen Sie mindestens eine vollständige Ausbildungsstation hinzu

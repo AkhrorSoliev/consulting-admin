@@ -69,9 +69,9 @@ function resolveLinkType(rawType, link) {
 
 // Create-link origin (manual switch):
 // Local test:
-// const CREATE_LINK_ORIGIN = "http://localhost:5173";
+const CREATE_LINK_ORIGIN = "http://localhost:5173";
 // Production:
-const CREATE_LINK_ORIGIN = "https://admin.consultinguz.de";
+// const CREATE_LINK_ORIGIN = "https://admin.consultinguz.de";
 
 function buildCreateLink(major, lead) {
   const linkId =
@@ -318,7 +318,7 @@ function MajorSettingsModal({
       );
 
       if (emails.length === 0) {
-        toast.error("Bu collection’da email topilmadi.");
+        toast.error("Keine E-Mails in dieser Sammlung gefunden.");
         return;
       }
 
@@ -366,7 +366,7 @@ function MajorSettingsModal({
       }
 
       toast.success(
-        `Tayyor: yuborildi=${sent}, xato=${failed}, jami=${emails.length}`
+        `Fertig: gesendet=${sent}, fehler=${failed}, gesamt=${emails.length}`
       );
     } finally {
       setTgSending(false);

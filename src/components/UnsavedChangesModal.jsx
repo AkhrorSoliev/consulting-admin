@@ -21,6 +21,14 @@ export default function UnsavedChangesModal({
                 <p className="text-sm opacity-70 mt-1">{message}</p>
               ) : null}
             </div>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={onStay}
+              aria-label="Modalni yopish"
+            >
+              ✕
+            </button>
           </div>
 
           <div className="flex justify-end gap-2 pt-2">

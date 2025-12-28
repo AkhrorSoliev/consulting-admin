@@ -824,9 +824,26 @@ function Generate() {
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [photoModalSrc, setPhotoModalSrc] = useState("");
 
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerWidth < 1024;
+  });
+  const [showBirthPlacePicker, setShowBirthPlacePicker] = useState(false);
+  const [showMaritalStatusPicker, setShowMaritalStatusPicker] = useState(false);
+
   const [isDrivingLicenseDropdownOpen, setIsDrivingLicenseDropdownOpen] =
     useState(false);
   const drivingLicenseDropdownRef = useRef(null);
+
+  useEffect(() => {
+    // Track window size for mobile vs desktop UI
+    if (typeof window === "undefined") return;
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 1024);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
 
   useEffect(() => {
     if (!isDrivingLicenseDropdownOpen) return;
@@ -1201,7 +1218,7 @@ function Generate() {
       toast.success("PDF tayyor bo‘ldi va upload qilindi.");
     } catch (e) {
       console.error("Outgoing doc generate/upload failed:", e);
-      toast.error("PDF yaratish yoki upload qilishda xatolik.");
+      toast.error("Fehler beim Erstellen oder Hochladen der PDF.");
     } finally {
       setOutgoingBusyById((p) => ({ ...(p || {}), [templateId]: false }));
     }
@@ -1663,7 +1680,7 @@ function Generate() {
     if (!remoteMode) return;
     if (restoreBusy) return;
     if (!remoteRecord) {
-      toast.error("Remote kandidat topilmadi.");
+      toast.error("Remote-Kandidat nicht gefunden.");
       return;
     }
     try {
@@ -1767,7 +1784,7 @@ function Generate() {
 
       if (remoteKind === "deleted") {
         if (!deletedDocId) {
-          toast.error("deletedDocId topilmadi.");
+          toast.error("deletedDocId nicht gefunden.");
           return;
         }
         const majorCol = resolvedMeta.collectionName;
@@ -1803,10 +1820,10 @@ function Generate() {
         return;
       }
 
-      toast.error("Remote manbasi noma’lum (kind).");
+      toast.error("Remote-Quelle unbekannt (kind).");
     } catch (e) {
       console.error(e);
-      toast.error("Tiklashda xato.");
+      toast.error("Fehler beim Wiederherstellen.");
     } finally {
       setRestoreBusy(false);
     }
@@ -1895,7 +1912,7 @@ function Generate() {
 
       if (remoteKind === "deleted") {
         if (!deletedDocId) {
-          toast.error("deletedDocId topilmadi.");
+          toast.error("deletedDocId nicht gefunden.");
           return;
         }
 
@@ -1924,10 +1941,10 @@ function Generate() {
         return;
       }
 
-      toast.error("Remote manbasi noma’lum (kind).");
+      toast.error("Remote-Quelle unbekannt (kind).");
     } catch (e) {
       console.error(e);
-      toast.error("Tiklashda xato.");
+      toast.error("Fehler beim Wiederherstellen.");
     } finally {
       setRestoreBusy(false);
     }
@@ -2594,19 +2611,40 @@ function Generate() {
         throw new Error("E-Mail wurde nicht gesendet (success=false).");
       }
 
-      // Count "dispatched" invites when a Telegram invite link was used for this send.
+      // Count "sent" telegram invites when email was successfully sent with telegram link
       try {
         const usedTelegramLink =
           String(info?.linkType || "").toLowerCase() === "telegram" &&
           Boolean(telegramGroupIdForStage);
+
+        if (DEBUG_GENERATE) {
+          console.log("[Generate] Telegram link tracking:", {
+            usedTelegramLink,
+            linkType: info?.linkType,
+            telegramGroupIdForStage,
+            stepValue,
+            useGeneratedLink: info?.useGeneratedLink,
+          });
+        }
+
         if (usedTelegramLink) {
           await trackTelegramInviteSent({
             groupId: telegramGroupIdForStage,
             count: 1,
           });
+          if (DEBUG_GENERATE) {
+            console.log(
+              "[Generate] Telegram sent counter updated for group:",
+              telegramGroupIdForStage
+            );
+          }
         }
       } catch (e) {
         console.error("trackTelegramInviteSent failed:", e);
+        // Don't fail the email send if counter update fails
+        toast.error(
+          "E-Mail wurde gesendet, aber Telegram-Zähler konnte nicht aktualisiert werden."
+        );
       }
 
       toast.success("Status-E-Mail wurde gesendet.");
@@ -2872,6 +2910,42 @@ function Generate() {
       if (res?.success === false) {
         throw new Error("E-Mail wurde nicht gesendet (success=false).");
       }
+
+      // Count "sent" telegram invites for custom email (if telegram link was included)
+      try {
+        const usedTelegramLink =
+          String(additionalInfo?.linkType || "").toLowerCase() === "telegram";
+        const telegramGroupIdForStage = getTelegramGroupIdForStage(
+          metaInfo,
+          safeStatusValue
+        );
+
+        if (DEBUG_GENERATE) {
+          console.log("[Generate] Custom email telegram link tracking:", {
+            usedTelegramLink,
+            linkType: additionalInfo?.linkType,
+            telegramGroupIdForStage,
+            statusValue: safeStatusValue,
+          });
+        }
+
+        if (usedTelegramLink && telegramGroupIdForStage) {
+          await trackTelegramInviteSent({
+            groupId: telegramGroupIdForStage,
+            count: 1,
+          });
+          if (DEBUG_GENERATE) {
+            console.log(
+              "[Generate] Custom email telegram sent counter updated for group:",
+              telegramGroupIdForStage
+            );
+          }
+        }
+      } catch (e) {
+        console.error("trackTelegramInviteSent (custom email) failed:", e);
+        // Don't fail the email send if counter update fails
+      }
+
       toast.success("Benutzerdefinierte E-Mail wurde gesendet.");
 
       // Best-effort: store email send counters for list view (CollectionCv)
@@ -3382,7 +3456,7 @@ function Generate() {
       } catch (err) {
         console.error("all_users sync failed:", err);
         toast.error(
-          "Firebase saqlandi, lekin tashqi user bazasiga yozishda xato bo'ldi."
+          "In Firebase gespeichert, aber Fehler beim Schreiben in die externe Benutzerdatenbank."
         );
       }
 
@@ -3392,7 +3466,7 @@ function Generate() {
         } catch (err) {
           console.error("updateEmailRemote failed:", err);
           toast.error(
-            "Firebase saqlandi, lekin tashqi email bazasini yangilashda xato bo'ldi."
+            "In Firebase gespeichert, aber Fehler beim Aktualisieren der externen E-Mail-Datenbank."
           );
         }
       }
@@ -3727,6 +3801,7 @@ function Generate() {
         candidateName={deleteTarget?.name}
         isDeleting={isDeletingCandidate}
         seconds={5}
+        skipCountdown={true}
       />
       <UnsavedChangesModal
         open={unsavedModalOpen && unsavedBlocker.state === "blocked"}
@@ -3953,52 +4028,120 @@ function Generate() {
                         <label className="label" htmlFor="g-birthPlace">
                           <span className="label-text">Geburtsort</span>
                         </label>
-                        <select
-                          id="g-birthPlace"
-                          className={selectBase}
-                          value={String(formCv.personalInfo.birthPlace || "")}
-                          onChange={(e) =>
-                            setFormCv((prev) => ({
-                              ...prev,
-                              personalInfo: {
-                                ...prev.personalInfo,
-                                birthPlace: e.target.value,
-                              },
-                            }))
-                          }
-                        >
-                          <option value="">Bitte auswählen</option>
-                          {UZBEK_REGIONS.map((region) => (
-                            <option key={region} value={region}>
-                              {region}
-                            </option>
-                          ))}
-                        </select>
+                        {isMobile ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowBirthPlacePicker(true)}
+                            className={`
+                              w-full h-12 px-4 rounded-lg border-2 text-left flex items-center justify-between
+                              transition-all active:scale-98
+                              ${
+                                formCv.personalInfo.birthPlace
+                                  ? "border-success bg-success/5 text-base-content"
+                                  : "border-base-300 bg-base-100 text-base-content/60"
+                              }
+                            `}
+                          >
+                            <span className="text-base">
+                              {formCv.personalInfo.birthPlace ||
+                                "Bitte auswählen"}
+                            </span>
+                            <svg
+                              className="w-5 h-5 opacity-50"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 9l-7 7-7-7"
+                              />
+                            </svg>
+                          </button>
+                        ) : (
+                          <select
+                            id="g-birthPlace"
+                            className={selectBase}
+                            value={String(formCv.personalInfo.birthPlace || "")}
+                            onChange={(e) =>
+                              setFormCv((prev) => ({
+                                ...prev,
+                                personalInfo: {
+                                  ...prev.personalInfo,
+                                  birthPlace: e.target.value,
+                                },
+                              }))
+                            }
+                          >
+                            <option value="">Bitte auswählen</option>
+                            {UZBEK_REGIONS.map((region) => (
+                              <option key={region} value={region}>
+                                {region}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                       </div>
                       <div className="form-control w-full">
                         <label className="label" htmlFor="g-marital">
                           <span className="label-text">Familienstand</span>
                         </label>
-                        <select
-                          id="g-marital"
-                          className={selectBase}
-                          value={formCv.personalInfo.maritalStatus}
-                          onChange={(e) =>
-                            setFormCv((prev) => ({
-                              ...prev,
-                              personalInfo: {
-                                ...prev.personalInfo,
-                                maritalStatus: e.target.value,
-                              },
-                            }))
-                          }
-                        >
-                          <option value="">Bitte auswählen</option>
-                          <option value="ledig">ledig</option>
-                          <option value="verheiratet">verheiratet</option>
-                          <option value="geschieden">geschieden</option>
-                          <option value="verwitwet">verwitwet</option>
-                        </select>
+                        {isMobile ? (
+                          <button
+                            type="button"
+                            onClick={() => setShowMaritalStatusPicker(true)}
+                            className={`
+                              w-full h-12 px-4 rounded-lg border-2 text-left flex items-center justify-between
+                              transition-all active:scale-98
+                              ${
+                                formCv.personalInfo.maritalStatus
+                                  ? "border-success bg-success/5 text-base-content"
+                                  : "border-base-300 bg-base-100 text-base-content/60"
+                              }
+                            `}
+                          >
+                            <span className="text-base">
+                              {formCv.personalInfo.maritalStatus ||
+                                "Bitte auswählen"}
+                            </span>
+                            <svg
+                              className="w-5 h-5 opacity-50"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 9l-7 7-7-7"
+                              />
+                            </svg>
+                          </button>
+                        ) : (
+                          <select
+                            id="g-marital"
+                            className={selectBase}
+                            value={formCv.personalInfo.maritalStatus}
+                            onChange={(e) =>
+                              setFormCv((prev) => ({
+                                ...prev,
+                                personalInfo: {
+                                  ...prev.personalInfo,
+                                  maritalStatus: e.target.value,
+                                },
+                              }))
+                            }
+                          >
+                            <option value="">Bitte auswählen</option>
+                            <option value="ledig">ledig</option>
+                            <option value="verheiratet">verheiratet</option>
+                            <option value="geschieden">geschieden</option>
+                            <option value="verwitwet">verwitwet</option>
+                          </select>
+                        )}
                       </div>
                       <div className="md:col-span-2 form-control w-full">
                         <label className="label" htmlFor="g-childrenCount">
@@ -5062,7 +5205,7 @@ function Generate() {
                                         toast.success("Link nusxalandi.");
                                       } catch {
                                         toast.error(
-                                          "Link nusxalashda xatolik."
+                                          "Fehler beim Kopieren des Links."
                                         );
                                       }
                                     }
@@ -5193,6 +5336,124 @@ function Generate() {
         emailPreview={customEmailPreview}
         placeholders={customEmailDefaults}
       />
+
+      {isMobile && showBirthPlacePicker && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 animate-in fade-in duration-200"
+          onClick={() => setShowBirthPlacePicker(false)}
+        >
+          <div
+            className="fixed inset-x-0 bottom-0 bg-base-100 rounded-t-3xl max-h-[70vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Handle bar */}
+            <div className="shrink-0 pt-3 pb-2 flex justify-center">
+              <div className="w-12 h-1 bg-base-300 rounded-full" />
+            </div>
+
+            {/* Header */}
+            <div className="shrink-0 px-4 pb-3 border-b border-base-200">
+              <h3 className="font-bold text-lg text-center">Geburtsort</h3>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto overscroll-contain">
+              <div className="p-3 space-y-1">
+                {UZBEK_REGIONS.map((city) => (
+                  <button
+                    key={city}
+                    type="button"
+                    onClick={() => {
+                      setFormCv((prev) => ({
+                        ...prev,
+                        personalInfo: {
+                          ...prev.personalInfo,
+                          birthPlace: city,
+                        },
+                      }));
+                      setShowBirthPlacePicker(false);
+                    }}
+                    className={`
+                      w-full text-left px-4 py-4 rounded-xl transition-all text-base font-medium
+                      active:scale-98
+                      ${
+                        formCv.personalInfo.birthPlace === city
+                          ? "bg-primary text-primary-content"
+                          : "hover:bg-base-200 active:bg-base-300"
+                      }
+                    `}
+                  >
+                    {city}
+                    {formCv.personalInfo.birthPlace === city && (
+                      <span className="float-right">✓</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isMobile && showMaritalStatusPicker && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 animate-in fade-in duration-200"
+          onClick={() => setShowMaritalStatusPicker(false)}
+        >
+          <div
+            className="fixed inset-x-0 bottom-0 bg-base-100 rounded-t-3xl max-h-[70vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Handle bar */}
+            <div className="shrink-0 pt-3 pb-2 flex justify-center">
+              <div className="w-12 h-1 bg-base-300 rounded-full" />
+            </div>
+
+            {/* Header */}
+            <div className="shrink-0 px-4 pb-3 border-b border-base-200">
+              <h3 className="font-bold text-lg text-center">Familienstand</h3>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto overscroll-contain">
+              <div className="p-3 space-y-1">
+                {["ledig", "verheiratet", "geschieden", "verwitwet"].map(
+                  (status) => (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => {
+                        setFormCv((prev) => ({
+                          ...prev,
+                          personalInfo: {
+                            ...prev.personalInfo,
+                            maritalStatus: status,
+                          },
+                        }));
+                        setShowMaritalStatusPicker(false);
+                      }}
+                      className={`
+                      w-full text-left px-4 py-4 rounded-xl transition-all text-base font-medium
+                      active:scale-98
+                      ${
+                        formCv.personalInfo.maritalStatus === status
+                          ? "bg-primary text-primary-content"
+                          : "hover:bg-base-200 active:bg-base-300"
+                      }
+                    `}
+                    >
+                      {status}
+                      {formCv.personalInfo.maritalStatus === status && (
+                        <span className="float-right">✓</span>
+                      )}
+                    </button>
+                  )
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

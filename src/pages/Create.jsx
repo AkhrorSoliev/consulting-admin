@@ -9,6 +9,7 @@ import {
   FaTelegramPlane,
   FaVideo,
   FaChevronRight,
+  FaChevronDown,
   FaUser,
   FaBriefcase,
   FaGraduationCap,
@@ -43,6 +44,7 @@ import {
   deleteUploadedFilesRemote,
   getMetaByName,
 } from "../utils";
+import { triggerBigCelebration } from "../utils/celebration";
 import {
   CANDIDATE_STATUS_DEFAULT,
   candidateStatusMap,
@@ -55,6 +57,7 @@ import GuideModal from "./create/components/modals/GuideModal";
 import ExistingEmailModal from "./create/components/modals/ExistingEmailModal";
 import ExistingPassportModal from "./create/components/modals/ExistingPassportModal";
 import PdfPreviewModal from "./create/components/modals/PdfPreviewModal";
+import RequiredDocumentsModal from "./create/components/modals/RequiredDocumentsModal";
 import LivePreview from "./generate/components/LivePreview";
 import PhotoModal from "./generate/components/modals/PhotoModal";
 
@@ -102,26 +105,7 @@ function Create() {
     ],
     []
   );
-  const DRIVING_LICENSE_OPTIONS = useMemo(
-    () => [
-      "AM",
-      "A1",
-      "A2",
-      "A",
-      "B",
-      "BE",
-      "C1",
-      "C1E",
-      "C",
-      "CE",
-      "D1",
-      "D1E",
-      "D",
-      "DE",
-      "T",
-    ],
-    []
-  );
+  const DRIVING_LICENSE_OPTIONS = useMemo(() => ["A", "B", "BE", "C", "D"], []);
 
   const initialCv = useMemo(
     () => ({
@@ -163,6 +147,7 @@ function Create() {
   const [isSubmitted, setIsSubmitted] = useState(null);
   const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [isRequiredDocsOpen, setIsRequiredDocsOpen] = useState(false);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [existingMajor, setExistingMajor] = useState("");
   const [enteredEmail, setEnteredEmail] = useState("");
@@ -178,9 +163,6 @@ function Create() {
   const [langCertFiles, setLangCertFiles] = useState([]);
   const [noLanguageCertificates, setNoLanguageCertificates] = useState(false);
   const [passportFiles, setPassportFiles] = useState([]);
-  const [isUploadingPassportDoc, setIsUploadingPassportDoc] = useState(false);
-  const [isUploadingDiplomaDocs, setIsUploadingDiplomaDocs] = useState(false);
-  const [isUploadingLangCertDocs, setIsUploadingLangCertDocs] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [diplomaError, setDiplomaError] = useState(false);
   const [diplomaSizeError, setDiplomaSizeError] = useState(false);
@@ -223,6 +205,7 @@ function Create() {
   const [showCityPicker, setShowCityPicker] = useState(false);
   const [showBirthPlacePicker, setShowBirthPlacePicker] = useState(false);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
+  const [showMaritalStatusPicker, setShowMaritalStatusPicker] = useState(false);
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.innerWidth < 1024;
@@ -245,8 +228,6 @@ function Create() {
   const FINAL_STEP = STEPS.length - 1;
   const [currentStep, setCurrentStep] = useState(0);
   const [maxUnlockedStep, setMaxUnlockedStep] = useState(0);
-  const draftHydratingRef = useRef(false);
-  const lastDraftFormRef = useRef(null);
 
   const languageRows = useMemo(
     () =>
@@ -292,30 +273,37 @@ function Create() {
   }, []);
 
   useEffect(() => {
-    // Hide bottom navigation when input is focused on mobile
+    // Show required documents modal on every page load/refresh
+    setIsRequiredDocsOpen(true);
+  }, []);
+
+  useEffect(() => {
+    // Hide bottom navigation when text input is focused on mobile
     if (typeof window === "undefined") return;
 
     const handleFocus = (e) => {
       const target = e.target;
-      if (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement
-      ) {
-        if (window.innerWidth < 1024) {
-          setIsInputFocused(true);
+      // Only hide footer for text-type inputs
+      if (target instanceof HTMLInputElement) {
+        const inputType = target.type.toLowerCase();
+        const textTypes = ["text", "email", "tel", "url", "search", "password"];
+        if (textTypes.includes(inputType)) {
+          if (window.innerWidth < 1024) {
+            setIsInputFocused(true);
+          }
         }
       }
     };
 
     const handleBlur = (e) => {
       const target = e.target;
-      if (
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement
-      ) {
-        setIsInputFocused(false);
+      // Only process blur for text-type inputs
+      if (target instanceof HTMLInputElement) {
+        const inputType = target.type.toLowerCase();
+        const textTypes = ["text", "email", "tel", "url", "search", "password"];
+        if (textTypes.includes(inputType)) {
+          setIsInputFocused(false);
+        }
       }
     };
 
@@ -490,6 +478,15 @@ function Create() {
     return hasStart && hasEnd && hasInstitution && hasDegree;
   }
 
+  function isEducationEntryEmpty(edu) {
+    const hasStart = Boolean((edu?.startDate || "").trim());
+    const hasEnd =
+      edu?.endDate === "bis heute" || Boolean((edu?.endDate || "").trim());
+    const hasInstitution = Boolean((edu?.institution || "").trim());
+    const hasDegree = Boolean((edu?.degree || "").trim());
+    return !hasStart && !hasEnd && !hasInstitution && !hasDegree;
+  }
+
   function isExperienceEntryFilled(exp) {
     const hasStart = Boolean((exp?.startDate || "").trim());
     const hasEnd =
@@ -497,7 +494,35 @@ function Create() {
     const hasPosition = Boolean((exp?.position || "").trim());
     const hasCompany = Boolean((exp?.company || "").trim());
     const hasLocation = Boolean((exp?.location || "").trim());
-    return hasStart && hasEnd && hasPosition && hasCompany && hasLocation;
+    const hasResponsibilities =
+      Array.isArray(exp?.responsibilities) && exp.responsibilities.length > 0;
+    return (
+      hasStart &&
+      hasEnd &&
+      hasPosition &&
+      hasCompany &&
+      hasLocation &&
+      hasResponsibilities
+    );
+  }
+
+  function isExperienceEntryEmpty(exp) {
+    const hasStart = Boolean((exp?.startDate || "").trim());
+    const hasEnd =
+      exp?.endDate === "bis heute" || Boolean((exp?.endDate || "").trim());
+    const hasPosition = Boolean((exp?.position || "").trim());
+    const hasCompany = Boolean((exp?.company || "").trim());
+    const hasLocation = Boolean((exp?.location || "").trim());
+    const hasResponsibilities =
+      Array.isArray(exp?.responsibilities) && exp.responsibilities.length > 0;
+    return (
+      !hasStart &&
+      !hasEnd &&
+      !hasPosition &&
+      !hasCompany &&
+      !hasLocation &&
+      !hasResponsibilities
+    );
   }
 
   function getEducationErrors(entries) {
@@ -550,18 +575,27 @@ function Create() {
     // Submission state should be tracked per-major, otherwise a candidate
     // can't submit again for a different major.
     const majorCollection = String(majorInfo?.collectionName || "").trim();
-    // Major hali aniqlanmagan bo‘lsa (yoki yuklanayotgan bo‘lsa) UI'ni "pending"da ushlab turamiz,
-    // aks holda form bir zum ko‘rinib, keyin Thank You ga o'tib ketadi (flicker).
+    console.log("🔍 DEBUG: majorCollection =", majorCollection);
+    console.log("🔍 DEBUG: majorLoading =", majorLoading);
+
+    // Major hali aniqlanmagan bo'lsa (yoki yuklanayotgan bo'lsa) UI'ni "pending"da ushlab turamiz,
+    // aks holda form bir zum ko'rinib, keyin Thank You ga o'tib ketadi (flicker).
     if (!majorCollection || majorLoading) {
+      console.log("🔍 DEBUG: Major yo'q yoki loading, isSubmitted = null");
       setIsSubmitted(null);
       return;
     }
     setIsSubmitted(null);
     try {
-      const v = localStorage.getItem(`createCvSubmitted:${majorCollection}`);
+      const storageKey = `createCvSubmitted:${majorCollection}`;
+      const v = localStorage.getItem(storageKey);
+      console.log("🔍 DEBUG: localStorage key =", storageKey);
+      console.log("🔍 DEBUG: localStorage value =", v);
+      console.log("🔍 DEBUG: isSubmitted =", v === "true");
       setIsSubmitted(v === "true");
-    } catch {
-      // Best-effort: agar storage o‘qilmasa, form ko‘rsatamiz (bloklab qo‘ymaymiz)
+    } catch (error) {
+      console.error("🔍 DEBUG: localStorage xatosi:", error);
+      // Best-effort: agar storage o'qilmasa, form ko'rsatamiz (bloklab qo'ymaymiz)
       setIsSubmitted(false);
     }
   }, [majorInfo?.collectionName, majorLoading]);
@@ -581,10 +615,13 @@ function Create() {
   }, [isPrivacyOpen, isGuideOpen, isPdfPreviewOpen]);
 
   useEffect(() => {
+    // Filter out empty education entries
+    const nonEmptyEducation = Array.isArray(cv.education)
+      ? cv.education.filter((edu) => !isEducationEntryEmpty(edu))
+      : [];
     const hasCompleteEducation =
-      Array.isArray(cv.education) &&
-      cv.education.length > 0 &&
-      cv.education.every((edu) => isEducationEntryFilled(edu));
+      nonEmptyEducation.length > 0 &&
+      nonEmptyEducation.every((edu) => isEducationEntryFilled(edu));
     if (hasCompleteEducation) {
       setShowEducationWarning(false);
       setEducationErrors([]);
@@ -592,10 +629,13 @@ function Create() {
   }, [cv.education]);
 
   useEffect(() => {
-    const hasIncompleteExperience =
+    // Check for partially filled experience entries (ignore empty ones)
+    const hasPartiallyFilledExperience =
       Array.isArray(cv.experience) &&
-      cv.experience.some((exp) => !isExperienceEntryFilled(exp));
-    if (!hasIncompleteExperience) {
+      cv.experience.some(
+        (exp) => !isExperienceEntryFilled(exp) && !isExperienceEntryEmpty(exp)
+      );
+    if (!hasPartiallyFilledExperience) {
       setShowExperienceWarning(false);
       setExperienceErrors([]);
     }
@@ -755,401 +795,14 @@ function Create() {
     setPhotoModalSrc("");
   }
 
-  // ---- Draft load/save (per major) ----
-  // Placed AFTER useForm() so `watch` / `setValue` are initialized (avoids TDZ crash).
-  const majorCollectionForDraft = String(
-    majorInfo?.collectionName || ""
-  ).trim();
-  // Use a single key (not per-major) as requested.
-  const draftKey = "createCvDraft";
-  // Draft expiration (privacy + storage). After TTL we auto-clear stale drafts.
-  const DRAFT_TTL_MS = 72 * 60 * 60 * 1000; // 72 hours
-  // Photo is kept only for the current tab session (refresh-safe, but not long-term stored).
-  const photoSessionKey = useMemo(() => {
-    const m = String(majorCollectionForDraft || "").trim();
-    return m ? `createCvPhoto:${m}` : "createCvPhoto";
-  }, [majorCollectionForDraft]);
-  const DRAFT_EXCLUDE_PERSONAL_FIELDS = useMemo(
-    // Never persist sensitive fields to localStorage.
-    // Note: `photo` can be large (base64) and is sensitive PII; keep it out of drafts.
-    () => new Set(["email", "passportNumber", "photo"]),
-    []
-  );
+  // NOTE: Draft functionality is intentionally DISABLED.
+  // We only track submission status per major, not form data.
 
-  function sanitizeDraftFormSnapshot(formSnapshot) {
-    if (!formSnapshot || typeof formSnapshot !== "object") return null;
-    const snap = safeClone(formSnapshot, null);
-    if (!snap || typeof snap !== "object") return null;
-    if (snap?.personalInfo && typeof snap.personalInfo === "object") {
-      for (const k of DRAFT_EXCLUDE_PERSONAL_FIELDS) {
-        if (k in snap.personalInfo) delete snap.personalInfo[k];
-      }
-    }
-    // Also exclude agreement/captcha by design (we don't rely on draft for those)
-    if ("agreePrivacy" in snap) delete snap.agreePrivacy;
-    return snap;
-  }
+  // Draft functions removed - we don't save form data anymore.
 
-  function sanitizeDraftCvSnapshot(cvSnapshot) {
-    if (!cvSnapshot || typeof cvSnapshot !== "object") return initialCv;
-    const snap = safeClone(cvSnapshot, null);
-    if (!snap || typeof snap !== "object") return initialCv;
-    if (snap?.personalInfo && typeof snap.personalInfo === "object") {
-      for (const k of DRAFT_EXCLUDE_PERSONAL_FIELDS) {
-        if (k in snap.personalInfo) delete snap.personalInfo[k];
-      }
-    }
-    return snap;
-  }
+  // Draft loading removed - we don't restore form data anymore.
 
-  function normalizeDraftCv(draftCv) {
-    const base = initialCv;
-    const merged = {
-      ...base,
-      ...(draftCv && typeof draftCv === "object" ? draftCv : {}),
-      personalInfo: {
-        ...base.personalInfo,
-        ...(draftCv?.personalInfo && typeof draftCv.personalInfo === "object"
-          ? draftCv.personalInfo
-          : {}),
-      },
-      skills: {
-        ...base.skills,
-        ...(draftCv?.skills && typeof draftCv.skills === "object"
-          ? draftCv.skills
-          : {}),
-        languages:
-          draftCv?.skills?.languages &&
-          typeof draftCv.skills.languages === "object" &&
-          !Array.isArray(draftCv.skills.languages)
-            ? draftCv.skills.languages
-            : base.skills.languages,
-      },
-      experience: Array.isArray(draftCv?.experience) ? draftCv.experience : [],
-      education: Array.isArray(draftCv?.education) ? draftCv.education : [],
-    };
-
-    // Defensive: ensure drivingLicenseType stays an array in the UI
-    const rawDL = merged?.personalInfo?.drivingLicenseType;
-    merged.personalInfo.drivingLicenseType = Array.isArray(rawDL)
-      ? rawDL
-      : String(rawDL || "")
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
-
-    return merged;
-  }
-
-  function saveDraftNow(formSnapshot) {
-    if (draftHydratingRef.current) return;
-    try {
-      const sanitizedForm = sanitizeDraftFormSnapshot(formSnapshot);
-      const sanitizedCv = sanitizeDraftCvSnapshot(cv);
-      const payload = {
-        v: 2,
-        updatedAt: Date.now(),
-        major: majorCollectionForDraft,
-        form: sanitizedForm,
-        cv: sanitizedCv,
-        wizard: { currentStep, maxUnlockedStep },
-        // NOTE: Not storing File inputs or reCAPTCHA token (cannot/should not persist).
-      };
-      localStorage.setItem(draftKey, JSON.stringify(payload));
-    } catch {
-      // ignore storage errors (quota/private mode)
-    }
-  }
-
-  function clearDraftNow() {
-    try {
-      localStorage.removeItem(draftKey);
-    } catch {
-      // ignore
-    }
-  }
-
-  function normalizeUploadedDocs(raw) {
-    const docs = raw && typeof raw === "object" ? raw : {};
-    const normList = (arr, withType = false) => {
-      if (!Array.isArray(arr)) return [];
-      return arr
-        .map((it) => {
-          if (!it || typeof it !== "object") return null;
-          const url = String(it.url || "").trim();
-          if (!/^https?:\/\//.test(url)) return null;
-          const name = String(it.name || "").trim();
-          const size = Number(it.size || 0) || 0;
-          const base = { url, name, size };
-          if (withType) {
-            return { ...base, type: String(it.type || "") };
-          }
-          return base;
-        })
-        .filter(Boolean);
-    };
-    return {
-      diplomas: normList(docs.diplomas, false),
-      passports: normList(docs.passports || docs.passport, false),
-      langCerts: normList(
-        docs.langCerts || docs.languageCertificatesDetailed,
-        true
-      ),
-      noLanguageCertificates: Boolean(docs.noLanguageCertificates),
-    };
-  }
-
-  useEffect(() => {
-    // Load draft once major is known and not loading (prevents flicker / wrong restore).
-    if (majorLoading) return;
-    draftHydratingRef.current = true;
-    try {
-      const raw = localStorage.getItem(draftKey);
-      const parsed = safeParseJson(raw, null);
-      if (!parsed || typeof parsed !== "object") return;
-
-      // Expire old drafts (privacy + prevent stale data surprises).
-      const updatedAt = Number(parsed?.updatedAt || 0);
-      if (updatedAt > 0 && Date.now() - updatedAt > DRAFT_TTL_MS) {
-        clearDraftNow();
-        return;
-      }
-
-      // If old drafts contain excluded fields (e.g. photo), strip them and rewrite,
-      // so localStorage doesn't keep large/sensitive leftovers.
-      try {
-        const hadPhoto =
-          Boolean(
-            parsed?.form?.personalInfo && "photo" in parsed.form.personalInfo
-          ) ||
-          Boolean(
-            parsed?.cv?.personalInfo && "photo" in parsed.cv.personalInfo
-          );
-        if (hadPhoto) {
-          const nextForm = sanitizeDraftFormSnapshot(parsed?.form);
-          const nextCv = sanitizeDraftCvSnapshot(parsed?.cv);
-          const nextPayload = {
-            ...(parsed || {}),
-            v: Number(parsed?.v || 2),
-            form: nextForm,
-            cv: nextCv,
-          };
-          localStorage.setItem(draftKey, JSON.stringify(nextPayload));
-        }
-      } catch {
-        // ignore rewrite errors
-      }
-
-      // Restore documents (uploaded URLs)
-      try {
-        const docs = normalizeUploadedDocs(parsed?.docs);
-        setDiplomaFiles(docs.diplomas);
-        setPassportFiles(docs.passports.slice(0, 1));
-        setLangCertFiles(docs.langCerts);
-        setNoLanguageCertificates(Boolean(docs.noLanguageCertificates));
-      } catch {
-        // ignore docs restore errors
-      }
-
-      // Migrate old wizard step indices (v1 -> v2) after swapping Languages/Skills.
-      const draftVersion = Number(parsed?.v || 1);
-      const mapStepV1ToV2 = (step) => {
-        const s = Number(step);
-        if (Number.isNaN(s)) return s;
-        // v1 order: 0 personal, 1 experience, 2 education, 3 skills, 4 languages, 5 documents, 6 confirm
-        // v2 order: 0 personal, 1 experience, 2 education, 3 languages, 4 skills, 5 documents, 6 confirm
-        if (s === 3) return 4;
-        if (s === 4) return 3;
-        return s;
-      };
-
-      // Restore wizard progress (best-effort)
-      const nextStepRaw = Number(parsed?.wizard?.currentStep);
-      const nextUnlockedRaw = Number(parsed?.wizard?.maxUnlockedStep);
-      const nextStep =
-        draftVersion >= 2 ? nextStepRaw : mapStepV1ToV2(nextStepRaw);
-      const nextUnlocked =
-        draftVersion >= 2 ? nextUnlockedRaw : mapStepV1ToV2(nextUnlockedRaw);
-      if (!Number.isNaN(nextStep) && nextStep >= 0) {
-        setCurrentStep(Math.max(0, Math.min(FINAL_STEP, nextStep)));
-      }
-      if (!Number.isNaN(nextUnlocked) && nextUnlocked >= 0) {
-        setMaxUnlockedStep(Math.max(0, Math.min(FINAL_STEP, nextUnlocked)));
-      }
-
-      // Restore CV state (experience/education/skills). personalInfo is primarily from RHF.
-      if (parsed?.cv) {
-        setCv(normalizeDraftCv(parsed.cv));
-      }
-
-      // Restore RHF fields (personalInfo.*). We intentionally do NOT restore agreePrivacy/reCAPTCHA.
-      const form = parsed?.form;
-      if (form?.personalInfo && typeof form.personalInfo === "object") {
-        const p = form.personalInfo;
-        const fields = [
-          "name",
-          "lastName",
-          "gender",
-          "address",
-          "addressStreet",
-          "addressHouseNumber",
-          "addressPostalCode",
-          "addressCity",
-          "addressCountry",
-          "birthDate",
-          "birthPlace",
-          "maritalStatus",
-          "childrenCount",
-          "noChildren",
-          "hasDrivingLicense",
-          "drivingLicenseType",
-          "phone",
-        ];
-        fields.forEach((k) => {
-          setValue(`personalInfo.${k}`, p?.[k], {
-            shouldDirty: false,
-            shouldTouch: false,
-            shouldValidate: false,
-          });
-        });
-      }
-
-      // Keep local ref in sync so cv-only changes can still be saved.
-      lastDraftFormRef.current = parsed?.form || null;
-    } catch {
-      // ignore
-    } finally {
-      // Unblock saving after hydration settles.
-      window.setTimeout(() => {
-        draftHydratingRef.current = false;
-      }, 0);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [majorCollectionForDraft, majorLoading]);
-
-  useEffect(() => {
-    // Restore photo from sessionStorage (refresh-safe without long-term storage).
-    if (majorLoading) return;
-    const current = String(watchPhoto || "").trim();
-    if (current) return;
-    try {
-      const v = String(sessionStorage.getItem(photoSessionKey) || "").trim();
-      if (v && /^data:image\//.test(v)) {
-        setValue("personalInfo.photo", v, {
-          shouldDirty: false,
-          shouldTouch: false,
-          shouldValidate: false,
-        });
-      }
-    } catch {
-      // ignore
-    }
-  }, [majorLoading, photoSessionKey, setValue, watchPhoto]);
-
-  useEffect(() => {
-    // Persist photo only in sessionStorage (debounced).
-    if (majorLoading) return;
-    let t = null;
-    const v = String(watchPhoto || "").trim();
-    t = window.setTimeout(() => {
-      try {
-        if (!v) {
-          sessionStorage.removeItem(photoSessionKey);
-          return;
-        }
-        if (!/^data:image\//.test(v)) return;
-        // Keep a hard cap to avoid quota issues (base64 expands size).
-        if (v.length > 900_000) return;
-        sessionStorage.setItem(photoSessionKey, v);
-      } catch {
-        // ignore
-      }
-    }, 300);
-    return () => {
-      if (t) window.clearTimeout(t);
-    };
-  }, [majorLoading, photoSessionKey, watchPhoto]);
-
-  useEffect(() => {
-    // If the user has submitted for this major, clear any stale draft.
-    if (isSubmitted === true) {
-      clearDraftNow();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSubmitted, draftKey]);
-
-  useEffect(() => {
-    // Autosave RHF changes (debounced)
-    if (majorLoading) return;
-    let t = null;
-    const sub = watch((values) => {
-      lastDraftFormRef.current = values || null;
-      if (t) window.clearTimeout(t);
-      t = window.setTimeout(() => saveDraftNow(values), 600);
-    });
-    return () => {
-      try {
-        if (t) window.clearTimeout(t);
-      } catch {
-        // ignore
-      }
-      try {
-        sub?.unsubscribe?.();
-      } catch {
-        // ignore
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watch, majorCollectionForDraft, majorLoading, draftKey]);
-
-  useEffect(() => {
-    // Autosave cv-only changes (experience/education/skills), using last known form snapshot.
-    if (majorLoading) return;
-    if (draftHydratingRef.current) return;
-    const t = window.setTimeout(
-      () => saveDraftNow(lastDraftFormRef.current),
-      600
-    );
-    return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cv, currentStep, maxUnlockedStep, majorCollectionForDraft, majorLoading]);
-
-  useEffect(() => {
-    // Autosave documents (uploaded URLs) + the "no certificates" flag.
-    if (majorLoading) return;
-    if (draftHydratingRef.current) return;
-    const t = window.setTimeout(() => {
-      try {
-        const raw = localStorage.getItem(draftKey);
-        const parsed = safeParseJson(raw, {});
-        const next = {
-          ...(parsed && typeof parsed === "object" ? parsed : {}),
-          v: Number(parsed?.v || 2),
-          updatedAt: Date.now(),
-          major: majorCollectionForDraft,
-          docs: {
-            diplomas: Array.isArray(diplomaFiles) ? diplomaFiles : [],
-            passports: Array.isArray(passportFiles) ? passportFiles : [],
-            langCerts: Array.isArray(langCertFiles) ? langCertFiles : [],
-            noLanguageCertificates: Boolean(noLanguageCertificates),
-          },
-        };
-        localStorage.setItem(draftKey, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
-    }, 600);
-    return () => window.clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    diplomaFiles,
-    passportFiles,
-    langCertFiles,
-    noLanguageCertificates,
-    majorCollectionForDraft,
-    majorLoading,
-    draftKey,
-  ]);
+  // Photo persistence and autosave removed - we don't save form data anymore.
 
   // NOTE:
   // We intentionally DO NOT live-check email/passport against Firestore from the public form,
@@ -1471,10 +1124,13 @@ function Create() {
     }
 
     if (currentStep === 1) {
-      const hasIncompleteExperience =
+      // Check for partially filled (not empty, not complete) experience entries
+      const hasPartiallyFilledExperience =
         Array.isArray(cv.experience) &&
-        cv.experience.some((exp) => !isExperienceEntryFilled(exp));
-      if (hasIncompleteExperience) {
+        cv.experience.some(
+          (exp) => !isExperienceEntryFilled(exp) && !isExperienceEntryEmpty(exp)
+        );
+      if (hasPartiallyFilledExperience) {
         setShowExperienceWarning(true);
         setExperienceErrors(getExperienceErrors(cv.experience));
         toast.error(`Fehlend: ${errorLabels.experience}`);
@@ -1484,11 +1140,25 @@ function Create() {
     }
 
     if (currentStep === 2) {
+      // Filter out empty entries first
+      const nonEmptyEducation = Array.isArray(cv.education)
+        ? cv.education.filter((edu) => !isEducationEntryEmpty(edu))
+        : [];
+
       const hasEducation =
-        Array.isArray(cv.education) &&
-        cv.education.length > 0 &&
-        cv.education.every((edu) => isEducationEntryFilled(edu));
+        nonEmptyEducation.length > 0 &&
+        nonEmptyEducation.every((edu) => isEducationEntryFilled(edu));
+
+      if (nonEmptyEducation.length === 0) {
+        // No education entries at all (all were empty)
+        setShowEducationWarning(true);
+        setEducationErrors([]);
+        toast.error(`Fehlend: ${errorLabels.education}`);
+        return false;
+      }
+
       if (!hasEducation) {
+        // Has some entries but they're incomplete
         setShowEducationWarning(true);
         setEducationErrors(getEducationErrors(cv.education));
         toast.error(`Fehlend: ${errorLabels.education}`);
@@ -1587,12 +1257,93 @@ function Create() {
   async function goNext() {
     const ok = await validateCurrentStep();
     if (!ok) return;
+
+    // Clean up empty experience entries before navigating forward
+    if (Array.isArray(cv.experience) && cv.experience.length > 0) {
+      const hasPartiallyFilled = cv.experience.some(
+        (exp) => !isExperienceEntryFilled(exp) && !isExperienceEntryEmpty(exp)
+      );
+
+      // Only remove empty entries if there are no partially filled ones
+      if (!hasPartiallyFilled) {
+        const filteredExperience = cv.experience.filter(
+          (exp) => !isExperienceEntryEmpty(exp)
+        );
+        if (filteredExperience.length !== cv.experience.length) {
+          setCv((prev) => ({
+            ...prev,
+            experience: filteredExperience,
+          }));
+        }
+      }
+    }
+
+    // Clean up empty education entries before navigating forward
+    if (Array.isArray(cv.education) && cv.education.length > 0) {
+      const hasPartiallyFilled = cv.education.some(
+        (edu) => !isEducationEntryFilled(edu) && !isEducationEntryEmpty(edu)
+      );
+
+      // Only remove empty entries if there are no partially filled ones
+      if (!hasPartiallyFilled) {
+        const filteredEducation = cv.education.filter(
+          (edu) => !isEducationEntryEmpty(edu)
+        );
+        if (filteredEducation.length !== cv.education.length) {
+          setCv((prev) => ({
+            ...prev,
+            education: filteredEducation,
+          }));
+        }
+      }
+    }
+
     setCurrentStep((s) => Math.min(FINAL_STEP, s + 1));
     setMaxUnlockedStep((u) => Math.max(u, currentStep + 1));
     scrollWizardToTop();
   }
 
   function goBack() {
+    // Clean up empty experience entries before navigating
+    if (Array.isArray(cv.experience) && cv.experience.length > 0) {
+      const hasPartiallyFilled = cv.experience.some(
+        (exp) => !isExperienceEntryFilled(exp) && !isExperienceEntryEmpty(exp)
+      );
+
+      // Only remove empty entries if there are no partially filled ones
+      if (!hasPartiallyFilled) {
+        const filteredExperience = cv.experience.filter(
+          (exp) => !isExperienceEntryEmpty(exp)
+        );
+        if (filteredExperience.length !== cv.experience.length) {
+          setCv((prev) => ({
+            ...prev,
+            experience: filteredExperience,
+          }));
+        }
+      }
+    }
+
+    // Clean up empty education entries before navigating
+    if (Array.isArray(cv.education) && cv.education.length > 0) {
+      const hasPartiallyFilled = cv.education.some(
+        (edu) => !isEducationEntryFilled(edu) && !isEducationEntryEmpty(edu)
+      );
+
+      // Only remove empty entries if there are no partially filled ones
+      if (!hasPartiallyFilled) {
+        const filteredEducation = cv.education.filter(
+          (edu) => !isEducationEntryEmpty(edu)
+        );
+        if (filteredEducation.length !== cv.education.length) {
+          setCv((prev) => ({
+            ...prev,
+            education: filteredEducation,
+          }));
+        }
+      }
+    }
+
     setCurrentStep((s) => Math.max(0, s - 1));
     scrollWizardToTop();
   }
@@ -1939,20 +1690,26 @@ function Create() {
         blockingErrors.push("majorLoading");
       }
 
+      // Filter out empty education entries
+      const nonEmptyEducation = Array.isArray(cv.education)
+        ? cv.education.filter((edu) => !isEducationEntryEmpty(edu))
+        : [];
       const hasEducation =
-        Array.isArray(cv.education) &&
-        cv.education.length > 0 &&
-        cv.education.every((edu) => isEducationEntryFilled(edu));
+        nonEmptyEducation.length > 0 &&
+        nonEmptyEducation.every((edu) => isEducationEntryFilled(edu));
       if (!hasEducation) {
         setShowEducationWarning(true);
         setEducationErrors(getEducationErrors(cv.education));
         blockingErrors.push("education");
       }
 
-      const hasIncompleteExperience =
+      // Check for partially filled experience entries (ignore empty ones)
+      const hasPartiallyFilledExperience =
         Array.isArray(cv.experience) &&
-        cv.experience.some((exp) => !isExperienceEntryFilled(exp));
-      if (hasIncompleteExperience) {
+        cv.experience.some(
+          (exp) => !isExperienceEntryFilled(exp) && !isExperienceEntryEmpty(exp)
+        );
+      if (hasPartiallyFilledExperience) {
         setShowExperienceWarning(true);
         setExperienceErrors(getExperienceErrors(cv.experience));
         blockingErrors.push("experience");
@@ -2096,36 +1853,58 @@ function Create() {
       );
 
       try {
-        // Documents are already uploaded while the user selects them (refresh-safe).
-        const safeDiplomaUrls = (
-          Array.isArray(diplomaFiles) ? diplomaFiles : []
-        )
-          .map((d) => String(d?.url || "").trim())
-          .filter((u) => /^https?:\/\//.test(u));
-        const safePassportUrls = (
-          Array.isArray(passportFiles) ? passportFiles : []
-        )
-          .map((d) => String(d?.url || "").trim())
-          .filter((u) => /^https?:\/\//.test(u));
-        const safeLangUrls = (Array.isArray(langCertFiles) ? langCertFiles : [])
-          .map((d) => String(d?.url || "").trim())
-          .filter((u) => /^https?:\/\//.test(u));
+        // YANGI: Fayllarni submit qilishdan oldin json-api ga yuklaymiz
+        toast.loading("Dokumente werden hochgeladen...", { id: "upload-docs" });
 
-        if (safeDiplomaUrls.length === 0) {
+        // 1. Passport yuklash
+        const passportFilesToUpload = Array.isArray(passportFiles)
+          ? passportFiles.filter((f) => f instanceof File)
+          : [];
+        if (passportFilesToUpload.length === 0) {
+          throw new Error("Reisepass/ID fehlt. Bitte laden Sie ein PDF hoch.");
+        }
+        const passportUrls = await uploadFilesToConsulting(
+          passportFilesToUpload
+        );
+
+        // 2. Diplomas yuklash
+        const diplomaFilesToUpload = Array.isArray(diplomaFiles)
+          ? diplomaFiles.filter((f) => f instanceof File)
+          : [];
+        if (diplomaFilesToUpload.length === 0) {
           throw new Error(
             "Diplome fehlen. Bitte laden Sie mindestens ein PDF hoch."
           );
         }
-        if (safePassportUrls.length === 0) {
-          throw new Error("Reisepass/ID fehlt. Bitte laden Sie ein PDF hoch.");
+        const diplomaUrls = await uploadFilesToConsulting(diplomaFilesToUpload);
+
+        // 3. Language certificates yuklash (optional)
+        let langCertUrls = [];
+        const langCertFilesToUpload = Array.isArray(langCertFiles)
+          ? langCertFiles.filter((item) => (item?.file || item) instanceof File)
+          : [];
+        if (langCertFilesToUpload.length > 0) {
+          const files = langCertFilesToUpload.map((item) => item?.file || item);
+          langCertUrls = await uploadFilesToConsulting(files);
         }
 
-        const langCertDetailed = (
-          Array.isArray(langCertFiles) ? langCertFiles : []
-        )
-          .map((it) => ({
-            url: String(it?.url || "").trim(),
-            type: String(it?.type || ""),
+        toast.success("Dokumente erfolgreich hochgeladen!", {
+          id: "upload-docs",
+        });
+
+        // URL larni to'plash
+        const safeDiplomaUrls = diplomaUrls.filter((u) =>
+          /^https?:\/\//.test(u)
+        );
+        const safePassportUrls = passportUrls.filter((u) =>
+          /^https?:\/\//.test(u)
+        );
+        const safeLangUrls = langCertUrls.filter((u) => /^https?:\/\//.test(u));
+
+        const langCertDetailed = langCertFilesToUpload
+          .map((item, idx) => ({
+            url: langCertUrls[idx] || "",
+            type: String(item?.type || ""),
           }))
           .filter((it) => /^https?:\/\//.test(it.url));
 
@@ -2246,6 +2025,7 @@ function Create() {
         }
 
         toast.success("Daten erfolgreich gesendet!");
+        triggerBigCelebration(); // 🎉 Celebration animation
         try {
           localStorage.setItem(`createCvSubmitted:${majorCollection}`, "true");
           // legacy key cleanup (avoid cross-major false positives)
@@ -2419,37 +2199,7 @@ function Create() {
                       {/* Keep header INSIDE the scroll container so it's NOT fixed on mobile.
                           On desktop (`lg+`) we still keep the step indicator sticky for convenience. */}
                       <div className="space-y-3">
-                        <div className="sticky top-0 z-20 pt-4 sm:pt-2 pb-4 bg-base-100/95 backdrop-blur supports-backdrop-filter:bg-base-100/75 border-b border-base-200">
-                          <div className="w-full">
-                            {(() => {
-                              const pct =
-                                FINAL_STEP > 0
-                                  ? Math.round((currentStep / FINAL_STEP) * 100)
-                                  : 0;
-                              return (
-                                <>
-                                  <div className="flex items-center justify-between text-sm sm:text-base text-base-content/70 mb-2">
-                                    <div>
-                                      Schritt {currentStep + 1} / {STEPS.length}
-                                    </div>
-                                    <div className="font-semibold text-base-content/80 tabular-nums">
-                                      {pct}%
-                                    </div>
-                                  </div>
-                                  <div className="w-full h-2 rounded-full bg-base-200 overflow-hidden">
-                                    <div
-                                      className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
-                                      style={{ width: `${pct}%` }}
-                                      aria-label="Formular Fortschritt"
-                                    />
-                                  </div>
-                                </>
-                              );
-                            })()}
-                          </div>
-                        </div>
-
-                        <div className="w-full flex justify-center">
+                        <div className="w-full flex justify-center pt-4">
                           <h2 className="card-title text-2xl sm:text-3xl font-bold text-center leading-tight create-form-title">
                             {currentStep === 0 && majorInfo.showTitle
                               ? majorInfo.title
@@ -2669,7 +2419,7 @@ function Create() {
                                     `}
                                   >
                                     <span className="text-base">
-                                      {watchBirthPlace || "Shaharni tanlang"}
+                                      {watchBirthPlace || "Stadt wählen"}
                                     </span>
                                     <svg
                                       className="w-5 h-5 opacity-50"
@@ -2758,36 +2508,78 @@ function Create() {
                                         Familienstand
                                       </RequiredLabel>
                                     </label>
-                                    <select
-                                      id="personalInfo-maritalStatus"
-                                      className={`select select-bordered w-full ${
-                                        errors?.personalInfo?.maritalStatus
-                                          ? "select-error"
-                                          : getSuccessClass(
-                                              "personalInfo.maritalStatus",
-                                              field.value,
-                                              "select"
-                                            )
-                                      }`}
-                                      aria-invalid={
-                                        errors?.personalInfo?.maritalStatus
-                                          ? "true"
-                                          : "false"
-                                      }
-                                      {...field}
-                                    >
-                                      <option value="">Bitte auswählen</option>
-                                      <option value="ledig">ledig</option>
-                                      <option value="verheiratet">
-                                        verheiratet
-                                      </option>
-                                      <option value="geschieden">
-                                        geschieden
-                                      </option>
-                                      <option value="verwitwet">
-                                        verwitwet
-                                      </option>
-                                    </select>
+                                    {isMobile ? (
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setShowMaritalStatusPicker(true)
+                                        }
+                                        className={`
+                                          h-12 px-4 rounded-lg border-2 text-left flex items-center justify-between w-full
+                                          transition-all active:scale-98
+                                          ${
+                                            field.value
+                                              ? "border-success bg-success/5 text-base-content"
+                                              : "border-base-300 bg-base-100 text-base-content/60"
+                                          }
+                                          ${
+                                            errors?.personalInfo?.maritalStatus
+                                              ? "border-error"
+                                              : ""
+                                          }
+                                        `}
+                                      >
+                                        <span className="text-sm">
+                                          {field.value || "Bitte auswählen"}
+                                        </span>
+                                        <svg
+                                          className="w-4 h-4 opacity-50 flex-shrink-0"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            strokeWidth={2}
+                                            d="M19 9l-7 7-7-7"
+                                          />
+                                        </svg>
+                                      </button>
+                                    ) : (
+                                      <select
+                                        id="personalInfo-maritalStatus"
+                                        className={`select select-bordered w-full ${
+                                          errors?.personalInfo?.maritalStatus
+                                            ? "select-error"
+                                            : getSuccessClass(
+                                                "personalInfo.maritalStatus",
+                                                field.value,
+                                                "select"
+                                              )
+                                        }`}
+                                        aria-invalid={
+                                          errors?.personalInfo?.maritalStatus
+                                            ? "true"
+                                            : "false"
+                                        }
+                                        {...field}
+                                      >
+                                        <option value="">
+                                          Bitte auswählen
+                                        </option>
+                                        <option value="ledig">ledig</option>
+                                        <option value="verheiratet">
+                                          verheiratet
+                                        </option>
+                                        <option value="geschieden">
+                                          geschieden
+                                        </option>
+                                        <option value="verwitwet">
+                                          verwitwet
+                                        </option>
+                                      </select>
+                                    )}
                                   </>
                                 )}
                               />
@@ -3475,7 +3267,7 @@ function Create() {
                                           `}
                                         >
                                           <span className="text-base">
-                                            {addressCity || "Shaharni tanlang"}
+                                            {addressCity || "Stadt wählen"}
                                           </span>
                                           <svg
                                             className="w-5 h-5 opacity-50"
@@ -3731,16 +3523,14 @@ function Create() {
                       {currentStep === 2 ? (
                         <>
                           <div className="divider mt-0">
-                            <span className="mx-auto">
-                              <span className="inline-flex items-center gap-2">
-                                <FaGraduationCap
-                                  className="opacity-70"
-                                  aria-hidden="true"
-                                />
-                                <RequiredLabel className={REQUIRED_STAR_CLASS}>
-                                  Ausbildung
-                                </RequiredLabel>
-                              </span>
+                            <span className="mx-auto inline-flex items-center gap-2">
+                              <FaGraduationCap
+                                className="opacity-70"
+                                aria-hidden="true"
+                              />
+                              <RequiredLabel className={REQUIRED_STAR_CLASS}>
+                                Ausbildung
+                              </RequiredLabel>
                             </span>
                           </div>
                           <EducationSection
@@ -3905,6 +3695,7 @@ function Create() {
                             showRequiredWarning={showLanguageWarning}
                             errors={languageErrors}
                             languageOptions={LANGUAGE_OPTIONS}
+                            isMobile={isMobile}
                           />
                         </>
                       ) : null}
@@ -3940,13 +3731,6 @@ function Create() {
                                     type="button"
                                     className="btn btn-ghost btn-xs shrink-0 whitespace-nowrap"
                                     onClick={() => {
-                                      // Best-effort delete already uploaded file
-                                      const urls = (passportFiles || [])
-                                        .map((d) => d?.url)
-                                        .filter(Boolean);
-                                      Promise.resolve(
-                                        deleteUploadedFilesRemote(urls)
-                                      ).catch(() => {});
                                       setPassportFiles([]);
                                       setPassportSizeError(false);
                                       setPassportError(false);
@@ -3975,7 +3759,6 @@ function Create() {
                                     ? "true"
                                     : "false"
                                 }
-                                disabled={isUploadingPassportDoc}
                                 onChange={(e) => {
                                   const raw = Array.from(e.target.files || []);
                                   const f = raw?.[0];
@@ -4002,41 +3785,8 @@ function Create() {
 
                                   setPassportSizeError(false);
                                   setPassportError(false);
-                                  setIsUploadingPassportDoc(true);
-
-                                  (async () => {
-                                    try {
-                                      const [url] =
-                                        await uploadFilesToConsulting([f]);
-                                      if (!url) {
-                                        throw new Error(
-                                          "Upload returned empty URL"
-                                        );
-                                      }
-                                      // If replacing an existing file, delete it best-effort.
-                                      const oldUrl = String(
-                                        passportFiles?.[0]?.url || ""
-                                      ).trim();
-                                      if (oldUrl) {
-                                        Promise.resolve(
-                                          deleteUploadedFileRemote(oldUrl)
-                                        ).catch(() => {});
-                                      }
-                                      setPassportFiles([
-                                        { url, name: f.name, size: f.size },
-                                      ]);
-                                    } catch (err) {
-                                      console.error(
-                                        "Passport upload failed:",
-                                        err
-                                      );
-                                      toast.error(
-                                        "Upload fehlgeschlagen. Bitte erneut versuchen."
-                                      );
-                                    } finally {
-                                      setIsUploadingPassportDoc(false);
-                                    }
-                                  })();
+                                  // File ni to'g'ridan-to'g'ri saqlaymiz (yuklamaymiz)
+                                  setPassportFiles([f]);
                                 }}
                               />
                               {passportError ? (
@@ -4078,21 +3828,13 @@ function Create() {
                                               ? `${(f.size / 1024).toFixed(
                                                   1
                                                 )} KB`
-                                              : "Uploaded"}
+                                              : "Unknown"}
                                           </div>
                                         </div>
                                         <button
                                           type="button"
                                           className="btn btn-ghost btn-xs"
                                           onClick={() => {
-                                            const url = String(
-                                              f?.url || ""
-                                            ).trim();
-                                            if (url) {
-                                              Promise.resolve(
-                                                deleteUploadedFileRemote(url)
-                                              ).catch(() => {});
-                                            }
                                             setPassportFiles([]);
                                           }}
                                           aria-label="Entfernen"
@@ -4103,11 +3845,6 @@ function Create() {
                                     ))}
                                   </ul>
                                 </div>
-                              ) : null}
-                              {isUploadingPassportDoc ? (
-                                <p className="text-xs mt-2 opacity-70">
-                                  Wird hochgeladen...
-                                </p>
                               ) : null}
                             </RequiredField>
 
@@ -4128,12 +3865,6 @@ function Create() {
                                     type="button"
                                     className="btn btn-ghost btn-xs shrink-0 whitespace-nowrap"
                                     onClick={() => {
-                                      const urls = (langCertFiles || [])
-                                        .map((d) => d?.url)
-                                        .filter(Boolean);
-                                      Promise.resolve(
-                                        deleteUploadedFilesRemote(urls)
-                                      ).catch(() => {});
                                       setLangCertFiles([]);
                                       setLangCertSizeError(false);
                                     }}
@@ -4152,12 +3883,6 @@ function Create() {
                                     setNoLanguageCertificates(checked);
                                     if (checked) {
                                       // If user has no certificates, clear files and related errors.
-                                      const urls = (langCertFiles || [])
-                                        .map((d) => d?.url)
-                                        .filter(Boolean);
-                                      Promise.resolve(
-                                        deleteUploadedFilesRemote(urls)
-                                      ).catch(() => {});
                                       setLangCertFiles([]);
                                       setLangCertSizeError(false);
                                       setLangCertTypeError(false);
@@ -4185,10 +3910,7 @@ function Create() {
                                 aria-invalid={
                                   langCertSizeError ? "true" : "false"
                                 }
-                                disabled={
-                                  noLanguageCertificates ||
-                                  isUploadingLangCertDocs
-                                }
+                                disabled={noLanguageCertificates}
                                 onChange={(e) => {
                                   const raw = Array.from(e.target.files || []);
                                   e.target.value = "";
@@ -4221,49 +3943,29 @@ function Create() {
                                   }
                                   if (sized.length === 0) return;
 
-                                  setIsUploadingLangCertDocs(true);
-                                  (async () => {
-                                    try {
-                                      const urls =
-                                        await uploadFilesToConsulting(sized);
-                                      const nextItems = urls.map(
-                                        (url, idx) => ({
-                                          url,
-                                          name: sized[idx]?.name,
-                                          size: sized[idx]?.size,
-                                          type: "",
-                                        })
-                                      );
-                                      setLangCertFiles((prev) => {
-                                        const prevArr = Array.isArray(prev)
-                                          ? prev
-                                          : [];
-                                        const map = new Map(
-                                          prevArr.map((it) => [
-                                            String(it?.url || uniqueKey(it)),
-                                            it,
-                                          ])
-                                        );
-                                        nextItems.forEach((it) => {
-                                          const key = String(
-                                            it?.url || uniqueKey(it)
-                                          );
-                                          if (!map.has(key)) map.set(key, it);
-                                        });
-                                        return Array.from(map.values());
-                                      });
-                                    } catch (err) {
-                                      console.error(
-                                        "Lang cert upload failed:",
-                                        err
-                                      );
-                                      toast.error(
-                                        "Upload fehlgeschlagen. Bitte erneut versuchen."
-                                      );
-                                    } finally {
-                                      setIsUploadingLangCertDocs(false);
-                                    }
-                                  })();
+                                  // File larni to'g'ridan-to'g'ri saqlaymiz
+                                  const nextItems = sized.map((file) => ({
+                                    file,
+                                    name: file.name,
+                                    size: file.size,
+                                    type: "",
+                                  }));
+                                  setLangCertFiles((prev) => {
+                                    const prevArr = Array.isArray(prev)
+                                      ? prev
+                                      : [];
+                                    const map = new Map(
+                                      prevArr.map((it) => [
+                                        uniqueKey(it.file || it),
+                                        it,
+                                      ])
+                                    );
+                                    nextItems.forEach((it) => {
+                                      const key = uniqueKey(it.file);
+                                      if (!map.has(key)) map.set(key, it);
+                                    });
+                                    return Array.from(map.values());
+                                  });
                                 }}
                               />
                               {langCertSizeError ? (
@@ -4287,39 +3989,32 @@ function Create() {
                                   </div>
                                   <ul className="space-y-2">
                                     {langCertFiles.map((item, i) => {
+                                      const file = item?.file || item;
                                       return (
                                         <li
-                                          key={uniqueKey(item)}
+                                          key={uniqueKey(file)}
                                           className="flex flex-col gap-2 rounded-box border border-base-300 px-3 py-2"
                                         >
                                           <div className="flex items-center justify-between gap-2">
                                             <div className="min-w-0">
                                               <div className="truncate font-medium">
                                                 {item?.name ||
+                                                  file?.name ||
                                                   "certificate.pdf"}
                                               </div>
                                               <div className="text-xs opacity-70">
-                                                {item?.size
+                                                {item?.size || file?.size
                                                   ? `${(
-                                                      item.size / 1024
+                                                      (item?.size ||
+                                                        file?.size) / 1024
                                                     ).toFixed(1)} KB`
-                                                  : "Uploaded"}
+                                                  : "Unknown"}
                                               </div>
                                             </div>
                                             <button
                                               type="button"
                                               className="btn btn-ghost btn-xs"
                                               onClick={() => {
-                                                const url = String(
-                                                  item?.url || ""
-                                                ).trim();
-                                                if (url) {
-                                                  Promise.resolve(
-                                                    deleteUploadedFileRemote(
-                                                      url
-                                                    )
-                                                  ).catch(() => {});
-                                                }
                                                 setLangCertFiles((prev) =>
                                                   (Array.isArray(prev)
                                                     ? prev
@@ -4395,11 +4090,6 @@ function Create() {
                                   </ul>
                                 </div>
                               ) : null}
-                              {isUploadingLangCertDocs ? (
-                                <p className="text-xs mt-2 opacity-70">
-                                  Wird hochgeladen...
-                                </p>
-                              ) : null}
                             </div>
 
                             {/* Diplomas */}
@@ -4421,12 +4111,6 @@ function Create() {
                                     type="button"
                                     className="btn btn-ghost btn-xs shrink-0 whitespace-nowrap"
                                     onClick={() => {
-                                      const urls = (diplomaFiles || [])
-                                        .map((d) => d?.url)
-                                        .filter(Boolean);
-                                      Promise.resolve(
-                                        deleteUploadedFilesRemote(urls)
-                                      ).catch(() => {});
                                       setDiplomaFiles([]);
                                       setDiplomaSizeError(false);
                                       setDiplomaError(false);
@@ -4458,7 +4142,6 @@ function Create() {
                                     ? "true"
                                     : "false"
                                 }
-                                disabled={isUploadingDiplomaDocs}
                                 onChange={(e) => {
                                   const raw = Array.from(e.target.files || []);
                                   e.target.value = "";
@@ -4490,48 +4173,21 @@ function Create() {
                                     setDiplomaError(false);
                                   }
                                   if (sized.length === 0) return;
-                                  setIsUploadingDiplomaDocs(true);
-                                  (async () => {
-                                    try {
-                                      const urls =
-                                        await uploadFilesToConsulting(sized);
-                                      const nextItems = urls.map(
-                                        (url, idx) => ({
-                                          url,
-                                          name: sized[idx]?.name,
-                                          size: sized[idx]?.size,
-                                        })
-                                      );
-                                      setDiplomaFiles((prev) => {
-                                        const prevArr = Array.isArray(prev)
-                                          ? prev
-                                          : [];
-                                        const map = new Map(
-                                          prevArr.map((it) => [
-                                            String(it?.url || uniqueKey(it)),
-                                            it,
-                                          ])
-                                        );
-                                        nextItems.forEach((it) => {
-                                          const key = String(
-                                            it?.url || uniqueKey(it)
-                                          );
-                                          if (!map.has(key)) map.set(key, it);
-                                        });
-                                        return Array.from(map.values());
-                                      });
-                                    } catch (err) {
-                                      console.error(
-                                        "Diploma upload failed:",
-                                        err
-                                      );
-                                      toast.error(
-                                        "Upload fehlgeschlagen. Bitte erneut versuchen."
-                                      );
-                                    } finally {
-                                      setIsUploadingDiplomaDocs(false);
-                                    }
-                                  })();
+
+                                  // File larni to'g'ridan-to'g'ri saqlaymiz
+                                  setDiplomaFiles((prev) => {
+                                    const prevArr = Array.isArray(prev)
+                                      ? prev
+                                      : [];
+                                    const map = new Map(
+                                      prevArr.map((it) => [uniqueKey(it), it])
+                                    );
+                                    sized.forEach((file) => {
+                                      const key = uniqueKey(file);
+                                      if (!map.has(key)) map.set(key, file);
+                                    });
+                                    return Array.from(map.values());
+                                  });
                                 }}
                               />
                               {diplomaError ? (
@@ -4574,21 +4230,13 @@ function Create() {
                                               ? `${(f.size / 1024).toFixed(
                                                   1
                                                 )} KB`
-                                              : "Uploaded"}
+                                              : "Unknown"}
                                           </div>
                                         </div>
                                         <button
                                           type="button"
                                           className="btn btn-ghost btn-xs"
                                           onClick={() => {
-                                            const url = String(
-                                              f?.url || ""
-                                            ).trim();
-                                            if (url) {
-                                              Promise.resolve(
-                                                deleteUploadedFileRemote(url)
-                                              ).catch(() => {});
-                                            }
                                             setDiplomaFiles((prev) =>
                                               (Array.isArray(prev)
                                                 ? prev
@@ -4604,11 +4252,6 @@ function Create() {
                                     ))}
                                   </ul>
                                 </div>
-                              ) : null}
-                              {isUploadingDiplomaDocs ? (
-                                <p className="text-xs mt-2 opacity-70">
-                                  Wird hochgeladen...
-                                </p>
                               ) : null}
                             </RequiredField>
                           </div>
@@ -4696,6 +4339,33 @@ function Create() {
                     >
                       <div className="mx-auto max-w-2xl lg:mx-0 lg:max-w-none">
                         <div className="rounded-2xl border border-base-300 bg-base-100 shadow-sm px-4 py-3">
+                          {/* Progress bar */}
+                          <div className="mb-3">
+                            <div className="w-full bg-base-200 rounded-full h-2 overflow-hidden">
+                              <div
+                                className="bg-primary h-full rounded-full transition-all duration-300 ease-out"
+                                style={{
+                                  width: `${Math.round(
+                                    ((currentStep + 1) / STEPS.length) * 100
+                                  )}%`,
+                                }}
+                              ></div>
+                            </div>
+                          </div>
+
+                          {/* Step indicator and percentage */}
+                          <div className="flex items-center justify-center gap-3 mb-3 text-sm font-medium text-base-content/70">
+                            <span>
+                              Schritt {currentStep + 1} / {STEPS.length}
+                            </span>
+                            <span className="text-primary font-semibold">
+                              {Math.round(
+                                ((currentStep + 1) / STEPS.length) * 100
+                              )}
+                              %
+                            </span>
+                          </div>
+
                           <div className="flex items-center justify-between gap-3">
                             <button
                               type="button"
@@ -4832,6 +4502,11 @@ function Create() {
 
       <GuideModal open={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
 
+      <RequiredDocumentsModal
+        open={isRequiredDocsOpen}
+        onClose={() => setIsRequiredDocsOpen(false)}
+      />
+
       <PdfPreviewModal
         open={isPdfPreviewOpen}
         onClose={() => setIsPdfPreviewOpen(false)}
@@ -4921,12 +4596,18 @@ function Create() {
 
             {/* Header */}
             <div className="shrink-0 px-4 pb-3 border-b border-base-200">
-              <h3 className="font-bold text-lg text-center">
-                Shaharni tanlang
-              </h3>
-              <p className="text-sm text-center text-base-content/60 mt-1">
-                Ort
-              </p>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-bold text-lg">Stadt wählen</h3>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setShowCityPicker(false)}
+                  aria-label="Schließen"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="text-sm text-center text-base-content/60">Ort</p>
             </div>
 
             {/* List */}
@@ -4984,12 +4665,18 @@ function Create() {
 
             {/* Header */}
             <div className="shrink-0 px-4 pb-3 border-b border-base-200">
-              <h3 className="font-bold text-lg text-center">
-                Davlatni tanlang
-              </h3>
-              <p className="text-sm text-center text-base-content/60 mt-1">
-                Land
-              </p>
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-bold text-lg">Land wählen</h3>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setShowCountryPicker(false)}
+                  aria-label="Schließen"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="text-sm text-center text-base-content/60">Land</p>
             </div>
 
             {/* List */}
@@ -5063,10 +4750,18 @@ function Create() {
 
             {/* Header */}
             <div className="shrink-0 px-4 pb-3 border-b border-base-200">
-              <h3 className="font-bold text-lg text-center">
-                Tug'ilgan shahar
-              </h3>
-              <p className="text-sm text-center text-base-content/60 mt-1">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-bold text-lg">Geburtsort wählen</h3>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setShowBirthPlacePicker(false)}
+                  aria-label="Schließen"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="text-sm text-center text-base-content/60">
                 Geburtsort
               </p>
             </div>
@@ -5107,6 +4802,99 @@ function Create() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Bottom Sheet: Marital Status Picker (Mobile Only) */}
+      {isMobile && showMaritalStatusPicker && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 animate-in fade-in duration-200"
+          onClick={() => setShowMaritalStatusPicker(false)}
+        >
+          <div
+            className="fixed inset-x-0 bottom-0 bg-base-100 rounded-t-3xl max-h-[70vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Handle bar */}
+            <div className="shrink-0 pt-3 pb-2 flex justify-center">
+              <div className="w-12 h-1 bg-base-300 rounded-full" />
+            </div>
+
+            {/* Header */}
+            <div className="shrink-0 px-4 pb-3 border-b border-base-200">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-bold text-lg">Familienstand wählen</h3>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setShowMaritalStatusPicker(false)}
+                  aria-label="Schließen"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="text-sm text-center text-base-content/60">
+                Familienstand
+              </p>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto overscroll-contain">
+              <div className="p-3 space-y-1">
+                {[
+                  { value: "ledig", label: "ledig" },
+                  { value: "verheiratet", label: "verheiratet" },
+                  { value: "geschieden", label: "geschieden" },
+                  { value: "verwitwet", label: "verwitwet" },
+                ].map((status) => (
+                  <button
+                    key={status.value}
+                    type="button"
+                    onClick={() => {
+                      setValue("personalInfo.maritalStatus", status.value, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                        shouldTouch: true,
+                      });
+                      clearErrors("personalInfo.maritalStatus");
+                      setShowMaritalStatusPicker(false);
+                    }}
+                    className={`
+                      w-full text-left px-4 py-4 rounded-xl transition-all text-base font-medium
+                      active:scale-98
+                      ${
+                        watchMaritalStatus === status.value
+                          ? "bg-primary text-primary-content"
+                          : "hover:bg-base-200 active:bg-base-300"
+                      }
+                    `}
+                  >
+                    {status.label}
+                    {watchMaritalStatus === status.value && (
+                      <span className="float-right">✓</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating button to close keyboard on mobile */}
+      {isInputFocused && isMobile && (
+        <button
+          type="button"
+          onClick={() => {
+            // Remove focus from active element to close keyboard
+            if (document.activeElement instanceof HTMLElement) {
+              document.activeElement.blur();
+            }
+          }}
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-primary hover:bg-primary-focus text-primary-content rounded-full p-4 shadow-lg active:scale-95 transition-all duration-200 flex items-center justify-center"
+          aria-label="Klaviyaturani yopish"
+        >
+          <FaChevronDown className="text-xl" />
+        </button>
       )}
     </div>
   );

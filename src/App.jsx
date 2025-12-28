@@ -30,6 +30,9 @@ import CandidatesIndexRedirect from "./pages/candidates/CandidatesIndexRedirect"
 import CandidatesAllUsers from "./pages/candidates/CandidatesAllUsers";
 import CandidatesArchivedUsers from "./pages/candidates/CandidatesArchivedUsers";
 import CandidatesDeletedUsers from "./pages/candidates/CandidatesDeletedUsers";
+import Vermittlungsvertrag from "./pages/Vermittlungsvertrag";
+import Vollmacht from "./pages/Vollmacht";
+import VollmachtArbeitgeber from "./pages/VollmachtArbeitgeber";
 
 function DocumentsLegacyRedirect() {
   const { templateId } = useParams();
@@ -76,6 +79,9 @@ function App() {
               children: [
                 { index: true, element: <DocumentsSettings /> },
                 { path: "beratungsvertrag", element: <Contract /> },
+                { path: "vermittlungsvertrag", element: <Vermittlungsvertrag /> },
+                { path: "vollmacht", element: <Vollmacht /> },
+                { path: "vollmacht-arbeitgeber", element: <VollmachtArbeitgeber /> },
               ],
             },
           ],

@@ -547,7 +547,7 @@ exports.trackInviteSent = onRequest(async (req, res) => {
 
 // GET /telegramGroupsFromUpdates
 // Returns recent groups/channels that appear in bot updates.
-// Auth: super_admin only
+// Auth: admin or super_admin
 exports.telegramGroupsFromUpdates = onRequest(
   { secrets: [TELEGRAM_BOT_TOKEN] },
   async (req, res) => {
@@ -559,7 +559,7 @@ exports.telegramGroupsFromUpdates = onRequest(
       }
 
       const decoded = await verifyFirebaseIdToken(req);
-      assertSuperAdminClaims(decoded);
+      assertAdminLikeClaims(decoded);
 
       const botToken = String(TELEGRAM_BOT_TOKEN.value() || "").trim();
       if (!botToken) {

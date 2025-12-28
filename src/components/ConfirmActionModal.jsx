@@ -14,9 +14,9 @@ export default function ConfirmActionModal({
   open,
   onClose,
   onConfirm,
-  title = "Tasdiqlash",
+  title = "Bestätigen",
   message = "",
-  confirmLabel = "Tasdiqlash",
+  confirmLabel = "Bestätigen",
   confirmVariant = "primary",
   seconds = 0,
   busy = false,
@@ -70,7 +70,7 @@ export default function ConfirmActionModal({
                 if (busy) return;
                 onClose?.();
               }}
-              aria-label="Modalni yopish"
+              aria-label="Modal schließen"
             >
               ✕
             </button>
@@ -78,7 +78,7 @@ export default function ConfirmActionModal({
 
           {remaining > 0 ? (
             <div className="rounded-lg border border-base-300 bg-base-200/60 p-3 text-sm">
-              Tasdiqlash tugmasi {remaining} soniyadan keyin faollashadi.
+              Die Bestätigungstaste wird in {remaining} Sekunden aktiviert.
             </div>
           ) : null}
 
@@ -92,7 +92,7 @@ export default function ConfirmActionModal({
               }}
               disabled={busy}
             >
-              Bekor qilish
+              Abbrechen
             </button>
             <button
               type="button"
@@ -103,7 +103,7 @@ export default function ConfirmActionModal({
               {busy ? (
                 <>
                   <span className="loading loading-spinner loading-sm" />
-                  Kuting...
+                  Bitte warten...
                 </>
               ) : remaining > 0 ? (
                 `${confirmLabel} (${remaining})`

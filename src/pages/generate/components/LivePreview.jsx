@@ -240,7 +240,19 @@ export default function LivePreview({
   function setZoomClamped(next) {
     const n = Number(next);
     if (!Number.isFinite(n)) return;
-    const clamped = Math.min(zoomBounds.max, Math.max(zoomBounds.min, n));
+    let clamped = Math.min(zoomBounds.max, Math.max(zoomBounds.min, n));
+
+    // Skip 95-100% range: if in this range, jump to nearest boundary
+    if (clamped > 0.94 && clamped < 1.01) {
+      // If we're increasing zoom, jump to 1.01
+      if (n > zoomFactor) {
+        clamped = 1.01;
+      } else {
+        // If we're decreasing zoom, jump to 0.94
+        clamped = 0.94;
+      }
+    }
+
     setZoomFactor(Math.abs(clamped - 1) < 0.01 ? 1 : clamped);
   }
 
@@ -841,7 +853,7 @@ export default function LivePreview({
               <button
                 type="button"
                 className="w-9 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 shadow-sm flex items-center justify-center"
-                onClick={() => setZoomClamped(zoomFactor - 0.1)}
+                onClick={() => setZoomClamped(zoomFactor - 0.05)}
                 aria-label="Herauszoomen"
                 title="Zoom -"
                 disabled={zoomFactor <= zoomBounds.min + 0.0001}
@@ -868,7 +880,7 @@ export default function LivePreview({
                   className="range range-primary w-full"
                   min={zoomBounds.min}
                   max={zoomBounds.max}
-                  step={0.01}
+                  step={0.05}
                   value={zoomFactor}
                   onChange={(e) => setZoomClamped(e.target.value)}
                   aria-label="Zoom"
@@ -877,7 +889,7 @@ export default function LivePreview({
               <button
                 type="button"
                 className="w-9 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 shadow-sm flex items-center justify-center"
-                onClick={() => setZoomClamped(zoomFactor + 0.1)}
+                onClick={() => setZoomClamped(zoomFactor + 0.05)}
                 aria-label="Hineinzoomen"
                 title="Zoom +"
                 disabled={zoomFactor >= zoomBounds.max - 0.0001}
@@ -897,7 +909,7 @@ export default function LivePreview({
               <button
                 type="button"
                 className="w-9 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 shadow-sm flex items-center justify-center"
-                onClick={() => setZoomClamped(zoomFactor + 0.1)}
+                onClick={() => setZoomClamped(zoomFactor + 0.05)}
                 aria-label="Hineinzoomen"
                 title="Zoom +"
                 disabled={zoomFactor >= zoomBounds.max - 0.0001}
@@ -918,7 +930,7 @@ export default function LivePreview({
                     className="range range-primary -rotate-90 absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 origin-center"
                     min={zoomBounds.min}
                     max={zoomBounds.max}
-                    step={0.01}
+                    step={0.05}
                     value={zoomFactor}
                     onChange={(e) => setZoomClamped(e.target.value)}
                     aria-label="Zoom"
@@ -939,7 +951,7 @@ export default function LivePreview({
               <button
                 type="button"
                 className="w-9 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 shadow-sm flex items-center justify-center"
-                onClick={() => setZoomClamped(zoomFactor - 0.1)}
+                onClick={() => setZoomClamped(zoomFactor - 0.05)}
                 aria-label="Herauszoomen"
                 title="Zoom -"
                 disabled={zoomFactor <= zoomBounds.min + 0.0001}

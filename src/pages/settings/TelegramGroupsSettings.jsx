@@ -29,13 +29,15 @@ function normalizeChatId(raw) {
 export default function TelegramGroupsSettings() {
   const { role, loadingRole } = useUserRole({ forceRefresh: true });
   const isSuperAdmin = !loadingRole && role === "super_admin";
+  const isAdmin = !loadingRole && role === "admin";
+  const canAccess = isSuperAdmin || isAdmin;
 
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [suggested, setSuggested] = useState([]);
   const [loadingSuggested, setLoadingSuggested] = useState(false);
 
-  const canEdit = isSuperAdmin;
+  const canEdit = canAccess;
 
   async function upsertByChatId({ name, chat_id, active }) {
     const safeChatId = normalizeChatId(chat_id);
@@ -70,7 +72,7 @@ export default function TelegramGroupsSettings() {
   }
 
   async function refreshTelegramGroupsFromBot({ toastOnSuccess = false } = {}) {
-    if (!isSuperAdmin) return;
+    if (!canAccess) return;
     setLoadingSuggested(true);
     try {
       const chats = await fetchTelegramGroupsFromUpdates({ limit: 100 });
@@ -90,13 +92,13 @@ export default function TelegramGroupsSettings() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (!isSuperAdmin) return;
+      if (!canAccess) return;
       await refreshTelegramGroupsFromBot({ toastOnSuccess: false });
     })();
     return () => {
       cancelled = true;
     };
-  }, [isSuperAdmin]);
+  }, [canAccess]);
 
   useEffect(() => {
     setLoading(true);
@@ -219,7 +221,7 @@ export default function TelegramGroupsSettings() {
 
   const toggleActive = async (id, next) => {
     if (!canEdit) {
-      toast.error("Faqat super admin.");
+      toast.error("Ruxsat yo'q.");
       return;
     }
     const safeId = String(id || "").trim();
@@ -238,13 +240,13 @@ export default function TelegramGroupsSettings() {
     return <div className="text-sm text-base-content/60">Wird geladen...</div>;
   }
 
-  if (!isSuperAdmin) {
+  if (!canAccess) {
     return (
       <div className="rounded-lg border border-base-300 bg-base-100 p-4">
         <h2 className="text-lg font-semibold">Kein Zugriff</h2>
         <p className="text-sm text-error">
-          Bu bo‘lim uchun <span className="font-mono">role=super_admin</span>{" "}
-          kerak.
+          Bu bo'lim uchun <span className="font-mono">role=admin</span> yoki{" "}
+          <span className="font-mono">role=super_admin</span> kerak.
         </p>
       </div>
     );
@@ -340,7 +342,7 @@ export default function TelegramGroupsSettings() {
                               chat_id: row.chat_id,
                               active: true,
                             });
-                            toast.success("Tizimga qo‘shildi.");
+                            toast.success("Tizimga qo'shildi.");
                           } catch (err) {
                             console.error(err);
                             toast.error("O‘zgartirib bo‘lmadi.");

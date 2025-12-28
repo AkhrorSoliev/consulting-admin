@@ -1,52 +1,42 @@
 import { useState } from "react";
+import { FaChevronDown, FaChevronUp } from "react-icons/fa";
 
 export default function CollapsibleSection({
   title,
   children,
-  defaultOpen = false,
-  className = "",
-  contentClassName = "",
-  openClassName = "",
+  defaultOpen = true,
   count,
   meta,
+  className = "",
 }) {
-  const [isOpen, setIsOpen] = useState(Boolean(defaultOpen));
-  const rightLabel =
-    meta !== undefined && meta !== null
-      ? String(meta)
-      : typeof count === "number"
-        ? String(count)
-        : "";
+  const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <details
-      className={[
-        "collapse collapse-arrow bg-base-100 border border-base-300 rounded-box",
-        isOpen ? openClassName : "",
-        className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
-      open={isOpen}
-      onToggle={(e) => setIsOpen(e.currentTarget.open)}
-    >
-      <summary className="collapse-title text-base font-semibold">
-        <div className="flex items-center justify-between gap-3">
-          <span>{title}</span>
-          {rightLabel ? (
-            <span className="badge badge-ghost badge-sm">{rightLabel}</span>
-          ) : null}
-        </div>
-      </summary>
-      <div
-        className={["collapse-content pt-0", contentClassName]
-          .filter(Boolean)
-          .join(" ")}
+    <div className={`bg-base-100 rounded-lg ${className}`}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between p-4 text-left hover:bg-base-200/50 transition-colors rounded-t-lg"
       >
-        {children}
-      </div>
-    </details>
+        <div className="flex items-center gap-3">
+          <h3 className="text-lg font-semibold">{title}</h3>
+          {count !== undefined && (
+            <span className="badge badge-primary badge-sm">{count}</span>
+          )}
+          {meta && (
+            <span className="text-sm text-base-content/60">{meta}</span>
+          )}
+        </div>
+        <div className="text-base-content/60">
+          {isOpen ? <FaChevronUp /> : <FaChevronDown />}
+        </div>
+      </button>
+      
+      {isOpen && (
+        <div className="border-t border-base-300">
+          {children}
+        </div>
+      )}
+    </div>
   );
 }
-
-

@@ -84,7 +84,7 @@ function Profile() {
       } else {
         setStatusMessage({
           type: "info",
-          text: "Hech qanday o‘zgarish topilmadi",
+          text: "Keine Änderungen gefunden",
         });
       }
     } catch (error) {

@@ -204,7 +204,7 @@ export default function CandidatesArchivedUsers() {
       });
     } catch (e) {
       console.error(e);
-      toast.error("Tiklashda xato.");
+      toast.error("Fehler beim Wiederherstellen.");
     } finally {
       setRestoringKey("");
     }
@@ -214,7 +214,7 @@ export default function CandidatesArchivedUsers() {
     if (!isPrivileged) return;
     if (!pendingRecord) return;
     if (!majorModalKey) {
-      toast.error("Avval major tanlang.");
+      toast.error("Bitte wählen Sie zuerst ein Berufsfeld.");
       return;
     }
 
@@ -224,7 +224,7 @@ export default function CandidatesArchivedUsers() {
       const meta = await getMetaByName(majorModalKey);
       const col = String(meta?.collectionName || "").trim();
       if (!col) {
-        toast.error("Major topilmadi. Qaytadan tanlang.");
+        toast.error("Berufsfeld nicht gefunden. Bitte erneut wählen.");
         return;
       }
 
@@ -243,7 +243,7 @@ export default function CandidatesArchivedUsers() {
       });
     } catch (e) {
       console.error(e);
-      toast.error("Tiklashda xato.");
+      toast.error("Fehler beim Wiederherstellen.");
     } finally {
       setRestoringKey("");
     }
@@ -296,12 +296,12 @@ export default function CandidatesArchivedUsers() {
 
         await deleteDoc(doc(db, "archived_users", String(record.id).trim()));
 
-        toast.success(`Tiklandi: ${majorCol} (id=${newId})`);
+        toast.success(`Wiederhergestellt: ${majorCol} (id=${newId})`);
         setConfirmState(null);
         await load();
       } catch (e) {
         console.error(e);
-        toast.error("Tiklashda xato.");
+        toast.error("Fehler beim Wiederherstellen.");
       } finally {
         setRestoringKey("");
       }
@@ -337,12 +337,12 @@ export default function CandidatesArchivedUsers() {
 
         await deleteDoc(doc(db, "archived_users", String(record.id).trim()));
 
-        toast.success("Deleted ga ko‘chirildi.");
+        toast.success("In Gelöschte verschoben.");
         setConfirmState(null);
         await load();
       } catch (e) {
         console.error(e);
-        toast.error("O‘chirishda xato.");
+        toast.error("Fehler beim Löschen.");
       } finally {
         setMovingKey("");
       }
