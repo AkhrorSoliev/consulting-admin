@@ -243,8 +243,8 @@ export default function Vollmacht() {
 
       <div className={layoutClass}>
         <section className={formCard}>
-          <div className="card-body space-y-4">
-            <h2 className="card-title text-2xl font-bold">
+          <div className="card-body space-y-4 grow-0">
+            <h2 className="card-title text-2xl font-bold ">
               Vollmacht ausfüllen
             </h2>
             <p className="text-sm opacity-70">
@@ -255,7 +255,6 @@ export default function Vollmacht() {
               <span className="font-semibold">Wohnort</span> und{" "}
               <span className="font-semibold">Datum</span>.
             </p>
-
             <div className="divider">Personendaten</div>
 
             <FormInput
@@ -294,8 +293,6 @@ export default function Vollmacht() {
                 </span>
               }
             />
-
-            <div className="divider">Unterschrift</div>
 
             <FormInput
               label="Wohnort"
