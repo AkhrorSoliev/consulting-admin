@@ -17,11 +17,12 @@ function menuItemClass({ isActive }) {
 export default function SettingsLayout() {
   const { role, loadingRole } = useUserRole({ forceRefresh: true });
   const showAdmins = !loadingRole && role === "super_admin";
-  const showTelegramGroups = !loadingRole && (role === "super_admin" || role === "admin");
+  const showTelegramGroups =
+    !loadingRole && (role === "super_admin" || role === "admin");
 
   return (
     <div className="w-full mx-auto">
-      <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-[260px_1fr] gap-6 pt-4">
         <aside className="md:sticky md:top-0 self-start rounded-box border border-base-300 bg-base-100 shadow">
           <div className="p-4 border-b border-base-200">
             <div className="flex items-center gap-3">

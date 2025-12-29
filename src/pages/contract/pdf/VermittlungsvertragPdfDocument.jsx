@@ -103,8 +103,18 @@ function safeName(n) {
 export default function VermittlungsvertragPdfDocument({ form }) {
   ensureInterRegistered();
 
-  const candidateName = String(form?.candidateName || "").trim();
-  const nameLine = safeName(candidateName);
+  const candidateFirstName = String(form?.candidateFirstName || "").trim();
+  const candidateLastName = String(form?.candidateLastName || "").trim();
+  const candidateStreet = String(form?.candidateStreet || "").trim();
+  const candidateHouseNumber = String(form?.candidateHouseNumber || "").trim();
+  const candidatePLZ = String(form?.candidatePLZ || "").trim();
+  const candidateBirthPlace = String(form?.candidateBirthPlace || "").trim();
+  const candidateLand = String(form?.candidateLand || "").trim();
+
+  const fullName = `${candidateFirstName} ${candidateLastName}`.trim();
+  const streetAndHouse = `${candidateStreet}. ${candidateHouseNumber}`.trim();
+  const plzAndBirthPlace = `${candidatePLZ} ${candidateBirthPlace}`.trim();
+  const nameLine = safeName(fullName);
 
   // Calculate contract dates
   const today = new Date();
@@ -143,14 +153,17 @@ export default function VermittlungsvertragPdfDocument({ form }) {
         </Text>
 
         <Text style={[s.p, { marginTop: 10, textAlign: "center" }]}>und</Text>
-        <Text style={[s.p, { textAlign: "center" }]}>
-          __________________________________
+        <Text style={[s.p, { textAlign: "center", fontWeight: 700 }]}>
+          {fullName || "________________________________"}
         </Text>
         <Text style={[s.p, { textAlign: "center" }]}>
-          __________________________________
+          {streetAndHouse || "________________________________"}
         </Text>
         <Text style={[s.p, { textAlign: "center" }]}>
-          __________________________________
+          {plzAndBirthPlace || "________________________________"}
+        </Text>
+        <Text style={[s.p, { textAlign: "center" }]}>
+          {candidateLand || "________________________________"}
         </Text>
         <Text style={[s.p, { textAlign: "center" }]}>
           (nachstehend "Auftraggeber/Bewerber" genannt)
@@ -372,19 +385,18 @@ export default function VermittlungsvertragPdfDocument({ form }) {
                 Orif Akhmadaliev
               </Text>
               <Text style={s.sigLabel}>Vermittler</Text>
+              <Text style={[s.sigLabel, { textAlign: "left", marginTop: 60 }]}>
+                {candidateBirthPlace || "Geburtsort"} / {signatureDate}
+              </Text>
             </View>
             <View style={s.sigCol}>
               <View style={s.sigUnderline} />
-              <View style={[s.sigUnderline, { marginTop: 6 }]} />
-              <Text style={[s.sigLabel, { marginTop: 4 }]}>
-                Auftraggeber / Bewerber
+              <Text style={[s.sigTopName, { fontStyle: "italic" }]}>
+                {fullName || "Kandidat Name"}
               </Text>
+              <Text style={s.sigLabel}>Auftraggeber / Bewerber</Text>
             </View>
           </View>
-          <Text style={[s.p, { marginTop: 64, textAlign: "left" }]}>
-            <Text style={s.bold}>{signatureCity}</Text> /{" "}
-            <Text style={s.bold}>{signatureDate}</Text>
-          </Text>
         </View>
       </Page>
     </Document>
