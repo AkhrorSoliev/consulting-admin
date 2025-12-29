@@ -96,66 +96,57 @@ function buildVollmachtArbeitgeberBlocks(form) {
           <div className="grid grid-cols-2 gap-0">
             <TableCell className="font-bold">Vollmachtgeber</TableCell>
             <TableCell className="font-bold">Arbeitgeber</TableCell>
-            
+
             <TableCell className="min-h-[200pt]">
-              <FieldWithLabel 
-                value={form.candidateFullName} 
-                label="[Vorname Name]" 
+              <FieldWithLabel
+                value={form.candidateFullName}
+                label="[Vorname Name]"
               />
-              <FieldWithLabel 
-                value={form.candidateBirthInfo} 
-                label="[Geburtsdatum, -ort, -land]" 
+              <FieldWithLabel
+                value={form.candidateBirthInfo}
+                label="[Geburtsdatum, -ort, -land]"
               />
-              <FieldWithLabel 
-                value={form.candidateStreet} 
-                label="[Straße Hausnummer]" 
+              <FieldWithLabel
+                value={form.candidateStreet}
+                label="[Straße Hausnummer]"
               />
-              <FieldWithLabel 
-                value={form.candidateCity} 
-                label="[PLZ Ort Land]" 
+              <FieldWithLabel
+                value={form.candidateCity}
+                label="[PLZ Ort Land]"
               />
-              <FieldWithLabel 
-                value={form.candidatePhone} 
-                label="[Telefonnummer]" 
+              <FieldWithLabel
+                value={form.candidatePhone}
+                label="[Telefonnummer]"
               />
-              <FieldWithLabel 
-                value={form.candidateEmail} 
-                label="[E-Mail]" 
-              />
+              <FieldWithLabel value={form.candidateEmail} label="[E-Mail]" />
             </TableCell>
-            
+
             <TableCell className="min-h-[200pt]">
-              <FieldWithLabel 
-                value={form.employerCompany} 
-                label="[Firma]" 
+              <FieldWithLabel value={form.employerCompany} label="[Firma]" />
+              <FieldWithLabel
+                value={form.employerLocation}
+                label="[Geschäftssitz]"
               />
-              <FieldWithLabel 
-                value={form.employerLocation} 
-                label="[Geschäftssitz]" 
-              />
-              
+
               <div className="mt-[12pt] mb-[6pt]">
                 <div className="text-right text-[10pt] opacity-70">
                   vertreten durch
                 </div>
               </div>
-              
-              <FieldWithLabel 
-                value={form.employerRepName} 
-                label="[Vorname Name]" 
+
+              <FieldWithLabel
+                value={form.employerRepName}
+                label="[Vorname Name]"
               />
-              <FieldWithLabel 
-                value={form.employerRepAddress} 
-                label="[Anschrift]" 
+              <FieldWithLabel
+                value={form.employerRepAddress}
+                label="[Anschrift]"
               />
-              <FieldWithLabel 
-                value={form.employerRepPhone} 
-                label="[Telefonnummer]" 
+              <FieldWithLabel
+                value={form.employerRepPhone}
+                label="[Telefonnummer]"
               />
-              <FieldWithLabel 
-                value={form.employerRepEmail} 
-                label="[E-Mail]" 
-              />
+              <FieldWithLabel value={form.employerRepEmail} label="[E-Mail]" />
             </TableCell>
           </div>
         </div>
@@ -167,7 +158,8 @@ function buildVollmachtArbeitgeberBlocks(form) {
       node: (
         <div className="mt-[16pt]">
           <div className="text-[14pt] font-bold text-center">
-            Vollmacht für die Beantragung eines beschleunigten Fachkräfteverfahrens
+            Vollmacht für die Beantragung eines beschleunigten
+            Fachkräfteverfahrens
           </div>
         </div>
       ),
@@ -187,9 +179,7 @@ function buildVollmachtArbeitgeberBlocks(form) {
             )}
           </P>
 
-          <P className="mt-[8pt]">
-            - im Folgenden: „der Bevollmächtigte",
-          </P>
+          <P className="mt-[8pt]">- im Folgenden: „der Bevollmächtigte",</P>
 
           <P>
             vertreten durch{" "}
@@ -200,11 +190,73 @@ function buildVollmachtArbeitgeberBlocks(form) {
             ) : (
               <span className="inline-block border-b border-slate-700 min-w-[200px] mx-1"></span>
             )}{" "}
-            - Vollmacht, aus der sich deren Vertretungsbefugnis für den Arbeitgeber ergibt, muss als Anlage beigefügt werden, bei der zuständigen Ausländerbehörde das beschleunigte Fachkräfteverfahren nach § 81a AufenthG sowie die sonstigen ggf. damit zusammenhängenden und in § 81a Absatz 3 AufenthG aufgeführten Verfahren zu beantragen, und mich in diesen Verfahren bezüglich aller gesetzlich zulässigen Angelegenheiten außergerichtlich zu vertreten.
+            - Vollmacht, aus der sich deren Vertretungsbefugnis für den
+            Arbeitgeber ergibt, muss als Anlage beigefügt werden, bei der
+            zuständigen Ausländerbehörde das beschleunigte Fachkräfteverfahren
+            nach § 81a AufenthG sowie die sonstigen ggf. damit zusammenhängenden
+            und in § 81a Absatz 3 AufenthG aufgeführten Verfahren zu beantragen,
+            und{" "}
+            {hasValue(
+              `${form.candidateFirstName || ""} ${
+                form.candidateLastName || ""
+              }`.trim()
+            ) ? (
+              <span className="font-semibold">
+                <SafeInline>
+                  {`${form.candidateFirstName || ""} ${
+                    form.candidateLastName || ""
+                  }`.trim()}
+                </SafeInline>
+              </span>
+            ) : (
+              <span className="inline-block border-b border-slate-700 min-w-[150px] mx-1"></span>
+            )}{" "}
+            {hasValue(
+              `${form.candidateStreet || ""}.${
+                form.candidateHouseNumber || ""
+              }`.trim()
+            ) ? (
+              <span className="font-semibold">
+                <SafeInline>
+                  {`${form.candidateStreet || ""}.${
+                    form.candidateHouseNumber || ""
+                  }`.trim()}
+                </SafeInline>
+              </span>
+            ) : (
+              <span className="inline-block border-b border-slate-700 min-w-[150px] mx-1"></span>
+            )}{" "}
+            {hasValue(
+              `${form.candidatePLZ || ""} ${
+                form.candidateBirthPlace || ""
+              }`.trim()
+            ) ? (
+              <span className="font-semibold">
+                <SafeInline>
+                  {`${form.candidatePLZ || ""} ${
+                    form.candidateBirthPlace || ""
+                  }`.trim()}
+                </SafeInline>
+              </span>
+            ) : (
+              <span className="inline-block border-b border-slate-700 min-w-[150px] mx-1"></span>
+            )}{" "}
+            {hasValue(form.candidateLand) ? (
+              <span className="font-semibold">
+                <SafeInline>{form.candidateLand}</SafeInline>
+              </span>
+            ) : (
+              <span className="inline-block border-b border-slate-700 min-w-[150px] mx-1"></span>
+            )}{" "}
+            mich in diesen Verfahren bezüglich aller gesetzlich zulässigen
+            Angelegenheiten außergerichtlich zu vertreten.
           </P>
 
           <P className="mt-[12pt]">
-            Ich erteile dem Bevollmächtigten die Befugnis, sämtliche Erklärungen und Handlungen verbindlich vorzunehmen, die nach den gesetzlichen Regelungen vorgenommen werden können und für die Verfahren erforderlich sind.
+            Ich erteile dem Bevollmächtigten die Befugnis, sämtliche Erklärungen
+            und Handlungen verbindlich vorzunehmen, die nach den gesetzlichen
+            Regelungen vorgenommen werden können und für die Verfahren
+            erforderlich sind.
           </P>
 
           <P className="mt-[12pt]">
@@ -219,19 +271,27 @@ function buildVollmachtArbeitgeberBlocks(form) {
         <div className="ml-3">
           <div className="mt-[8pt]">
             <Bullet>
-              die Vertretung in allen für die Durchführung des beschleunigten Fachkräfteverfahrens erforderlichen Angelegenheiten gegenüber der zuständigen Ausländerbehörde, der für die berufliche Anerkennung zuständigen Stelle sowie der ggf. sonstigen zuständigen Behörden,
+              die Vertretung in allen für die Durchführung des beschleunigten
+              Fachkräfteverfahrens erforderlichen Angelegenheiten gegenüber der
+              zuständigen Ausländerbehörde, der für die berufliche Anerkennung
+              zuständigen Stelle sowie der ggf. sonstigen zuständigen Behörden,
             </Bullet>
             <Bullet>
-              das Ein- und Nachreichen der für die Verfahren erforderlichen Unterlagen einschließlich meiner personenbezogenen Daten,
+              das Ein- und Nachreichen der für die Verfahren erforderlichen
+              Unterlagen einschließlich meiner personenbezogenen Daten,
             </Bullet>
             <Bullet>
-              die Vornahme von Zahlungen von für den Abschluss der Verfahren erforderlichen Gebühren,
+              die Vornahme von Zahlungen von für den Abschluss der Verfahren
+              erforderlichen Gebühren,
             </Bullet>
             <Bullet>
-              die Entgegennahme der die Verfahren betreffenden schriftlichen sowie elektronischen Unterlagen, die Durchführung des Schriftverkehrs und das Öffnen der an mich adressierten Post und
+              die Entgegennahme der die Verfahren betreffenden schriftlichen
+              sowie elektronischen Unterlagen, die Durchführung des
+              Schriftverkehrs und das Öffnen der an mich adressierten Post und
             </Bullet>
             <Bullet>
-              den Antrag auf Aufnahme der Familienzusammenführung nach § 81a Absatz 4 AufenthG ins beschleunigte Fachkräfteverfahren.
+              den Antrag auf Aufnahme der Familienzusammenführung nach § 81a
+              Absatz 4 AufenthG ins beschleunigte Fachkräfteverfahren.
             </Bullet>
           </div>
         </div>
@@ -242,11 +302,19 @@ function buildVollmachtArbeitgeberBlocks(form) {
       node: (
         <div className="mt-[12pt]">
           <P>
-            Der Bevollmächtigte ist berechtigt, eine Untervollmacht, die den Umfang dieser Vollmacht nicht überschreiten darf, zu erteilen und zu widerrufen [auf die Möglichkeit der Verwendung des Musters für die Untervollmacht als Anlage zu einer Vollmacht nach § 81a Abs. 1 AufenthG wird hingewiesen]. Die Vollmacht erlischt mit Abschluss des beschleunigten Fachkräfteverfahrens.
+            Der Bevollmächtigte ist berechtigt, eine Untervollmacht, die den
+            Umfang dieser Vollmacht nicht überschreiten darf, zu erteilen und zu
+            widerrufen [auf die Möglichkeit der Verwendung des Musters für die
+            Untervollmacht als Anlage zu einer Vollmacht nach § 81a Abs. 1
+            AufenthG wird hingewiesen]. Die Vollmacht erlischt mit Abschluss des
+            beschleunigten Fachkräfteverfahrens.
           </P>
 
           <P className="mt-[12pt]">
-            Da diese Vollmacht meine rechtliche Möglichkeit selbst zu handeln nicht ausschließt, bitte ich um direkten Kontakt zu mir, sofern dies zur Klärung von Sachverhalten und zur Verfahrensbeschleunigung erforderlich erscheint.
+            Da diese Vollmacht meine rechtliche Möglichkeit selbst zu handeln
+            nicht ausschließt, bitte ich um direkten Kontakt zu mir, sofern dies
+            zur Klärung von Sachverhalten und zur Verfahrensbeschleunigung
+            erforderlich erscheint.
           </P>
         </div>
       ),
@@ -257,22 +325,16 @@ function buildVollmachtArbeitgeberBlocks(form) {
         <div className="mt-[24pt]">
           <div className="grid grid-cols-2 gap-8">
             <div>
-              <FormRow 
-                label="Ort, Datum" 
-                value={form.candidatePlaceDate}
-              />
+              <FormRow label="Ort, Datum" value={form.candidatePlaceDate} />
               <div className="mt-[20pt] text-center">
                 <div className="border-t border-slate-700 pt-[4pt] text-[10pt]">
                   Unterschrift Vollmachtgeber
                 </div>
               </div>
             </div>
-            
+
             <div>
-              <FormRow 
-                label="Ort, Datum" 
-                value={form.employerPlaceDate}
-              />
+              <FormRow label="Ort, Datum" value={form.employerPlaceDate} />
               <div className="mt-[20pt] text-center">
                 <div className="border-t border-slate-700 pt-[4pt] text-[10pt]">
                   Unterschrift Bevollmächtigter
@@ -509,4 +571,3 @@ export default function VollmachtArbeitgeberLivePreview({
     </section>
   );
 }
-

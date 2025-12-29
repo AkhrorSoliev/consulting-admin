@@ -35,13 +35,27 @@ function SafeInline({ children, className }) {
 }
 
 function buildVermittlungsvertragBlocks({
-  candidateName,
+  candidateFirstName,
+  candidateLastName,
+  candidateStreet,
+  candidateHouseNumber,
+  candidatePLZ,
+  candidateBirthPlace,
+  candidateLand,
   contractDurationYears,
   signatureCity,
   signatureDate,
 }) {
-  const nameLine =
-    String(candidateName || "").trim() || "_____________________";
+  const fullName = `${String(candidateFirstName || "").trim()} ${String(
+    candidateLastName || ""
+  ).trim()}`.trim();
+  const nameLine = fullName || "_____________________";
+  const streetAndHouse = `${String(candidateStreet || "").trim()}.${String(
+    candidateHouseNumber || ""
+  ).trim()}`.trim();
+  const plzAndBirthPlace = `${String(candidatePLZ || "").trim()} ${String(
+    candidateBirthPlace || ""
+  ).trim()}`.trim();
 
   // Calculate contract dates
   const today = new Date();
@@ -105,12 +119,22 @@ function buildVermittlungsvertragBlocks({
             <div className="mt-[4pt]">(nachstehend "Vermittler" genannt)</div>
           </div>
 
-          <div className="mt-[10pt]">und</div>
+          <div className="mt-[2pt]">und</div>
 
           <div className="mt-[6pt]">
-            <div className="mt-[2pt]">__________________________________</div>
-            <div className="mt-[2pt]">__________________________________</div>
-            <div className="mt-[2pt]">__________________________________</div>
+            <div className="mt-[2pt]">
+              {fullName || "__________________________________"}
+            </div>
+            <div className="mt-[2pt]">
+              {streetAndHouse || "__________________________________"}
+            </div>
+            <div className="mt-[2pt]">
+              {plzAndBirthPlace || "__________________________________"}
+            </div>
+            <div className="mt-[2pt]">
+              {String(candidateLand || "").trim() ||
+                "__________________________________"}
+            </div>
             <div className="mt-[4pt]">
               (nachstehend "Auftraggeber/Bewerber" genannt)
             </div>
@@ -368,20 +392,19 @@ function buildVermittlungsvertragBlocks({
               <div className="border-b border-slate-700 h-[22pt]" />
               <div className="font-bold italic mt-[4pt]">Orif Akhmadaliev</div>
               <div className="text-[10pt] mt-[2pt]">Vermittler</div>
+              <div className="text-[10pt] mt-[60pt] text-left w-full">
+                {candidateBirthPlace || "Geburtsort"} / {signatureDateLine}
+              </div>
             </div>
             <div className="flex-1">
               <div className="border-b border-slate-700 h-[22pt]" />
-              <div className="border-b border-slate-700 h-[22pt] mt-[6pt]" />
-              <div className="font-medium mt-[4pt]">
+              <div className="font-bold italic mt-[4pt]">
+                {fullName || "Kandidat Name"}
+              </div>
+              <div className="text-[10pt] mt-[2pt]">
                 Auftraggeber / Bewerber
               </div>
             </div>
-          </div>
-          <div className="mt-[64pt] text-left">
-            <span className="font-medium">
-              <SafeInline>{signatureCityLine}</SafeInline> /{" "}
-              <SafeInline>{signatureDateLine}</SafeInline>
-            </span>
           </div>
         </div>
       ),
@@ -451,13 +474,25 @@ export default function VermittlungsvertragLivePreview({
   const blocks = useMemo(
     () =>
       buildVermittlungsvertragBlocks({
-        candidateName: String(form?.candidateName || "").trim(),
+        candidateFirstName: String(form?.candidateFirstName || "").trim(),
+        candidateLastName: String(form?.candidateLastName || "").trim(),
+        candidateStreet: String(form?.candidateStreet || "").trim(),
+        candidateHouseNumber: String(form?.candidateHouseNumber || "").trim(),
+        candidatePLZ: String(form?.candidatePLZ || "").trim(),
+        candidateBirthPlace: String(form?.candidateBirthPlace || "").trim(),
+        candidateLand: String(form?.candidateLand || "").trim(),
         contractDurationYears: form?.contractDurationYears || 2,
         signatureCity: String(form?.signatureCity || "").trim(),
         signatureDate: String(form?.signatureDate || "").trim(),
       }),
     [
-      form?.candidateName,
+      form?.candidateFirstName,
+      form?.candidateLastName,
+      form?.candidateStreet,
+      form?.candidateHouseNumber,
+      form?.candidatePLZ,
+      form?.candidateBirthPlace,
+      form?.candidateLand,
       form?.contractDurationYears,
       form?.signatureCity,
       form?.signatureDate,

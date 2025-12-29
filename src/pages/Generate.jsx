@@ -100,6 +100,7 @@ import { UZBEK_REGIONS } from "../constants/uzbekRegions";
 import { LANGUAGE_OPTIONS } from "../constants/languageOptions";
 import { DOCUMENT_TEMPLATES } from "../constants/documentTemplates";
 import BeratungsvertragPdfDocument from "./contract/pdf/BeratungsvertragPdfDocument";
+import VermittlungsvertragPdfDocument from "./contract/pdf/VermittlungsvertragPdfDocument";
 import {
   makeEmailTemplateId,
   subscribeToEmailTemplates,
@@ -1161,6 +1162,76 @@ function Generate() {
     return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
   }
 
+  async function generateAndUploadVermittlungsvertrag() {
+    // Load template defaults from Firestore (same source as Contract template page)
+    const templateDoc = await getDocumentDataById(
+      "template_documents",
+      "vermittlungsvertrag"
+    );
+    const savedForm =
+      templateDoc &&
+      typeof templateDoc === "object" &&
+      templateDoc.form &&
+      typeof templateDoc.form === "object"
+        ? templateDoc.form
+        : null;
+
+    const firstName = String(formCv?.personalInfo?.name || "").trim();
+    const lastName = String(formCv?.personalInfo?.lastName || "").trim();
+    const birthPlace = String(formCv?.personalInfo?.birthPlace || "").trim();
+    const street = String(addressFields?.street || "").trim();
+    const houseNumber = String(addressFields?.houseNumber || "").trim();
+    const postalCode = String(addressFields?.postalCode || "").trim();
+    const city = String(addressFields?.city || "").trim();
+    const country = String(addressFields?.country || "").trim();
+
+    const baseForm = {
+      candidateFirstName: "",
+      candidateLastName: "",
+      candidateStreet: "",
+      candidateHouseNumber: "",
+      candidatePLZ: "",
+      candidateBirthPlace: "",
+      candidateLand: "",
+      contractDurationYears: "2",
+      signatureDate: todayDdMmYyyy(),
+      signatureCity: "",
+    };
+
+    const merged = {
+      ...baseForm,
+      ...(savedForm ? savedForm : {}),
+      candidateFirstName: firstName,
+      candidateLastName: lastName,
+      candidateStreet: street,
+      candidateHouseNumber: houseNumber,
+      candidatePLZ: postalCode,
+      candidateBirthPlace: birthPlace,
+      candidateLand: country,
+      signatureCity: city,
+      signatureDate: todayDdMmYyyy(),
+    };
+
+    const fileBase =
+      firstName || lastName
+        ? `Vermittlungsvertrag ${[firstName, lastName]
+            .filter(Boolean)
+            .join(" ")}`
+        : "Vermittlungsvertrag";
+    const safeFileName =
+      fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Vermittlungsvertrag";
+
+    const blob = await pdf(
+      <VermittlungsvertragPdfDocument form={merged} />
+    ).toBlob();
+
+    const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
+      type: "application/pdf",
+    });
+    const url = await uploadFileToConsulting(file);
+    return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
+  }
+
   async function handleToggleOutgoingDoc(template, nextEnabled, options = {}) {
     const tpl = template || {};
     const templateId = String(tpl.id || "").trim();
@@ -1202,6 +1273,8 @@ function Generate() {
       let generated = null;
       if (templateId === "beratungsvertrag") {
         generated = await generateAndUploadBeratungsvertrag();
+      } else if (templateId === "vermittlungsvertrag") {
+        generated = await generateAndUploadVermittlungsvertrag();
       } else {
         throw new Error(`Unknown document template: ${templateId}`);
       }
@@ -3760,7 +3833,7 @@ function Generate() {
     : "Bitte warten...";
 
   return (
-    <div className="p-2 bg-base-200 min-h-screen">
+    <div className="p-2 min-h-screen">
       {remoteMode ? (
         <SelectMajorModal
           open={majorModalOpen}
@@ -5044,6 +5117,23 @@ function Generate() {
                               </div>
                             ) : null}
                             {tpl.id === "beratungsvertrag" && checked ? (
+                              <div className="mt-2">
+                                <button
+                                  type="button"
+                                  className="btn btn-xs btn-outline"
+                                  onClick={() =>
+                                    handleToggleOutgoingDoc(tpl, true, {
+                                      forceRegenerate: true,
+                                    })
+                                  }
+                                  disabled={disabled}
+                                  title="PDF'ni qayta yaratish va qayta upload qilish"
+                                >
+                                  Qayta generatsiya
+                                </button>
+                              </div>
+                            ) : null}
+                            {tpl.id === "vermittlungsvertrag" && checked ? (
                               <div className="mt-2">
                                 <button
                                   type="button"

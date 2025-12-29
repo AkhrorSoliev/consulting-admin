@@ -214,7 +214,7 @@ export default function Contract() {
     "card bg-base-100 shadow-2xl border border-base-300 rounded-2xl w-full lg:max-w-[520px] shrink-0 max-h-[calc(100vh-2rem)] lg:sticky lg:top-2 overflow-y-auto";
 
   return (
-    <div className="p-2 bg-base-200 min-h-screen">
+    <div className="p-2 min-h-screen">
       {/* Fixed action bar under the global navbar (hidden on print) */}
       <div className="fixed inset-x-0 top-16 z-30 border-b border-base-300 bg-base-200/90 backdrop-blur print:hidden">
         <div className="flex items-center justify-between gap-3 px-4 py-2 lg:px-6">
@@ -276,7 +276,6 @@ export default function Contract() {
           </div>
         </div>
       </div>
-      <div className="h-20 print:hidden" />
 
       <div className={layoutClass}>
         <section className={formCard}>

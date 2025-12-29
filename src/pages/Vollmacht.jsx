@@ -27,7 +27,8 @@ function todayDdMmYyyy() {
 
 export default function Vollmacht() {
   const { role, loadingRole } = useUserRole();
-  const canWriteTemplate = !loadingRole && (role === "super_admin" || role === "admin");
+  const canWriteTemplate =
+    !loadingRole && (role === "super_admin" || role === "admin");
   const { user } = useSelector((state) => state.auth);
 
   const [form, setForm] = useState(() => ({
@@ -63,7 +64,10 @@ export default function Vollmacht() {
 
       const data = snap.data() || {};
       const savedForm =
-        data && typeof data === "object" && data.form && typeof data.form === "object"
+        data &&
+        typeof data === "object" &&
+        data.form &&
+        typeof data.form === "object"
           ? data.form
           : null;
 
@@ -110,7 +114,9 @@ export default function Vollmacht() {
         updatedByEmail: user?.email || null,
       };
 
-      await setDoc(doc(db, TEMPLATE_COLLECTION, TEMPLATE_ID), payload, { merge: true });
+      await setDoc(doc(db, TEMPLATE_COLLECTION, TEMPLATE_ID), payload, {
+        merge: true,
+      });
 
       lastSavedJsonRef.current = JSON.stringify(form);
       setHasUnsavedTemplate(false);
@@ -147,13 +153,10 @@ export default function Vollmacht() {
   async function handleDownloadPdf() {
     try {
       setIsDownloading(true);
-      const fileBase = fullName
-        ? `Vollmacht ${fullName}`
-        : "Vollmacht";
-      const safeFileName = fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Vollmacht";
-      const blob = await pdf(
-        <VollmachtPdfDocument form={form} />
-      ).toBlob();
+      const fileBase = fullName ? `Vollmacht ${fullName}` : "Vollmacht";
+      const safeFileName =
+        fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Vollmacht";
+      const blob = await pdf(<VollmachtPdfDocument form={form} />).toBlob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -169,19 +172,23 @@ export default function Vollmacht() {
     }
   }
 
-  const layoutClass = "flex flex-col lg:flex-row gap-6 items-start lg:items-stretch";
+  const layoutClass =
+    "flex flex-col lg:flex-row gap-6 items-start lg:items-stretch";
   const formCard =
     "card bg-base-100 shadow-2xl border border-base-300 rounded-2xl w-full lg:max-w-[520px] shrink-0 max-h-[calc(100vh-2rem)] lg:sticky lg:top-2 overflow-y-auto";
 
   return (
-    <div className="p-2 bg-base-200 min-h-screen">
+    <div className="p-2 min-h-screen">
       {/* Fixed action bar under the global navbar (hidden on print) */}
       <div className="fixed inset-x-0 top-16 z-30 border-b border-base-300 bg-base-200/90 backdrop-blur print:hidden">
         <div className="flex items-center justify-between gap-3 px-4 py-2 lg:px-6">
           <div className="breadcrumbs text-sm">
             <ul>
               <li>
-                <Link to="/settings/documents" className="link flex items-center gap-2">
+                <Link
+                  to="/settings/documents"
+                  className="link flex items-center gap-2"
+                >
                   <FaArrowLeft /> Zurück
                 </Link>
               </li>
@@ -202,7 +209,12 @@ export default function Vollmacht() {
               type="button"
               className="btn btn-sm btn-primary"
               onClick={() => saveTemplate({ silent: false })}
-              disabled={isLoadingTemplate || isSavingTemplate || !hasUnsavedTemplate || !canWriteTemplate}
+              disabled={
+                isLoadingTemplate ||
+                isSavingTemplate ||
+                !hasUnsavedTemplate ||
+                !canWriteTemplate
+              }
               title={
                 !canWriteTemplate
                   ? "Saqlash uchun admin huquqi kerak"
@@ -228,14 +240,16 @@ export default function Vollmacht() {
           </div>
         </div>
       </div>
-      <div className="h-20 print:hidden" />
 
       <div className={layoutClass}>
         <section className={formCard}>
           <div className="card-body space-y-4">
-            <h2 className="card-title text-2xl font-bold">Vollmacht ausfüllen</h2>
+            <h2 className="card-title text-2xl font-bold">
+              Vollmacht ausfüllen
+            </h2>
             <p className="text-sm opacity-70">
-              Füllen Sie die erforderlichen Felder aus: <span className="font-semibold">Nachname</span>,{" "}
+              Füllen Sie die erforderlichen Felder aus:{" "}
+              <span className="font-semibold">Nachname</span>,{" "}
               <span className="font-semibold">Vorname</span>,{" "}
               <span className="font-semibold">Geburtsdatum</span>,{" "}
               <span className="font-semibold">Wohnort</span> und{" "}
@@ -268,11 +282,15 @@ export default function Vollmacht() {
               placeholder="YYYY-MM-DD"
               value={toInputDate(form.birthDate)}
               onChange={(e) =>
-                setForm((p) => ({ ...p, birthDate: fromInputDate(e.target.value) }))
+                setForm((p) => ({
+                  ...p,
+                  birthDate: fromInputDate(e.target.value),
+                }))
               }
               helperText={
                 <span className="text-xs opacity-70">
-                  Wird als <span className="font-semibold">„geboren am"</span> angezeigt.
+                  Wird als <span className="font-semibold">„geboren am"</span>{" "}
+                  angezeigt.
                 </span>
               }
             />
@@ -283,9 +301,7 @@ export default function Vollmacht() {
               label="Wohnort"
               placeholder="z.B. Taschkent"
               value={form.city}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, city: e.target.value }))
-              }
+              onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))}
             />
 
             <FormInput
@@ -298,7 +314,8 @@ export default function Vollmacht() {
               }
               helperText={
                 <span className="text-xs opacity-70">
-                  Wird unten als <span className="font-semibold">„Datum"</span> angezeigt.
+                  Wird unten als <span className="font-semibold">„Datum"</span>{" "}
+                  angezeigt.
                 </span>
               }
             />
@@ -307,7 +324,8 @@ export default function Vollmacht() {
             <div className="text-sm">
               <div className="font-semibold mb-1">Tipp</div>
               <div className="opacity-70">
-                Wenn Felder leer bleiben, werden in der Vollmacht Platzhalter‑Linien angezeigt.
+                Wenn Felder leer bleiben, werden in der Vollmacht
+                Platzhalter‑Linien angezeigt.
               </div>
             </div>
           </div>
@@ -318,4 +336,3 @@ export default function Vollmacht() {
     </div>
   );
 }
-
