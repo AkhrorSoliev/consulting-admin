@@ -1062,7 +1062,8 @@ export default function ContractLivePreview({
       .then((out) => {
         if (!alive) return;
         const preview = String(out?.previewDataUrl || "").trim() || null;
-        const exported = String(out?.exportDataUrl || "").trim() || preview || null;
+        const exported =
+          String(out?.exportDataUrl || "").trim() || preview || null;
         setPdfPreviewUrl(preview);
         try {
           if (typeof onPassportPreviewReady === "function") {
