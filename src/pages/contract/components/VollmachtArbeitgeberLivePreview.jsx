@@ -36,41 +36,117 @@ function SafeInline({ children, className }) {
 
 function buildVollmachtArbeitgeberBlocks(form) {
   const hasValue = (v) => String(v || "").trim().length > 0;
+  const PLACEHOLDER = "";
+  const getOmitKey = (fieldKey) =>
+    fieldKey
+      ? `omit${fieldKey.charAt(0).toUpperCase()}${fieldKey.slice(1)}`
+      : "";
+  const isOmitted = (fieldKey) => Boolean(form?.[getOmitKey(fieldKey)]);
+
+  const candidateFieldConfigs = [
+    { key: "candidateFirstName" },
+    { key: "candidateLastName" },
+    { key: "candidateBirthDate" },
+    { key: "candidateBirthPlace" },
+    { key: "candidateBirthCountry" },
+    { key: "candidateStreet" },
+    { key: "candidateHouseNumber" },
+    { key: "candidatePostalCode" },
+    { key: "candidateCity" },
+    { key: "candidateCountry" },
+    { key: "candidatePhone" },
+    { key: "candidateEmail" },
+  ];
+
+  const candidateFieldGroups = [
+    {
+      keys: ["candidateFirstName", "candidateLastName"],
+      separator: " ",
+    },
+    {
+      keys: [
+        "candidateBirthDate",
+        "candidateBirthPlace",
+        "candidateBirthCountry",
+      ],
+      separator: ", ",
+    },
+    {
+      keys: ["candidateStreet", "candidateHouseNumber"],
+      separator: " ",
+    },
+    {
+      keys: ["candidatePostalCode", "candidateCity"],
+      separator: " ",
+    },
+    {
+      keys: ["candidatePhone"],
+      separator: "",
+    },
+    {
+      keys: ["candidateEmail"],
+      separator: "",
+    },
+  ];
+
+  const employerFieldKeys = [
+    "employerCompany",
+    "employerLocation",
+    "employerRepName",
+    "employerRepAddress",
+    "employerRepPhone",
+    "employerRepEmail",
+  ];
 
   const P = ({ children, className = "" }) => (
-    <div className={`mt-[8pt] ${className}`}>{children}</div>
+    <div className={`mt-2 ${className}`}>{children}</div>
   );
 
-  const FormRow = ({ label, value }) => (
-    <div className="flex gap-[6pt] mt-[6pt]">
-      <div className="w-[100px] shrink-0 text-[10pt]">{label}:</div>
-      {hasValue(value) ? (
-        <div className="flex-1 min-h-[14pt]">
-          <SafeInline>{value}</SafeInline>
-        </div>
-      ) : (
-        <div className="flex-1 border-b border-slate-700 min-h-[14pt]" />
-      )}
-    </div>
-  );
+  const FormRow = ({ label, value, omit }) => {
+    if (omit) return null;
+    return (
+      <div className="flex gap-2 mt-1">
+        <div className="w-[100px] shrink-0 text-[10pt]">{label}:</div>
+        {hasValue(value) ? (
+          <div className="flex-1 min-h-[14pt] pb-0.5">
+            <SafeInline>{value}</SafeInline>
+          </div>
+        ) : (
+          <div className="flex-1 border-b border-slate-700 min-h-[14pt]" />
+        )}
+      </div>
+    );
+  };
 
   const TableCell = ({ children, className = "" }) => (
-    <div className={`border border-slate-700 p-[8pt] ${className}`}>
+    <div className={`border border-slate-700 px-2 py-1.5  ${className}`}>
       {children}
     </div>
   );
 
   const FieldWithLabel = ({ value, label }) => (
-    <div className="flex items-center gap-[6pt] mt-[6pt]">
-      <div className="flex-1 border-b border-slate-700 min-h-[14pt]">
-        {hasValue(value) && <SafeInline>{value}</SafeInline>}
+    <div className="flex items-center gap-2 mt-1">
+      <div
+        className={`flex-1 min-h-[14pt] pb-0.5 ${
+          hasValue(value) ? "" : "border-b border-slate-700"
+        }`}
+      >
+        {hasValue(value) ? (
+          <SafeInline>{value}</SafeInline>
+        ) : (
+          <span className="text-[9pt] tracking-[0.15em] text-slate-400">
+            {PLACEHOLDER}
+          </span>
+        )}
       </div>
-      <div className="text-[9pt] italic opacity-70 shrink-0">{label}</div>
+      {label ? (
+        <div className="text-[9pt] italic opacity-70 shrink-0">{label}</div>
+      ) : null}
     </div>
   );
 
   const Bullet = ({ children }) => (
-    <div className="flex gap-[6pt] mt-[4pt]">
+    <div className="flex gap-2 mt-1">
       <span className="shrink-0">•</span>
       <span className="min-w-0 wrap-break-word">{children}</span>
     </div>
@@ -82,7 +158,7 @@ function buildVollmachtArbeitgeberBlocks(form) {
       keepWithNext: true,
       node: (
         <div className="text-center">
-          <div className="text-[16pt] font-bold">
+          <div className="text-[14pt] font-bold text-[#30849b]">
             Vollmacht nach § 81a Abs. 1 AufenthG
           </div>
         </div>
@@ -92,61 +168,29 @@ function buildVollmachtArbeitgeberBlocks(form) {
       id: "table",
       keepWithNext: true,
       node: (
-        <div className="mt-[16pt]">
+        <div className="mt-4">
           <div className="grid grid-cols-2 gap-0">
             <TableCell className="font-bold">Vollmachtgeber</TableCell>
-            <TableCell className="font-bold">Arbeitgeber</TableCell>
+            <TableCell className="font-bold text-right">Arbeitgeber</TableCell>
 
-            <TableCell className="min-h-[200pt]">
-              <FieldWithLabel
-                value={form.candidateFullName}
-                label="[Vorname Name]"
-              />
-              <FieldWithLabel
-                value={form.candidateBirthInfo}
-                label="[Geburtsdatum, -ort, -land]"
-              />
-              <FieldWithLabel
-                value={form.candidateStreet}
-                label="[Straße Hausnummer]"
-              />
-              <FieldWithLabel
-                value={form.candidateCity}
-                label="[PLZ Ort Land]"
-              />
-              <FieldWithLabel
-                value={form.candidatePhone}
-                label="[Telefonnummer]"
-              />
-              <FieldWithLabel value={form.candidateEmail} label="[E-Mail]" />
+            <TableCell>
+              {candidateFieldGroups.map((group, groupIndex) => {
+                const values = group.keys
+                  .map((key) => form[key])
+                  .filter((v) => hasValue(v));
+                const combinedValue = values.join(group.separator);
+                return isOmitted(group.keys[0]) ? null : (
+                  <FieldWithLabel key={groupIndex} value={combinedValue} />
+                );
+              })}
             </TableCell>
 
-            <TableCell className="min-h-[200pt]">
-              <FieldWithLabel value={form.employerCompany} label="[Firma]" />
-              <FieldWithLabel
-                value={form.employerLocation}
-                label="[Geschäftssitz]"
-              />
-
-              <div className="mt-[12pt] mb-[6pt]">
-                <div className="text-right text-[10pt] opacity-70">
-                  vertreten durch
-                </div>
-              </div>
-
-              <FieldWithLabel
-                value={form.employerRepName}
-                label="[Vorname Name]"
-              />
-              <FieldWithLabel
-                value={form.employerRepAddress}
-                label="[Anschrift]"
-              />
-              <FieldWithLabel
-                value={form.employerRepPhone}
-                label="[Telefonnummer]"
-              />
-              <FieldWithLabel value={form.employerRepEmail} label="[E-Mail]" />
+            <TableCell>
+              {employerFieldKeys.map((key) =>
+                isOmitted(key) ? null : (
+                  <FieldWithLabel key={key} value={form[key]} />
+                )
+              )}
             </TableCell>
           </div>
         </div>
@@ -156,7 +200,7 @@ function buildVollmachtArbeitgeberBlocks(form) {
       id: "title",
       keepWithNext: true,
       node: (
-        <div className="mt-[16pt]">
+        <div className="mt-4">
           <div className="text-[14pt] font-bold text-center">
             Vollmacht für die Beantragung eines beschleunigten
             Fachkräfteverfahrens
@@ -168,27 +212,23 @@ function buildVollmachtArbeitgeberBlocks(form) {
       id: "intro",
       node: (
         <div>
-          <P className="mt-[12pt]">
+          <P className="mt-3">
             Hiermit bevollmächtige ich{" "}
-            {hasValue(form.employerDesignation) ? (
+            {hasValue(form.employerDesignation) && (
               <span className="font-semibold">
-                <SafeInline>{form.employerDesignation}</SafeInline>
+                <SafeInline>{form.employerDesignation} </SafeInline>
               </span>
-            ) : (
-              <span className="inline-block border-b border-slate-700 min-w-[200px] mx-1"></span>
             )}
           </P>
 
-          <P className="mt-[8pt]">- im Folgenden: „der Bevollmächtigte",</P>
+          <P className="mt-2"> - im Folgenden: „der Bevollmächtigte",</P>
 
           <P>
             vertreten durch{" "}
-            {hasValue(form.employerRepFullName) ? (
+            {hasValue(form.employerRepFullName) && (
               <span className="font-semibold">
                 <SafeInline>{form.employerRepFullName}</SafeInline>
               </span>
-            ) : (
-              <span className="inline-block border-b border-slate-700 min-w-[200px] mx-1"></span>
             )}{" "}
             - Vollmacht, aus der sich deren Vertretungsbefugnis für den
             Arbeitgeber ergibt, muss als Anlage beigefügt werden, bei der
@@ -200,7 +240,7 @@ function buildVollmachtArbeitgeberBlocks(form) {
               `${form.candidateFirstName || ""} ${
                 form.candidateLastName || ""
               }`.trim()
-            ) ? (
+            ) && (
               <span className="font-semibold">
                 <SafeInline>
                   {`${form.candidateFirstName || ""} ${
@@ -208,58 +248,49 @@ function buildVollmachtArbeitgeberBlocks(form) {
                   }`.trim()}
                 </SafeInline>
               </span>
-            ) : (
-              <span className="inline-block border-b border-slate-700 min-w-[150px] mx-1"></span>
             )}{" "}
-            {hasValue(
-              `${form.candidateStreet || ""}.${
-                form.candidateHouseNumber || ""
-              }`.trim()
-            ) ? (
+            {(() => {
+              const streetLine = [
+                form.candidateStreet,
+                form.candidateHouseNumber,
+              ]
+                .map((part) => String(part || "").trim())
+                .filter(Boolean)
+                .join(" ");
+              return hasValue(streetLine) ? (
+                <span className="font-semibold">
+                  <SafeInline>{streetLine}</SafeInline>
+                </span>
+              ) : null;
+            })()}{" "}
+            {(() => {
+              const cityLine = [form.candidatePostalCode, form.candidateCity]
+                .map((part) => String(part || "").trim())
+                .filter(Boolean)
+                .join(" ");
+              return hasValue(cityLine) ? (
+                <span className="font-semibold">
+                  <SafeInline>{cityLine}</SafeInline>
+                </span>
+              ) : null;
+            })()}{" "}
+            {hasValue(form.candidateCountry) && (
               <span className="font-semibold">
-                <SafeInline>
-                  {`${form.candidateStreet || ""}.${
-                    form.candidateHouseNumber || ""
-                  }`.trim()}
-                </SafeInline>
+                <SafeInline>{form.candidateCountry}</SafeInline>
               </span>
-            ) : (
-              <span className="inline-block border-b border-slate-700 min-w-[150px] mx-1"></span>
-            )}{" "}
-            {hasValue(
-              `${form.candidatePLZ || ""} ${
-                form.candidateBirthPlace || ""
-              }`.trim()
-            ) ? (
-              <span className="font-semibold">
-                <SafeInline>
-                  {`${form.candidatePLZ || ""} ${
-                    form.candidateBirthPlace || ""
-                  }`.trim()}
-                </SafeInline>
-              </span>
-            ) : (
-              <span className="inline-block border-b border-slate-700 min-w-[150px] mx-1"></span>
-            )}{" "}
-            {hasValue(form.candidateLand) ? (
-              <span className="font-semibold">
-                <SafeInline>{form.candidateLand}</SafeInline>
-              </span>
-            ) : (
-              <span className="inline-block border-b border-slate-700 min-w-[150px] mx-1"></span>
             )}{" "}
             mich in diesen Verfahren bezüglich aller gesetzlich zulässigen
             Angelegenheiten außergerichtlich zu vertreten.
           </P>
 
-          <P className="mt-[12pt]">
+          <P className="mt-3">
             Ich erteile dem Bevollmächtigten die Befugnis, sämtliche Erklärungen
             und Handlungen verbindlich vorzunehmen, die nach den gesetzlichen
             Regelungen vorgenommen werden können und für die Verfahren
             erforderlich sind.
           </P>
 
-          <P className="mt-[12pt]">
+          <P className="mt-3">
             Der Umfang der Vertretungsbefugnis beinhaltet insbesondere
           </P>
         </div>
@@ -269,7 +300,7 @@ function buildVollmachtArbeitgeberBlocks(form) {
       id: "list",
       node: (
         <div className="ml-3">
-          <div className="mt-[8pt]">
+          <div className="mt-2">
             <Bullet>
               die Vertretung in allen für die Durchführung des beschleunigten
               Fachkräfteverfahrens erforderlichen Angelegenheiten gegenüber der
@@ -300,7 +331,7 @@ function buildVollmachtArbeitgeberBlocks(form) {
     {
       id: "closing",
       node: (
-        <div className="mt-[12pt]">
+        <div className="mt-3">
           <P>
             Der Bevollmächtigte ist berechtigt, eine Untervollmacht, die den
             Umfang dieser Vollmacht nicht überschreiten darf, zu erteilen und zu
@@ -310,7 +341,7 @@ function buildVollmachtArbeitgeberBlocks(form) {
             beschleunigten Fachkräfteverfahrens.
           </P>
 
-          <P className="mt-[12pt]">
+          <P className="mt-3">
             Da diese Vollmacht meine rechtliche Möglichkeit selbst zu handeln
             nicht ausschließt, bitte ich um direkten Kontakt zu mir, sofern dies
             zur Klärung von Sachverhalten und zur Verfahrensbeschleunigung
@@ -322,21 +353,29 @@ function buildVollmachtArbeitgeberBlocks(form) {
     {
       id: "signature",
       node: (
-        <div className="mt-[24pt]">
-          <div className="grid grid-cols-2 gap-8">
+        <div className="mt-5">
+          <div className="grid grid-cols-2 gap-6">
             <div>
-              <FormRow label="Ort, Datum" value={form.candidatePlaceDate} />
-              <div className="mt-[20pt] text-center">
-                <div className="border-t border-slate-700 pt-[4pt] text-[10pt]">
+              <FormRow
+                label="Ort, Datum"
+                value={form.candidatePlaceDate}
+                omit={isOmitted("candidatePlaceDate")}
+              />
+              <div className="mt-5 text-center">
+                <div className="border-t border-slate-700 pt-1 text-[10pt]">
                   Unterschrift Vollmachtgeber
                 </div>
               </div>
             </div>
 
             <div>
-              <FormRow label="Ort, Datum" value={form.employerPlaceDate} />
-              <div className="mt-[20pt] text-center">
-                <div className="border-t border-slate-700 pt-[4pt] text-[10pt]">
+              <FormRow
+                label="Ort, Datum"
+                value={form.employerPlaceDate}
+                omit={isOmitted("employerPlaceDate")}
+              />
+              <div className="mt-5 text-center">
+                <div className="border-t border-slate-700 pt-1 text-[10pt]">
                   Unterschrift Bevollmächtigter
                 </div>
               </div>
@@ -520,9 +559,9 @@ export default function VollmachtArbeitgeberLivePreview({
               className="absolute -left-[99999px] top-0 h-0 overflow-hidden opacity-0 pointer-events-none"
             >
               <div
-                className="bg-white text-[#0f172a] text-[11pt] leading-[1.45] box-border"
+                className="bg-white text-[#0f172a] text-[11pt] leading-[1.3] box-border"
                 style={{
-                  fontFamily: "Inter, Helvetica, Arial, sans-serif",
+                  fontFamily: "Arimo, Helvetica, Arial, sans-serif",
                   width: `${A4_WIDTH_PT}pt`,
                   padding: `${PAGE_MARGIN_PT}pt`,
                   paddingBottom: `${contentBottomPadPt}pt`,
@@ -533,7 +572,7 @@ export default function VollmachtArbeitgeberLivePreview({
                   style={{ position: "relative", width: "100%" }}
                 >
                   {blocks.map((b) => (
-                    <div key={b.id} data-block className="pr-[6pt]">
+                    <div key={b.id} data-block className="pr-2">
                       {b.node}
                     </div>
                   ))}
@@ -547,9 +586,9 @@ export default function VollmachtArbeitgeberLivePreview({
               return (
                 <ScaledA4 key={pageIdx} pageLabel={`A4-Seite ${pageIdx + 1}`}>
                   <div
-                    className="bg-white shadow-2xl text-[#0f172a] text-[11pt] leading-[1.45] origin-top shrink-0 box-border"
+                    className="bg-white shadow-2xl text-[#0f172a] text-[11pt] leading-[1.3] origin-top shrink-0 box-border"
                     style={{
-                      fontFamily: "Inter, Helvetica, Arial, sans-serif",
+                      fontFamily: "Arimo, Helvetica, Arial, sans-serif",
                       width: `${A4_WIDTH_PT}pt`,
                       height: `${A4_HEIGHT_PT}pt`,
                       padding: `${PAGE_MARGIN_PT}pt`,
@@ -557,7 +596,7 @@ export default function VollmachtArbeitgeberLivePreview({
                     }}
                   >
                     {blocksForPage.map((b) => (
-                      <div key={b.id} className="pr-[6pt]">
+                      <div key={b.id} className="pr-2">
                         {b.node}
                       </div>
                     ))}

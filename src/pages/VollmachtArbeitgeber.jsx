@@ -25,18 +25,139 @@ function todayDdMmYyyy() {
   }
 }
 
-export default function VollmachtArbeitgeber() {
-  const { role, loadingRole } = useUserRole();
-  const canWriteTemplate =
-    !loadingRole && (role === "super_admin" || role === "admin");
-  const { user } = useSelector((state) => state.auth);
+function migrateLegacyCandidateFields(form) {
+  const next = { ...form };
 
-  const [form, setForm] = useState(() => ({
+  const normalize = (value) => String(value || "").trim();
+
+  if (
+    !normalize(next.candidateFirstName) &&
+    !normalize(next.candidateLastName)
+  ) {
+    const fullName = normalize(next.candidateFullName);
+    if (fullName) {
+      const parts = fullName.split(/\s+/);
+      const first = parts.shift() || "";
+      next.candidateFirstName = first;
+      next.candidateLastName = parts.join(" ");
+    }
+  }
+
+  if (!normalize(next.candidateBirthCountry) && normalize(next.candidateLand)) {
+    next.candidateBirthCountry = normalize(next.candidateLand);
+  }
+
+  if (
+    !normalize(next.candidateBirthDate) ||
+    !normalize(next.candidateBirthPlace) ||
+    !normalize(next.candidateBirthCountry)
+  ) {
+    const legacyBirth = normalize(next.candidateBirthInfo);
+    if (legacyBirth) {
+      const segments = legacyBirth
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (!normalize(next.candidateBirthDate) && segments[0])
+        next.candidateBirthDate = segments[0];
+      if (!normalize(next.candidateBirthPlace) && segments[1])
+        next.candidateBirthPlace = segments[1];
+      if (!normalize(next.candidateBirthCountry) && segments[2])
+        next.candidateBirthCountry = segments.slice(2).join(", ");
+    }
+  }
+
+  const legacyStreet = normalize(
+    next.candidateStreetLegacy || next.candidateStreet
+  );
+  if (legacyStreet && !normalize(next.candidateHouseNumber)) {
+    const match = legacyStreet.match(/^(.*?)[\s,]+(\d+\w*)$/);
+    if (match) {
+      if (!normalize(next.candidateStreet))
+        next.candidateStreet = match[1].trim();
+      next.candidateHouseNumber = match[2].trim();
+    } else if (!normalize(next.candidateStreet)) {
+      next.candidateStreet = legacyStreet;
+    }
+  }
+
+  const legacyCity = normalize(next.candidateCityLegacy || next.candidateCity);
+  if (legacyCity) {
+    const parts = legacyCity.split(/\s+/).filter(Boolean);
+    if (parts.length >= 1 && !normalize(next.candidatePostalCode)) {
+      const maybePostal = parts[0];
+      if (/^\d{4,6}$/.test(maybePostal)) {
+        next.candidatePostalCode = maybePostal;
+        parts.shift();
+      }
+    }
+    if (parts.length >= 1 && !normalize(next.candidateCountry)) {
+      const maybeCountry = parts[parts.length - 1];
+      next.candidateCountry = maybeCountry;
+      parts.pop();
+    }
+    if (parts.length && !normalize(next.candidateCity)) {
+      next.candidateCity = parts.join(" ");
+    }
+  }
+
+  if (!normalize(next.candidatePostalCode) && normalize(next.candidatePLZ)) {
+    next.candidatePostalCode = normalize(next.candidatePLZ);
+  }
+
+  if (!normalize(next.candidateCountry) && normalize(next.candidateLand)) {
+    next.candidateCountry = normalize(next.candidateLand);
+  }
+
+  return next;
+}
+
+const OPTIONAL_FIELDS = [
+  "candidateFirstName",
+  "candidateLastName",
+  "candidateBirthDate",
+  "candidateBirthPlace",
+  "candidateBirthCountry",
+  "candidateStreet",
+  "candidateHouseNumber",
+  "candidatePostalCode",
+  "candidateCity",
+  "candidateCountry",
+  "candidatePhone",
+  "candidateEmail",
+  "candidatePlaceDate",
+  "employerCompany",
+  "employerLocation",
+  "employerRepName",
+  "employerRepAddress",
+  "employerRepPhone",
+  "employerRepEmail",
+  "employerPlaceDate",
+  "employerDesignation",
+  "employerRepFullName",
+  // legacy
+  "candidateFullName",
+  "candidateBirthInfo",
+];
+
+function getOmitKey(fieldKey) {
+  if (!fieldKey) return "";
+  return `omit${fieldKey.charAt(0).toUpperCase()}${fieldKey.slice(1)}`;
+}
+
+function createInitialFormState() {
+  const state = {
     // Vollmachtgeber (Candidate) fields
-    candidateFullName: "",
-    candidateBirthInfo: "",
+    candidateFirstName: "",
+    candidateLastName: "",
+    candidateBirthDate: "",
+    candidateBirthPlace: "",
+    candidateBirthCountry: "",
     candidateStreet: "",
+    candidateHouseNumber: "",
+    candidatePostalCode: "",
     candidateCity: "",
+    candidateCountry: "",
     candidatePhone: "",
     candidateEmail: "",
     candidatePlaceDate: todayDdMmYyyy(),
@@ -53,7 +174,31 @@ export default function VollmachtArbeitgeber() {
     // Dynamic text fields
     employerDesignation: "",
     employerRepFullName: "",
-  }));
+
+    // Legacy fallbacks (will be migrated if present)
+    candidateFullName: "",
+    candidateBirthInfo: "",
+    candidateStreetLegacy: "",
+    candidateCityLegacy: "",
+  };
+
+  OPTIONAL_FIELDS.forEach((key) => {
+    const omitKey = getOmitKey(key);
+    if (omitKey) {
+      state[omitKey] = false;
+    }
+  });
+
+  return state;
+}
+
+export default function VollmachtArbeitgeber() {
+  const { role, loadingRole } = useUserRole();
+  const canWriteTemplate =
+    !loadingRole && (role === "super_admin" || role === "admin");
+  const { user } = useSelector((state) => state.auth);
+
+  const [form, setForm] = useState(() => createInitialFormState());
 
   const [isDownloading, setIsDownloading] = useState(false);
   const [isLoadingTemplate, setIsLoadingTemplate] = useState(true);
@@ -89,8 +234,13 @@ export default function VollmachtArbeitgeber() {
           : null;
 
       if (savedForm) {
+        const normalizedSaved = {
+          ...createInitialFormState(),
+          ...savedForm,
+        };
+        const migrated = migrateLegacyCandidateFields(normalizedSaved);
         setForm((prev) => {
-          const merged = { ...prev, ...savedForm };
+          const merged = { ...prev, ...migrated };
           const json = JSON.stringify(merged);
           lastSavedJsonRef.current = json;
           setHasUnsavedTemplate(false);
@@ -162,8 +312,10 @@ export default function VollmachtArbeitgeber() {
   }, [form, canWriteTemplate]);
 
   const fullName = useMemo(() => {
-    return String(form.candidateFullName || "").trim();
-  }, [form.candidateFullName]);
+    const first = String(form.candidateFirstName || "").trim();
+    const last = String(form.candidateLastName || "").trim();
+    return [first, last].filter(Boolean).join(" ");
+  }, [form.candidateFirstName, form.candidateLastName]);
 
   async function handleDownloadPdf() {
     try {
@@ -195,6 +347,211 @@ export default function VollmachtArbeitgeber() {
     "flex flex-col lg:flex-row gap-6 items-start lg:items-stretch";
   const formCard =
     "card bg-base-100 shadow-2xl border border-base-300 rounded-2xl w-full lg:max-w-[520px] shrink-0 max-h-[calc(100vh-2rem)] lg:sticky lg:top-2 overflow-y-auto";
+
+  const handleFieldChange = (fieldKey, value) => {
+    setForm((prev) => ({ ...prev, [fieldKey]: value }));
+  };
+
+  const handleOmitToggle = (fieldKey, checked) => {
+    const omitKey = getOmitKey(fieldKey);
+    if (!omitKey) return;
+    setForm((prev) => {
+      const next = { ...prev, [omitKey]: checked };
+      if (checked) {
+        next[fieldKey] = "";
+      }
+      return next;
+    });
+  };
+
+  const renderField = ({
+    key,
+    label,
+    placeholder,
+    helperText,
+    type = "text",
+    allowOmit = true,
+  }) => {
+    const omitKey = getOmitKey(key);
+    const omitted = allowOmit ? Boolean(form[omitKey]) : false;
+    const toggleControl = allowOmit ? (
+      <label className="inline-flex items-center gap-2 whitespace-nowrap">
+        <input
+          type="checkbox"
+          className="checkbox checkbox-xs"
+          checked={omitted}
+          onChange={(e) => handleOmitToggle(key, e.target.checked)}
+        />
+        <span>Ma'lumot yo'q</span>
+      </label>
+    ) : null;
+
+    let helperContent = helperText ?? null;
+    if (allowOmit) {
+      helperContent = helperText ? (
+        <span className="flex flex-wrap items-center justify-between gap-2">
+          <span>{helperText}</span>
+          {toggleControl}
+        </span>
+      ) : (
+        <span className="flex justify-end">{toggleControl}</span>
+      );
+    }
+
+    const inputValue =
+      type === "date" ? toInputDate(String(form[key] || "")) : form[key];
+
+    const handleChange = (e) => {
+      const raw = e.target.value;
+      const nextValue = type === "date" ? fromInputDate(raw) : raw;
+      handleFieldChange(key, nextValue);
+    };
+
+    return (
+      <FormInput
+        key={key}
+        label={label}
+        placeholder={placeholder}
+        value={inputValue}
+        onChange={handleChange}
+        helperText={allowOmit ? helperContent : helperText}
+        type={type}
+        disabled={omitted}
+      />
+    );
+  };
+
+  const candidateNameFields = [
+    {
+      key: "candidateFirstName",
+      label: "Vorname",
+      placeholder: "z.B. Max",
+    },
+    {
+      key: "candidateLastName",
+      label: "Nachname",
+      placeholder: "z.B. Mustermann",
+    },
+  ];
+
+  const candidateBirthFields = [
+    {
+      key: "candidateBirthDate",
+      label: "Geburtsdatum",
+      type: "date",
+    },
+    {
+      key: "candidateBirthPlace",
+      label: "Geburtsort",
+      placeholder: "z.B. Taschkent",
+    },
+    {
+      key: "candidateBirthCountry",
+      label: "Geburtsland",
+      placeholder: "z.B. Usbekistan",
+    },
+  ];
+
+  const candidateAddressFields = [
+    {
+      key: "candidateStreet",
+      label: "Straße",
+      placeholder: "z.B. Musterstraße",
+    },
+    {
+      key: "candidateHouseNumber",
+      label: "Hausnummer",
+      placeholder: "z.B. 123",
+    },
+    {
+      key: "candidatePostalCode",
+      label: "PLZ",
+      placeholder: "z.B. 12345",
+    },
+    {
+      key: "candidateCity",
+      label: "Ort",
+      placeholder: "z.B. Taschkent",
+    },
+    {
+      key: "candidateCountry",
+      label: "Land",
+      placeholder: "z.B. Usbekistan",
+    },
+  ];
+
+  const candidateContactFields = [
+    {
+      key: "candidatePhone",
+      label: "Telefonnummer",
+      placeholder: "z.B. +998 90 123 45 67",
+    },
+    {
+      key: "candidateEmail",
+      label: "E-Mail",
+      placeholder: "z.B. max@example.com",
+      type: "email",
+    },
+    {
+      key: "candidatePlaceDate",
+      label: "Ort, Datum (Unterschrift)",
+      placeholder: "z.B. Taschkent, 27.12.2025",
+    },
+  ];
+
+  const employerFields = [
+    {
+      key: "employerCompany",
+      label: "Firma",
+      placeholder: "z.B. Musterfirma GmbH",
+    },
+    {
+      key: "employerLocation",
+      label: "Geschäftssitz",
+      placeholder: "z.B. Berlin, Deutschland",
+    },
+    {
+      key: "employerRepName",
+      label: "Vertreten durch (Name)",
+      placeholder: "z.B. Hans Schmidt",
+    },
+    {
+      key: "employerRepAddress",
+      label: "Anschrift (Vertreter)",
+      placeholder: "z.B. Musterstraße 1, 10115 Berlin",
+    },
+    {
+      key: "employerRepPhone",
+      label: "Telefonnummer (Vertreter)",
+      placeholder: "z.B. +49 30 123456",
+    },
+    {
+      key: "employerRepEmail",
+      label: "E-Mail (Vertreter)",
+      placeholder: "z.B. schmidt@firma.de",
+      type: "email",
+    },
+    {
+      key: "employerPlaceDate",
+      label: "Ort, Datum (Unterschrift)",
+      placeholder: "z.B. Berlin, 27.12.2025",
+    },
+  ];
+
+  const dynamicFields = [
+    {
+      key: "employerDesignation",
+      label: "Bezeichnung des Arbeitgebers",
+      placeholder: "z.B. Musterfirma GmbH",
+      helperText: 'Wird im Text "Hiermit bevollmächtige ich [...]" verwendet',
+    },
+    {
+      key: "employerRepFullName",
+      label: "Name der bevollmächtigten Person",
+      placeholder: "z.B. Hans Schmidt",
+      helperText: 'Wird im Text "vertreten durch [...]" verwendet',
+    },
+  ];
 
   return (
     <div className="p-2 min-h-screen">
@@ -273,168 +630,29 @@ export default function VollmachtArbeitgeber() {
 
             <div className="divider">Vollmachtgeber (Kandidat)</div>
 
-            <FormInput
-              label="Vollständiger Name"
-              placeholder="z.B. Max Mustermann"
-              value={form.candidateFullName}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, candidateFullName: e.target.value }))
-              }
-              helperText={
-                <span className="text-xs opacity-70">Vorname und Nachname</span>
-              }
-            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {candidateNameFields.map((cfg) => renderField(cfg))}
+            </div>
 
-            <FormInput
-              label="Geburtsdatum, -ort, -land"
-              placeholder="z.B. 15.05.1990, Taschkent, Usbekistan"
-              value={form.candidateBirthInfo}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, candidateBirthInfo: e.target.value }))
-              }
-            />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {candidateBirthFields.map((cfg) => renderField(cfg))}
+            </div>
 
-            <FormInput
-              label="Straße Hausnummer"
-              placeholder="z.B. Musterstraße 123"
-              value={form.candidateStreet}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, candidateStreet: e.target.value }))
-              }
-            />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {candidateAddressFields.map((cfg) => renderField(cfg))}
+            </div>
 
-            <FormInput
-              label="PLZ Ort Land"
-              placeholder="z.B. 100000 Taschkent Usbekistan"
-              value={form.candidateCity}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, candidateCity: e.target.value }))
-              }
-            />
-
-            <FormInput
-              label="Telefonnummer"
-              placeholder="z.B. +998 90 123 45 67"
-              value={form.candidatePhone}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, candidatePhone: e.target.value }))
-              }
-            />
-
-            <FormInput
-              label="E-Mail"
-              type="email"
-              placeholder="z.B. max@example.com"
-              value={form.candidateEmail}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, candidateEmail: e.target.value }))
-              }
-            />
-
-            <FormInput
-              label="Ort, Datum (Unterschrift)"
-              placeholder="z.B. Taschkent, 27.12.2025"
-              value={form.candidatePlaceDate}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, candidatePlaceDate: e.target.value }))
-              }
-            />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {candidateContactFields.map((cfg) => renderField(cfg))}
+            </div>
 
             <div className="divider">Arbeitgeber</div>
 
-            <FormInput
-              label="Firma"
-              placeholder="z.B. Musterfirma GmbH"
-              value={form.employerCompany}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, employerCompany: e.target.value }))
-              }
-            />
-
-            <FormInput
-              label="Geschäftssitz"
-              placeholder="z.B. Berlin, Deutschland"
-              value={form.employerLocation}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, employerLocation: e.target.value }))
-              }
-            />
-
-            <FormInput
-              label="Vertreten durch (Name)"
-              placeholder="z.B. Hans Schmidt"
-              value={form.employerRepName}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, employerRepName: e.target.value }))
-              }
-            />
-
-            <FormInput
-              label="Anschrift (Vertreter)"
-              placeholder="z.B. Musterstraße 1, 10115 Berlin"
-              value={form.employerRepAddress}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, employerRepAddress: e.target.value }))
-              }
-            />
-
-            <FormInput
-              label="Telefonnummer (Vertreter)"
-              placeholder="z.B. +49 30 123456"
-              value={form.employerRepPhone}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, employerRepPhone: e.target.value }))
-              }
-            />
-
-            <FormInput
-              label="E-Mail (Vertreter)"
-              type="email"
-              placeholder="z.B. schmidt@firma.de"
-              value={form.employerRepEmail}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, employerRepEmail: e.target.value }))
-              }
-            />
-
-            <FormInput
-              label="Ort, Datum (Unterschrift)"
-              placeholder="z.B. Berlin, 27.12.2025"
-              value={form.employerPlaceDate}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, employerPlaceDate: e.target.value }))
-              }
-            />
+            {employerFields.map(renderField)}
 
             <div className="divider">Dynamische Textfelder</div>
 
-            <FormInput
-              label="Bezeichnung des Arbeitgebers"
-              placeholder="z.B. Musterfirma GmbH"
-              value={form.employerDesignation}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, employerDesignation: e.target.value }))
-              }
-              helperText={
-                <span className="text-xs opacity-70">
-                  Wird im Text „Hiermit bevollmächtige ich [...]" verwendet
-                </span>
-              }
-            />
-
-            <FormInput
-              label="Name der bevollmächtigten Person"
-              placeholder="z.B. Hans Schmidt"
-              value={form.employerRepFullName}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, employerRepFullName: e.target.value }))
-              }
-              helperText={
-                <span className="text-xs opacity-70">
-                  Wird im Text „vertreten durch [...]" verwendet
-                </span>
-              }
-            />
+            {dynamicFields.map(renderField)}
 
             <div className="divider" />
             <div className="text-sm">
