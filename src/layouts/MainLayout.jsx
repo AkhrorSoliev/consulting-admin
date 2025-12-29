@@ -4,10 +4,16 @@ import Sidebar from "../components/Sidebar";
 import Navbar from "../components/Navbar";
 import { FaHome, FaUserCircle } from "react-icons/fa";
 import { FiUsers } from "react-icons/fi";
-import { MdDarkMode, MdLightMode, MdOutlineLogout, MdSettings } from "react-icons/md";
+import {
+  MdDarkMode,
+  MdLightMode,
+  MdOutlineLogout,
+  MdSettings,
+} from "react-icons/md";
 import { useLogout } from "../hooks/useLogut";
 import { useTheme } from "../hooks/useTheme";
 import useUserRole from "../hooks/useUserRole";
+import MobileNavbar from "../components/MobileNavbar";
 
 function MainLayout() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -97,7 +103,11 @@ function MainLayout() {
           aria-label="Theme wechseln"
           data-sidebar-toggle
         >
-          {isDracula ? <MdLightMode className="text-xl" /> : <MdDarkMode className="text-xl" />}
+          {isDracula ? (
+            <MdLightMode className="text-xl" />
+          ) : (
+            <MdDarkMode className="text-xl" />
+          )}
         </button>
         <button
           type="button"
@@ -117,7 +127,8 @@ function MainLayout() {
           )}
         </button>
       </Navbar>
-      <main className="flex-1 overflow-y-auto px-4 py-4 lg:px-6">
+      <MobileNavbar />
+      <main className="flex-1 overflow-y-auto px-4 py-4 lg:px-6 pb-16 md:pb-0">
         <Outlet />
       </main>
 

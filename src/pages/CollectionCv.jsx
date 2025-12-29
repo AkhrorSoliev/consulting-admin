@@ -744,8 +744,8 @@ function CollectionCv() {
           isDeleting={Boolean(deletingId)}
           seconds={5}
         />
-        <div className="mb-4 sm:mb-6 flex items-center justify-between">
-          <div>
+        <div className="mb-4 sm:mb-6 flex items-center justify-between flex-col md:flex-row lg:flex-row">
+          <div className="w-full md:w-auto">
             <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
               Berufsfeld: <span className="text-primary">{title}</span>
             </h1>
@@ -760,7 +760,7 @@ function CollectionCv() {
             </p>
           </div>
 
-          <div className="mt-3 flex flex-col gap-2">
+          <div className="mt-3 flex flex-col gap-2 w-full md:w-auto">
             <input
               type="search"
               id="search"
@@ -768,7 +768,7 @@ function CollectionCv() {
               autoComplete="off"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="input input-bordered w-64"
+              className="input input-bordered w-full lg:w-64"
               placeholder="Nach Name suchen..."
               aria-label="Nach Name suchen"
             />
@@ -778,23 +778,27 @@ function CollectionCv() {
         <div className="mb-6">
           {activeFilterBadges.length > 0 ? (
             <div className="mb-3 flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold uppercase text-base-content/60">
-                Ausgewählte Filter:
+              <span className="text-xs font-semibold uppercase text-base-content/60 shrink-0">
+                Filter:
               </span>
-              {activeFilterBadges.map((b) => (
-                <button
-                  key={b.key}
-                  type="button"
-                  className="badge badge-outline gap-2 py-3 cursor-pointer hover:bg-base-200"
-                  title="Filter entfernen"
-                  onClick={b.onClear}
-                >
-                  <span className="truncate max-w-[240px] sm:max-w-[320px]">
-                    {b.label}
-                  </span>
-                  <span aria-hidden="true">×</span>
-                </button>
-              ))}
+              <div className="flex flex-wrap gap-1 sm:gap-2">
+                {activeFilterBadges.map((b) => (
+                  <button
+                    key={b.key}
+                    type="button"
+                    className="badge badge-outline gap-1 py-2 px-2 sm:py-3 sm:px-3 cursor-pointer hover:bg-base-200 text-xs sm:text-sm"
+                    title="Filter entfernen"
+                    onClick={b.onClear}
+                  >
+                    <span className="truncate max-w-[120px] sm:max-w-[200px] md:max-w-60 lg:max-w-80">
+                      {b.label}
+                    </span>
+                    <span aria-hidden="true" className="text-xs sm:text-base">
+                      ×
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           ) : null}
           <CollapsibleSection
@@ -803,8 +807,8 @@ function CollectionCv() {
             className="shadow-md border-base-300/60"
             meta={`${activeFilterCount} aktiv`}
           >
-            <div className="p-4 space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="p-3 sm:p-4 space-y-4 sm:space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="space-y-1">
                   <p className="text-sm font-semibold">
                     Schnellauswahl nach Zertifikat, Erfahrung und Alter.
@@ -816,7 +820,7 @@ function CollectionCv() {
                 {hasActiveFilters ? (
                   <button
                     type="button"
-                    className="btn btn-xs btn-outline"
+                    className="btn btn-xs btn-outline mt-2 sm:mt-0"
                     onClick={() => {
                       setCertificateFilter("all");
                       setExperienceFilter("all");
@@ -832,136 +836,197 @@ function CollectionCv() {
                     Filter zurücksetzen
                   </button>
                 ) : (
-                  <span className="badge badge-ghost">Keine Filter</span>
+                  <button
+                    type="button"
+                    className="badge badge-ghost mt-2 sm:mt-0 cursor-pointer hover:bg-base-200 transition-colors"
+                    onClick={() => {
+                      setCertificateFilter("all");
+                      setExperienceFilter("all");
+                      setCommentFilter("all");
+                      setStageFilter("all");
+                      setStageOutcomeFilter("all");
+                      setAgeFilter("all");
+                      setDrivingFilter("all");
+                      setLangLevelFilter("all");
+                      setSearchQuery("");
+                    }}
+                    title="Alle Filter aktivieren"
+                  >
+                    Keine Filter
+                  </button>
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                <span className="text-xs font-semibold uppercase text-base-content/60">
-                  Zertifikat:
-                </span>
-                {certificateTabs.map((tab) => (
-                  <button
-                    key={tab.value}
-                    className={chipClass(certificateFilter === tab.value)}
-                    onClick={() => setCertificateFilter(tab.value)}
-                    type="button"
-                  >
-                    {certificateFilter === tab.value ? "●" : "○"} {tab.label}
-                  </button>
-                ))}
-              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <span className="text-xs font-semibold uppercase text-base-content/60 block">
+                      Zertifikat:
+                    </span>
+                    <div className="flex flex-wrap gap-1 sm:gap-2">
+                      {certificateTabs.map((tab) => (
+                        <button
+                          key={tab.value}
+                          className={`text-xs sm:text-sm ${chipClass(
+                            certificateFilter === tab.value
+                          )}`}
+                          onClick={() => setCertificateFilter(tab.value)}
+                          type="button"
+                        >
+                          {certificateFilter === tab.value ? "●" : "○"}{" "}
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-              <div className="flex flex-wrap gap-2">
-                <span className="text-xs font-semibold uppercase text-base-content/60">
-                  Erfahrung:
-                </span>
-                {experienceTabs.map((tab) => (
-                  <button
-                    key={tab.value}
-                    className={chipClass(experienceFilter === tab.value)}
-                    onClick={() => setExperienceFilter(tab.value)}
-                    type="button"
-                  >
-                    {experienceFilter === tab.value ? "●" : "○"} {tab.label}
-                  </button>
-                ))}
-              </div>
+                  <div className="space-y-2">
+                    <span className="text-xs font-semibold uppercase text-base-content/60 block">
+                      Erfahrung:
+                    </span>
+                    <div className="flex flex-wrap gap-1 sm:gap-2">
+                      {experienceTabs.map((tab) => (
+                        <button
+                          key={tab.value}
+                          className={`text-xs sm:text-sm ${chipClass(
+                            experienceFilter === tab.value
+                          )}`}
+                          onClick={() => setExperienceFilter(tab.value)}
+                          type="button"
+                        >
+                          {experienceFilter === tab.value ? "●" : "○"}{" "}
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-              <div className="flex flex-wrap gap-2">
-                <span className="text-xs font-semibold uppercase text-base-content/60">
-                  Kommentar:
-                </span>
-                {commentTabs.map((tab) => (
-                  <button
-                    key={tab.value}
-                    className={chipClass(commentFilter === tab.value)}
-                    onClick={() => setCommentFilter(tab.value)}
-                    type="button"
-                  >
-                    {commentFilter === tab.value ? "●" : "○"} {tab.label}
-                  </button>
-                ))}
-              </div>
+                  <div className="space-y-2">
+                    <span className="text-xs font-semibold uppercase text-base-content/60 block">
+                      Kommentar:
+                    </span>
+                    <div className="flex flex-wrap gap-1 sm:gap-2">
+                      {commentTabs.map((tab) => (
+                        <button
+                          key={tab.value}
+                          className={`text-xs sm:text-sm ${chipClass(
+                            commentFilter === tab.value
+                          )}`}
+                          onClick={() => setCommentFilter(tab.value)}
+                          type="button"
+                        >
+                          {commentFilter === tab.value ? "●" : "○"} {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
 
-              <div className="flex flex-wrap gap-2">
-                <span className="text-xs font-semibold uppercase text-base-content/60">
-                  Stufe:
-                </span>
-                {stageTabs.map((tab) => (
-                  <button
-                    key={tab.value}
-                    className={chipClass(stageFilter === tab.value)}
-                    onClick={() => setStageFilter(tab.value)}
-                    type="button"
-                  >
-                    {stageFilter === tab.value ? "●" : "○"} {tab.label}
-                  </button>
-                ))}
-              </div>
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <span className="text-xs font-semibold uppercase text-base-content/60 block">
+                      Stufe:
+                    </span>
+                    <div className="flex flex-wrap gap-1 sm:gap-2">
+                      {stageTabs.map((tab) => (
+                        <button
+                          key={tab.value}
+                          className={`text-xs sm:text-sm ${chipClass(
+                            stageFilter === tab.value
+                          )}`}
+                          onClick={() => setStageFilter(tab.value)}
+                          type="button"
+                        >
+                          {stageFilter === tab.value ? "●" : "○"} {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-              <div className="flex flex-wrap gap-2">
-                <span className="text-xs font-semibold uppercase text-base-content/60">
-                  Ergebnis:
-                </span>
-                {stageOutcomeTabs.map((tab) => (
-                  <button
-                    key={tab.value}
-                    className={chipClass(stageOutcomeFilter === tab.value)}
-                    onClick={() => setStageOutcomeFilter(tab.value)}
-                    type="button"
-                  >
-                    {stageOutcomeFilter === tab.value ? "●" : "○"} {tab.label}
-                  </button>
-                ))}
-              </div>
+                  <div className="space-y-2">
+                    <span className="text-xs font-semibold uppercase text-base-content/60 block">
+                      Ergebnis:
+                    </span>
+                    <div className="flex flex-wrap gap-1 sm:gap-2">
+                      {stageOutcomeTabs.map((tab) => (
+                        <button
+                          key={tab.value}
+                          className={`text-xs sm:text-sm ${chipClass(
+                            stageOutcomeFilter === tab.value
+                          )}`}
+                          onClick={() => setStageOutcomeFilter(tab.value)}
+                          type="button"
+                        >
+                          {stageOutcomeFilter === tab.value ? "●" : "○"}{" "}
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
 
-              <div className="flex flex-wrap gap-2">
-                <span className="text-xs font-semibold uppercase text-base-content/60">
-                  Alter:
-                </span>
-                {ageTabs.map((tab) => (
-                  <button
-                    key={tab.value}
-                    className={chipClass(ageFilter === tab.value)}
-                    onClick={() => setAgeFilter(tab.value)}
-                    type="button"
-                  >
-                    {ageFilter === tab.value ? "●" : "○"} {tab.label}
-                  </button>
-                ))}
-              </div>
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <span className="text-xs font-semibold uppercase text-base-content/60 block">
+                      Alter:
+                    </span>
+                    <div className="flex flex-wrap gap-1 sm:gap-2">
+                      {ageTabs.map((tab) => (
+                        <button
+                          key={tab.value}
+                          className={`text-xs sm:text-sm ${chipClass(
+                            ageFilter === tab.value
+                          )}`}
+                          onClick={() => setAgeFilter(tab.value)}
+                          type="button"
+                        >
+                          {ageFilter === tab.value ? "●" : "○"} {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-              <div className="flex flex-wrap gap-2">
-                <span className="text-xs font-semibold uppercase text-base-content/60">
-                  Führerschein:
-                </span>
-                {drivingTabs.map((tab) => (
-                  <button
-                    key={tab.value}
-                    className={chipClass(drivingFilter === tab.value)}
-                    onClick={() => setDrivingFilter(tab.value)}
-                    type="button"
-                  >
-                    {drivingFilter === tab.value ? "●" : "○"} {tab.label}
-                  </button>
-                ))}
-              </div>
+                  <div className="space-y-2">
+                    <span className="text-xs font-semibold uppercase text-base-content/60 block">
+                      Führerschein:
+                    </span>
+                    <div className="flex flex-wrap gap-1 sm:gap-2">
+                      {drivingTabs.map((tab) => (
+                        <button
+                          key={tab.value}
+                          className={`text-xs sm:text-sm ${chipClass(
+                            drivingFilter === tab.value
+                          )}`}
+                          onClick={() => setDrivingFilter(tab.value)}
+                          type="button"
+                        >
+                          {drivingFilter === tab.value ? "●" : "○"} {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-              <div className="flex flex-wrap gap-2">
-                <span className="text-xs font-semibold uppercase text-base-content/60">
-                  Sprachniveau:
-                </span>
-                {langLevelTabs.map((tab) => (
-                  <button
-                    key={tab.value}
-                    className={chipClass(langLevelFilter === tab.value)}
-                    onClick={() => setLangLevelFilter(tab.value)}
-                    type="button"
-                  >
-                    {langLevelFilter === tab.value ? "●" : "○"} {tab.label}
-                  </button>
-                ))}
+                  <div className="space-y-2">
+                    <span className="text-xs font-semibold uppercase text-base-content/60 block">
+                      Sprachniveau:
+                    </span>
+                    <div className="flex flex-wrap gap-1 sm:gap-2">
+                      {langLevelTabs.map((tab) => (
+                        <button
+                          key={tab.value}
+                          className={`text-xs sm:text-sm ${chipClass(
+                            langLevelFilter === tab.value
+                          )}`}
+                          onClick={() => setLangLevelFilter(tab.value)}
+                          type="button"
+                        >
+                          {langLevelFilter === tab.value ? "●" : "○"}{" "}
+                          {tab.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </CollapsibleSection>
