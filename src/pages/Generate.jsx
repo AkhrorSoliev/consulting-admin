@@ -1023,15 +1023,32 @@ function Generate() {
   const candidateDocId = String(id || "").trim();
   const [outgoingDocs, setOutgoingDocs] = useState(() => ({}));
   const [outgoingBusyById, setOutgoingBusyById] = useState(() => ({}));
+  const [outgoingBulkBusy, setOutgoingBulkBusy] = useState(false);
+  const outgoingDocsRef = useRef({});
 
   useEffect(() => {
     const raw = docCv?.outgoingDocuments;
     if (raw && typeof raw === "object" && !Array.isArray(raw)) {
       setOutgoingDocs(raw);
+      outgoingDocsRef.current = raw;
     } else {
       setOutgoingDocs({});
+      outgoingDocsRef.current = {};
     }
   }, [docCv]);
+
+  const outgoingEntries = useMemo(
+    () =>
+      Object.entries(outgoingDocs || {}).filter(
+        ([, v]) => v && typeof v === "object" && String(v?.url || "").trim()
+      ),
+    [outgoingDocs]
+  );
+
+  const outgoingAnyBusy = useMemo(
+    () => Object.values(outgoingBusyById || {}).some(Boolean),
+    [outgoingBusyById]
+  );
 
   function getOutgoingDocState(templateId) {
     const key = String(templateId || "").trim();
@@ -1039,21 +1056,97 @@ function Generate() {
     return raw && typeof raw === "object" ? raw : {};
   }
 
-  async function persistOutgoingDocs(nextMap) {
+  function cloneOutgoingDocsState(map) {
+    if (!map || typeof map !== "object" || Array.isArray(map)) {
+      return {};
+    }
+    const cloned = {};
+    for (const key of Object.keys(map)) {
+      const value = map[key];
+      cloned[key] =
+        value && typeof value === "object" && !Array.isArray(value)
+          ? { ...value }
+          : value;
+    }
+    return cloned;
+  }
+
+  async function persistOutgoingDocs(updater) {
     if (remoteMode) return false;
     if (!candidateCollection || !candidateDocId) return false;
+
+    const prevStateRaw =
+      outgoingDocsRef.current &&
+      typeof outgoingDocsRef.current === "object" &&
+      !Array.isArray(outgoingDocsRef.current)
+        ? outgoingDocsRef.current
+        : {};
+    const prevSnapshot = cloneOutgoingDocsState(prevStateRaw);
+
+    const nextCandidate =
+      typeof updater === "function"
+        ? updater(cloneOutgoingDocsState(prevSnapshot))
+        : updater || {};
+
+    const nextState = cloneOutgoingDocsState(nextCandidate);
+
+    outgoingDocsRef.current = nextState;
+    setOutgoingDocs(nextState);
+
     try {
       await updateDocument(candidateCollection, candidateDocId, {
-        outgoingDocuments: nextMap || {},
+        outgoingDocuments: nextState,
         outgoingDocumentsUpdatedAt: Date.now(),
       });
-      setOutgoingDocs(nextMap || {});
       return true;
     } catch (e) {
       console.error("persistOutgoingDocs failed:", e);
       toast.error("Hujjatlar bo‘limini saqlashda xatolik.");
+      outgoingDocsRef.current = prevSnapshot;
+      setOutgoingDocs(prevSnapshot);
       return false;
     }
+  }
+
+  async function deleteOutgoingDocFromState(tplId) {
+    return persistOutgoingDocs((current) => {
+      const next = { ...current };
+      delete next[tplId];
+      return next;
+    });
+  }
+
+  async function deleteOutgoingDocRemoteFirst(tplId, options = {}) {
+    const safeId = String(tplId || "").trim();
+    if (!safeId) return { ok: false, remoteMissing: false };
+
+    const currentSnapshot =
+      options?.current && typeof options.current === "object"
+        ? options.current
+        : getOutgoingDocState(safeId);
+    const url = String(
+      options?.urlOverride ?? currentSnapshot?.url ?? ""
+    ).trim();
+
+    let remoteMissing = false;
+    if (url) {
+      try {
+        await deleteUploadedFileRemote(url);
+      } catch (err) {
+        if (Number(err?.status) === 404) {
+          remoteMissing = true;
+          console.warn(
+            `[outgoing-delete] Remote file missing (404) for ${safeId}:`,
+            url
+          );
+        } else {
+          throw err;
+        }
+      }
+    }
+
+    const persisted = await deleteOutgoingDocFromState(safeId);
+    return { ok: Boolean(persisted), remoteMissing };
   }
 
   async function generateAndUploadBeratungsvertrag(options = {}) {
@@ -1252,12 +1345,15 @@ function Generate() {
 
     // If turning OFF: just mark disabled (do not delete previously uploaded file).
     if (!nextEnabled) {
-      nextMap[templateId] = {
-        ...prev,
-        enabled: false,
-        updatedAt: Date.now(),
-      };
-      await persistOutgoingDocs(nextMap);
+      await persistOutgoingDocs((current) => {
+        const next = { ...current };
+        next[templateId] = {
+          ...(current?.[templateId] || {}),
+          enabled: false,
+          updatedAt: Date.now(),
+        };
+        return next;
+      });
       return;
     }
 
@@ -1265,12 +1361,15 @@ function Generate() {
     // If we already have an uploaded URL, enable without re-uploading (unless forced).
     const existingUrl = String(prev?.url || "").trim();
     if (existingUrl && !forceRegenerate) {
-      nextMap[templateId] = {
-        ...prev,
-        enabled: true,
-        updatedAt: Date.now(),
-      };
-      await persistOutgoingDocs(nextMap);
+      await persistOutgoingDocs((current) => {
+        const next = { ...current };
+        next[templateId] = {
+          ...(current?.[templateId] || {}),
+          enabled: true,
+          updatedAt: Date.now(),
+        };
+        return next;
+      });
       return;
     }
 
@@ -1301,16 +1400,20 @@ function Generate() {
         throw new Error(`Unknown document template: ${templateId}`);
       }
 
-      nextMap[templateId] = {
-        ...prev,
-        enabled: true,
-        url: String(generated?.url || "").trim(),
-        fileName: String(generated?.fileName || "").trim() || null,
-        uploadedAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-      await persistOutgoingDocs(nextMap);
-      toast.success("PDF tayyor bo‘ldi va upload qilindi.");
+      const persisted = await persistOutgoingDocs((current) => ({
+        ...current,
+        [templateId]: {
+          ...(current?.[templateId] || {}),
+          enabled: true,
+          url: String(generated?.url || "").trim(),
+          fileName: String(generated?.fileName || "").trim() || null,
+          uploadedAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+      }));
+      if (persisted) {
+        toast.success("PDF tayyor bo‘ldi va upload qilindi.");
+      }
     } catch (e) {
       console.error("Outgoing doc generate/upload failed:", e);
       toast.error("Fehler beim Erstellen oder Hochladen der PDF.");
@@ -1326,22 +1429,102 @@ function Generate() {
     if (outgoingBusyById?.[tplId]) return;
 
     const current = getOutgoingDocState(tplId);
-    const url = String(current?.url || "").trim();
 
     try {
       setOutgoingBusyById((p) => ({ ...(p || {}), [tplId]: true }));
-      if (url) {
-        await deleteUploadedFileRemote(url);
+      const { ok, remoteMissing } = await deleteOutgoingDocRemoteFirst(tplId, {
+        current,
+      });
+      if (ok) {
+        toast.success(
+          remoteMissing
+            ? "Link o‘chirildi (fayl allaqachon yo‘q edi)."
+            : "Link o‘chirildi."
+        );
+      } else {
+        toast.error("Linkni o‘chirishda xatolik.");
       }
-      const nextMap = { ...(outgoingDocs || {}) };
-      delete nextMap[tplId];
-      await persistOutgoingDocs(nextMap);
-      toast.success("Link o‘chirildi.");
     } catch (e) {
       console.error("Outgoing doc delete failed:", e);
       toast.error("Linkni o‘chirishda xatolik.");
     } finally {
       setOutgoingBusyById((p) => ({ ...(p || {}), [tplId]: false }));
+    }
+  }
+
+  async function handleDeleteAllOutgoingDocs() {
+    if (remoteMode) return;
+    if (outgoingBulkBusy) return;
+    if (outgoingAnyBusy) return;
+    if (!candidateCollection || !candidateDocId) return;
+    if (Boolean(sendingStepValue)) return;
+
+    const entriesSnapshot = Array.isArray(outgoingEntries)
+      ? [...outgoingEntries]
+      : [];
+    if (!entriesSnapshot.length) return;
+
+    const ids = entriesSnapshot
+      .map(([docId]) => String(docId || "").trim())
+      .filter(Boolean);
+    if (!ids.length) return;
+
+    setOutgoingBulkBusy(true);
+    setOutgoingBusyById((prev) => {
+      const next = { ...(prev || {}) };
+      ids.forEach((id) => {
+        next[id] = true;
+      });
+      return next;
+    });
+
+    const missingIds = new Set();
+    const removedIds = new Set();
+    let hadError = false;
+
+    try {
+      for (const [docId, value] of entriesSnapshot) {
+        const tplId = String(docId || "").trim();
+        if (!tplId) continue;
+        try {
+          const { ok, remoteMissing } = await deleteOutgoingDocRemoteFirst(
+            tplId,
+            { current: value }
+          );
+          if (ok) {
+            removedIds.add(tplId);
+            if (remoteMissing) missingIds.add(tplId);
+          } else {
+            hadError = true;
+          }
+        } catch (error) {
+          hadError = true;
+          console.error(`Bulk outgoing doc delete failed for ${tplId}:`, error);
+        }
+      }
+
+      if (removedIds.size) {
+        const removedAll = removedIds.size === entriesSnapshot.length;
+        const missingSuffix = missingIds.size
+          ? " (ba'zi fayllar allaqachon yo‘q edi)."
+          : "";
+        const successMessage = removedAll
+          ? `Barcha linklar o‘chirildi${missingSuffix}`
+          : `Ba'zi linklar o‘chirildi${missingSuffix}`;
+        toast.success(successMessage);
+      }
+      if (hadError) {
+        toast.error("Ba'zi linklarni o‘chirishda xatolik yuz berdi.");
+      }
+    } finally {
+      setOutgoingBusyById((prev) => {
+        const next = { ...(prev || {}) };
+        ids.forEach((id) => {
+          next[id] = false;
+        });
+        return next;
+      });
+      setOutgoingBulkBusy(false);
     }
   }
 
@@ -1707,11 +1890,7 @@ function Generate() {
     const hasPassportDoc = Array.isArray(formCv?.documents?.passport)
       ? formCv.documents.passport.some((u) => String(u || "").trim())
       : false;
-    if (passportNumber || hasPassportDoc) {
-      toast.success("Reisepass bor.");
-    } else {
-      toast.error("Reisepass yo'q.");
-    }
+
     passportToastShownRef.current = true;
   }, [
     formInitialized,
@@ -5177,6 +5356,28 @@ function Generate() {
                     Switch yoqilsa PDF generatsiya bo‘ladi va avtomatik upload
                     qilinadi.
                   </p>
+                </div>
+
+                <div className="flex justify-end mb-3">
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-outline"
+                    onClick={handleDeleteAllOutgoingDocs}
+                    disabled={
+                      outgoingBulkBusy ||
+                      outgoingAnyBusy ||
+                      !outgoingEntries.length ||
+                      !candidateCollection ||
+                      !candidateDocId ||
+                      Boolean(sendingStepValue)
+                    }
+                    title="Barcha yuborilgan linklarni o‘chirish"
+                  >
+                    {outgoingBulkBusy ? (
+                      <span className="loading loading-spinner loading-xs" />
+                    ) : null}
+                    <span>Hammasini o‘chirish</span>
+                  </button>
                 </div>
 
                 <div className="space-y-2">
