@@ -1389,7 +1389,9 @@ export async function deleteUploadedFileRemote(fileUrl) {
   });
 
   if (!res.ok) {
-    throw new Error(`Upload delete failed: ${res.status}`);
+    const err = new Error(`Upload delete failed: ${res.status}`);
+    err.status = res.status;
+    throw err;
   }
 
   return res.json().catch(() => ({}));
