@@ -824,6 +824,9 @@ function Generate() {
   });
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
   const [photoModalSrc, setPhotoModalSrc] = useState("");
+  const [missingPassportModalOpen, setMissingPassportModalOpen] =
+    useState(false);
+  const missingPassportResolverRef = useRef(null);
 
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -901,6 +904,7 @@ function Generate() {
   const [isGeneratingPc, setIsGeneratingPc] = useState(false);
   const [recentlyAdded, setRecentlyAdded] = useState({ soft: [], pc: [] });
   const [formInitialized, setFormInitialized] = useState(false);
+  const passportToastShownRef = useRef(false);
   const [isCommentEditorOpen, setIsCommentEditorOpen] = useState(false);
   const [commentBaseline, setCommentBaseline] = useState("");
   const [commentMeta, setCommentMeta] = useState({
@@ -1052,7 +1056,8 @@ function Generate() {
     }
   }
 
-  async function generateAndUploadBeratungsvertrag() {
+  async function generateAndUploadBeratungsvertrag(options = {}) {
+    const omitPassportPage = Boolean(options?.omitPassportPage);
     // Load template defaults from Firestore (same source as Contract template page)
     const templateDoc = await getDocumentDataById(
       "template_documents",
@@ -1109,12 +1114,14 @@ function Generate() {
     // Source priority:
     // 1) Reisepass (passport) — desired default for Beratungsvertrag page
     // 2) Fallback: Diplome (if passport is missing)
-    const docUrls = Array.from(
-      new Set([
-        ...(passportUrls.length ? passportUrls : []),
-        ...(!passportUrls.length ? diplomaUrls : []),
-      ])
-    );
+    const docUrls = omitPassportPage
+      ? []
+      : Array.from(
+          new Set([
+            ...(passportUrls.length ? passportUrls : []),
+            ...(!passportUrls.length ? diplomaUrls : []),
+          ])
+        );
     let passportSrc = "";
     let usedPassportUrl = "";
     // Try all candidate passport URLs until we can successfully embed one.
@@ -1271,8 +1278,23 @@ function Generate() {
       setOutgoingBusyById((p) => ({ ...(p || {}), [templateId]: true }));
 
       let generated = null;
+      let omitPassportPage = false;
       if (templateId === "beratungsvertrag") {
-        generated = await generateAndUploadBeratungsvertrag();
+        const hasPassportAttachment = Array.isArray(formCv?.documents?.passport)
+          ? formCv.documents.passport.some((u) => String(u || "").trim())
+          : false;
+        if (!hasPassportAttachment) {
+          const confirmed = await askContinueWithoutPassport();
+          if (!confirmed) {
+            return;
+          }
+          omitPassportPage = true;
+        }
+      }
+      if (templateId === "beratungsvertrag") {
+        generated = await generateAndUploadBeratungsvertrag({
+          omitPassportPage,
+        });
       } else if (templateId === "vermittlungsvertrag") {
         generated = await generateAndUploadVermittlungsvertrag();
       } else {
@@ -1676,6 +1698,35 @@ function Generate() {
     return undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remoteMode, remoteLoading, remoteRecord]);
+
+  useEffect(() => {
+    if (!formInitialized || passportToastShownRef.current) return;
+    const passportNumber = String(
+      formCv?.personalInfo?.passportNumber || ""
+    ).trim();
+    const hasPassportDoc = Array.isArray(formCv?.documents?.passport)
+      ? formCv.documents.passport.some((u) => String(u || "").trim())
+      : false;
+    if (passportNumber || hasPassportDoc) {
+      toast.success("Reisepass bor.");
+    } else {
+      toast.error("Reisepass yo'q.");
+    }
+    passportToastShownRef.current = true;
+  }, [
+    formInitialized,
+    formCv?.personalInfo?.passportNumber,
+    formCv?.documents?.passport,
+  ]);
+
+  useEffect(() => {
+    return () => {
+      if (missingPassportResolverRef.current) {
+        missingPassportResolverRef.current(false);
+        missingPassportResolverRef.current = null;
+      }
+    };
+  }, []);
 
   function pickFirstNonEmptyString(values) {
     for (const v of values) {
@@ -3645,6 +3696,34 @@ function Generate() {
     setPhotoModalSrc("");
   }
 
+  function askContinueWithoutPassport() {
+    if (missingPassportResolverRef.current) {
+      missingPassportResolverRef.current(false);
+    }
+    return new Promise((resolve) => {
+      missingPassportResolverRef.current = resolve;
+      setMissingPassportModalOpen(true);
+    });
+  }
+
+  function resolveMissingPassportModal(value) {
+    const resolver = missingPassportResolverRef.current;
+    missingPassportResolverRef.current = null;
+    if (typeof resolver === "function") {
+      resolver(value);
+    }
+  }
+
+  function handleMissingPassportConfirm() {
+    setMissingPassportModalOpen(false);
+    resolveMissingPassportModal(true);
+  }
+
+  function handleMissingPassportCancel() {
+    setMissingPassportModalOpen(false);
+    resolveMissingPassportModal(false);
+  }
+
   // Shared DaisyUI input styles for the edit form
   const inputBase = "input input-bordered w-full";
   const selectBase = "select select-bordered w-full";
@@ -3875,6 +3954,33 @@ function Generate() {
         seconds={5}
         skipCountdown={true}
       />
+      {missingPassportModalOpen ? (
+        <div className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-base-100 border border-base-300 rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
+            <h3 className="text-lg font-semibold">Reisepass topilmadi</h3>
+            <p className="text-sm text-base-content/70">
+              Reisepass hujjati topilmadi. Shunga qaramay Beratungsvertrag ni
+              passport sahifasisiz davom ettirishni xohlaysizmi?
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={handleMissingPassportCancel}
+              >
+                Yo'q, bekor qilish
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleMissingPassportConfirm}
+              >
+                Ha, davom etish
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <UnsavedChangesModal
         open={unsavedModalOpen && unsavedBlocker.state === "blocked"}
         title="Ungespeicherte Änderungen"
