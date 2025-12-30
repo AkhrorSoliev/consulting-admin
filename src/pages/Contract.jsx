@@ -289,168 +289,213 @@ export default function Contract() {
               aktualisiert sofort.
             </p>
 
-            <div className="divider">Auftraggeber</div>
+            <div className="divider divider-start font-bold text-base-content/80">
+              👤 Auftraggeber
+            </div>
 
-            <FormInput
-              label="Vorname"
-              placeholder="Vorname"
-              value={form.firstName}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, firstName: e.target.value }))
-              }
-            />
-            <FormInput
-              label="Nachname"
-              placeholder="Nachname"
-              value={form.lastName}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, lastName: e.target.value }))
-              }
-            />
+            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
+                <span className="w-1 h-4 bg-primary rounded-full"></span>
+                Persönliche Angaben
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormInput
+                  label="Vorname"
+                  placeholder="Vorname"
+                  value={form.firstName}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, firstName: e.target.value }))
+                  }
+                />
+                <FormInput
+                  label="Nachname"
+                  placeholder="Nachname"
+                  value={form.lastName}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, lastName: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
 
-            <FormInput
-              label="Datum"
-              type="date"
-              placeholder="YYYY-MM-DD"
-              value={toInputDate(form.contractDate)}
-              onChange={(e) =>
-                setForm((p) => ({
-                  ...p,
-                  contractDate: fromInputDate(e.target.value),
-                }))
-              }
-              helperText={
-                <span className="text-xs opacity-70">
-                  Im Vertrag als{" "}
-                  <span className="font-semibold">dd.mm.yyyy</span> verwendet.
-                </span>
-              }
-            />
+            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
+                <span className="w-1 h-4 bg-primary rounded-full"></span>
+                Vertragsdaten
+              </h3>
+              <div className="space-y-4">
+                <FormInput
+                  label="Datum"
+                  type="date"
+                  placeholder="YYYY-MM-DD"
+                  value={toInputDate(form.contractDate)}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      contractDate: fromInputDate(e.target.value),
+                    }))
+                  }
+                  helperText={
+                    <span className="text-xs opacity-70">
+                      Im Vertrag als{" "}
+                      <span className="font-semibold">dd.mm.yyyy</span>{" "}
+                      verwendet.
+                    </span>
+                  }
+                />
+                <FormInput
+                  label="Ort (Unterschrift)"
+                  placeholder="z.B. Berlin"
+                  value={form.signatureCity}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, signatureCity: e.target.value }))
+                  }
+                  helperText={
+                    <span className="text-xs opacity-70">
+                      Wird unten als{" "}
+                      <span className="font-semibold">„Ort, Datum“</span>{" "}
+                      angezeigt.
+                    </span>
+                  }
+                />
+              </div>
+            </div>
 
-            <FormInput
-              label="Ort (Unterschrift)"
-              placeholder="z.B. Berlin"
-              value={form.signatureCity}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, signatureCity: e.target.value }))
-              }
-              helperText={
-                <span className="text-xs opacity-70">
-                  Wird unten als{" "}
-                  <span className="font-semibold">„Ort, Datum“</span> angezeigt.
-                </span>
-              }
-            />
+            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
+                <span className="w-1 h-4 bg-secondary rounded-full"></span>
+                Kandidatendaten (Pass-Seite)
+              </h3>
+              <div className="space-y-4">
+                <FormInput
+                  label="Ort (Kandidat) — für Pass-Seite"
+                  placeholder="z.B. Tashkent"
+                  value={form.candidateCity}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, candidateCity: e.target.value }))
+                  }
+                  helperText={
+                    <span className="text-xs opacity-70">
+                      Wird unter dem Passbild als{" "}
+                      <span className="font-semibold">„Datum: Ort, Datum“</span>{" "}
+                      angezeigt.
+                    </span>
+                  }
+                />
+                <FormInput
+                  label="PDF generiert am"
+                  type="date"
+                  placeholder="YYYY-MM-DD"
+                  value={toInputDate(form.pdfGeneratedDate)}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      pdfGeneratedDate: fromInputDate(e.target.value),
+                    }))
+                  }
+                  helperText={
+                    <span className="text-xs opacity-70">
+                      Standard: heute. Wird unter dem Passbild angezeigt.
+                    </span>
+                  }
+                />
+              </div>
+            </div>
 
-            <FormInput
-              label="Ort (Kandidat) — für Pass-Seite"
-              placeholder="z.B. Tashkent"
-              value={form.candidateCity}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, candidateCity: e.target.value }))
-              }
-              helperText={
-                <span className="text-xs opacity-70">
-                  Wird unter dem Passbild als{" "}
-                  <span className="font-semibold">„Datum: Ort, Datum“</span>{" "}
-                  angezeigt.
-                </span>
-              }
-            />
+            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
+                <span className="w-1 h-4 bg-accent rounded-full"></span>
+                PDF Einstellungen
+              </h3>
+              <FormInput
+                label="PDF link (test)"
+                placeholder="https://example.com/file.pdf"
+                value={form.pdfUrl}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, pdfUrl: e.target.value }))
+                }
+                helperText={
+                  <span className="text-xs opacity-70">
+                    Faqat PDF URL'ni qo'ying (console error matnini emas). CORS
+                    bo'lsa, proxy orqali aylanib o'tamiz.
+                    {String(form.pdfUrl || "").trim() ? (
+                      <>
+                        {" "}
+                        <a
+                          className="link"
+                          href={form.pdfUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open
+                        </a>
+                      </>
+                    ) : null}
+                  </span>
+                }
+              />
+            </div>
 
-            <FormInput
-              label="PDF generiert am"
-              type="date"
-              placeholder="YYYY-MM-DD"
-              value={toInputDate(form.pdfGeneratedDate)}
-              onChange={(e) =>
-                setForm((p) => ({
-                  ...p,
-                  pdfGeneratedDate: fromInputDate(e.target.value),
-                }))
-              }
-              helperText={
-                <span className="text-xs opacity-70">
-                  Standard: heute. Wird unter dem Passbild angezeigt.
-                </span>
-              }
-            />
+            <div className="divider divider-start font-bold text-base-content/80">
+              💰 Vergütung (Preis)
+            </div>
 
-            <FormInput
-              label="PDF link (test)"
-              placeholder="https://example.com/file.pdf"
-              value={form.pdfUrl}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, pdfUrl: e.target.value }))
-              }
-              helperText={
-                <span className="text-xs opacity-70">
-                  Faqat PDF URL’ni qo‘ying (console error matnini emas). CORS
-                  bo‘lsa, proxy orqali aylanib o‘tamiz.
-                  {String(form.pdfUrl || "").trim() ? (
-                    <>
-                      {" "}
-                      <a
-                        className="link"
-                        href={form.pdfUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Open
-                      </a>
-                    </>
-                  ) : null}
-                </span>
-              }
-            />
-
-            <div className="divider">Vergütung (Preis)</div>
-
-            <FormInput
-              label="Honorar gesamt (€)"
-              placeholder="z.B. 1200"
-              inputMode="numeric"
-              pattern="\\d*"
-              value={form.feeTotalEur}
-              onChange={(e) =>
-                setForm((p) => ({
-                  ...p,
-                  feeTotalEur: String(e.target.value || "").replace(/\D+/g, ""),
-                }))
-              }
-            />
-            <FormInput
-              label="Anzahlung (€)"
-              placeholder="z.B. 250"
-              inputMode="numeric"
-              pattern="\\d*"
-              value={form.feeAdvanceEur}
-              onChange={(e) =>
-                setForm((p) => ({
-                  ...p,
-                  feeAdvanceEur: String(e.target.value || "").replace(
-                    /\D+/g,
-                    ""
-                  ),
-                }))
-              }
-            />
-            <FormInput
-              label="Restbetrag (auto) (€)"
-              placeholder="—"
-              inputMode="numeric"
-              pattern="\\d*"
-              value={restEur}
-              readOnly
-              inputClassName="opacity-70"
-              helperText={
-                <span className="text-xs opacity-70">
-                  Wird automatisch als{" "}
-                  <span className="font-semibold">Gesamt − Anzahlung</span>{" "}
-                  berechnet.
-                </span>
-              }
-            />
+            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
+                <span className="w-1 h-4 bg-success rounded-full"></span>
+                Honorar Details
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormInput
+                  label="Honorar gesamt (€)"
+                  placeholder="z.B. 1200"
+                  inputMode="numeric"
+                  pattern="\\d*"
+                  value={form.feeTotalEur}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      feeTotalEur: String(e.target.value || "").replace(
+                        /\D+/g,
+                        ""
+                      ),
+                    }))
+                  }
+                />
+                <FormInput
+                  label="Anzahlung (€)"
+                  placeholder="z.B. 250"
+                  inputMode="numeric"
+                  pattern="\\d*"
+                  value={form.feeAdvanceEur}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      feeAdvanceEur: String(e.target.value || "").replace(
+                        /\D+/g,
+                        ""
+                      ),
+                    }))
+                  }
+                />
+              </div>
+              <FormInput
+                label="Restbetrag (auto) (€)"
+                placeholder="—"
+                inputMode="numeric"
+                pattern="\\d*"
+                value={restEur}
+                readOnly
+                inputClassName="opacity-70"
+                helperText={
+                  <span className="text-xs opacity-70">
+                    Wird automatisch als{" "}
+                    <span className="font-semibold">Gesamt − Anzahlung</span>{" "}
+                    berechnet.
+                  </span>
+                }
+              />
+            </div>
 
             <div className="divider" />
             <div className="text-sm">

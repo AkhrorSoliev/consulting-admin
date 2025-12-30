@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { FaChevronDown, FaChevronUp } from "react-icons/fa";
 
 export default function CollapsibleSection({
   title,
@@ -9,32 +8,39 @@ export default function CollapsibleSection({
   meta,
   className = "",
   contentClassName = "",
+  isOpen,
+  onToggle,
+  openClassName = "",
 }) {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const isControlled = typeof isOpen === "boolean";
+  const [internalOpen, setInternalOpen] = useState(defaultOpen);
+  const open = isControlled ? isOpen : internalOpen;
+
+  const handleToggle = (next) => {
+    if (!isControlled) {
+      setInternalOpen(next);
+    }
+    onToggle?.(next);
+  };
 
   return (
     <div
-      className={`collapse ${
-        isOpen ? "collapse-open" : ""
-      } bg-base-100 shadow border border-base-200 ${className}`}
+      className={`collapse collapse-arrow bg-base-100 border border-base-200 shadow ${
+        open ? "collapse-open" : ""
+      } ${open ? openClassName : ""} ${className}`}
     >
       <input
         type="checkbox"
-        checked={isOpen}
-        onChange={(e) => setIsOpen(e.target.checked)}
+        checked={open}
+        onChange={(e) => handleToggle(e.target.checked)}
         className="min-h-0"
       />
-      <div className="collapse-title text-lg font-semibold flex items-center justify-between p-4">
-        <div className="flex items-center gap-3">
-          {title}
-          {count !== undefined && (
-            <span className="badge badge-primary badge-sm">{count}</span>
-          )}
-          {meta && <span className="text-sm text-base-content/60">{meta}</span>}
-        </div>
-        <div className="text-base-content/60">
-          {isOpen ? <FaChevronUp /> : <FaChevronDown />}
-        </div>
+      <div className="collapse-title text-lg font-semibold flex items-center gap-3 p-4">
+        <span>{title}</span>
+        {count !== undefined && (
+          <span className="badge badge-primary badge-sm">{count}</span>
+        )}
+        {meta && <span className="text-sm text-base-content/60">{meta}</span>}
       </div>
       <div className={`collapse-content ${contentClassName || "p-4 pt-0"}`}>
         {children}
