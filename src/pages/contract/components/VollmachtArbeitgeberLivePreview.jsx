@@ -43,6 +43,31 @@ function buildVollmachtArbeitgeberBlocks(form) {
       : "";
   const isOmitted = (fieldKey) => Boolean(form?.[getOmitKey(fieldKey)]);
 
+  const buildRepAddressLine = () => {
+    const street = String(form?.employerRepStreet || "").trim();
+    const house = String(form?.employerRepHouseNumber || "").trim();
+    const plz = String(form?.employerRepPostalCode || "").trim();
+    const city = String(form?.employerRepCity || "").trim();
+
+    let line = "";
+
+    if (street) {
+      line += street;
+    }
+    if (house) {
+      line += (line ? ". " : "") + house;
+    }
+    if (plz) {
+      line += (line ? ", " : "") + plz;
+    }
+    if (city) {
+      // two spaces before Ort as requested ("PLZ  Ort")
+      line += (plz ? "  " : line ? " " : "") + city;
+    }
+
+    return line;
+  };
+
   const candidateFieldConfigs = [
     { key: "candidateFirstName" },
     { key: "candidateLastName" },
@@ -90,12 +115,65 @@ function buildVollmachtArbeitgeberBlocks(form) {
   ];
 
   const employerFieldKeys = [
-    "employerCompany",
-    "employerLocation",
-    "employerRepName",
-    "employerRepAddress",
+    "employerCompanyName",
+    "employerStreet",
+    "employerHouseNumber",
+    "employerPostalCode",
+    "employerCity",
+    "employerCountry",
+    "employerRepFirstName",
+    "employerRepLastName",
+    "employerRepStreet",
+    "employerRepHouseNumber",
+    "employerRepPostalCode",
+    "employerRepCity",
+    "employerRepCountry",
     "employerRepPhone",
     "employerRepEmail",
+  ];
+
+  const employerFieldGroups = [
+    {
+      keys: ["employerCompanyName"],
+      separator: "",
+    },
+    {
+      keys: ["employerStreet", "employerHouseNumber"],
+      separator: " ",
+    },
+    {
+      keys: ["employerPostalCode", "employerCity"],
+      separator: " ",
+    },
+    {
+      keys: ["employerCountry"],
+      separator: "",
+    },
+    {
+      keys: ["employerRepFirstName", "employerRepLastName"],
+      separator: " ",
+    },
+    {
+      keys: [
+        "employerRepStreet",
+        "employerRepHouseNumber",
+        "employerRepPostalCode",
+        "employerRepCity",
+      ],
+      separator: " ",
+    },
+    {
+      keys: ["employerRepCountry"],
+      separator: "",
+    },
+    {
+      keys: ["employerRepPhone"],
+      separator: "",
+    },
+    {
+      keys: ["employerRepEmail"],
+      separator: "",
+    },
   ];
 
   const P = ({ children, className = "" }) => (
@@ -186,11 +264,18 @@ function buildVollmachtArbeitgeberBlocks(form) {
             </TableCell>
 
             <TableCell>
-              {employerFieldKeys.map((key) =>
-                isOmitted(key) ? null : (
-                  <FieldWithLabel key={key} value={form[key]} />
-                )
-              )}
+              {employerFieldGroups.map((group, groupIndex) => {
+                const values = group.keys
+                  .map((key) => form[key])
+                  .filter((v) => hasValue(v));
+                const combinedValue =
+                  group.keys[0] === "employerRepStreet"
+                    ? buildRepAddressLine()
+                    : values.join(group.separator);
+                return isOmitted(group.keys[0]) ? null : (
+                  <FieldWithLabel key={groupIndex} value={combinedValue} />
+                );
+              })}
             </TableCell>
           </div>
         </div>
@@ -357,14 +442,12 @@ function buildVollmachtArbeitgeberBlocks(form) {
           <div className="grid grid-cols-2 gap-6">
             <div>
               <FormRow
-                label="Ort, Datum"
+                label={form.candidateBirthPlace || "Ort"}
                 value={form.candidatePlaceDate}
                 omit={isOmitted("candidatePlaceDate")}
               />
-              <div className="mt-5 text-center">
-                <div className="border-t border-slate-700 pt-1 text-[10pt]">
-                  Unterschrift Vollmachtgeber
-                </div>
+              <div className="text-center">
+                <div className="border-t border-slate-700 text-[10pt]"></div>
               </div>
             </div>
 
@@ -374,10 +457,8 @@ function buildVollmachtArbeitgeberBlocks(form) {
                 value={form.employerPlaceDate}
                 omit={isOmitted("employerPlaceDate")}
               />
-              <div className="mt-5 text-center">
-                <div className="border-t border-slate-700 pt-1 text-[10pt]">
-                  Unterschrift Bevollmächtigter
-                </div>
+              <div className="text-center">
+                <div className="border-t border-slate-700 pt-1 text-[10pt]"></div>
               </div>
             </div>
           </div>

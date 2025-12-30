@@ -162,7 +162,6 @@ const s = StyleSheet.create({
     paddingTop: 4,
     fontSize: 10,
     textAlign: "center",
-    marginTop: 14,
   },
 });
 
@@ -173,6 +172,31 @@ function hasValue(v) {
 function getOmitKey(fieldKey) {
   if (!fieldKey) return "";
   return `omit${fieldKey.charAt(0).toUpperCase()}${fieldKey.slice(1)}`;
+}
+
+function buildRepAddressLine(form) {
+  const street = String(form?.employerRepStreet || "").trim();
+  const house = String(form?.employerRepHouseNumber || "").trim();
+  const plz = String(form?.employerRepPostalCode || "").trim();
+  const city = String(form?.employerRepCity || "").trim();
+
+  let line = "";
+
+  if (street) {
+    line += street;
+  }
+  if (house) {
+    line += (line ? ". " : "") + house;
+  }
+  if (plz) {
+    line += (line ? ", " : "") + plz;
+  }
+  if (city) {
+    // two spaces before Ort as requested ("PLZ  Ort")
+    line += (plz ? "  " : line ? " " : "") + city;
+  }
+
+  return line;
 }
 
 function FieldWithLabel({ value, label, style, omit }) {
@@ -250,12 +274,65 @@ export default function VollmachtArbeitgeberPdfDocument({ form }) {
   ];
 
   const employerFieldKeys = [
-    "employerCompany",
-    "employerLocation",
-    "employerRepName",
-    "employerRepAddress",
+    "employerCompanyName",
+    "employerStreet",
+    "employerHouseNumber",
+    "employerPostalCode",
+    "employerCity",
+    "employerCountry",
+    "employerRepFirstName",
+    "employerRepLastName",
+    "employerRepStreet",
+    "employerRepHouseNumber",
+    "employerRepPostalCode",
+    "employerRepCity",
+    "employerRepCountry",
     "employerRepPhone",
     "employerRepEmail",
+  ];
+
+  const employerFieldGroups = [
+    {
+      keys: ["employerCompanyName"],
+      separator: "",
+    },
+    {
+      keys: ["employerStreet", "employerHouseNumber"],
+      separator: " ",
+    },
+    {
+      keys: ["employerPostalCode", "employerCity"],
+      separator: " ",
+    },
+    {
+      keys: ["employerCountry"],
+      separator: "",
+    },
+    {
+      keys: ["employerRepFirstName", "employerRepLastName"],
+      separator: " ",
+    },
+    {
+      keys: [
+        "employerRepStreet",
+        "employerRepHouseNumber",
+        "employerRepPostalCode",
+        "employerRepCity",
+      ],
+      separator: " ",
+    },
+    {
+      keys: ["employerRepCountry"],
+      separator: "",
+    },
+    {
+      keys: ["employerRepPhone"],
+      separator: "",
+    },
+    {
+      keys: ["employerRepEmail"],
+      separator: "",
+    },
   ];
 
   return (
@@ -291,13 +368,22 @@ export default function VollmachtArbeitgeberPdfDocument({ form }) {
               <Text>Arbeitgeber</Text>
             </View>
             <View style={s.tableCell}>
-              {employerFieldKeys.map((key) => (
-                <FieldWithLabel
-                  key={key}
-                  value={form?.[key]}
-                  omit={isOmitted(key)}
-                />
-              ))}
+              {employerFieldGroups.map((group, groupIndex) => {
+                const values = group.keys
+                  .map((key) => form?.[key])
+                  .filter((v) => hasValue(v));
+                const combinedValue =
+                  group.keys[0] === "employerRepStreet"
+                    ? buildRepAddressLine(form)
+                    : values.join(group.separator);
+                return isOmitted(group.keys[0]) ? null : (
+                  <FieldWithLabel
+                    key={groupIndex}
+                    value={combinedValue}
+                    omit={isOmitted(group.keys[0])}
+                  />
+                );
+              })}
             </View>
           </View>
         </View>
@@ -406,7 +492,9 @@ export default function VollmachtArbeitgeberPdfDocument({ form }) {
           <View style={s.signatureBlock}>
             {isOmitted("candidatePlaceDate") ? null : (
               <View style={s.formRow}>
-                <Text style={s.formLabel}>Ort, Datum:</Text>
+                <Text style={s.formLabel}>
+                  {form?.candidateBirthPlace || "Ort"},
+                </Text>
                 {hasValue(form?.candidatePlaceDate) ? (
                   <Text style={s.formValue}>{form.candidatePlaceDate}</Text>
                 ) : (
@@ -415,7 +503,7 @@ export default function VollmachtArbeitgeberPdfDocument({ form }) {
               </View>
             )}
             <View style={s.signatureLabel}>
-              <Text>Unterschrift Vollmachtgeber</Text>
+              <Text></Text>
             </View>
           </View>
 
@@ -431,7 +519,7 @@ export default function VollmachtArbeitgeberPdfDocument({ form }) {
               </View>
             )}
             <View style={s.signatureLabel}>
-              <Text>Unterschrift Bevollmächtigter</Text>
+              <Text></Text>
             </View>
           </View>
         </View>
