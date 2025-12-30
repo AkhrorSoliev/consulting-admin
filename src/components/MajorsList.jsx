@@ -14,6 +14,7 @@ import {
   FaComments,
   FaBuilding,
 } from "react-icons/fa";
+import { FaUserTie } from "react-icons/fa";
 import toast from "react-hot-toast";
 import { useUserRole } from "../hooks/useUserRole";
 import { sendBrevoEmail } from "../utils/brevo";
@@ -149,6 +150,12 @@ function MajorSettingsModal({
   const [internalLocationName, setInternalLocationName] = useState("");
   const [internalLocationUrl, setInternalLocationUrl] = useState("");
 
+  const [leadershipDate, setLeadershipDate] = useState("");
+  const [leadershipLink, setLeadershipLink] = useState("");
+  const [leadershipLinkType, setLeadershipLinkType] = useState("zoom");
+  const [leadershipLocationName, setLeadershipLocationName] = useState("");
+  const [leadershipLocationUrl, setLeadershipLocationUrl] = useState("");
+
   const [employerDate, setEmployerDate] = useState("");
   const [employerLink, setEmployerLink] = useState("");
   const [employerLinkType, setEmployerLinkType] = useState("zoom");
@@ -163,9 +170,12 @@ function MajorSettingsModal({
   // ---- Telegram groups (used for interview link shortcuts) ----
   const [tgGroups, setTgGroups] = useState([]);
   const [internalTelegramGroupId, setInternalTelegramGroupId] = useState("");
+  const [leadershipTelegramGroupId, setLeadershipTelegramGroupId] =
+    useState("");
   const [employerTelegramGroupId, setEmployerTelegramGroupId] = useState("");
   const [inviteCopyLoading, setInviteCopyLoading] = useState({
     internal: false,
+    leadership: false,
     employer: false,
   });
 
@@ -226,6 +236,22 @@ function MajorSettingsModal({
           String(data?.interviewInternal?.locationUrl || "")
         );
 
+        // Leadership (Orif Aka)
+        setLeadershipDate(toInputDateString(data?.interviewLeadership?.date));
+        setLeadershipLink(String(data?.interviewLeadership?.link || ""));
+        setLeadershipLinkType(
+          resolveLinkType(
+            data?.interviewLeadership?.linkType,
+            data?.interviewLeadership?.link
+          )
+        );
+        setLeadershipLocationName(
+          String(data?.interviewLeadership?.locationName || "")
+        );
+        setLeadershipLocationUrl(
+          String(data?.interviewLeadership?.locationUrl || "")
+        );
+
         setEmployerDate(toInputDateString(data?.interviewEmployer?.date));
         setEmployerLink(String(data?.interviewEmployer?.link || ""));
         setEmployerLinkType(
@@ -242,6 +268,9 @@ function MajorSettingsModal({
         );
         setInternalTelegramGroupId(
           String(data?.interviewInternal?.telegramGroupId || "").trim()
+        );
+        setLeadershipTelegramGroupId(
+          String(data?.interviewLeadership?.telegramGroupId || "").trim()
         );
         setEmployerTelegramGroupId(
           String(data?.interviewEmployer?.telegramGroupId || "").trim()
@@ -482,6 +511,21 @@ function MajorSettingsModal({
               : "",
           updatedAt: now,
         },
+        interviewLeadership: {
+          date: leadershipDate || "",
+          link: leadershipLink || "",
+          linkType: leadershipLinkType || "zoom",
+          locationName: normalizeLocation(
+            leadershipLocationName,
+            leadershipLocationUrl
+          ),
+          locationUrl: leadershipLocationUrl || "",
+          telegramGroupId:
+            leadershipLinkType === "telegram"
+              ? leadershipTelegramGroupId || ""
+              : "",
+          updatedAt: now,
+        },
         interviewEmployer: {
           date: employerDate || "",
           link: employerLink || "",
@@ -591,6 +635,26 @@ function MajorSettingsModal({
                       }`}
                     />
                     Ichki suxbat
+                  </button>
+                </li>
+                <li>
+                  <button
+                    type="button"
+                    className={`w-full justify-start gap-2 ${
+                      tab === "leadership"
+                        ? "bg-neutral text-neutral-content font-semibold"
+                        : ""
+                    }`}
+                    onClick={() => setTab("leadership")}
+                  >
+                    <FaUserTie
+                      className={`text-lg ${
+                        tab === "leadership"
+                          ? "text-neutral-content"
+                          : "text-base-content/70"
+                      }`}
+                    />
+                    Orif Aka bilan suxbat
                   </button>
                 </li>
                 <li>
@@ -919,6 +983,148 @@ function MajorSettingsModal({
                           value={internalLocationUrl}
                           onChange={(e) =>
                             setInternalLocationUrl(e.target.value)
+                          }
+                          disabled={isSaving}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : tab === "leadership" ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="form-control">
+                        <label className="label" htmlFor="ms-leadership-date">
+                          <span className="label-text">Sana</span>
+                        </label>
+                        <input
+                          id="ms-leadership-date"
+                          type="datetime-local"
+                          className="input input-bordered w-full"
+                          value={leadershipDate}
+                          onChange={(e) => setLeadershipDate(e.target.value)}
+                          disabled={isSaving}
+                        />
+                      </div>
+                      <div className="form-control">
+                        <div className="label flex items-center justify-between">
+                          <span className="label-text">Havola</span>
+                          <div className="join join-sm">
+                            <button
+                              type="button"
+                              className={`btn btn-xs join-item ${
+                                leadershipLinkType === "zoom"
+                                  ? "btn-primary"
+                                  : "btn-ghost"
+                              }`}
+                              onClick={() => setLeadershipLinkType("zoom")}
+                              disabled={isSaving}
+                            >
+                              Zoom
+                            </button>
+                            <button
+                              type="button"
+                              className={`btn btn-xs join-item ${
+                                leadershipLinkType === "telegram"
+                                  ? "btn-primary"
+                                  : "btn-ghost"
+                              }`}
+                              onClick={() => setLeadershipLinkType("telegram")}
+                              disabled={isSaving}
+                            >
+                              Telegram
+                            </button>
+                          </div>
+                        </div>
+                        {leadershipLinkType === "telegram" ? (
+                          <div className="space-y-2">
+                            <select
+                              id="ms-leadership-telegram-group"
+                              className="select select-bordered w-full"
+                              value={leadershipTelegramGroupId}
+                              onChange={(e) =>
+                                setLeadershipTelegramGroupId(e.target.value)
+                              }
+                              disabled={isSaving || tgGroups.length === 0}
+                            >
+                              <option value="">
+                                Telegram group (Orif Aka) — (tanlanmagan)
+                              </option>
+                              {tgGroups.map((g) => (
+                                <option key={g.id} value={g.id}>
+                                  {String(g?.name || g.id)}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              className="btn btn-outline w-full"
+                              onClick={() =>
+                                handleGenerateAndCopyInvite(
+                                  leadershipTelegramGroupId,
+                                  "leadership"
+                                )
+                              }
+                              disabled={
+                                !leadershipTelegramGroupId ||
+                                inviteCopyLoading.leadership ||
+                                isSaving
+                              }
+                            >
+                              {inviteCopyLoading.leadership
+                                ? "Invite yaratilmoqda..."
+                                : "Invite link yaratish va copy"}
+                            </button>
+                          </div>
+                        ) : (
+                          <input
+                            id="ms-leadership-link"
+                            type="url"
+                            className="input input-bordered w-full"
+                            placeholder="https://zoom.us/j/..."
+                            value={leadershipLink}
+                            onChange={(e) => setLeadershipLink(e.target.value)}
+                            disabled={isSaving}
+                          />
+                        )}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="form-control">
+                        <label
+                          className="label"
+                          htmlFor="ms-leadership-location-name"
+                        >
+                          <span className="label-text">
+                            Lokatsiya nomi (ixtiyoriy)
+                          </span>
+                        </label>
+                        <input
+                          id="ms-leadership-location-name"
+                          type="text"
+                          className="input input-bordered w-full"
+                          value={leadershipLocationName}
+                          onChange={(e) =>
+                            setLeadershipLocationName(e.target.value)
+                          }
+                          disabled={isSaving}
+                        />
+                      </div>
+                      <div className="form-control">
+                        <label
+                          className="label"
+                          htmlFor="ms-leadership-location-url"
+                        >
+                          <span className="label-text">
+                            Lokatsiya havolasi (ixtiyoriy)
+                          </span>
+                        </label>
+                        <input
+                          id="ms-leadership-location-url"
+                          type="url"
+                          className="input input-bordered w-full"
+                          value={leadershipLocationUrl}
+                          onChange={(e) =>
+                            setLeadershipLocationUrl(e.target.value)
                           }
                           disabled={isSaving}
                         />

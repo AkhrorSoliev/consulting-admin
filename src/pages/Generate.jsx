@@ -563,6 +563,9 @@ function getTelegramGroupIdForStage(metaInfo, stageValue) {
   const internalType = String(
     meta?.interviewInternal?.linkType || ""
   ).toLowerCase();
+  const leadershipType = String(
+    meta?.interviewLeadership?.linkType || ""
+  ).toLowerCase();
   const employerType = String(
     meta?.interviewEmployer?.linkType || ""
   ).toLowerCase();
@@ -570,15 +573,20 @@ function getTelegramGroupIdForStage(metaInfo, stageValue) {
     internalType === "telegram"
       ? String(meta?.interviewInternal?.telegramGroupId || "").trim()
       : "";
+  const leadership =
+    leadershipType === "telegram"
+      ? String(meta?.interviewLeadership?.telegramGroupId || "").trim()
+      : "";
   const employer =
     employerType === "telegram"
       ? String(meta?.interviewEmployer?.telegramGroupId || "").trim()
       : "";
   const stage = String(stageValue || "").trim();
-  if (stage === "stage_1" || stage === "stage_2") return internal || "";
+  if (stage === "stage_1") return internal || "";
+  if (stage === "stage_2") return leadership || internal || "";
   if (stage === "stage_3" || stage === "stage_4")
-    return employer || internal || "";
-  return internal || employer || "";
+    return employer || leadership || internal || "";
+  return leadership || internal || employer || "";
 }
 
 function ensureTelegramGroupNameFactory({
@@ -810,6 +818,7 @@ function Generate() {
   const [stageDecision, setStageDecision] = useState("accepted");
   const [stageAdditionalInfoForm, setStageAdditionalInfoForm] =
     useState(createEmptyStageInfo);
+  const [selectedExample, setSelectedExample] = useState("example1");
   const [emailTemplatesMap, setEmailTemplatesMap] = useState({});
   useEffect(() => {
     if (stageDecision === "rejected") {
@@ -817,6 +826,20 @@ function Generate() {
       setStageAdditionalInfoForm(createEmptyStageInfo());
     }
   }, [stageDecision]);
+
+  // Reset selected example when stage changes or modal opens
+  useEffect(() => {
+    if (pendingStageStep === "stage_2") {
+      const hasLeadershipMeta = Boolean(
+        metaInfo?.interviewLeadership &&
+          (metaInfo?.interviewLeadership?.date ||
+            metaInfo?.interviewLeadership?.link ||
+            metaInfo?.interviewLeadership?.locationName ||
+            metaInfo?.interviewLeadership?.locationUrl)
+      );
+      setSelectedExample(hasLeadershipMeta ? "example2" : "example1");
+    }
+  }, [pendingStageStep, metaInfo?.interviewLeadership]);
 
   useEffect(() => {
     const isPrivileged = userRole === "super_admin" || userRole === "admin";
@@ -1854,6 +1877,7 @@ function Generate() {
   useEffect(() => {
     const ids = [
       String(metaInfo?.interviewInternal?.telegramGroupId || "").trim(),
+      String(metaInfo?.interviewLeadership?.telegramGroupId || "").trim(),
       String(metaInfo?.interviewEmployer?.telegramGroupId || "").trim(),
     ].filter(Boolean);
     if (ids.length === 0) return;
@@ -1864,6 +1888,7 @@ function Generate() {
     });
   }, [
     metaInfo?.interviewInternal?.telegramGroupId,
+    metaInfo?.interviewLeadership?.telegramGroupId,
     metaInfo?.interviewEmployer?.telegramGroupId,
     ensureTelegramGroupName,
   ]);
@@ -3121,7 +3146,7 @@ function Generate() {
       const emailSentAt = Date.now();
       const info =
         normalizedDecision === "accepted"
-          ? stepValue === "stage_2"
+          ? stepValue === "stage_2" && selectedExample !== "example2"
             ? createEmptyStageInfo()
             : normalizeStageFormInfo(additionalInfo)
           : createEmptyStageInfo();
@@ -3131,7 +3156,10 @@ function Generate() {
         stepValue
       );
 
-      if (normalizedDecision === "accepted" && stepValue !== "stage_2") {
+      if (
+        normalizedDecision === "accepted" &&
+        (stepValue !== "stage_2" || selectedExample === "example2")
+      ) {
         const wantsGeneratedLink = Boolean(info?.useGeneratedLink);
         const hasLink =
           Boolean(info.link) ||
@@ -3177,6 +3205,30 @@ function Generate() {
       const copyOverrides =
         toCopyOverridesFromTemplateDoc(templateDoc) || undefined;
 
+      // Get the base email copy to extract examples
+      const baseCopy = getStatusEmailCopy(stepValue, normalizedDecision);
+
+      // Build custom copy overrides based on selected example for stage_2
+      let finalCopyOverrides = copyOverrides;
+      if (
+        stepValue === "stage_2" &&
+        normalizedDecision === "accepted" &&
+        baseCopy.examples
+      ) {
+        const selectedExampleData = baseCopy.examples.find(
+          (ex) => ex.id === selectedExample
+        );
+        if (selectedExampleData) {
+          finalCopyOverrides = {
+            ...copyOverrides,
+            mainText: selectedExampleData.content,
+            ...(selectedExampleData.id === "example2"
+              ? { nextStepNote: "" }
+              : {}),
+          };
+        }
+      }
+
       const { subject, message, htmlContent } = buildStatusEmailTemplate({
         statusValue: stepValue,
         firstName: formCv.personalInfo.name,
@@ -3184,7 +3236,7 @@ function Generate() {
         stageDecision: normalizedDecision,
         decisionNote,
         additionalInfo: info,
-        copyOverrides,
+        copyOverrides: finalCopyOverrides,
       });
       const res = await sendBrevoEmail({
         to: recipientEmail,
@@ -3626,6 +3678,12 @@ function Generate() {
     if (v === "stage_1") {
       return normalizeInterview(metaInfo?.interviewInternal);
     }
+    if (v === "stage_2") {
+      // Prefer leadership settings for stage 2; fallback to internal
+      return normalizeInterview(
+        metaInfo?.interviewLeadership || metaInfo?.interviewInternal
+      );
+    }
     if (v === "stage_3") {
       return normalizeInterview(metaInfo?.interviewEmployer);
     }
@@ -3724,7 +3782,7 @@ function Generate() {
       return;
     }
     const info =
-      pendingStageStep === "stage_2"
+      pendingStageStep === "stage_2" && selectedExample !== "example2"
         ? createEmptyStageInfo()
         : normalizeStageFormInfo(stageAdditionalInfoForm);
     await sendStatusEmail(pendingStageStep, {
@@ -3740,7 +3798,7 @@ function Generate() {
       stageDecision === "rejected" ? "rejected" : "accepted";
     const info =
       normalizedDecision === "accepted"
-        ? pendingStageStep === "stage_2"
+        ? pendingStageStep === "stage_2" && selectedExample !== "example2"
           ? createEmptyStageInfo()
           : normalizeStageFormInfo(stageAdditionalInfoForm)
         : createEmptyStageInfo();
@@ -3755,7 +3813,7 @@ function Generate() {
       const wantsGeneratedLink = Boolean(info?.useGeneratedLink);
       if (
         normalizedDecision === "accepted" &&
-        pendingStageStep !== "stage_2" &&
+        (pendingStageStep !== "stage_2" || selectedExample === "example2") &&
         wantsGeneratedLink &&
         telegramGroupIdForStage
       ) {
@@ -3771,20 +3829,46 @@ function Generate() {
       const copyOverrides =
         toCopyOverridesFromTemplateDoc(templateDoc) || undefined;
 
-      const { subject, message, htmlContent } = buildStatusEmailTemplate({
-        statusValue: pendingStageStep,
-        firstName: formCv.personalInfo.name,
-        lastName: formCv.personalInfo.lastName,
-        stageDecision: normalizedDecision,
-        decisionNote: "",
-        additionalInfo: info,
-        copyOverrides,
-      });
+      // Get the base email copy to extract examples
+      const baseCopy = getStatusEmailCopy(pendingStageStep, normalizedDecision);
+
+      // Build custom copy overrides based on selected example for stage_2
+      let finalCopyOverrides = copyOverrides;
+      if (
+        pendingStageStep === "stage_2" &&
+        normalizedDecision === "accepted" &&
+        baseCopy.examples
+      ) {
+        const selectedExampleData = baseCopy.examples.find(
+          (ex) => ex.id === selectedExample
+        );
+        if (selectedExampleData) {
+          finalCopyOverrides = {
+            ...copyOverrides,
+            mainText: selectedExampleData.content,
+            ...(selectedExampleData.id === "example2"
+              ? { nextStepNote: "" }
+              : {}),
+          };
+        }
+      }
+
+      const { subject, message, htmlContent, examples } =
+        buildStatusEmailTemplate({
+          statusValue: pendingStageStep,
+          firstName: formCv.personalInfo.name,
+          lastName: formCv.personalInfo.lastName,
+          stageDecision: normalizedDecision,
+          decisionNote: "",
+          additionalInfo: info,
+          copyOverrides: finalCopyOverrides,
+        });
       return {
         to: recipientEmail,
         subject,
         message,
         htmlContent,
+        examples,
       };
     } catch (err) {
       console.error("stageEmailPreview error:", err);
@@ -3793,6 +3877,7 @@ function Generate() {
         subject: "",
         message: "",
         htmlContent: "",
+        examples: null,
       };
     }
   }, [
@@ -3804,6 +3889,7 @@ function Generate() {
     formCv.personalInfo.lastName,
     emailTemplatesMap,
     telegramGroupNameById,
+    selectedExample,
   ]);
 
   const customEmailDefaults = useMemo(() => {
@@ -6475,8 +6561,8 @@ function Generate() {
         showPreviewWhenAccepted
         showAdditionalInfoEditor={
           !isLimitedAdmin &&
-          pendingStageStep !== "stage_2" &&
-          stageDecision === "accepted"
+          stageDecision === "accepted" &&
+          (pendingStageStep !== "stage_2" || selectedExample === "example2")
         }
         additionalInfoForm={stageAdditionalInfoForm}
         setAdditionalInfoForm={setStageAdditionalInfoForm}
@@ -6496,6 +6582,9 @@ function Generate() {
           }
         })()}
         emailPreview={stageEmailPreview}
+        examples={stageEmailPreview?.examples || null}
+        selectedExample={selectedExample}
+        setSelectedExample={setSelectedExample}
       />
 
       <CustomEmailModal
