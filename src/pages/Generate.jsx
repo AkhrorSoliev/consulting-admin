@@ -743,6 +743,16 @@ function Generate() {
     ],
     []
   );
+  const LANG_CERT_TYPES = useMemo(
+    () => [
+      "DAF Sprachzentrum Zertifikat",
+      "Goethe-Zertifikat",
+      "TestDaF",
+      "telc Deutsch",
+      "ÖSD",
+    ],
+    []
+  );
   const [docCv, setDocCv] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -893,6 +903,7 @@ function Generate() {
       education: [],
       skills: { softSkills: [], pcSkills: [], languages: {} },
       documents: { diplomas: [], certificates: [], passport: [] },
+      languageCertificatesDetailed: [],
       commentar: "",
     }),
     []
@@ -917,6 +928,9 @@ function Generate() {
     updatedByPhoto: "",
     updatedByUid: "",
   });
+
+  // Document upload state
+  const [selectedDocumentType, setSelectedDocumentType] = useState("");
 
   // Track documents marked for deletion (soft delete)
   const [documentsMarkedForDeletion, setDocumentsMarkedForDeletion] = useState({
@@ -946,64 +960,54 @@ function Generate() {
     const langEntries = Object.entries(safe?.skills?.languages || {}).filter(
       ([key]) => key !== undefined && key !== null
     );
-    langEntries.sort(([a], [b]) =>
-      String(a || "").localeCompare(String(b || ""), undefined, {
-        sensitivity: "base",
-      })
-    );
-
     return {
       personalInfo: {
-        name: String(safe?.personalInfo?.name || ""),
-        lastName: String(safe?.personalInfo?.lastName || ""),
-        gender: String(safe?.personalInfo?.gender || ""),
-        address: String(safe?.personalInfo?.address || ""),
-        birthDate: String(safe?.personalInfo?.birthDate || ""),
-        birthPlace: String(safe?.personalInfo?.birthPlace || ""),
-        maritalStatus: String(safe?.personalInfo?.maritalStatus || ""),
-        childrenCount: String(safe?.personalInfo?.childrenCount || ""),
+        name: String(safe?.personalInfo?.name || "").trim(),
+        lastName: String(safe?.personalInfo?.lastName || "").trim(),
+        gender: String(safe?.personalInfo?.gender || "").trim(),
+        address: String(safe?.personalInfo?.address || "").trim(),
+        birthDate: String(safe?.personalInfo?.birthDate || "").trim(),
+        birthPlace: String(safe?.personalInfo?.birthPlace || "").trim(),
+        maritalStatus: String(safe?.personalInfo?.maritalStatus || "").trim(),
+        childrenCount: String(safe?.personalInfo?.childrenCount || "").trim(),
         noChildren: Boolean(safe?.personalInfo?.noChildren),
         hasDrivingLicense: Boolean(safe?.personalInfo?.hasDrivingLicense),
-        drivingLicenseType: String(
-          safe?.personalInfo?.drivingLicenseType || ""
-        ).trim(),
-        phone: String(safe?.personalInfo?.phone || ""),
+        drivingLicenseType: String(safe?.personalInfo?.drivingLicenseType || "")
+          .trim()
+          .toUpperCase(),
+        phone: String(safe?.personalInfo?.phone || "").trim(),
         passportNumber: normalizePassportNumber(
           safe?.personalInfo?.passportNumber || ""
         ),
-        email: String(safe?.personalInfo?.email || ""),
-        photo: String(safe?.personalInfo?.photo || ""),
+        email: String(safe?.personalInfo?.email || "").trim(),
+        photo: String(safe?.personalInfo?.photo || "").trim(),
       },
-      experience: sortTimelineItemsDesc(
-        Array.isArray(safe?.experience)
-          ? safe.experience.map((exp) => ({
-              startDate: String(exp?.startDate || ""),
-              endDate: String(exp?.endDate || ""),
-              position: String(exp?.position || ""),
-              company: String(exp?.company || ""),
-              location: String(exp?.location || ""),
-              responsibilities: Array.isArray(exp?.responsibilities)
-                ? exp.responsibilities.map((r) => String(r || ""))
-                : [],
-            }))
-          : []
-      ),
-      education: sortTimelineItemsDesc(
-        Array.isArray(safe?.education)
-          ? safe.education.map((edu) => ({
-              startDate: String(edu?.startDate || ""),
-              endDate: String(edu?.endDate || ""),
-              institution: String(edu?.institution || ""),
-              degree: String(edu?.degree || ""),
-            }))
-          : []
-      ),
+      experience: Array.isArray(safe?.experience)
+        ? safe.experience.map((exp) => ({
+            startDate: String(exp?.startDate || "").trim(),
+            endDate: String(exp?.endDate || "").trim(),
+            position: String(exp?.position || "").trim(),
+            company: String(exp?.company || "").trim(),
+            location: String(exp?.location || "").trim(),
+            responsibilities: Array.isArray(exp?.responsibilities)
+              ? exp.responsibilities.map((r) => String(r || "").trim())
+              : [],
+          }))
+        : [],
+      education: Array.isArray(safe?.education)
+        ? safe.education.map((edu) => ({
+            startDate: String(edu?.startDate || "").trim(),
+            endDate: String(edu?.endDate || "").trim(),
+            institution: String(edu?.institution || "").trim(),
+            degree: String(edu?.degree || "").trim(),
+          }))
+        : [],
       skills: {
         softSkills: Array.isArray(safe?.skills?.softSkills)
-          ? safe.skills.softSkills.map((s) => String(s || ""))
+          ? safe.skills.softSkills.map((s) => String(s || "").trim())
           : [],
         pcSkills: Array.isArray(safe?.skills?.pcSkills)
-          ? safe.skills.pcSkills.map((s) => String(s || ""))
+          ? safe.skills.pcSkills.map((s) => String(s || "").trim())
           : [],
         languages: Object.fromEntries(
           langEntries.map(([k, v]) => [String(k), v])
@@ -1020,6 +1024,14 @@ function Generate() {
           ? safe.documents.passport.map((p) => String(p || ""))
           : [],
       },
+      languageCertificatesDetailed: Array.isArray(
+        safe?.languageCertificatesDetailed
+      )
+        ? safe.languageCertificatesDetailed.map((cert) => ({
+            url: String(cert?.url || "").trim(),
+            type: String(cert?.type || "").trim(),
+          }))
+        : [],
       commentar: commentHtml,
     };
   }
@@ -2468,7 +2480,16 @@ function Generate() {
       : [];
 
     let certificates = [];
-    if (Array.isArray(d?.zertifikate)) {
+    let languageCertificatesDetailed = [];
+
+    // Handle languageCertificatesDetailed first (from Create.jsx format)
+    if (Array.isArray(att?.languageCertificatesDetailed)) {
+      languageCertificatesDetailed = att.languageCertificatesDetailed;
+      // Extract URLs for backward compatibility
+      certificates = att.languageCertificatesDetailed
+        .map((cert) => cert.url)
+        .filter((url) => url && typeof url === "string");
+    } else if (Array.isArray(d?.zertifikate)) {
       certificates = d.zertifikate;
     } else if (
       typeof d?.zertifikate === "string" &&
@@ -2597,6 +2618,7 @@ function Generate() {
         certificates,
         passport: passportUnique,
       },
+      languageCertificatesDetailed,
       commentar: String(data?.commentar || ""),
     };
   }
@@ -2671,6 +2693,14 @@ function Generate() {
           ? [f.documents.passport]
           : [],
       },
+      languageCertificatesDetailed: Array.isArray(
+        f?.languageCertificatesDetailed
+      )
+        ? f.languageCertificatesDetailed.map((cert) => ({
+            url: String(cert?.url || "").trim(),
+            type: String(cert?.type || "").trim(),
+          }))
+        : [],
       commentar: String(getCommentHtml(f) || ""),
     };
   }
@@ -2694,6 +2724,107 @@ function Generate() {
       }));
     } catch (err) {
       console.error(err);
+    }
+  }
+
+  async function handleDocumentFileChange(e) {
+    if (isLimitedAdmin) return;
+    const file = e.target.files?.[0];
+    if (!file || !selectedDocumentType) return;
+
+    try {
+      // Reset the file input
+      e.target.value = "";
+
+      // Upload file to Firebase
+      const url = await uploadFileToConsulting(file);
+
+      // Get German name for toast message
+      const typeNames = {
+        passport: "Reisepass",
+        diplomas: "Diplome",
+        certificates: "Zertifikate",
+      };
+      const typeName = typeNames[selectedDocumentType] || selectedDocumentType;
+
+      // Update form state and get the updated state
+      let updatedForm;
+      setFormCv((prev) => {
+        const updatedDocs = { ...prev.documents };
+        if (!updatedDocs[selectedDocumentType]) {
+          updatedDocs[selectedDocumentType] = [];
+        }
+
+        // For certificates, also update languageCertificatesDetailed if type is selected
+        if (selectedDocumentType === "certificates") {
+          // Add to regular certificates array for backward compatibility
+          updatedDocs[selectedDocumentType] = [
+            ...updatedDocs[selectedDocumentType],
+            url,
+          ];
+
+          // Also add to languageCertificatesDetailed with empty type (user will set type later)
+          const updatedDetailed = Array.isArray(
+            prev.languageCertificatesDetailed
+          )
+            ? [...prev.languageCertificatesDetailed, { url, type: "" }]
+            : [{ url, type: "" }];
+
+          updatedForm = {
+            ...prev,
+            documents: updatedDocs,
+            languageCertificatesDetailed: updatedDetailed,
+          };
+        } else {
+          // For passport and diplomas, just add to regular arrays
+          updatedDocs[selectedDocumentType] = [
+            ...updatedDocs[selectedDocumentType],
+            url,
+          ];
+
+          updatedForm = {
+            ...prev,
+            documents: updatedDocs,
+          };
+        }
+
+        return updatedForm;
+      });
+
+      // Reset the selected document type
+      setSelectedDocumentType("");
+
+      // Auto-save to Firebase immediately
+      try {
+        const candidateDocId = String(id || "").trim();
+        const collectionName = String(
+          resolvedMajor?.collectionName || ""
+        ).trim();
+
+        if (candidateDocId && collectionName && updatedForm) {
+          const docData = mapFormToDoc(updatedForm);
+
+          await updateDocument(collectionName, candidateDocId, {
+            documents: docData.documents,
+            dokumente: docData.dokumente,
+            languageCertificatesDetailed: docData.languageCertificatesDetailed,
+          });
+
+          toast.success(
+            `Dokument erfolgreich zu ${typeName} hochgeladen und gespeichert`
+          );
+        } else {
+          toast.success(`Dokument erfolgreich zu ${typeName} hochgeladen`);
+        }
+      } catch (saveErr) {
+        console.error("Error auto-saving document:", saveErr);
+        toast.success(
+          `Dokument erfolgreich zu ${typeName} hochgeladen (Speichern fehlgeschlagen)`
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Fehler beim Hochladen des Dokuments");
     }
   }
 
@@ -5484,78 +5615,307 @@ function Generate() {
                       </div>
 
                       {/* Certificates */}
-                      <div className="mb-2">
+                      <div className="mb-6">
                         <h4 className="font-semibold mb-2 text-sm uppercase tracking-wide opacity-80">
                           Zertifikate
                         </h4>
                         <div className="flex flex-col gap-2">
-                          {!formCv.documents?.certificates ||
-                          formCv.documents.certificates.length === 0 ? (
+                          {(!formCv.languageCertificatesDetailed ||
+                            formCv.languageCertificatesDetailed.length === 0) &&
+                          (!formCv.documents?.certificates ||
+                            formCv.documents.certificates.length === 0) ? (
                             <div className="p-3 bg-base-200 rounded text-sm text-center opacity-60 italic border border-dashed border-base-300">
                               Keine Zertifikate vorhanden.
                             </div>
                           ) : (
-                            formCv.documents.certificates.map((url, i) => {
-                              const isMarkedForDeletion =
-                                documentsMarkedForDeletion.certificates.some(
-                                  (marked) => marked.index === i
-                                );
-                              return (
-                                <div
-                                  key={i}
-                                  className={`flex gap-2 items-center p-2 border rounded ${
-                                    isMarkedForDeletion
-                                      ? "bg-error/10 border-error/50 opacity-60"
-                                      : "bg-base-100"
-                                  }`}
-                                >
-                                  <a
-                                    href={url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className={`link text-sm truncate flex-1 ${
-                                      isMarkedForDeletion
-                                        ? "link-error line-through"
-                                        : "link-primary"
-                                    }`}
-                                  >
-                                    {url}
-                                  </a>
-                                  <a
-                                    href={url}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="btn btn-square btn-sm btn-ghost text-primary"
-                                    title="Link öffnen"
-                                  >
-                                    <FaExternalLinkAlt />
-                                  </a>
-                                  {!isLimitedAdmin && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-square btn-sm btn-ghost text-error"
-                                      title={
-                                        isMarkedForDeletion
-                                          ? "Löschung wird beim Speichern ausgeführt"
-                                          : "Dokument löschen"
-                                      }
-                                      onClick={() =>
-                                        deleteDocumentRemoteFirst(
-                                          url,
-                                          "certificates",
-                                          i
-                                        )
-                                      }
-                                    >
-                                      <FaTrash />
-                                    </button>
+                            <div className="mt-2">
+                              <div className="text-xs opacity-70 mb-1">
+                                Nur PDF
+                              </div>
+                              <ul className="space-y-2">
+                                {/* Show languageCertificatesDetailed if available */}
+                                {Array.isArray(
+                                  formCv.languageCertificatesDetailed
+                                ) &&
+                                  formCv.languageCertificatesDetailed.map(
+                                    (cert, i) => {
+                                      const isMarkedForDeletion =
+                                        documentsMarkedForDeletion.certificates.some(
+                                          (marked) => marked.index === i
+                                        );
+                                      return (
+                                        <li
+                                          key={cert.url || i}
+                                          className={`flex flex-col gap-2 rounded-box border border-base-300 px-3 py-2 ${
+                                            isMarkedForDeletion
+                                              ? "bg-error/10 border-error/50 opacity-60"
+                                              : "bg-base-100"
+                                          }`}
+                                        >
+                                          <div className="flex items-center justify-between gap-2">
+                                            <div className="min-w-0 flex-1">
+                                              <div className="truncate font-medium">
+                                                <a
+                                                  href={cert.url}
+                                                  target="_blank"
+                                                  rel="noreferrer"
+                                                  className={`link truncate flex-1 ${
+                                                    isMarkedForDeletion
+                                                      ? "link-error line-through"
+                                                      : "link-primary"
+                                                  }`}
+                                                >
+                                                  {cert.url}
+                                                </a>
+                                              </div>
+                                            </div>
+                                            <a
+                                              href={cert.url}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              className="btn btn-square btn-sm btn-ghost text-primary"
+                                              title="Link öffnen"
+                                            >
+                                              <FaExternalLinkAlt />
+                                            </a>
+                                            {!isLimitedAdmin && (
+                                              <button
+                                                type="button"
+                                                className="btn btn-square btn-sm btn-ghost text-error"
+                                                title={
+                                                  isMarkedForDeletion
+                                                    ? "Löschung wird beim Speichern ausgeführt"
+                                                    : "Dokument löschen"
+                                                }
+                                                onClick={() =>
+                                                  deleteDocumentRemoteFirst(
+                                                    cert.url,
+                                                    "certificates",
+                                                    i
+                                                  )
+                                                }
+                                              >
+                                                <FaTrash />
+                                              </button>
+                                            )}
+                                          </div>
+                                          <div className="grid sm:grid-cols-2 gap-2 items-center">
+                                            <label
+                                              className="label py-0 sm:py-1"
+                                              htmlFor={`langcert-type-${i}`}
+                                            >
+                                              <span className="label-text text-xs sm:text-sm">
+                                                Zertifikat auswählen
+                                              </span>
+                                            </label>
+                                            <select
+                                              id={`langcert-type-${i}`}
+                                              className={`select select-bordered w-full ${
+                                                !cert.type?.trim()
+                                                  ? "select-warning"
+                                                  : ""
+                                              }`}
+                                              aria-label="Typ des Sprachzertifikats"
+                                              value={cert.type || ""}
+                                              onChange={(e) => {
+                                                setFormCv((prev) => {
+                                                  const updatedDetailed = [
+                                                    ...prev.languageCertificatesDetailed,
+                                                  ];
+                                                  updatedDetailed[i] = {
+                                                    ...updatedDetailed[i],
+                                                    type: e.target.value,
+                                                  };
+
+                                                  // Also update the regular certificates array for backward compatibility
+                                                  const updatedDocs = {
+                                                    ...prev.documents,
+                                                  };
+                                                  updatedDocs.certificates =
+                                                    updatedDetailed
+                                                      .map((c) => c.url)
+                                                      .filter(
+                                                        (url) =>
+                                                          url &&
+                                                          typeof url ===
+                                                            "string"
+                                                      );
+
+                                                  const updatedForm = {
+                                                    ...prev,
+                                                    documents: updatedDocs,
+                                                    languageCertificatesDetailed:
+                                                      updatedDetailed,
+                                                  };
+
+                                                  // Auto-save certificate type change to Firebase
+                                                  setTimeout(async () => {
+                                                    try {
+                                                      const candidateDocId =
+                                                        String(id || "").trim();
+                                                      const collectionName =
+                                                        String(
+                                                          resolvedMajor?.collectionName ||
+                                                            ""
+                                                        ).trim();
+
+                                                      if (
+                                                        candidateDocId &&
+                                                        collectionName
+                                                      ) {
+                                                        const docData =
+                                                          mapFormToDoc(
+                                                            updatedForm
+                                                          );
+
+                                                        await updateDocument(
+                                                          collectionName,
+                                                          candidateDocId,
+                                                          {
+                                                            languageCertificatesDetailed:
+                                                              docData.languageCertificatesDetailed,
+                                                          }
+                                                        );
+                                                      }
+                                                    } catch (saveErr) {
+                                                      console.error(
+                                                        "Error auto-saving certificate type:",
+                                                        saveErr
+                                                      );
+                                                    }
+                                                  }, 500);
+
+                                                  return updatedForm;
+                                                });
+                                              }}
+                                            >
+                                              <option value="">
+                                                Zertifikat auswählen
+                                              </option>
+                                              {LANG_CERT_TYPES.map((opt) => (
+                                                <option key={opt} value={opt}>
+                                                  {opt}
+                                                </option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                          {!cert.type?.trim() ? (
+                                            <p className="text-warning text-sm">
+                                              Bitte wählen Sie, zu welchem
+                                              Zertifikat die Datei gehört.
+                                            </p>
+                                          ) : null}
+                                        </li>
+                                      );
+                                    }
                                   )}
-                                </div>
-                              );
-                            })
+
+                                {/* Show legacy certificates if no languageCertificatesDetailed */}
+                                {!Array.isArray(
+                                  formCv.languageCertificatesDetailed
+                                ) ||
+                                formCv.languageCertificatesDetailed.length === 0
+                                  ? formCv.documents?.certificates?.map(
+                                      (url, i) => {
+                                        const isMarkedForDeletion =
+                                          documentsMarkedForDeletion.certificates.some(
+                                            (marked) => marked.index === i
+                                          );
+                                        return (
+                                          <div
+                                            key={i}
+                                            className={`flex gap-2 items-center p-2 border rounded ${
+                                              isMarkedForDeletion
+                                                ? "bg-error/10 border-error/50 opacity-60"
+                                                : "bg-base-100"
+                                            }`}
+                                          >
+                                            <a
+                                              href={url}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              className={`link text-sm truncate flex-1 ${
+                                                isMarkedForDeletion
+                                                  ? "link-error line-through"
+                                                  : "link-primary"
+                                              }`}
+                                            >
+                                              {url}
+                                            </a>
+                                            <a
+                                              href={url}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              className="btn btn-square btn-sm btn-ghost text-primary"
+                                              title="Link öffnen"
+                                            >
+                                              <FaExternalLinkAlt />
+                                            </a>
+                                            {!isLimitedAdmin && (
+                                              <button
+                                                type="button"
+                                                className="btn btn-square btn-sm btn-ghost text-error"
+                                                title={
+                                                  isMarkedForDeletion
+                                                    ? "Löschung wird beim Speichern ausgeführt"
+                                                    : "Dokument löschen"
+                                                }
+                                                onClick={() =>
+                                                  deleteDocumentRemoteFirst(
+                                                    url,
+                                                    "certificates",
+                                                    i
+                                                  )
+                                                }
+                                              >
+                                                <FaTrash />
+                                              </button>
+                                            )}
+                                          </div>
+                                        );
+                                      }
+                                    )
+                                  : null}
+                              </ul>
+                            </div>
                           )}
                         </div>
                       </div>
+
+                      {/* Document Upload */}
+                      {!isLimitedAdmin && (
+                        <div className="mb-2">
+                          <h4 className="font-semibold mb-2 text-sm uppercase tracking-wide opacity-80">
+                            Neues Dokument hochladen
+                          </h4>
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            <select
+                              className={selectBase}
+                              value={selectedDocumentType}
+                              onChange={(e) =>
+                                setSelectedDocumentType(e.target.value)
+                              }
+                            >
+                              <option value="">Dokumenttyp wählen</option>
+                              <option value="passport">Reisepass</option>
+                              <option value="diplomas">Diplome</option>
+                              <option value="certificates">Zertifikate</option>
+                            </select>
+                            <input
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png,.webp"
+                              className={fileInputBase}
+                              onChange={handleDocumentFileChange}
+                              disabled={!selectedDocumentType}
+                            />
+                          </div>
+                          {selectedDocumentType && (
+                            <div className="mt-2 text-xs opacity-70">
+                              Akzeptierte Formate: PDF, JPG, PNG, WEBP
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </CollapsibleSection>
                   </fieldset>
 
