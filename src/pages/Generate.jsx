@@ -918,6 +918,13 @@ function Generate() {
     updatedByUid: "",
   });
 
+  // Track documents marked for deletion (soft delete)
+  const [documentsMarkedForDeletion, setDocumentsMarkedForDeletion] = useState({
+    passport: [],
+    diplomas: [],
+    certificates: [],
+  });
+
   function getCommentHtml(obj) {
     return String(obj?.commentar || "");
   }
@@ -1151,6 +1158,22 @@ function Generate() {
 
     const persisted = await deleteOutgoingDocFromState(safeId);
     return { ok: Boolean(persisted), remoteMissing };
+  }
+
+  async function deleteDocumentRemoteFirst(url, documentType, index) {
+    const safeUrl = String(url || "").trim();
+    if (!safeUrl) return { ok: false, remoteMissing: false };
+
+    // Soft delete: only mark for deletion in UI, actual deletion happens on save
+    setDocumentsMarkedForDeletion((prev) => ({
+      ...prev,
+      [documentType]: [...(prev[documentType] || []), { url, index }],
+    }));
+
+    toast.success(
+      "Dokument zum Löschen markiert. Wird beim Speichern endgültig gelöscht."
+    );
+    return { ok: true, remoteMissing: false };
   }
 
   async function generateAndUploadBeratungsvertrag(options = {}) {
@@ -1667,8 +1690,17 @@ function Generate() {
   const hasUnsavedChanges = useMemo(() => {
     if (remoteMode) return false;
     if (!savedBaselineJson) return false;
-    return savedBaselineJson !== currentFormJson;
-  }, [savedBaselineJson, currentFormJson, remoteMode]);
+    const formChanged = savedBaselineJson !== currentFormJson;
+    const hasDocumentsMarkedForDeletion = Object.values(
+      documentsMarkedForDeletion
+    ).some((arr) => arr.length > 0);
+    return formChanged || hasDocumentsMarkedForDeletion;
+  }, [
+    savedBaselineJson,
+    currentFormJson,
+    remoteMode,
+    documentsMarkedForDeletion,
+  ]);
 
   const [unsavedModalOpen, setUnsavedModalOpen] = useState(false);
   const unsavedBlocker = useBlocker(
@@ -1721,6 +1753,12 @@ function Generate() {
     setPassportTouched(false);
     setEmailTouched(false);
     setRecentlyAdded({ soft: [], pc: [] });
+    // Clear documents marked for deletion
+    setDocumentsMarkedForDeletion({
+      passport: [],
+      diplomas: [],
+      certificates: [],
+    });
   }
 
   useEffect(() => {
@@ -3851,16 +3889,89 @@ function Generate() {
         setStatusUpdatedBy(user?.email || user?.uid || "admin");
       }
 
-      if (isLimitedAdmin) {
-        await updateDocument(col, docId, payload);
-      } else {
-        // Update Firestore and adjust BOTH stats:
-        // - LIVE (current): reflects current DB (can decrease on delete)
-        // - ALL‑TIME (global): should NOT decrease on delete, but SHOULD reflect edits
-        await updateCandidateWithDualStats(col, docId, payload, {
-          // Keep keys stable with LIVE stats (Home uses collection name keys)
+      // ---- Process documents marked for deletion ----
+      const updatedPayload = { ...payload };
+      let hasDocumentChanges = false;
+
+      for (const documentType of ["passport", "diplomas", "certificates"]) {
+        const markedForDeletion =
+          documentsMarkedForDeletion[documentType] || [];
+        if (markedForDeletion.length > 0) {
+          hasDocumentChanges = true;
+          // Delete from JSON API first
+          for (const { url } of markedForDeletion) {
+            try {
+              await deleteUploadedFileRemote(url);
+            } catch (err) {
+              if (Number(err?.status) === 404) {
+                console.warn(
+                  `[document-delete] Remote file missing (404):`,
+                  url
+                );
+              } else {
+                console.error(`Failed to delete remote file:`, url, err);
+              }
+            }
+          }
+
+          // Remove documents from payload
+          const currentDocs = updatedPayload.documents?.[documentType] || [];
+          const remainingDocs = currentDocs.filter(
+            (url, index) =>
+              !markedForDeletion.some((marked) => marked.index === index)
+          );
+
+          if (!updatedPayload.documents) {
+            updatedPayload.documents = {};
+          }
+          updatedPayload.documents[documentType] = remainingDocs;
+        }
+      }
+
+      // If documents were changed, recreate payload from updated formCv to ensure consistency
+      if (hasDocumentChanges && !isLimitedAdmin) {
+        // Create a temporary updated form to generate the correct payload
+        const tempUpdatedForm = { ...formCv };
+        if (!tempUpdatedForm.documents) {
+          tempUpdatedForm.documents = {
+            passport: [],
+            diplomas: [],
+            certificates: [],
+          };
+        }
+
+        for (const documentType of ["passport", "diplomas", "certificates"]) {
+          const markedForDeletion =
+            documentsMarkedForDeletion[documentType] || [];
+          if (markedForDeletion.length > 0) {
+            const currentDocs = tempUpdatedForm.documents[documentType] || [];
+            const remainingDocs = currentDocs.filter(
+              (url, index) =>
+                !markedForDeletion.some((marked) => marked.index === index)
+            );
+            tempUpdatedForm.documents[documentType] = remainingDocs;
+          }
+        }
+
+        // Recreate payload with updated form
+        const finalPayload = mapFormToDoc(tempUpdatedForm);
+        if (nextCommentMeta) {
+          finalPayload.commentarMeta = nextCommentMeta;
+        }
+
+        // Update Firestore with the correct payload
+        await updateCandidateWithDualStats(col, docId, finalPayload, {
           majorLabel: col,
         });
+      } else {
+        // Use the updated payload for limited admin or when no document changes
+        if (isLimitedAdmin) {
+          await updateDocument(col, docId, updatedPayload);
+        } else {
+          await updateCandidateWithDualStats(col, docId, updatedPayload, {
+            majorLabel: col,
+          });
+        }
       }
 
       // ---- Sync to external user registry (all_users) (best-effort) ----
@@ -3888,11 +3999,6 @@ function Generate() {
           );
         }
       }
-      toast.success(
-        isLimitedAdmin
-          ? "Kommentar wurde gespeichert."
-          : "Änderungen wurden gespeichert."
-      );
       if (shouldSyncEmail) {
         toast(
           "E-Mail wurde geändert: Kandidatenstufen wurden auf stage_1 zurückgesetzt."
@@ -3901,13 +4007,76 @@ function Generate() {
       if (isLimitedAdmin) {
         setCommentBaseline(String(commentHtml || ""));
       }
-      // Optimistic: mark current form as saved so user isn't blocked while snapshot catches up.
-      setSavedBaselineJson(JSON.stringify(normalizedCurrentForm));
+
+      // Clear documents marked for deletion and update form state
+      const hadDocumentsToDelete = Object.values(
+        documentsMarkedForDeletion
+      ).some((arr) => arr.length > 0);
+
+      if (hadDocumentsToDelete) {
+        // Update formCv to reflect the deleted documents
+        setFormCv((prev) => {
+          const updated = { ...prev };
+          if (!updated.documents) {
+            updated.documents = {
+              passport: [],
+              diplomas: [],
+              certificates: [],
+            };
+          }
+
+          for (const documentType of ["passport", "diplomas", "certificates"]) {
+            const markedForDeletion =
+              documentsMarkedForDeletion[documentType] || [];
+            if (markedForDeletion.length > 0) {
+              const currentDocs = updated.documents[documentType] || [];
+              const remainingDocs = currentDocs.filter(
+                (url, index) =>
+                  !markedForDeletion.some((marked) => marked.index === index)
+              );
+              updated.documents[documentType] = remainingDocs;
+            }
+          }
+
+          // Update savedBaselineJson with the updated form state
+          setTimeout(() => {
+            setSavedBaselineJson(JSON.stringify(normalizeForm(updated)));
+          }, 0);
+
+          return updated;
+        });
+
+        // Clear the deletion marks
+        setDocumentsMarkedForDeletion({
+          passport: [],
+          diplomas: [],
+          certificates: [],
+        });
+      } else {
+        // If no documents were deleted, update baseline immediately
+        setSavedBaselineJson(JSON.stringify(normalizedCurrentForm));
+      }
+
       if (nextCommentMeta) {
         setCommentMeta(nextCommentMeta);
       }
       if (commentHasContent) {
         setIsCommentEditorOpen(false);
+      }
+
+      // Show appropriate success message
+      if (hadDocumentsToDelete) {
+        toast.success(
+          isLimitedAdmin
+            ? "Kommentar und Dokumente wurden gespeichert."
+            : "Änderungen und Dokumente wurden gespeichert."
+        );
+      } else {
+        toast.success(
+          isLimitedAdmin
+            ? "Kommentar wurde gespeichert."
+            : "Änderungen wurden gespeichert."
+        );
       }
     } catch (e) {
       console.error(e);
@@ -4065,7 +4234,7 @@ function Generate() {
     !notFound;
 
   const showLimitedAdminSaveButton =
-    isLimitedAdmin && !isSaving && !loading && !notFound;
+    isLimitedAdmin && !isSaving && !loading && !notFound && hasUnsavedChanges;
 
   function formatCommentDate(val) {
     if (!val) return "";
@@ -5178,30 +5347,64 @@ function Generate() {
                               Kein Reisepass vorhanden.
                             </div>
                           ) : (
-                            formCv.documents.passport.map((url, i) => (
-                              <div
-                                key={i}
-                                className="flex gap-2 items-center p-2 bg-base-100 border rounded"
-                              >
-                                <a
-                                  href={url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="link link-primary text-sm truncate flex-1"
+                            formCv.documents.passport.map((url, i) => {
+                              const isMarkedForDeletion =
+                                documentsMarkedForDeletion.passport.some(
+                                  (marked) => marked.index === i
+                                );
+                              return (
+                                <div
+                                  key={i}
+                                  className={`flex gap-2 items-center p-2 border rounded ${
+                                    isMarkedForDeletion
+                                      ? "bg-error/10 border-error/50 opacity-60"
+                                      : "bg-base-100"
+                                  }`}
                                 >
-                                  {url}
-                                </a>
-                                <a
-                                  href={url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="btn btn-square btn-sm btn-ghost text-primary"
-                                  title="Link öffnen"
-                                >
-                                  <FaExternalLinkAlt />
-                                </a>
-                              </div>
-                            ))
+                                  <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className={`link text-sm truncate flex-1 ${
+                                      isMarkedForDeletion
+                                        ? "link-error line-through"
+                                        : "link-primary"
+                                    }`}
+                                  >
+                                    {url}
+                                  </a>
+                                  <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="btn btn-square btn-sm btn-ghost text-primary"
+                                    title="Link öffnen"
+                                  >
+                                    <FaExternalLinkAlt />
+                                  </a>
+                                  {!isLimitedAdmin && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-square btn-sm btn-ghost text-error"
+                                      title={
+                                        isMarkedForDeletion
+                                          ? "Löschung wird beim Speichern ausgeführt"
+                                          : "Dokument löschen"
+                                      }
+                                      onClick={() =>
+                                        deleteDocumentRemoteFirst(
+                                          url,
+                                          "passport",
+                                          i
+                                        )
+                                      }
+                                    >
+                                      <FaTrash />
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })
                           )}
                         </div>
                       </div>
@@ -5218,30 +5421,64 @@ function Generate() {
                               Keine Diplome vorhanden.
                             </div>
                           ) : (
-                            formCv.documents.diplomas.map((url, i) => (
-                              <div
-                                key={i}
-                                className="flex gap-2 items-center p-2 bg-base-100 border rounded"
-                              >
-                                <a
-                                  href={url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="link link-primary text-sm truncate flex-1"
+                            formCv.documents.diplomas.map((url, i) => {
+                              const isMarkedForDeletion =
+                                documentsMarkedForDeletion.diplomas.some(
+                                  (marked) => marked.index === i
+                                );
+                              return (
+                                <div
+                                  key={i}
+                                  className={`flex gap-2 items-center p-2 border rounded ${
+                                    isMarkedForDeletion
+                                      ? "bg-error/10 border-error/50 opacity-60"
+                                      : "bg-base-100"
+                                  }`}
                                 >
-                                  {url}
-                                </a>
-                                <a
-                                  href={url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="btn btn-square btn-sm btn-ghost text-primary"
-                                  title="Link öffnen"
-                                >
-                                  <FaExternalLinkAlt />
-                                </a>
-                              </div>
-                            ))
+                                  <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className={`link text-sm truncate flex-1 ${
+                                      isMarkedForDeletion
+                                        ? "link-error line-through"
+                                        : "link-primary"
+                                    }`}
+                                  >
+                                    {url}
+                                  </a>
+                                  <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="btn btn-square btn-sm btn-ghost text-primary"
+                                    title="Link öffnen"
+                                  >
+                                    <FaExternalLinkAlt />
+                                  </a>
+                                  {!isLimitedAdmin && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-square btn-sm btn-ghost text-error"
+                                      title={
+                                        isMarkedForDeletion
+                                          ? "Löschung wird beim Speichern ausgeführt"
+                                          : "Dokument löschen"
+                                      }
+                                      onClick={() =>
+                                        deleteDocumentRemoteFirst(
+                                          url,
+                                          "diplomas",
+                                          i
+                                        )
+                                      }
+                                    >
+                                      <FaTrash />
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })
                           )}
                         </div>
                       </div>
@@ -5258,30 +5495,64 @@ function Generate() {
                               Keine Zertifikate vorhanden.
                             </div>
                           ) : (
-                            formCv.documents.certificates.map((url, i) => (
-                              <div
-                                key={i}
-                                className="flex gap-2 items-center p-2 bg-base-100 border rounded"
-                              >
-                                <a
-                                  href={url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="link link-primary text-sm truncate flex-1"
+                            formCv.documents.certificates.map((url, i) => {
+                              const isMarkedForDeletion =
+                                documentsMarkedForDeletion.certificates.some(
+                                  (marked) => marked.index === i
+                                );
+                              return (
+                                <div
+                                  key={i}
+                                  className={`flex gap-2 items-center p-2 border rounded ${
+                                    isMarkedForDeletion
+                                      ? "bg-error/10 border-error/50 opacity-60"
+                                      : "bg-base-100"
+                                  }`}
                                 >
-                                  {url}
-                                </a>
-                                <a
-                                  href={url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="btn btn-square btn-sm btn-ghost text-primary"
-                                  title="Link öffnen"
-                                >
-                                  <FaExternalLinkAlt />
-                                </a>
-                              </div>
-                            ))
+                                  <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className={`link text-sm truncate flex-1 ${
+                                      isMarkedForDeletion
+                                        ? "link-error line-through"
+                                        : "link-primary"
+                                    }`}
+                                  >
+                                    {url}
+                                  </a>
+                                  <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="btn btn-square btn-sm btn-ghost text-primary"
+                                    title="Link öffnen"
+                                  >
+                                    <FaExternalLinkAlt />
+                                  </a>
+                                  {!isLimitedAdmin && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-square btn-sm btn-ghost text-error"
+                                      title={
+                                        isMarkedForDeletion
+                                          ? "Löschung wird beim Speichern ausgeführt"
+                                          : "Dokument löschen"
+                                      }
+                                      onClick={() =>
+                                        deleteDocumentRemoteFirst(
+                                          url,
+                                          "certificates",
+                                          i
+                                        )
+                                      }
+                                    >
+                                      <FaTrash />
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })
                           )}
                         </div>
                       </div>
