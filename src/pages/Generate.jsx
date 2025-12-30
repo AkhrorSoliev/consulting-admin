@@ -104,6 +104,7 @@ import { DOCUMENT_TEMPLATES } from "../constants/documentTemplates";
 import BeratungsvertragPdfDocument from "./contract/pdf/BeratungsvertragPdfDocument";
 import VermittlungsvertragPdfDocument from "./contract/pdf/VermittlungsvertragPdfDocument";
 import VollmachtPdfDocument from "./contract/pdf/VollmachtPdfDocument";
+import VollmachtArbeitgeberPdfDocument from "./contract/pdf/VollmachtArbeitgeberPdfDocument";
 import {
   makeEmailTemplateId,
   subscribeToEmailTemplates,
@@ -1378,6 +1379,63 @@ function Generate() {
     return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
   }
 
+  async function generateAndUploadVollmachtArbeitgeber() {
+    // Load template defaults from Firestore (same source as Contract template page)
+    const templateDoc = await getDocumentDataById(
+      "template_documents",
+      "vollmacht_arbeitgeber"
+    );
+    const savedForm =
+      templateDoc && typeof templateDoc.form === "object"
+        ? templateDoc.form
+        : {};
+
+    // Merge with current candidate data
+    const firstName = String(formCv?.personalInfo?.name || "").trim();
+    const lastName = String(formCv?.personalInfo?.lastName || "").trim();
+    const birthDate = String(formCv?.personalInfo?.birthDate || "").trim();
+    const birthPlace = String(formCv?.personalInfo?.birthPlace || "").trim();
+    const phone = String(formCv?.personalInfo?.phone || "").trim();
+    const email = String(formCv?.personalInfo?.email || "").trim();
+    const date = todayDdMmYyyy();
+
+    const merged = {
+      ...savedForm,
+      candidateFirstName: firstName,
+      candidateLastName: lastName,
+      candidateBirthDate: birthDate,
+      candidateBirthPlace: birthPlace,
+      candidateStreet: addressFields?.street || "",
+      candidateHouseNumber: addressFields?.houseNumber || "",
+      candidatePostalCode: addressFields?.postalCode || "",
+      candidateCity: addressFields?.city || "",
+      candidateCountry: addressFields?.country || "",
+      candidatePhone: phone,
+      candidateEmail: email,
+      candidatePlaceDate: date,
+    };
+
+    const fileBase =
+      firstName || lastName
+        ? `Vollmacht an Arbeitgeber ${[firstName, lastName]
+            .filter(Boolean)
+            .join(" ")}`
+        : "Vollmacht an Arbeitgeber";
+    const safeFileName =
+      fileBase.replace(/[\\/:*?"<>|]/g, "").trim() ||
+      "Vollmacht an Arbeitgeber";
+
+    const blob = await pdf(
+      <VollmachtArbeitgeberPdfDocument form={merged} />
+    ).toBlob();
+
+    const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
+      type: "application/pdf",
+    });
+    const url = await uploadFileToConsulting(file);
+    return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
+  }
+
   async function handleToggleOutgoingDoc(template, nextEnabled, options = {}) {
     const tpl = template || {};
     const templateId = String(tpl.id || "").trim();
@@ -1444,6 +1502,8 @@ function Generate() {
         generated = await generateAndUploadVermittlungsvertrag();
       } else if (templateId === "vollmacht") {
         generated = await generateAndUploadVollmacht();
+      } else if (templateId === "vollmacht_arbeitgeber") {
+        generated = await generateAndUploadVollmachtArbeitgeber();
       } else {
         throw new Error(`Unknown document template: ${templateId}`);
       }

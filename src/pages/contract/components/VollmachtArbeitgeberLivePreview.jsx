@@ -68,6 +68,31 @@ function buildVollmachtArbeitgeberBlocks(form) {
     return line;
   };
 
+  const buildEmployerAddressLine = () => {
+    const street = String(form?.employerStreet || "").trim();
+    const house = String(form?.employerHouseNumber || "").trim();
+    const plz = String(form?.employerPostalCode || "").trim();
+    const city = String(form?.employerCity || "").trim();
+
+    let line = "";
+
+    if (street) {
+      line += street;
+    }
+    if (house) {
+      line += (line ? ". " : "") + house;
+    }
+    if (plz) {
+      line += (line ? ", " : "") + plz;
+    }
+    if (city) {
+      // two spaces before Ort as requested ("PLZ  Ort")
+      line += (plz ? "  " : line ? " " : "") + city;
+    }
+
+    return line;
+  };
+
   const candidateFieldConfigs = [
     { key: "candidateFirstName" },
     { key: "candidateLastName" },
@@ -140,6 +165,7 @@ function buildVollmachtArbeitgeberBlocks(form) {
     {
       keys: ["employerStreet", "employerHouseNumber"],
       separator: " ",
+      useAddressFunction: true,
     },
     {
       keys: ["employerPostalCode", "employerCity"],
@@ -176,15 +202,42 @@ function buildVollmachtArbeitgeberBlocks(form) {
     },
   ];
 
+  const employerDisplayName = (() => {
+    const designation = form?.employerDesignation;
+    if (hasValue(designation)) return designation;
+    const companyName = form?.employerCompanyName;
+    if (hasValue(companyName)) return companyName;
+    return "";
+  })();
+
+  const employerRepDisplayName = (() => {
+    const full = form?.employerRepFullName;
+    if (hasValue(full)) return full;
+    const parts = [form?.employerRepFirstName, form?.employerRepLastName]
+      .map((v) => String(v || "").trim())
+      .filter(Boolean);
+    return parts.join(" ");
+  })();
+
   const P = ({ children, className = "" }) => (
     <div className={`mt-2 ${className}`}>{children}</div>
   );
 
-  const FormRow = ({ label, value, omit }) => {
+  const FormRow = ({
+    label,
+    value,
+    omit,
+    showColon = true,
+    addComma = false,
+  }) => {
     if (omit) return null;
     return (
-      <div className="flex gap-2 mt-1">
-        <div className="w-[100px] shrink-0 text-[10pt]">{label}:</div>
+      <div className="flex mt-1">
+        <div className="w-[100px] shrink-0 text-[10pt]">
+          {label}
+          {addComma ? "," : ""}
+          {showColon && !addComma ? ":" : ""}
+        </div>
         {hasValue(value) ? (
           <div className="flex-1 min-h-[14pt] pb-0.5">
             <SafeInline>{value}</SafeInline>
@@ -248,8 +301,12 @@ function buildVollmachtArbeitgeberBlocks(form) {
       node: (
         <div className="mt-4">
           <div className="grid grid-cols-2 gap-0">
-            <TableCell className="font-bold">Vollmachtgeber</TableCell>
-            <TableCell className="font-bold text-right">Arbeitgeber</TableCell>
+            <TableCell className="font-bold underline">
+              Vollmachtgeber
+            </TableCell>
+            <TableCell className="font-bold text-right underline">
+              Arbeitgeber
+            </TableCell>
 
             <TableCell>
               {candidateFieldGroups.map((group, groupIndex) => {
@@ -271,6 +328,9 @@ function buildVollmachtArbeitgeberBlocks(form) {
                 const combinedValue =
                   group.keys[0] === "employerRepStreet"
                     ? buildRepAddressLine()
+                    : group.keys[0] === "employerStreet" &&
+                      group.useAddressFunction
+                    ? buildEmployerAddressLine()
                     : values.join(group.separator);
                 return isOmitted(group.keys[0]) ? null : (
                   <FieldWithLabel key={groupIndex} value={combinedValue} />
@@ -297,22 +357,22 @@ function buildVollmachtArbeitgeberBlocks(form) {
       id: "intro",
       node: (
         <div>
-          <P className="mt-3">
+          <P>
             Hiermit bevollmächtige ich{" "}
-            {hasValue(form.employerDesignation) && (
+            {hasValue(employerDisplayName) && (
               <span className="font-semibold">
-                <SafeInline>{form.employerDesignation} </SafeInline>
+                <SafeInline>{employerDisplayName} </SafeInline>
               </span>
             )}
           </P>
 
           <P className="mt-2"> - im Folgenden: „der Bevollmächtigte",</P>
 
-          <P>
+          <P className="text-justify">
             vertreten durch{" "}
-            {hasValue(form.employerRepFullName) && (
+            {hasValue(employerRepDisplayName) && (
               <span className="font-semibold">
-                <SafeInline>{form.employerRepFullName}</SafeInline>
+                <SafeInline>{employerRepDisplayName}</SafeInline>
               </span>
             )}{" "}
             - Vollmacht, aus der sich deren Vertretungsbefugnis für den
@@ -320,55 +380,11 @@ function buildVollmachtArbeitgeberBlocks(form) {
             zuständigen Ausländerbehörde das beschleunigte Fachkräfteverfahren
             nach § 81a AufenthG sowie die sonstigen ggf. damit zusammenhängenden
             und in § 81a Absatz 3 AufenthG aufgeführten Verfahren zu beantragen,
-            und{" "}
-            {hasValue(
-              `${form.candidateFirstName || ""} ${
-                form.candidateLastName || ""
-              }`.trim()
-            ) && (
-              <span className="font-semibold">
-                <SafeInline>
-                  {`${form.candidateFirstName || ""} ${
-                    form.candidateLastName || ""
-                  }`.trim()}
-                </SafeInline>
-              </span>
-            )}{" "}
-            {(() => {
-              const streetLine = [
-                form.candidateStreet,
-                form.candidateHouseNumber,
-              ]
-                .map((part) => String(part || "").trim())
-                .filter(Boolean)
-                .join(" ");
-              return hasValue(streetLine) ? (
-                <span className="font-semibold">
-                  <SafeInline>{streetLine}</SafeInline>
-                </span>
-              ) : null;
-            })()}{" "}
-            {(() => {
-              const cityLine = [form.candidatePostalCode, form.candidateCity]
-                .map((part) => String(part || "").trim())
-                .filter(Boolean)
-                .join(" ");
-              return hasValue(cityLine) ? (
-                <span className="font-semibold">
-                  <SafeInline>{cityLine}</SafeInline>
-                </span>
-              ) : null;
-            })()}{" "}
-            {hasValue(form.candidateCountry) && (
-              <span className="font-semibold">
-                <SafeInline>{form.candidateCountry}</SafeInline>
-              </span>
-            )}{" "}
-            mich in diesen Verfahren bezüglich aller gesetzlich zulässigen
+            und mich in diesen Verfahren bezüglich aller gesetzlich zulässigen
             Angelegenheiten außergerichtlich zu vertreten.
           </P>
 
-          <P className="mt-3">
+          <P className="mt-3 text-justify">
             Ich erteile dem Bevollmächtigten die Befugnis, sämtliche Erklärungen
             und Handlungen verbindlich vorzunehmen, die nach den gesetzlichen
             Regelungen vorgenommen werden können und für die Verfahren
@@ -387,27 +403,38 @@ function buildVollmachtArbeitgeberBlocks(form) {
         <div className="ml-3">
           <div className="mt-2">
             <Bullet>
-              die Vertretung in allen für die Durchführung des beschleunigten
-              Fachkräfteverfahrens erforderlichen Angelegenheiten gegenüber der
-              zuständigen Ausländerbehörde, der für die berufliche Anerkennung
-              zuständigen Stelle sowie der ggf. sonstigen zuständigen Behörden,
+              <span className="text-justify">
+                die Vertretung in allen für die Durchführung des beschleunigten
+                Fachkräfteverfahrens erforderlichen Angelegenheiten gegenüber
+                der zuständigen Ausländerbehörde, der für die berufliche
+                Anerkennung zuständigen Stelle sowie der ggf. sonstigen
+                zuständigen Behörden,
+              </span>
             </Bullet>
             <Bullet>
-              das Ein- und Nachreichen der für die Verfahren erforderlichen
-              Unterlagen einschließlich meiner personenbezogenen Daten,
+              <span className="text-justify">
+                das Ein- und Nachreichen der für die Verfahren erforderlichen
+                Unterlagen einschließlich meiner personenbezogenen Daten,
+              </span>
             </Bullet>
             <Bullet>
-              die Vornahme von Zahlungen von für den Abschluss der Verfahren
-              erforderlichen Gebühren,
+              <span className="text-justify">
+                die Vornahme von Zahlungen von für den Abschluss der Verfahren
+                erforderlichen Gebühren,
+              </span>
             </Bullet>
             <Bullet>
-              die Entgegennahme der die Verfahren betreffenden schriftlichen
-              sowie elektronischen Unterlagen, die Durchführung des
-              Schriftverkehrs und das Öffnen der an mich adressierten Post und
+              <span className="text-justify">
+                die Entgegennahme der die Verfahren betreffenden schriftlichen
+                sowie elektronischen Unterlagen, die Durchführung des
+                Schriftverkehrs und das Öffnen der an mich adressierten Post und
+              </span>
             </Bullet>
             <Bullet>
-              den Antrag auf Aufnahme der Familienzusammenführung nach § 81a
-              Absatz 4 AufenthG ins beschleunigte Fachkräfteverfahren.
+              <span className="text-justify">
+                den Antrag auf Aufnahme der Familienzusammenführung nach § 81a
+                Absatz 4 AufenthG ins beschleunigte Fachkräfteverfahren.
+              </span>
             </Bullet>
           </div>
         </div>
@@ -417,16 +444,20 @@ function buildVollmachtArbeitgeberBlocks(form) {
       id: "closing",
       node: (
         <div className="mt-3">
-          <P>
+          <P className="text-justify">
             Der Bevollmächtigte ist berechtigt, eine Untervollmacht, die den
             Umfang dieser Vollmacht nicht überschreiten darf, zu erteilen und zu
-            widerrufen [auf die Möglichkeit der Verwendung des Musters für die
-            Untervollmacht als Anlage zu einer Vollmacht nach § 81a Abs. 1
-            AufenthG wird hingewiesen]. Die Vollmacht erlischt mit Abschluss des
-            beschleunigten Fachkräfteverfahrens.
+            widerrumen [
+            <span className="italic">
+              auf die Möglichkeit der Verwendung des Musters für die
+              Untervollmacht als Anlage zu einer Vollmacht nach § 81a Abs. 1
+              AufenthG wird hingewiesen
+            </span>
+            ]. Die Vollmacht erlischt mit Abschluss des beschleunigten
+            Fachkräfteverfahrens.
           </P>
 
-          <P className="mt-3">
+          <P className="mt-3 text-justify">
             Da diese Vollmacht meine rechtliche Möglichkeit selbst zu handeln
             nicht ausschließt, bitte ich um direkten Kontakt zu mir, sofern dies
             zur Klärung von Sachverhalten und zur Verfahrensbeschleunigung
@@ -445,6 +476,8 @@ function buildVollmachtArbeitgeberBlocks(form) {
                 label={form.candidateBirthPlace || "Ort"}
                 value={form.candidatePlaceDate}
                 omit={isOmitted("candidatePlaceDate")}
+                showColon={false}
+                addComma={true}
               />
               <div className="text-center">
                 <div className="border-t border-slate-700 text-[10pt]"></div>
@@ -453,8 +486,7 @@ function buildVollmachtArbeitgeberBlocks(form) {
 
             <div>
               <FormRow
-                label="Ort, Datum"
-                value={form.employerPlaceDate}
+                label={form.employerCity || "Ort"}
                 omit={isOmitted("employerPlaceDate")}
               />
               <div className="text-center">
