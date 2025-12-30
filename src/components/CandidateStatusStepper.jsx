@@ -1,11 +1,17 @@
-import { CANDIDATE_STATUS_OPTIONS, CANDIDATE_STATUS_DEFAULT } from "../constants/candidateStatus";
+import {
+  CANDIDATE_STATUS_OPTIONS,
+  CANDIDATE_STATUS_DEFAULT,
+} from "../constants/candidateStatus";
 import CandidateStatusBadge from "./CandidateStatusBadge";
+import { FaUndo, FaEnvelope } from "react-icons/fa";
 
 function CandidateStatusStepper({
   currentValue = CANDIDATE_STATUS_DEFAULT,
   onSendEmail,
   sendingValue = null,
   disabled = false,
+  resetStages,
+  openCustomEmailModal,
 }) {
   const steps = CANDIDATE_STATUS_OPTIONS;
   const currentIndex = Math.max(
@@ -20,7 +26,8 @@ function CandidateStatusStepper({
           <h3 className="text-lg font-semibold">Kandidatenstufen</h3>
           <p className="text-sm opacity-70">
             Senden Sie für jede Stufe eine E-Mail. Beim Senden wählen Sie
-            „Annehmen/Ablehnen“. Bei Annahme wird die nächste Stufe freigeschaltet.
+            „Annehmen/Ablehnen“. Bei Annahme wird die nächste Stufe
+            freigeschaltet.
           </p>
         </div>
 
@@ -57,10 +64,31 @@ function CandidateStatusStepper({
             );
           })}
         </div>
+
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            className="btn btn-sm mr-2 btn-secondary"
+            onClick={resetStages}
+            disabled={Boolean(sendingValue)}
+            title="Kandidatenstufen auf Anfang (Stufe 1) zurücksetzen und E-Mail-Zähler auf 0 setzen"
+          >
+            <FaUndo className="mr-1" />
+            Stufen zurücksetzen
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={openCustomEmailModal}
+            disabled={Boolean(sendingValue)}
+          >
+            <FaEnvelope className="mr-1" />
+            Benutzerdefinierte E-Mail
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
 export default CandidateStatusStepper;
-

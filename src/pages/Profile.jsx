@@ -102,106 +102,98 @@ function Profile() {
   };
 
   return (
-    <div className="min-h-screen bg-base-200">
-      <div className="max-w-3xl mx-auto px-4 py-10">
-        <div className="rounded-box border border-base-300 bg-bg-base-300 shadow-lg shadow-base-300">
-          <div className="px-6 py-8 space-y-6">
-            <div className="flex justify-start">
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm gap-2 normal-case px-3"
-                onClick={() => navigate(-1)}
-              >
-                <FaArrowLeft size={14} />
-                Zurück
-              </button>
-            </div>
-            <div className="flex flex-col items-center gap-3">
-              <div className="h-32 w-32 rounded-full border-4 border-base-200 bg-base-200 shadow-xl">
-                <img
-                  src={avatarPreview}
-                  alt="Profile avatar"
-                  className="h-full w-full rounded-full object-cover"
-                />
-              </div>
-              <div className="text-center">
-                <h1 className="text-2xl font-semibold">
-                  {user?.displayName || "Foydalanuvchi"}
-                </h1>
-                <p className="text-sm text-base-content/60">
-                  {user?.email || "—"}
-                </p>
-              </div>
-            </div>
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="bg-base-200/90 px-6 py-8 space-y-6 rounded-box border border-base-300 max-w-3xl w-full">
+        <div className="flex justify-start">
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm gap-2 normal-case px-3"
+            onClick={() => navigate(-1)}
+          >
+            <FaArrowLeft size={14} />
+            Zurück
+          </button>
+        </div>
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-32 w-32 rounded-full border-4 border-base-200 bg-base-200 shadow-xl">
+            <img
+              src={avatarPreview}
+              alt="Profile avatar"
+              className="h-full w-full rounded-full object-cover"
+            />
+          </div>
+          <div className="text-center">
+            <h1 className="text-2xl font-semibold">
+              {user?.displayName || "Foydalanuvchi"}
+            </h1>
+            <p className="text-sm text-base-content/60">{user?.email || "—"}</p>
+          </div>
+        </div>
 
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Kontakt ma’lumotlar</h2>
-                <button
-                  type="button"
-                  className="btn btn-xs btn-outline"
-                  onClick={() => setIsEditing((prev) => !prev)}
-                >
-                  {isEditing ? "Bekor qilish" : "O‘zgartirish"}
-                </button>
-              </div>
-              {statusMessage && (
-                <p className={`text-sm ${statusClasses[statusMessage.type]}`}>
-                  {statusMessage.text}
-                </p>
-              )}
-              <form className="space-y-4" onSubmit={handleSave}>
-                <div className="grid gap-4 md:grid-cols-2">
-                  {contactDetails.map((item) => (
-                    <div key={item.key} className="space-y-1">
-                      <p className="text-xs uppercase tracking-[0.2em] text-base-content/50">
-                        {item.label}
-                      </p>
-                      {isEditing && item.editable ? (
-                        <input
-                          className="input input-bordered w-full"
-                          type={item.key === "email" ? "email" : "text"}
-                          value={formData[item.key] || ""}
-                          onChange={(event) =>
-                            handleInputChange(item.key, event.target.value)
-                          }
-                          disabled={!isEditing}
-                        />
-                      ) : (
-                        <p className="text-base font-medium">{item.value}</p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <div className="space-y-2">
-                  <label className="label-text text-sm font-semibold">
-                    Avatar
-                  </label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    disabled={!isEditing}
-                    className="file-input file-input-bordered w-full"
-                    onChange={(event) =>
-                      setSelectedFile(event.target.files?.[0] || null)
-                    }
-                  />
-                  {selectedFile && (
-                    <p className="text-xs text-base-content/60">
-                      {selectedFile.name}
-                    </p>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Kontakt ma’lumotlar</h2>
+            <button
+              type="button"
+              className="btn btn-xs btn-outline"
+              onClick={() => setIsEditing((prev) => !prev)}
+            >
+              {isEditing ? "Bekor qilish" : "O‘zgartirish"}
+            </button>
+          </div>
+          {statusMessage && (
+            <p className={`text-sm ${statusClasses[statusMessage.type]}`}>
+              {statusMessage.text}
+            </p>
+          )}
+          <form className="space-y-4" onSubmit={handleSave}>
+            <div className="grid gap-4 md:grid-cols-2">
+              {contactDetails.map((item) => (
+                <div key={item.key} className="space-y-1">
+                  <p className="text-xs uppercase tracking-[0.2em] text-base-content/50">
+                    {item.label}
+                  </p>
+                  {isEditing && item.editable ? (
+                    <input
+                      className="input input-bordered w-full"
+                      type={item.key === "email" ? "email" : "text"}
+                      value={formData[item.key] || ""}
+                      onChange={(event) =>
+                        handleInputChange(item.key, event.target.value)
+                      }
+                      disabled={!isEditing}
+                    />
+                  ) : (
+                    <p className="text-base font-medium">{item.value}</p>
                   )}
                 </div>
-                <button
-                  type="submit"
-                  className="btn btn-primary w-full"
-                  disabled={!isEditing || isSaving}
-                >
-                  {isSaving ? "Saqlanmoqda..." : "Saqlash"}
-                </button>
-              </form>
+              ))}
             </div>
-          </div>
+            <div className="space-y-2">
+              <label className="label-text text-sm font-semibold">Avatar</label>
+              <input
+                type="file"
+                accept="image/*"
+                disabled={!isEditing}
+                className="file-input file-input-bordered w-full"
+                onChange={(event) =>
+                  setSelectedFile(event.target.files?.[0] || null)
+                }
+              />
+              {selectedFile && (
+                <p className="text-xs text-base-content/60">
+                  {selectedFile.name}
+                </p>
+              )}
+            </div>
+            <button
+              type="submit"
+              className="btn btn-primary w-full"
+              disabled={!isEditing || isSaving}
+            >
+              {isSaving ? "Saqlanmoqda..." : "Saqlash"}
+            </button>
+          </form>
         </div>
       </div>
     </div>

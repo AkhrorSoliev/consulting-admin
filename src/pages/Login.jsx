@@ -3,6 +3,7 @@ import FormInput from "../components/FormInput";
 import useLogin from "../hooks/useLogin";
 import ReCAPTCHA from "react-google-recaptcha";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
+import SeasonalBackground from "../components/SeasonalBackground";
 
 function Login() {
   const { loginUser, isPending, error } = useLogin();
@@ -14,7 +15,7 @@ function Login() {
 
   const handleSubmit = (event) => {
     event.preventDefault();
-    
+
     if (!captchaToken) {
       setEmailError("Bitte bestätigen Sie, dass Sie kein Roboter sind.");
       return;
@@ -30,11 +31,11 @@ function Login() {
     setEmail("");
     setPassword("");
     // Captcha reset is usually handled by the component or we can reset token
-    setCaptchaToken(null); 
+    setCaptchaToken(null);
   };
   return (
-    <section className="bg-base-100">
-      <div className="min-h-screen grid  place-items-center bg-base-200">
+    <SeasonalBackground>
+      <div className="min-h-screen flex items-center justify-center">
         <form
           onSubmit={handleSubmit}
           className="flex flex-col gap-5 w-full max-w-sm p-5 bg-base-100 rounded-lg shadow-md"
@@ -76,7 +77,10 @@ function Login() {
 
           <div className="flex justify-center">
             <ReCAPTCHA
-              sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY || "6LdEVycsAAAAAJ11zB8ovl-uNIQPPI06t8Rhwow8"}
+              sitekey={
+                import.meta.env.VITE_RECAPTCHA_SITE_KEY ||
+                "6LdEVycsAAAAAJ11zB8ovl-uNIQPPI06t8Rhwow8"
+              }
               onChange={(token) => setCaptchaToken(token)}
             />
           </div>
@@ -94,7 +98,7 @@ function Login() {
           {error && <p className="text-red-500">{error}</p>}
         </form>
       </div>
-    </section>
+    </SeasonalBackground>
   );
 }
 

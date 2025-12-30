@@ -3,7 +3,16 @@ import { useNavigate, useParams } from "react-router-dom";
 import { db } from "../firebase/config";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import toast from "react-hot-toast";
-import { FaCommentDots, FaEnvelope, FaPhone, FaTrash } from "react-icons/fa";
+import {
+  FaCommentDots,
+  FaEnvelope,
+  FaPhone,
+  FaTrash,
+  FaUsers,
+  FaChartLine,
+  FaComments,
+  FaEnvelopeOpen,
+} from "react-icons/fa";
 import {
   deleteCandidateWithCurrentStats,
   getDocumentDataById,
@@ -330,6 +339,26 @@ function CollectionCv() {
     { value: "C1", label: "C1" },
     { value: "C2", label: "C2" },
   ];
+
+  const statistics = useMemo(() => {
+    if (!items.length) return null;
+
+    const total = items.length;
+    const withEmail = items.filter(
+      (item) => (item.emailSentCount || 0) > 0
+    ).length;
+    const withoutEmail = total - withEmail;
+    const withComment = items.filter((item) => item.hasComment).length;
+    const withoutComment = total - withComment;
+
+    return {
+      total,
+      withEmail,
+      withoutEmail,
+      withComment,
+      withoutComment,
+    };
+  }, [items]);
 
   const activeFilterBadges = useMemo(() => {
     const badges = [];
@@ -774,6 +803,73 @@ function CollectionCv() {
             />
           </div>
         </div>
+
+        {/* Statistics Section */}
+        {statistics && (
+          <div className="mb-6">
+            <div className="bg-base-100 rounded-xl border border-base-300/60 shadow-sm p-3">
+              <h3 className="text-xs font-semibold uppercase text-base-content/60 mb-2 flex items-center gap-2">
+                <FaChartLine className="text-primary/60" />
+                Statistik für {title}
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="text-center p-2 bg-primary/5 rounded-lg border border-primary/20">
+                  <div className="flex items-center justify-center gap-1 text-lg font-bold text-primary tabular-nums">
+                    <FaUsers className="text-sm" />
+                    {statistics.total}
+                  </div>
+                  <div className="text-xs text-base-content/60">Gesamt</div>
+                </div>
+                <div className="text-center p-2 bg-success/5 rounded-lg border border-success/20">
+                  <div className="flex items-center justify-center gap-1 text-lg font-bold text-success tabular-nums">
+                    <FaEnvelope className="text-sm" />
+                    {statistics.withEmail}
+                  </div>
+                  <div className="text-xs text-base-content/60">E-Mail</div>
+                </div>
+                <div className="text-center p-2 bg-warning/5 rounded-lg border border-warning/20">
+                  <div className="flex items-center justify-center gap-1 text-lg font-bold text-warning tabular-nums">
+                    <FaEnvelopeOpen className="text-sm" />
+                    {statistics.withoutEmail}
+                  </div>
+                  <div className="text-xs text-base-content/60">
+                    Keine E-Mail
+                  </div>
+                </div>
+                <div className="text-center p-2 bg-info/5 rounded-lg border border-info/20">
+                  <div className="flex items-center justify-center gap-1 text-lg font-bold text-info tabular-nums">
+                    <FaComments className="text-sm" />
+                    {statistics.withComment}
+                  </div>
+                  <div className="text-xs text-base-content/60">Kommentar</div>
+                </div>
+              </div>
+              <div className="mt-2 pt-2 border-t border-base-300/30">
+                <div className="flex justify-between items-center text-xs text-base-content/60">
+                  <span className="flex items-center gap-1">
+                    <FaCommentDots className="text-xs opacity-60" />
+                    Ohne:{" "}
+                    <span className="font-semibold text-base-content/80">
+                      {statistics.withoutComment}
+                    </span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <FaChartLine className="text-xs opacity-60" />
+                    Rate:{" "}
+                    <span className="font-semibold text-base-content/80">
+                      {statistics.total > 0
+                        ? Math.round(
+                            (statistics.withEmail / statistics.total) * 100
+                          )
+                        : 0}
+                      %
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="mb-6">
           {activeFilterBadges.length > 0 ? (

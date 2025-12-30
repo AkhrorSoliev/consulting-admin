@@ -375,10 +375,8 @@ export default function LivePreview({
       keepWithNext: true,
       node: (
         <div className="mb-[18pt]">
-          <h1 className="text-[24pt] font-bold text-[#0f172a] leading-tight">
-            {fullName}
-          </h1>
-          <div className="h-[2pt] bg-[#1f2937] mt-[17pt] mb-[12pt] w-full" />
+          <h1 className="text-[24pt] font-bold leading-tight">{fullName}</h1>
+          <div className="h-[2pt] bg-base-content/80 mt-[17pt] mb-[12pt] w-full" />
 
           <div className="flex flex-row gap-[22pt] min-w-0">
             <div className="flex-1 min-w-0">
@@ -416,10 +414,10 @@ export default function LivePreview({
                     // Don't start drag-pan on the photo element.
                     e.stopPropagation();
                   }}
-                  className="w-[128pt] h-[160pt] object-cover border border-[#d9dee3] rounded-[8pt] cursor-zoom-in transition-transform hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/50"
+                  className="w-[128pt] h-[160pt] object-cover border border-base-300 rounded-[8pt] cursor-zoom-in transition-transform hover:scale-[1.01] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary/50"
                 />
               ) : (
-                <div className="w-[128pt] h-[160pt] border border-[#d9dee3] rounded-[8pt] flex items-center justify-center bg-gray-50 text-gray-400 text-xs">
+                <div className="w-[128pt] h-[160pt] border border-base-300 rounded-[8pt] flex items-center justify-center bg-base-200 text-base-content/50 text-xs">
                   Foto
                 </div>
               )}
@@ -448,16 +446,18 @@ export default function LivePreview({
                 addGap ? "mb-[10pt]" : ""
               }`}
             >
-              <div className="w-[140pt] shrink-0 font-bold text-[#475569]">
+              <div className="w-[140pt] shrink-0 font-bold text-base-content/70">
                 {(exp.startDate || "—") + " – " + (exp.endDate || "heute")}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-bold text-[#0f172a] wrap-break-word">
+                <div className="font-bold wrap-break-word">
                   {exp.position || "—"}
                   {exp.location ? `, ${exp.location}` : ""}
                 </div>
                 {exp.company && (
-                  <div className="italic text-[#475569]">{exp.company}</div>
+                  <div className="italic text-base-content/70">
+                    {exp.company}
+                  </div>
                 )}
                 {Array.isArray(exp.responsibilities) &&
                   exp.responsibilities.length > 0 && (
@@ -499,12 +499,12 @@ export default function LivePreview({
                 addGap ? "mb-[10pt]" : ""
               }`}
             >
-              <div className="w-[140pt] shrink-0 font-bold text-[#475569]">
+              <div className="w-[140pt] shrink-0 font-bold text-base-content/70">
                 {(edu.startDate || "—") + " – " + (edu.endDate || "—")}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="wrap-break-word">{edu.institution || "—"}</div>
-                <div className="italic text-[#475569]">
+                <div className="italic text-base-content/70">
                   Abschluss: {edu.degree || "—"}
                 </div>
               </div>
@@ -849,10 +849,10 @@ export default function LivePreview({
         <>
           {/* Mobile zoom bar (bottom, horizontal) */}
           <div className="absolute left-1/2 -translate-x-1/2 bottom-[calc(env(safe-area-inset-bottom)+0.75rem)] z-30 pointer-events-auto sm:hidden">
-            <div className="rounded-2xl border border-slate-200 bg-white/95 backdrop-blur shadow-lg px-3 py-2 flex items-center gap-2">
+            <div className="rounded-2xl border border-base-200 bg-base-100/95 backdrop-blur shadow-lg px-3 py-2 flex items-center gap-2">
               <button
                 type="button"
-                className="w-9 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 shadow-sm flex items-center justify-center"
+                className="w-9 h-9 rounded-xl border border-base-200 bg-base-100 hover:bg-base-200 active:bg-base-300 text-base-content shadow-sm flex items-center justify-center"
                 onClick={() => setZoomClamped(zoomFactor - 0.05)}
                 aria-label="Herauszoomen"
                 title="Zoom -"
@@ -862,7 +862,7 @@ export default function LivePreview({
               </button>
               <div className="flex flex-col gap-1 min-w-[220px]">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="text-[10px] font-semibold text-slate-500 tracking-wide select-none">
+                  <div className="text-[10px] font-semibold text-base-content/70 tracking-wide select-none">
                     {Math.round(zoomFactor * 100)}%
                   </div>
                   <button
@@ -888,7 +888,7 @@ export default function LivePreview({
               </div>
               <button
                 type="button"
-                className="w-9 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 shadow-sm flex items-center justify-center"
+                className="w-9 h-9 rounded-xl border border-base-200 bg-base-100 hover:bg-base-200 active:bg-base-300 text-base-content shadow-sm flex items-center justify-center"
                 onClick={() => setZoomClamped(zoomFactor + 0.05)}
                 aria-label="Hineinzoomen"
                 title="Zoom +"
@@ -905,10 +905,10 @@ export default function LivePreview({
               showToolbar ? "top-12" : "top-3"
             } right-3 sm:right-4 z-30 pointer-events-auto hidden sm:block`}
           >
-            <div className="rounded-2xl border border-slate-200 bg-white/95 backdrop-blur shadow-lg p-2 flex flex-col items-center gap-2">
+            <div className="rounded-2xl border border-base-200 bg-base-100/95 backdrop-blur shadow-lg p-2 flex flex-col items-center gap-2">
               <button
                 type="button"
-                className="w-9 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 shadow-sm flex items-center justify-center"
+                className="w-9 h-9 rounded-xl border border-base-200 bg-base-100 hover:bg-base-200 active:bg-base-300 text-base-content shadow-sm flex items-center justify-center"
                 onClick={() => setZoomClamped(zoomFactor + 0.05)}
                 aria-label="Hineinzoomen"
                 title="Zoom +"
@@ -918,7 +918,7 @@ export default function LivePreview({
               </button>
 
               <div className="flex flex-col items-center gap-2 flex-1 min-h-0 py-1">
-                <div className="text-[10px] font-semibold text-slate-500 tracking-wide select-none">
+                <div className="text-[10px] font-semibold text-base-content/70 tracking-wide select-none">
                   {Math.round(zoomFactor * 100)}%
                 </div>
                 <div
@@ -950,7 +950,7 @@ export default function LivePreview({
 
               <button
                 type="button"
-                className="w-9 h-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 shadow-sm flex items-center justify-center"
+                className="w-9 h-9 rounded-xl border border-base-200 bg-base-100 hover:bg-base-200 active:bg-base-300 text-base-content shadow-sm flex items-center justify-center"
                 onClick={() => setZoomClamped(zoomFactor - 0.05)}
                 aria-label="Herauszoomen"
                 title="Zoom -"
@@ -963,9 +963,9 @@ export default function LivePreview({
         </>
       ) : null}
 
-      <div className="bg-slate-200/50 rounded-xl border border-slate-300 shadow-inner h-full flex flex-col overflow-hidden">
+      <div className="bg-base-200/50 rounded-xl border border-base-300 shadow-inner h-full flex flex-col overflow-hidden">
         {showToolbar ? (
-          <div className="bg-white border-b border-slate-200 px-4 py-2 flex justify-between items-center text-xs font-semibold text-slate-500 uppercase tracking-wider z-10">
+          <div className="bg-base-100 border-b border-base-200 px-4 py-2 flex justify-between items-center text-xs font-semibold text-base-content/70 uppercase tracking-wider z-10">
             <span>Vorschau (A4)</span>
             <span className="flex items-center gap-1">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
@@ -1028,7 +1028,7 @@ export default function LivePreview({
               // ignore
             }
           }}
-          className={`flex-1 overflow-y-auto w-full bg-slate-100 ${
+          className={`flex-1 overflow-y-auto w-full bg-base-200 ${
             enableClickZoom && isZoomedIn
               ? "overflow-x-auto"
               : "overflow-x-hidden"
@@ -1053,7 +1053,7 @@ export default function LivePreview({
               className="absolute -left-[99999px] top-0 h-0 overflow-hidden opacity-0 pointer-events-none"
             >
               <div
-                className="bg-white text-[#0f172a] text-[11pt] leading-[1.38] box-border"
+                className="bg-base-100 text-base-content text-[11pt] leading-[1.38] box-border"
                 style={{
                   fontFamily: "Inter, Helvetica, Arial, sans-serif",
                   width: `${A4_WIDTH_PT}pt`,
@@ -1093,7 +1093,7 @@ export default function LivePreview({
                   pageLabel={`A4-Seite ${pageIdx + 1}`}
                 >
                   <div
-                    className={`bg-white shadow-2xl text-[#0f172a] text-[11pt] leading-[1.38] origin-top shrink-0 box-border ${
+                    className={`bg-base-100 shadow-2xl text-base-content text-[11pt] leading-[1.38] origin-top shrink-0 box-border ${
                       showFooter ? "relative" : ""
                     }`}
                     style={{
@@ -1115,7 +1115,7 @@ export default function LivePreview({
 
                     {/* Footer on the last page (when Kommentar page is hidden) */}
                     {showFooter && (
-                      <div className="absolute left-[44pt] right-[44pt] bottom-[34pt] text-[#0f172a]">
+                      <div className="absolute left-[44pt] right-[44pt] bottom-[34pt]">
                         {showCommentDate && (
                           <div className="text-[10pt] text-right">
                             Datum: {commentDate || "—"}
@@ -1497,7 +1497,7 @@ export default function LivePreview({
             {showComment && (
               <ScaledA4 pageLabel={`A4-Seite ${mainPageCount + 1}`}>
                 <div
-                  className="bg-white shadow-2xl text-[#0f172a] text-[11pt] leading-normal origin-top shrink-0 relative box-border"
+                  className="bg-base-100 shadow-2xl text-base-content text-[11pt] leading-normal origin-top shrink-0 relative box-border"
                   style={{
                     fontFamily: "Inter, Helvetica, Arial, sans-serif",
                     width: `${A4_WIDTH_PT}pt`,
@@ -1507,12 +1507,12 @@ export default function LivePreview({
                   }}
                 >
                   <div className="mb-[18pt]">
-                    <div className="text-[24pt] font-bold text-[#0f172a] leading-tight">
+                    <div className="text-[24pt] font-bold leading-tight">
                       Erst- und Zweitgesprächsfeedback
                     </div>
-                    <div className="h-[2pt] bg-[#1f2937] mt-[17pt] mb-[12pt] w-full" />
+                    <div className="h-[2pt] bg-base-content/80 mt-[17pt] mb-[12pt] w-full" />
                   </div>
-                  <div className="mt-[10pt] text-[#0f172a] text-[11pt] leading-normal whitespace-pre-wrap">
+                  <div className="mt-[10pt] text-[11pt] leading-normal whitespace-pre-wrap">
                     {commentLines.map((line, idx) => {
                       const parts = splitCommentLabelLine(line);
                       const suffix = idx < commentLines.length - 1 ? "\n" : "";
@@ -1530,7 +1530,7 @@ export default function LivePreview({
                   </div>
 
                   {/* Footer (match PDF) */}
-                  <div className="absolute left-[44pt] right-[44pt] bottom-[34pt] text-[#0f172a]">
+                  <div className="absolute left-[44pt] right-[44pt] bottom-[34pt]">
                     {showCommentDate && (
                       <div className="text-[10pt] text-right">
                         Datum: {commentDate || "—"}

@@ -100,13 +100,15 @@ export default function CandidateCard({
           : undefined
       }
     >
-      {topRight ? <div className="absolute top-2 right-2">{topRight}</div> : null}
+      {topRight ? (
+        <div className="absolute top-2 right-2">{topRight}</div>
+      ) : null}
 
       <div className="card-body p-4 sm:p-5 flex flex-col h-full gap-3">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="avatar shrink-0">
-              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden bg-base-200 ring-1 ring-base-300 flex items-center justify-center">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl overflow-hidden bg-base-200/90 ring-1 ring-base-300 flex items-center justify-center">
                 {safePhoto ? (
                   <img
                     src={safePhoto}
@@ -207,5 +209,3 @@ CandidateCard.propTypes = {
   ),
   emptyLabel: PropTypes.string,
 };
-
-

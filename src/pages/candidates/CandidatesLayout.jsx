@@ -82,7 +82,7 @@ export default function CandidatesLayout() {
           </div>
         </aside>
 
-        <section className="min-w-0 rounded-box border border-base-300 bg-base-100 p-6 shadow">
+        <section className="min-w-0 rounded-box border border-base-300 bg-base-100/95 p-6 shadow">
           <Outlet />
         </section>
       </div>

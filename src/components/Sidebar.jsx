@@ -23,7 +23,7 @@ const Sidebar = forwardRef(function Sidebar({ isOpen = false, onClose }, ref) {
             onClose?.();
           }
         }}
-        className={`fixed left-0 top-16 z-40 h-[calc(100vh-4rem)] w-[26rem] max-w-[80vw] transform bg-base-300 shadow-xl transition-transform duration-300 ease-out ${
+        className={`fixed left-0 top-16 z-40  h-[calc(100vh-4rem)] w-[26rem] max-w-[80vw] transform bg-base-300/95 shadow-xl transition-transform duration-300 ease-out ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >

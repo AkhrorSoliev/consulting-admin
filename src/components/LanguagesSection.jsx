@@ -21,8 +21,8 @@ function LanguagesSection({
     const selectedLanguages = languageRows
       .map((row, idx) => (idx !== currentIndex ? row.name : null))
       .filter(Boolean);
-    
-    return languageOptions.filter(lang => !selectedLanguages.includes(lang));
+
+    return languageOptions.filter((lang) => !selectedLanguages.includes(lang));
   };
 
   const openPicker = (idx, type) => {
@@ -110,9 +110,7 @@ function LanguagesSection({
                   ${errors?.[idx]?.level ? "border-error" : ""}
                 `}
               >
-                <span className="text-sm">
-                  {row.level || "Niveau wählen"}
-                </span>
+                <span className="text-sm">{row.level || "Niveau wählen"}</span>
                 <svg
                   className="w-4 h-4 opacity-50"
                   fill="none"
@@ -211,7 +209,9 @@ function LanguagesSection({
             <div className="shrink-0 px-4 pb-3 border-b border-base-200">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-bold text-lg">
-                  {pickerType === "language" ? "Sprache wählen" : "Niveau wählen"}
+                  {pickerType === "language"
+                    ? "Sprache wählen"
+                    : "Niveau wählen"}
                 </h3>
                 <button
                   type="button"
@@ -288,5 +288,3 @@ function LanguagesSection({
 }
 
 export default LanguagesSection;
-
-
