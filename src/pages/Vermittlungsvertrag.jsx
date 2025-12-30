@@ -287,134 +287,181 @@ export default function Vermittlungsvertrag() {
               <span className="font-semibold">Datum</span>.
             </p>
 
-            <div className="divider">Auftraggeber / Bewerber</div>
+            <div className="divider divider-start font-bold text-base-content/80">
+              👤 Auftraggeber / Bewerber
+            </div>
 
-            <FormInput
-              label="Vorname"
-              placeholder="z.B. Mustafa"
-              value={form.candidateFirstName}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, candidateFirstName: e.target.value }))
-              }
-            />
+            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
+                <span className="w-1 h-4 bg-primary rounded-full"></span>
+                Persönliche Angaben
+              </h3>
+              <div className="space-y-4">
+                <FormInput
+                  label="Vorname"
+                  placeholder="z.B. Mustafa"
+                  value={form.candidateFirstName}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      candidateFirstName: e.target.value,
+                    }))
+                  }
+                />
 
-            <FormInput
-              label="Nachname"
-              placeholder="z.B. Schmidt"
-              value={form.candidateLastName}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, candidateLastName: e.target.value }))
-              }
-            />
-
-            <FormInput
-              label="Straße"
-              placeholder="z.B. Hauptstraße"
-              value={form.candidateStreet}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, candidateStreet: e.target.value }))
-              }
-            />
-
-            <FormInput
-              label="Hausnummer"
-              placeholder="z.B. 123"
-              value={form.candidateHouseNumber}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, candidateHouseNumber: e.target.value }))
-              }
-            />
-
-            <FormInput
-              label="PLZ"
-              placeholder="z.B. 12345"
-              value={form.candidatePLZ}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, candidatePLZ: e.target.value }))
-              }
-            />
-
-            <FormInput
-              label="Geburtsort"
-              placeholder="z.B. Berlin"
-              value={form.candidateBirthPlace}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, candidateBirthPlace: e.target.value }))
-              }
-            />
-
-            <FormInput
-              label="Land"
-              placeholder="z.B. Deutschland"
-              value={form.candidateLand}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, candidateLand: e.target.value }))
-              }
-            />
-
-            <div className="divider">Vertragsdauer</div>
-
-            <FormInput
-              label="Vertragsdauer (Jahre)"
-              type="number"
-              min="1"
-              max="10"
-              placeholder="z.B. 2"
-              value={form.contractDurationYears}
-              onChange={(e) =>
-                setForm((p) => ({
-                  ...p,
-                  contractDurationYears: parseInt(e.target.value) || 2,
-                }))
-              }
-              helperText={
-                <span className="text-xs opacity-70">
-                  Vertrag beginnt am{" "}
-                  <span className="font-semibold">heutigen Datum</span> und
-                  endet nach {form.contractDurationYears} Jahr
-                  {form.contractDurationYears !== 1 ? "en" : ""}.
-                </span>
-              }
-            />
-
-            <div className="divider">Unterschrift</div>
-
-            <FormInput
-              label="Ort (Unterschrift)"
-              placeholder="z.B. Taschkent"
-              value={form.signatureCity}
-              onChange={(e) =>
-                setForm((p) => ({ ...p, signatureCity: e.target.value }))
-              }
-            />
-
-            <FormInput
-              label="Datum (Unterschrift)"
-              type="date"
-              placeholder="YYYY-MM-DD"
-              value={toInputDate(form.signatureDate)}
-              onChange={(e) =>
-                setForm((p) => ({
-                  ...p,
-                  signatureDate: fromInputDate(e.target.value),
-                }))
-              }
-              helperText={
-                <span className="text-xs opacity-70">
-                  Wird unten als{" "}
-                  <span className="font-semibold">„Ort / Datum"</span>{" "}
-                  angezeigt.
-                </span>
-              }
-            />
-
-            <div className="divider" />
-            <div className="text-sm">
-              <div className="font-semibold mb-1">Tipp</div>
-              <div className="opacity-70">
-                Wenn Name leer bleibt, werden im Vertrag Platzhalter‑Linien
-                angezeigt.
+                <FormInput
+                  label="Nachname"
+                  placeholder="z.B. Schmidt"
+                  value={form.candidateLastName}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      candidateLastName: e.target.value,
+                    }))
+                  }
+                />
               </div>
+            </div>
+
+            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
+                <span className="w-1 h-4 bg-primary rounded-full"></span>
+                Adresse
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="sm:col-span-2">
+                  <FormInput
+                    label="Straße"
+                    placeholder="z.B. Hauptstraße"
+                    value={form.candidateStreet}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        candidateStreet: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <FormInput
+                  label="Hausnummer"
+                  placeholder="z.B. 123"
+                  value={form.candidateHouseNumber}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      candidateHouseNumber: e.target.value,
+                    }))
+                  }
+                />
+                <FormInput
+                  label="PLZ"
+                  placeholder="z.B. 12345"
+                  value={form.candidatePLZ}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, candidatePLZ: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
+                <span className="w-1 h-4 bg-primary rounded-full"></span>
+                Geburtsdaten
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormInput
+                  label="Geburtsort"
+                  placeholder="z.B. Berlin"
+                  value={form.candidateBirthPlace}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      candidateBirthPlace: e.target.value,
+                    }))
+                  }
+                />
+                <FormInput
+                  label="Land"
+                  placeholder="z.B. Deutschland"
+                  value={form.candidateLand}
+                  onChange={(e) =>
+                    setForm((p) => ({ ...p, candidateLand: e.target.value }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="divider divider-start font-bold text-base-content/80">
+              📋 Vertragsdauer
+            </div>
+
+            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
+                <span className="w-1 h-4 bg-secondary rounded-full"></span>
+                Vertragsdetails
+              </h3>
+              <FormInput
+                label="Vertragsdauer (Jahre)"
+                type="number"
+                min="1"
+                max="10"
+                placeholder="z.B. 2"
+                value={form.contractDurationYears}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    contractDurationYears: parseInt(e.target.value) || 2,
+                  }))
+                }
+                helperText={
+                  <span className="text-xs opacity-70">
+                    Vertrag beginnt am{" "}
+                    <span className="font-semibold">heutigen Datum</span> und
+                    endet nach {form.contractDurationYears} Jahr
+                    {form.contractDurationYears !== 1 ? "en" : ""}.
+                  </span>
+                }
+              />
+            </div>
+
+            <div className="divider divider-start font-bold text-base-content/80">
+              ✍️ Unterschrift
+            </div>
+
+            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
+                <span className="w-1 h-4 bg-accent rounded-full"></span>
+                Unterschriftsdetails
+              </h3>
+              <FormInput
+                label="Ort (Unterschrift)"
+                placeholder="z.B. Taschkent"
+                value={form.signatureCity}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, signatureCity: e.target.value }))
+                }
+              />
+
+              <FormInput
+                label="Datum (Unterschrift)"
+                type="date"
+                placeholder="YYYY-MM-DD"
+                value={toInputDate(form.signatureDate)}
+                onChange={(e) =>
+                  setForm((p) => ({
+                    ...p,
+                    signatureDate: fromInputDate(e.target.value),
+                  }))
+                }
+                helperText={
+                  <span className="text-xs opacity-70">
+                    Wird unten als{" "}
+                    <span className="font-semibold">„Ort / Datum"</span>{" "}
+                    angezeigt.
+                  </span>
+                }
+              />
             </div>
           </div>
         </section>

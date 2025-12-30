@@ -69,6 +69,8 @@ import {
   commentHtmlToPlainText,
   DEFAULT_COMMENT_TEMPLATE_HTML,
   deleteUploadedFileRemote,
+  toInputMonth,
+  fromInputMonth,
 } from "../utils";
 import CandidateStatusStepper from "../components/CandidateStatusStepper";
 import {
@@ -1881,7 +1883,8 @@ function Generate() {
           setNotFound(false);
           if (!formInitialized) {
             const mapped = mapDocToForm(data);
-            setFormCv(normalizeForm(mapped));
+            const normalized = normalizeForm(mapped);
+            setFormCv(normalized);
             setFormInitialized(true);
             // Don't show "success" validation colors on initial load.
             setPhoneTouched(false);
@@ -2336,6 +2339,15 @@ function Generate() {
       ? data.berufserfahrung
       : [];
     const ausb = Array.isArray(data?.ausbildung) ? data.ausbildung : [];
+
+    const normalizeMonth = (value) => {
+      const raw = String(value || "").trim();
+      if (!raw) return "";
+      // Convert "yyyy-mm" back to "mm.yyyy" for our form state; keep other formats as-is.
+      const from = fromInputMonth(raw);
+      return from || raw;
+    };
+
     const f = data?.faehigkeiten || {};
     const d = data?.dokumente || {};
     const att = data?.attachments || {};
@@ -2459,16 +2471,16 @@ function Generate() {
         photo: String(p.foto || ""),
       },
       experience: berufe.map((b) => ({
-        startDate: String(b?.beginn || ""),
-        endDate: String(b?.ende || ""),
+        startDate: normalizeMonth(b?.beginn),
+        endDate: normalizeMonth(b?.ende),
         position: String(b?.position || ""),
         company: String(b?.unternehmen || ""),
         location: String(b?.ort || ""),
         responsibilities: Array.isArray(b?.aufgaben) ? b.aufgaben : [],
       })),
       education: ausb.map((a) => ({
-        startDate: String(a?.beginn || ""),
-        endDate: String(a?.ende || ""),
+        startDate: normalizeMonth(a?.beginn),
+        endDate: normalizeMonth(a?.ende),
         institution: String(a?.bildungseinrichtung || ""),
         degree: String(a?.abschluss || ""),
       })),
@@ -2737,6 +2749,7 @@ function Generate() {
   const educationCount = Array.isArray(formCv.education)
     ? formCv.education.length
     : 0;
+
   const languagesCount = Array.isArray(languageRows) ? languageRows.length : 0;
   const documentsCount =
     (Array.isArray(formCv.documents?.diplomas)
@@ -3978,7 +3991,7 @@ function Generate() {
     "card bg-base-100 shadow-2xl border border-base-300 rounded-2xl w-full lg:max-w-[640px] shrink-0 max-h-[calc(100vh-2rem)] lg:sticky lg:top-2 overflow-y-auto";
 
   const formSectionClass = isLimitedAdmin
-    ? `${formCardLimited} flex-1 min-w-0 lg:self-stretch lg:basis-[60%] lg:max-w-[60%] lg:flex-none`
+    ? `${formCardLimited} flex-1 min-w-0 lg:self-stretch lg:basis-[60%] lg:max-w-[60%] lg:flex-none pb-14`
     : `${formCardAdmin} flex-1 min-w-0 lg:self-stretch lg:basis-[60%] lg:max-w-[60%] lg:flex-none`;
 
   const canSaveComment = commentChanged && !isSaving && !loading && !notFound;
@@ -4287,7 +4300,7 @@ function Generate() {
           <>
             <div className={layoutClass}>
               <section className={formSectionClass}>
-                <div className="card-body space-y-4 min-h-[calc(100vh-2rem)]">
+                <div className="card-body space-y-4 min-h-[calc(100vh-2rem)]pb-4">
                   <div className="flex items-center justify-between gap-3">
                     <h2 className="card-title text-2xl font-bold">
                       Daten bearbeiten
@@ -4841,38 +4854,44 @@ function Generate() {
                     </div>
                   </fieldset>
 
-                  <CollapsibleSection
-                    title="Berufserfahrung"
-                    count={experienceCount}
-                  >
-                    <ExperienceSection
-                      experience={formCv.experience}
-                      onAddExperience={addExperience}
-                      onUpdateExperience={updateExperience}
-                      onRemoveExperience={removeExperience}
-                      onAddResponsibility={addResponsibility}
-                      onRemoveResponsibility={removeResponsibility}
-                    />
-                  </CollapsibleSection>
-
-                  <CollapsibleSection title="Ausbildung" count={educationCount}>
-                    <EducationSection
-                      education={formCv.education}
-                      onAddEducation={addEducation}
-                      onUpdateEducation={updateEducation}
-                      onRemoveEducation={removeEducation}
-                    />
-                  </CollapsibleSection>
-
                   <fieldset
-                    disabled={isLimitedAdmin || remoteMode}
+                    disabled={remoteMode}
                     className="space-y-4 disabled:opacity-70"
                   >
                     <CollapsibleSection
+                      title="Berufserfahrung"
+                      count={experienceCount}
+                      defaultOpen={false}
+                    >
+                      <ExperienceSection
+                        experience={formCv.experience}
+                        onAddExperience={addExperience}
+                        onUpdateExperience={updateExperience}
+                        onRemoveExperience={removeExperience}
+                        onAddResponsibility={addResponsibility}
+                        onRemoveResponsibility={removeResponsibility}
+                      />
+                    </CollapsibleSection>
+
+                    <CollapsibleSection
+                      title="Ausbildung"
+                      count={educationCount}
+                      defaultOpen={false}
+                    >
+                      <EducationSection
+                        education={formCv.education}
+                        onAddEducation={addEducation}
+                        onUpdateEducation={updateEducation}
+                        onRemoveEducation={removeEducation}
+                      />
+                    </CollapsibleSection>
+
+                    <CollapsibleSection
                       title="Fähigkeiten"
                       className="!overflow-visible"
-                      contentClassName="p-0"
+                      contentClassName="!overflow-visible"
                       openClassName="relative z-[80]"
+                      defaultOpen={false}
                     >
                       <div className="mb-4 rounded-box border border-base-300 bg-base-200/40 p-4">
                         <div className="form-control w-full">
@@ -5054,7 +5073,11 @@ function Generate() {
                       />
                     </CollapsibleSection>
 
-                    <CollapsibleSection title="Sprachen" count={languagesCount}>
+                    <CollapsibleSection
+                      title="Sprachen"
+                      count={languagesCount}
+                      defaultOpen={false}
+                    >
                       <LanguagesSection
                         languageRows={languageRows}
                         onAddRow={addLanguageRow}
@@ -5067,6 +5090,7 @@ function Generate() {
                     <CollapsibleSection
                       title="Dokumente"
                       count={documentsCount}
+                      defaultOpen={false}
                     >
                       <div className="form-control mb-4">
                         <label className="label cursor-pointer justify-start gap-3">
@@ -5315,7 +5339,32 @@ function Generate() {
                             {commentActionLabel}
                           </button>
                         </div>
-                        <div className="pt-2"></div>
+                        <div className="pt-2">
+                          {showLimitedCommentSaveButton && (
+                            <div className="flex flex-col gap-2">
+                              <button
+                                type="button"
+                                className={`btn btn-primary w-full ${
+                                  !canSaveComment ? "btn-disabled" : ""
+                                }`}
+                                onClick={handleSave}
+                                disabled={!canSaveComment}
+                              >
+                                {isSaving ? (
+                                  <>
+                                    <span className="loading loading-spinner loading-sm" />
+                                    Wird gespeichert...
+                                  </>
+                                ) : (
+                                  <>
+                                    <FaSave />
+                                    <span>Speichern</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </aside>

@@ -492,6 +492,9 @@ export default function VollmachtArbeitgeber() {
       placeholder: "z.B. max@example.com",
       type: "email",
     },
+  ];
+
+  const candidateSignatureFields = [
     {
       key: "candidatePlaceDate",
       label: "Ort, Datum (Unterschrift)",
@@ -499,7 +502,7 @@ export default function VollmachtArbeitgeber() {
     },
   ];
 
-  const employerFields = [
+  const employerBasicFields = [
     {
       key: "employerCompany",
       label: "Firma",
@@ -510,6 +513,9 @@ export default function VollmachtArbeitgeber() {
       label: "Geschäftssitz",
       placeholder: "z.B. Berlin, Deutschland",
     },
+  ];
+
+  const employerRepresentativeFields = [
     {
       key: "employerRepName",
       label: "Vertreten durch (Name)",
@@ -531,6 +537,9 @@ export default function VollmachtArbeitgeber() {
       placeholder: "z.B. schmidt@firma.de",
       type: "email",
     },
+  ];
+
+  const employerSignatureFields = [
     {
       key: "employerPlaceDate",
       label: "Ort, Datum (Unterschrift)",
@@ -628,31 +637,120 @@ export default function VollmachtArbeitgeber() {
               Abs. 1 AufenthG aus.
             </p>
 
-            <div className="divider">Vollmachtgeber (Kandidat)</div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {candidateNameFields.map((cfg) => renderField(cfg))}
+            <div className="divider divider-start font-bold text-base-content/80">
+              👤 Vollmachtgeber (Kandidat)
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {candidateBirthFields.map((cfg) => renderField(cfg))}
+            {/* Personal Information */}
+            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
+                <span className="w-1 h-4 bg-primary rounded-full"></span>
+                Persönliche Angaben
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {candidateNameFields.map((cfg) => renderField(cfg))}
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {candidateAddressFields.map((cfg) => renderField(cfg))}
+            {/* Birth Information */}
+            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
+                <span className="w-1 h-4 bg-primary rounded-full"></span>
+                Geburtsdaten
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {candidateBirthFields.map((cfg) => renderField(cfg))}
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {candidateContactFields.map((cfg) => renderField(cfg))}
+            {/* Address Information */}
+            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
+                <span className="w-1 h-4 bg-primary rounded-full"></span>
+                Adresse
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="sm:col-span-2 lg:col-span-1">
+                  {renderField(candidateAddressFields[0])}
+                </div>
+                {renderField(candidateAddressFields[1])}
+                {renderField(candidateAddressFields[2])}
+                <div className="sm:col-span-2 lg:col-span-1">
+                  {renderField(candidateAddressFields[3])}
+                </div>
+                {renderField(candidateAddressFields[4])}
+              </div>
             </div>
 
-            <div className="divider">Arbeitgeber</div>
+            {/* Contact Information */}
+            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
+                <span className="w-1 h-4 bg-primary rounded-full"></span>
+                Kontaktdaten
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {candidateContactFields.map((cfg) => renderField(cfg))}
+              </div>
+            </div>
 
-            {employerFields.map(renderField)}
+            {/* Signature Information */}
+            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
+                <span className="w-1 h-4 bg-primary rounded-full"></span>
+                Unterschrift
+              </h3>
+              <div className="grid grid-cols-1 gap-4">
+                {candidateSignatureFields.map((cfg) => renderField(cfg))}
+              </div>
+            </div>
 
-            <div className="divider">Dynamische Textfelder</div>
+            <div className="divider divider-start font-bold text-base-content/80">
+              🏢 Arbeitgeber
+            </div>
 
-            {dynamicFields.map(renderField)}
+            {/* Company Information */}
+            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
+                <span className="w-1 h-4 bg-secondary rounded-full"></span>
+                Firmenangaben
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {employerBasicFields.map((cfg) => renderField(cfg))}
+              </div>
+            </div>
+
+            {/* Representative Information */}
+            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
+                <span className="w-1 h-4 bg-secondary rounded-full"></span>
+                Vertretungsberechtigte Person
+              </h3>
+              <div className="grid grid-cols-1 gap-4">
+                {employerRepresentativeFields.map((cfg) => renderField(cfg))}
+              </div>
+            </div>
+
+            {/* Employer Signature */}
+            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
+                <span className="w-1 h-4 bg-secondary rounded-full"></span>
+                Unterschrift
+              </h3>
+              <div className="grid grid-cols-1 gap-4">
+                {employerSignatureFields.map((cfg) => renderField(cfg))}
+              </div>
+            </div>
+
+            <div className="divider divider-start font-bold text-base-content/80">
+              ⚙️ Dynamische Textfelder
+            </div>
+            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
+              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
+                <span className="w-1 h-4 bg-accent rounded-full"></span>
+                Zusätzliche Texte
+              </h3>
+              {dynamicFields.map(renderField)}
+            </div>
 
             <div className="divider" />
             <div className="text-sm">

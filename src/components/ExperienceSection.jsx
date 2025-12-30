@@ -16,9 +16,8 @@ function ExperienceSection({
   errors = [],
   renderItemActions,
 }) {
-  const fieldInput =
-    "input input-bordered w-full";
-  
+  const fieldInput = "input input-bordered w-full";
+
   const [openIndex, setOpenIndex] = useState(experience.length - 1);
 
   // When a new experience is added, open the last one
@@ -96,123 +95,141 @@ function ExperienceSection({
         </div>
       )}
       {experience.map((exp, idx) => {
-        const isFilled = isExperienceFilled(exp);
-        const hasErrors = errors[idx] && Object.values(errors[idx]).some(Boolean);
-        
         return (
-        <CollapsibleSection
-          key={idx}
-          title={`Berufserfahrung #${idx + 1}`}
-          isOpen={idx === openIndex}
-          onToggle={(newOpen) => handleToggle(idx, newOpen)}
-          className={`
-            ${hasErrors ? "border-error/60 shadow-error/25 shadow" : 
-              isFilled ? "border-success/60 shadow-success/25 shadow" : "shadow-sm"}
-          `}
-          contentClassName="space-y-3"
-        >
-          <div className="flex items-center justify-end gap-2 mb-3">
-            {typeof renderItemActions === "function" ? renderItemActions(idx, exp) : null}
-            <button
-              type="button"
-              className="btn btn-ghost btn-xs text-error hover:bg-error/10"
-              onClick={() => onRemoveExperience(idx)}
-              title="Entfernen"
-            >
-              <Trash2 size={16} />
-            </button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="label" htmlFor={`exp-${idx}-startDate`}>
-                <span className="label-text">Startdatum</span>
-              </label>
-            <input
-              id={`exp-${idx}-startDate`}
-              type="month"
-              placeholder="YYYY-MM"
-              className={`${fieldInput} ${
-                errors[idx]?.startDate ? "input-error" : ""
-              }`}
-              value={toInputMonth(exp.startDate)}
-              onChange={(e) =>
-                onUpdateExperience(idx, "startDate", fromInputMonth(e.target.value))
-              }
-            />
+          <CollapsibleSection
+            key={idx}
+            title={`Berufserfahrung #${idx + 1}`}
+            isOpen={idx === openIndex}
+            onToggle={(newOpen) => handleToggle(idx, newOpen)}
+            className="shadow-sm border-base-200"
+            contentClassName="space-y-3"
+          >
+            <div className="flex items-center justify-end gap-2 mb-3">
+              {typeof renderItemActions === "function"
+                ? renderItemActions(idx, exp)
+                : null}
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs text-error hover:bg-error/10"
+                onClick={() => onRemoveExperience(idx)}
+                title="Entfernen"
+              >
+                <Trash2 size={16} />
+              </button>
             </div>
-            <div>
-              <label className="label" htmlFor={`exp-${idx}-endDate`}>
-                <span className="label-text">Enddatum</span>
-              </label>
-              <div className="flex flex-col sm:flex-row gap-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="label" htmlFor={`exp-${idx}-startDate`}>
+                  <span className="label-text">Startdatum</span>
+                </label>
                 <input
-                  id={`exp-${idx}-endDate`}
+                  id={`exp-${idx}-startDate`}
                   type="month"
                   placeholder="YYYY-MM"
                   className={`${fieldInput} ${
-                    errors[idx]?.endDate ? "input-error" : ""
+                    errors[idx]?.startDate ? "input-error" : ""
                   }`}
-                  disabled={exp.endDate === "bis heute"}
-                  value={exp.endDate === "bis heute" ? "" : toInputMonth(exp.endDate)}
+                  value={toInputMonth(exp.startDate)}
                   onChange={(e) =>
-                    onUpdateExperience(idx, "endDate", fromInputMonth(e.target.value))
+                    onUpdateExperience(
+                      idx,
+                      "startDate",
+                      fromInputMonth(e.target.value)
+                    )
                   }
                 />
               </div>
-              <label className="label cursor-pointer gap-2">
-                <span className="label-text">Bis heute</span>
-                <input
-                  type="checkbox"
-                  className="checkbox checkbox-sm"
-                  checked={exp.endDate === "bis heute"}
-                  onChange={(e) =>
-                    onUpdateExperience(idx, "endDate", e.target.checked ? "bis heute" : "")
-                  }
-                />
-              </label>
+              <div>
+                <label className="label" htmlFor={`exp-${idx}-endDate`}>
+                  <span className="label-text">Enddatum</span>
+                </label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    id={`exp-${idx}-endDate`}
+                    type="month"
+                    placeholder="YYYY-MM"
+                    className={`${fieldInput} ${
+                      errors[idx]?.endDate ? "input-error" : ""
+                    }`}
+                    disabled={exp.endDate === "bis heute"}
+                    value={
+                      exp.endDate === "bis heute"
+                        ? ""
+                        : toInputMonth(exp.endDate)
+                    }
+                    onChange={(e) =>
+                      onUpdateExperience(
+                        idx,
+                        "endDate",
+                        fromInputMonth(e.target.value)
+                      )
+                    }
+                  />
+                </div>
+                <label className="label cursor-pointer gap-2">
+                  <span className="label-text">Bis heute</span>
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-sm"
+                    checked={exp.endDate === "bis heute"}
+                    onChange={(e) =>
+                      onUpdateExperience(
+                        idx,
+                        "endDate",
+                        e.target.checked ? "bis heute" : ""
+                      )
+                    }
+                  />
+                </label>
+              </div>
+              <FormInput
+                label="Position"
+                placeholder="z.B. Verkäufer"
+                helperText="Beispiel: Verkäufer, Lagerist, Bauhelfer"
+                value={exp.position}
+                inputClassName={errors[idx]?.position ? "input-error" : ""}
+                onChange={(e) =>
+                  onUpdateExperience(idx, "position", e.target.value)
+                }
+              />
+              <FormInput
+                label="Unternehmen"
+                placeholder="z.B. ABC GmbH"
+                helperText="Name des Unternehmens/Arbeitgebers."
+                value={exp.company}
+                inputClassName={errors[idx]?.company ? "input-error" : ""}
+                onChange={(e) =>
+                  onUpdateExperience(idx, "company", e.target.value)
+                }
+              />
+              <FormInput
+                className="md:col-span-2"
+                label="Ort (Stadt, Land)"
+                placeholder="z.B. Berlin, Deutschland"
+                helperText="Bitte Stadt und Land angeben."
+                value={exp.location}
+                inputClassName={errors[idx]?.location ? "input-error" : ""}
+                onChange={(e) =>
+                  onUpdateExperience(idx, "location", e.target.value)
+                }
+              />
             </div>
-            <FormInput
-              label="Position"
-              placeholder="z.B. Verkäufer"
-              helperText="Beispiel: Verkäufer, Lagerist, Bauhelfer"
-              value={exp.position}
-              inputClassName={errors[idx]?.position ? "input-error" : ""}
-              onChange={(e) => onUpdateExperience(idx, "position", e.target.value)}
-            />
-            <FormInput
-              label="Unternehmen"
-              placeholder="z.B. ABC GmbH"
-              helperText="Name des Unternehmens/Arbeitgebers."
-              value={exp.company}
-              inputClassName={errors[idx]?.company ? "input-error" : ""}
-              onChange={(e) => onUpdateExperience(idx, "company", e.target.value)}
-            />
-            <FormInput
-              className="md:col-span-2"
-              label="Ort (Stadt, Land)"
-              placeholder="z.B. Berlin, Deutschland"
-              helperText="Bitte Stadt und Land angeben."
-              value={exp.location}
-              inputClassName={errors[idx]?.location ? "input-error" : ""}
-              onChange={(e) => onUpdateExperience(idx, "location", e.target.value)}
-            />
-          </div>
-          <div className="mt-4">
-            <label className="label">
-              <span className="label-text">Aufgaben</span>
-            </label>
-            <TagInput
-              tags={exp.responsibilities}
-              display="list"
-              inputMode="textarea"
-              placeholder={
-                "z.B.\n– Unterstützung bei täglichen Arbeitsabläufen\n– Mitarbeit im Team\n– Einhaltung von Arbeits- und Sicherheitsregeln"
-              }
-              onAdd={(val) => onAddResponsibility(idx, val)}
-              onRemove={(tagIdx) => onRemoveResponsibility(idx, tagIdx)}
-            />
-          </div>
-        </CollapsibleSection>
+            <div className="mt-4">
+              <label className="label">
+                <span className="label-text">Aufgaben</span>
+              </label>
+              <TagInput
+                tags={exp.responsibilities}
+                display="list"
+                inputMode="textarea"
+                placeholder={
+                  "z.B.\n– Unterstützung bei täglichen Arbeitsabläufen\n– Mitarbeit im Team\n– Einhaltung von Arbeits- und Sicherheitsregeln"
+                }
+                onAdd={(val) => onAddResponsibility(idx, val)}
+                onRemove={(tagIdx) => onRemoveResponsibility(idx, tagIdx)}
+              />
+            </div>
+          </CollapsibleSection>
         );
       })}
       <button
@@ -225,14 +242,17 @@ function ExperienceSection({
       >
         + Berufserfahrung hinzufügen
       </button>
-      {experience.length > 0 && isExperiencePartiallyFilled(experience[experience.length - 1]) && (
-        <div className="mt-2 alert alert-warning text-sm">
-          Bitte füllen Sie alle Felder der aktuellen Berufserfahrung aus, bevor Sie eine neue hinzufügen.
-        </div>
-      )}
+      {experience.length > 0 &&
+        isExperiencePartiallyFilled(experience[experience.length - 1]) && (
+          <div className="mt-2 alert alert-warning text-sm">
+            Bitte füllen Sie alle Felder der aktuellen Berufserfahrung aus,
+            bevor Sie eine neue hinzufügen.
+          </div>
+        )}
       {showRequiredWarning ? (
         <div className="mt-2 alert alert-warning text-sm">
-          Bitte füllen Sie alle Felder in jeder Berufserfahrung aus oder entfernen Sie unvollständige Einträge.
+          Bitte füllen Sie alle Felder in jeder Berufserfahrung aus oder
+          entfernen Sie unvollständige Einträge.
         </div>
       ) : null}
     </div>
