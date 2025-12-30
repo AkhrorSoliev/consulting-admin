@@ -50,9 +50,7 @@ function formatInterviewDateTime(value) {
 }
 
 function buildKeyValueBlock(title, rows) {
-  const safeRows = Array.isArray(rows)
-    ? rows.filter((r) => r && r.value)
-    : [];
+  const safeRows = Array.isArray(rows) ? rows.filter((r) => r && r.value) : [];
   if (safeRows.length === 0) return "";
   const lines = safeRows.map((r) => `• ${r.label}: ${r.value}`);
   return [title, ...lines].join("\n");
@@ -107,7 +105,24 @@ function pickStageCopy(stage, decision) {
         mainText:
           "Siz ichki suhbatdan muvaffaqiyatli o‘tdingiz. Keyingi bosqichlarga tayyorgarlik ko‘rishingizni so‘raymiz.",
         nextStepNote:
-          "Keyingi jarayonlar bo‘yicha zarur ma’lumotlar Sizga qo‘shimcha ravishda taqdim etiladi. Jarayon davomida qo‘shimcha ma’lumot zarur bo‘lsa, Siz bilan bevosita bog‘lanamiz.",
+          "Keyingi jarayonlar bo'yicha zarur ma'lumotlar Sizga qo'shimcha ravishda taqdim etiladi. Jarayon davomida qo'shimcha ma'lumot zarur bo'lsa, Siz bilan bevosita bog'lanamiz.",
+        examples: [
+          {
+            id: "example1",
+            title: "1-misol: Standart tabrik",
+            content:
+              "Sizning bilim va tajribangiz yuqori baholandi. Ichki suhbatdan muvaffaqiyatli o‘tganingiz bilan tabriklaymiz.",
+          },
+          {
+            id: "example2",
+            title: "2-misol: Yuqori rahbariyat bilan suhbat",
+            content: `Siz ConsultingUz rahbari Orif Akhmadaliyev bilan ikkinchi bosqich ichki suhbatga taklif qilinasiz.
+
+Suhbatga oid barcha zarur ma’lumotlar (sana, vaqt va Telegram guruhi) quyida keltirilgan. Iltimos, ko‘rsatilgan Telegram guruhiga qo‘shiling.
+
+Keyingi bosqichlar bo‘yicha batafsil ma’lumotlar Sizga qo‘shimcha tarzda taqdim etiladi. Jarayon davomida qo‘shimcha ma’lumot zarur bo‘lsa, Siz bilan bevosita bog‘lanamiz.`,
+          },
+        ],
         ...commonClosing,
       };
     }
@@ -169,7 +184,8 @@ function pickStageCopy(stage, decision) {
 }
 
 export function getStatusEmailCopy(stage, decision) {
-  const normalizedStage = String(stage || "").trim() || CANDIDATE_STATUS_DEFAULT;
+  const normalizedStage =
+    String(stage || "").trim() || CANDIDATE_STATUS_DEFAULT;
   return pickStageCopy(normalizedStage, decision);
 }
 
@@ -181,9 +197,12 @@ function applyCopyOverrides(copy, overrides) {
     emailTitle:
       o.emailTitle !== undefined ? String(o.emailTitle || "") : base.emailTitle,
     statusLabel:
-      o.statusLabel !== undefined ? String(o.statusLabel || "") : base.statusLabel,
+      o.statusLabel !== undefined
+        ? String(o.statusLabel || "")
+        : base.statusLabel,
     subject: o.subject !== undefined ? String(o.subject || "") : base.subject,
-    mainText: o.mainText !== undefined ? String(o.mainText || "") : base.mainText,
+    mainText:
+      o.mainText !== undefined ? String(o.mainText || "") : base.mainText,
     nextStepNote:
       o.nextStepNote !== undefined
         ? String(o.nextStepNote || "")
@@ -223,7 +242,9 @@ export function buildStatusEmailTemplate({
       ? copy.statusLabel
       : status.label
   ).trim();
-  const emailTitle = String(copy.emailTitle || "Ariza holati yangilandi").trim();
+  const emailTitle = String(
+    copy.emailTitle || "Ariza holati yangilandi"
+  ).trim();
   const mainText = String(copy.mainText || "").trim();
   const nextStepNote = String(copy.nextStepNote || "").trim();
 
@@ -233,28 +254,22 @@ export function buildStatusEmailTemplate({
   const locationUrl = String(additionalInfo?.locationUrl || "").trim();
   const hasLocation = Boolean(locationName || locationUrl);
 
-  const extraRows =
-    normalizedStatusValue === "stage_2"
-      ? []
-      : [
-          dateTime
-            ? { label: "Sana / vaqt", value: formatInterviewDateTime(dateTime) }
-            : null,
-          link ? { label: "Havola", value: link } : null,
-          hasLocation
-            ? {
-                label: "Lokatsiya",
-                value: [locationName || "", locationUrl || ""]
-                  .filter(Boolean)
-                  .join(locationName && locationUrl ? " — " : ""),
-              }
-            : null,
-        ].filter(Boolean);
+  const extraRows = [
+    dateTime
+      ? { label: "Sana / vaqt", value: formatInterviewDateTime(dateTime) }
+      : null,
+    link ? { label: "Havola", value: link } : null,
+    hasLocation
+      ? {
+          label: "Lokatsiya",
+          value: [locationName || "", locationUrl || ""]
+            .filter(Boolean)
+            .join(locationName && locationUrl ? " — " : ""),
+        }
+      : null,
+  ].filter(Boolean);
 
-  const detailBlock =
-    normalizedStatusValue === "stage_2"
-      ? ""
-      : buildKeyValueBlock("Qo'shimcha ma'lumotlar:", extraRows);
+  const detailBlock = buildKeyValueBlock("Qo'shimcha ma'lumotlar:", extraRows);
 
   const channelsBlock = copy.channelsText ? `\n${copy.channelsText}\n` : "";
 
@@ -290,14 +305,14 @@ export function buildStatusEmailTemplate({
     mainText,
     nextStepNote,
     additionalInfo:
-      normalizedStatusValue === "stage_2"
-        ? null
-        : {
+      dateTime || link || locationName || locationUrl
+        ? {
             dateTime: dateTime || "",
             link: link || "",
             locationName: locationName || "",
             locationUrl: locationUrl || "",
-          },
+          }
+        : null,
     decisionNote: decisionNote || "",
     channelsHtml: copy.channelsText || "",
     emphasizeMainText: Boolean(copy.emphasizeMainText),
@@ -308,6 +323,7 @@ export function buildStatusEmailTemplate({
     message,
     htmlContent,
     statusLabel: statusLabelText,
+    examples: copy.examples || null,
   };
 }
 
@@ -333,49 +349,70 @@ function buildHtmlEmail({
 <html>
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="x-ua-compatible" content="ie=edge" />
   <title>${escapeHtml(emailTitle || "Ariza holati yangilandi")}</title>
+  <style type="text/css">
+    body,table,td,a{ -ms-text-size-adjust:100%; -webkit-text-size-adjust:100%; }
+    table,td{ mso-table-lspace:0pt; mso-table-rspace:0pt; }
+    img{ -ms-interpolation-mode:bicubic; }
+    body{ margin:0; padding:0; background-color:#f4f6f8; }
+    .wrapper{ width:100%; table-layout:fixed; background-color:#f4f6f8; }
+    .outer{ margin:0 auto; width:100%; max-width:600px; }
+    .content{ background:#ffffff; border-radius:10px; padding:24px; box-shadow:0 4px 12px rgba(0,0,0,0.04); }
+    p, td, div, span{ font-family:Arial, sans-serif; }
+    .status{ color:#5f6b7a; font-size:14px; }
+    .wrap-break-word{ word-break:break-word; overflow-wrap:anywhere; }
+    .detail-table td{ vertical-align:top; }
+    @media screen and (max-width:600px){
+      .content{ padding:16px !important; }
+      h2{ font-size:18px !important; }
+      .status{ font-size:13px !important; }
+      .detail-table td{ display:block; width:100% !important; padding:6px 0 !important; }
+    }
+  </style>
 </head>
 <body style="margin:0; padding:0; background-color:#f4f6f8; font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0">
+  <table role="presentation" class="wrapper" width="100%" cellpadding="0" cellspacing="0">
     <tr>
       <td align="center" style="padding:32px 12px;">
-        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:10px; padding:28px; box-shadow:0 4px 12px rgba(0,0,0,0.04);">
+        <table role="presentation" class="outer" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;">
           <tr>
-            <td style="text-align:center; padding-bottom:16px;">
-              <h2 style="margin:0; color:#2c3e50; font-size:22px;">${escapeHtml(
-                emailTitle || "Ariza holati yangilandi"
-              )}</h2>
-              <div style="margin-top:8px; color:#5f6b7a; font-size:14px;">Holat: <strong>${escapeHtml(
-                statusLabel
-              )}</strong></div>
-            </td>
-          </tr>
-          <tr>
-            <td style="color:#333; font-size:15px; line-height:1.6;">
-              <p style="margin:0 0 12px 0;">Hurmatli <b>${escapeHtml(
-                fullName
-              )}</b>,</p>
-              <p style="margin:0 0 12px 0;">Arizangiz holatini yangiladik. Quyidagi sharh va keyingi qadamlarni diqqat bilan ko'rib chiqing:</p>
-              <p style="margin:0 0 14px 0; color:#1f2d3d;">${
-                emphasizeMainText
-                  ? `<strong>${escapeHtml(mainText)}</strong>`
-                  : `${escapeHtml(mainText)}`
-              }</p>
-              <p style="margin:0 0 14px 0;">${escapeHtml(nextStepNote)}</p>
-              ${detailRows}
-              ${
-                decisionNote
-                  ? `<p style="margin:10px 0 0 0; color:#3a4a5e;">Qo'shimcha izoh: ${escapeHtml(
-                      decisionNote
-                    )}</p>`
-                  : ""
-              }
-              <p style="margin:8px 0 0 0;">Hurmat bilan,<br/><b>ConsultingUZ jamoasi</b></p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding-top:22px; text-align:center; font-size:12px; color:#888;">
-              © 2025 ConsultingUZ
+            <td class="content">
+              <div style="text-align:center; padding-bottom:16px;">
+                <h2 style="margin:0; color:#2c3e50; font-size:22px;">${escapeHtml(
+                  emailTitle || "Ariza holati yangilandi"
+                )}</h2>
+                <div class="status" style="margin-top:8px;">Holat: <strong>${escapeHtml(
+                  statusLabel
+                )}</strong></div>
+              </div>
+              <div style="color:#333; font-size:15px; line-height:1.6;">
+                <p class="wrap-break-word" style="margin:0 0 12px 0;">Hurmatli <b>${escapeHtml(
+                  fullName
+                )}</b>,</p>
+                <p class="wrap-break-word" style="margin:0 0 12px 0;">Arizangiz holatini yangiladik. Quyidagi sharh va keyingi qadamlarni diqqat bilan ko'rib chiqing:</p>
+                <p class="wrap-break-word" style="margin:0 0 14px 0; color:#1f2d3d; white-space:pre-wrap;">${
+                  emphasizeMainText
+                    ? `<strong>${escapeHtml(mainText)}</strong>`
+                    : `${escapeHtml(mainText)}`
+                }</p>
+                <p class="wrap-break-word" style="margin:0 0 14px 0; white-space:pre-wrap;">${escapeHtml(
+                  nextStepNote
+                )}</p>
+                ${detailRows}
+                ${
+                  decisionNote
+                    ? `<p class="wrap-break-word" style="margin:10px 0 0 0; color:#3a4a5e;">Qo'shimcha izoh: ${escapeHtml(
+                        decisionNote
+                      )}</p>`
+                    : ""
+                }
+                <p style="margin:8px 0 0 0;">Hurmat bilan,<br/><b>ConsultingUZ jamoasi</b></p>
+              </div>
+              <div style="padding-top:22px; text-align:center; font-size:12px; color:#888;">
+                © 2025 ConsultingUZ
+              </div>
             </td>
           </tr>
         </table>
@@ -470,7 +507,7 @@ function buildDetailRows({ additionalInfo, decisionNote, channelsText }) {
     .join("");
 
   const rowsTable = `
-    <table width="100%" style="background:#f8f9fb; border-radius:8px; padding:12px 10px; margin:10px 0 14px 0; border:1px solid #eef1f4;">
+    <table class="detail-table" width="100%" style="background:#f8f9fb; border-radius:8px; padding:12px 10px; margin:10px 0 14px 0; border:1px solid #eef1f4;">
       ${items}
     </table>
   `;

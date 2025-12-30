@@ -775,8 +775,8 @@ function CollectionCv() {
         />
         <div className="mb-4 sm:mb-6 flex items-center justify-between flex-col md:flex-row lg:flex-row">
           <div className="w-full md:w-auto">
-            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">
-              Berufsfeld: <span className="text-primary">{title}</span>
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-medium tracking-tight">
+              Berufsfeld: <span className="font-bold">{title}</span>
             </h1>
             <p className="text-sm opacity-70">
               Gefunden: {loading ? "..." : filteredItems.length} Kandidaten
