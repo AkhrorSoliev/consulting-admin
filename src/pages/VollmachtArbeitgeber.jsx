@@ -163,10 +163,19 @@ function createInitialFormState() {
     candidatePlaceDate: todayDdMmYyyy(),
 
     // Arbeitgeber (Employer) fields
-    employerCompany: "",
-    employerLocation: "",
-    employerRepName: "",
-    employerRepAddress: "",
+    employerCompanyName: "",
+    employerStreet: "",
+    employerHouseNumber: "",
+    employerPostalCode: "",
+    employerCity: "",
+    employerCountry: "",
+    employerRepFirstName: "",
+    employerRepLastName: "",
+    employerRepStreet: "",
+    employerRepHouseNumber: "",
+    employerRepPostalCode: "",
+    employerRepCity: "",
+    employerRepCountry: "",
     employerRepPhone: "",
     employerRepEmail: "",
     employerPlaceDate: todayDdMmYyyy(),
@@ -504,27 +513,72 @@ export default function VollmachtArbeitgeber() {
 
   const employerBasicFields = [
     {
-      key: "employerCompany",
-      label: "Firma",
-      placeholder: "z.B. Musterfirma GmbH",
+      key: "employerCompanyName",
+      label: "Firmenname (Firma nomi)",
+      placeholder: "z.B.: Heinrich Pott GmbH & Co. KG",
     },
     {
-      key: "employerLocation",
-      label: "Geschäftssitz",
-      placeholder: "z.B. Berlin, Deutschland",
+      key: "employerStreet",
+      label: "Straße (Ko'cha)",
+      placeholder: "z.B.: Bergkirchener Str.",
+    },
+    {
+      key: "employerHouseNumber",
+      label: "Hausnummer (Uy raqami)",
+      placeholder: "z.B.: 99",
+    },
+    {
+      key: "employerPostalCode",
+      label: "PLZ (Pochta indeksi)",
+      placeholder: "z.B.: 32429",
+    },
+    {
+      key: "employerCity",
+      label: "Ort (Shahar)",
+      placeholder: "z.B.: Minden",
+    },
+    {
+      key: "employerCountry",
+      label: "Land (Davlat)",
+      placeholder: "z.B.: Deutschland",
     },
   ];
 
   const employerRepresentativeFields = [
     {
-      key: "employerRepName",
-      label: "Vertreten durch (Name)",
-      placeholder: "z.B. Hans Schmidt",
+      key: "employerRepFirstName",
+      label: "Vorname (Ism)",
+      placeholder: "z.B.: Patrick",
     },
     {
-      key: "employerRepAddress",
-      label: "Anschrift (Vertreter)",
-      placeholder: "z.B. Musterstraße 1, 10115 Berlin",
+      key: "employerRepLastName",
+      label: "Nachname (Familiya)",
+      placeholder: "z.B.: Pott",
+    },
+    {
+      key: "employerRepStreet",
+      label: "Straße (Ko'cha)",
+      placeholder: "z.B.: Musterstraße",
+    },
+    {
+      key: "employerRepHouseNumber",
+      label: "Hausnummer (Uy raqami)",
+      placeholder: "z.B.: 1",
+    },
+    {
+      key: "employerRepPostalCode",
+      label: "PLZ (Pochta indeksi)",
+      placeholder: "z.B.: 10115",
+    },
+    {
+      key: "employerRepCity",
+      label: "Ort (Shahar)",
+      placeholder: "z.B.: Berlin",
+    },
+    {
+      key: "employerRepCountry",
+      label: "Land (Davlat)",
+      placeholder: "z.B.: Deutschland",
     },
     {
       key: "employerRepPhone",
