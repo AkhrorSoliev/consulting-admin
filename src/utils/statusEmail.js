@@ -82,7 +82,7 @@ function pickStageCopy(stage, decision) {
         mainText:
           "Sizning arizangiz ko‘rib chiqildi va Siz 1-bosqich suhbatiga taklif etilganingizni mamnuniyat bilan ma’lum qilamiz.",
         nextStepNote:
-          "1-bosqich suhbatida ishtirok etish uchun iltimos, quyidagi havola orqali Telegram guruhiga qo‘shiling hamda belgilangan vaqtda ishtirok etishingizni tasdiqlang.",
+          "1-bosqich suhbatida ishtirok etish uchun iltimos, quyidagi Google Meet havolasi orqali uchrashuvga qo‘shiling va belgilangan vaqtda ishtirok etishingizni tasdiqlang.",
         ...commonClosing,
       };
     }
@@ -118,7 +118,7 @@ function pickStageCopy(stage, decision) {
             title: "2-misol: Yuqori rahbariyat bilan suhbat",
             content: `Siz ConsultingUz rahbari Orif Akhmadaliyev bilan ikkinchi bosqich ichki suhbatga taklif qilinasiz.
 
-Suhbatga oid barcha zarur ma’lumotlar (sana, vaqt va Telegram guruhi) quyida keltirilgan. Iltimos, ko‘rsatilgan Telegram guruhiga qo‘shiling.
+Suhbatga oid barcha zarur ma’lumotlar (sana, vaqt va Google Meet havolasi) quyida keltirilgan. Iltimos, ko‘rsatilgan Google Meet havolasi orqali qo‘shiling.
 
 Keyingi bosqichlar bo‘yicha batafsil ma’lumotlar Sizga qo‘shimcha tarzda taqdim etiladi. Jarayon davomida qo‘shimcha ma’lumot zarur bo‘lsa, Siz bilan bevosita bog‘lanamiz.`,
           },
