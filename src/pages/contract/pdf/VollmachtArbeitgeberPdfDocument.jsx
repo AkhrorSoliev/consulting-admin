@@ -77,9 +77,10 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontWeight: 700,
     textAlign: "center",
-    marginTop: 10,
+    marginTop: 2,
+    marginBottom: 24,
   },
-  p: { marginTop: 6 },
+  p: { marginTop: 0 },
   bold: { fontWeight: 700 },
   table: {
     marginTop: 12,
@@ -97,11 +98,13 @@ const s = StyleSheet.create({
   tableHeader: {
     padding: 4,
     fontWeight: 700,
+    textDecoration: "underline",
   },
   tableHeaderRight: {
     padding: 4,
     fontWeight: 700,
     textAlign: "right",
+    textDecoration: "underline",
   },
   tableCell: {
     padding: 5,
@@ -139,8 +142,8 @@ const s = StyleSheet.create({
   list: { marginTop: 6, marginLeft: 10 },
   liRow: { flexDirection: "row", gap: 6, marginTop: 2 },
   liDash: { width: 10 },
-  formRow: { flexDirection: "row", gap: 6, marginTop: 4 },
-  formLabel: { width: 96, fontSize: 10 },
+  formRow: { flexDirection: "row", marginTop: 4 },
+  formLabel: { width: "auto", fontSize: 10 },
   formValue: { flex: 1 },
   formUnderline: {
     borderBottomWidth: 1,
@@ -149,7 +152,7 @@ const s = StyleSheet.create({
     minHeight: 14,
   },
   signatureSection: {
-    marginTop: 16,
+    marginTop: 48,
     flexDirection: "row",
     gap: 28,
   },
@@ -179,6 +182,31 @@ function buildRepAddressLine(form) {
   const house = String(form?.employerRepHouseNumber || "").trim();
   const plz = String(form?.employerRepPostalCode || "").trim();
   const city = String(form?.employerRepCity || "").trim();
+
+  let line = "";
+
+  if (street) {
+    line += street;
+  }
+  if (house) {
+    line += (line ? ". " : "") + house;
+  }
+  if (plz) {
+    line += (line ? ", " : "") + plz;
+  }
+  if (city) {
+    // two spaces before Ort as requested ("PLZ  Ort")
+    line += (plz ? "  " : line ? " " : "") + city;
+  }
+
+  return line;
+}
+
+function buildEmployerAddressLine(form) {
+  const street = String(form?.employerStreet || "").trim();
+  const house = String(form?.employerHouseNumber || "").trim();
+  const plz = String(form?.employerPostalCode || "").trim();
+  const city = String(form?.employerCity || "").trim();
 
   let line = "";
 
@@ -299,6 +327,7 @@ export default function VollmachtArbeitgeberPdfDocument({ form }) {
     {
       keys: ["employerStreet", "employerHouseNumber"],
       separator: " ",
+      useAddressFunction: true,
     },
     {
       keys: ["employerPostalCode", "employerCity"],
@@ -334,6 +363,23 @@ export default function VollmachtArbeitgeberPdfDocument({ form }) {
       separator: "",
     },
   ];
+
+  const employerDisplayName = (() => {
+    const designation = form?.employerDesignation;
+    if (hasValue(designation)) return designation;
+    const companyName = form?.employerCompanyName;
+    if (hasValue(companyName)) return companyName;
+    return "";
+  })();
+
+  const employerRepDisplayName = (() => {
+    const full = form?.employerRepFullName;
+    if (hasValue(full)) return full;
+    const parts = [form?.employerRepFirstName, form?.employerRepLastName]
+      .map((v) => String(v || "").trim())
+      .filter(Boolean);
+    return parts.join(" ");
+  })();
 
   return (
     <Document>
@@ -375,6 +421,9 @@ export default function VollmachtArbeitgeberPdfDocument({ form }) {
                 const combinedValue =
                   group.keys[0] === "employerRepStreet"
                     ? buildRepAddressLine(form)
+                    : group.keys[0] === "employerStreet" &&
+                      group.useAddressFunction
+                    ? buildEmployerAddressLine(form)
                     : values.join(group.separator);
                 return isOmitted(group.keys[0]) ? null : (
                   <FieldWithLabel
@@ -393,10 +442,10 @@ export default function VollmachtArbeitgeberPdfDocument({ form }) {
           Fachkräfteverfahrens
         </Text>
 
-        <Text style={[s.p, { marginTop: 8 }]}>
+        <Text style={s.p}>
           Hiermit bevollmächtige ich{" "}
-          {hasValue(form?.employerDesignation) ? (
-            <Text style={s.bold}>{form.employerDesignation}</Text>
+          {hasValue(employerDisplayName) ? (
+            <Text style={s.bold}>{employerDisplayName}</Text>
           ) : (
             <Text style={s.placeholderText}>____________________</Text>
           )}
@@ -404,10 +453,10 @@ export default function VollmachtArbeitgeberPdfDocument({ form }) {
 
         <Text style={s.p}>- im Folgenden: „der Bevollmächtigte",</Text>
 
-        <Text style={s.p}>
+        <Text style={[s.p, { textAlign: "justify" }]}>
           vertreten durch{" "}
-          {hasValue(form?.employerRepFullName) ? (
-            <Text style={s.bold}>{form.employerRepFullName}</Text>
+          {hasValue(employerRepDisplayName) ? (
+            <Text style={s.bold}>{employerRepDisplayName}</Text>
           ) : (
             <Text style={s.placeholderText}>____________________</Text>
           )}{" "}
@@ -420,7 +469,7 @@ export default function VollmachtArbeitgeberPdfDocument({ form }) {
           Angelegenheiten außergerichtlich zu vertreten.
         </Text>
 
-        <Text style={[s.p, { marginTop: 10 }]}>
+        <Text style={[s.p, { marginTop: 10, textAlign: "justify" }]}>
           Ich erteile dem Bevollmächtigten die Befugnis, sämtliche Erklärungen
           und Handlungen verbindlich vorzunehmen, die nach den gesetzlichen
           Regelungen vorgenommen werden können und für die Verfahren
@@ -434,7 +483,7 @@ export default function VollmachtArbeitgeberPdfDocument({ form }) {
         <View style={s.list}>
           <View style={s.liRow}>
             <Text style={s.liDash}>•</Text>
-            <Text style={{ flex: 1 }}>
+            <Text style={{ flex: 1, textAlign: "justify" }}>
               die Vertretung in allen für die Durchführung des beschleunigten
               Fachkräfteverfahrens erforderlichen Angelegenheiten gegenüber der
               zuständigen Ausländerbehörde, der für die berufliche Anerkennung
@@ -443,21 +492,21 @@ export default function VollmachtArbeitgeberPdfDocument({ form }) {
           </View>
           <View style={s.liRow}>
             <Text style={s.liDash}>•</Text>
-            <Text style={{ flex: 1 }}>
+            <Text style={{ flex: 1, textAlign: "justify" }}>
               das Ein- und Nachreichen der für die Verfahren erforderlichen
               Unterlagen einschließlich meiner personenbezogenen Daten,
             </Text>
           </View>
           <View style={s.liRow}>
             <Text style={s.liDash}>•</Text>
-            <Text style={{ flex: 1 }}>
+            <Text style={{ flex: 1, textAlign: "justify" }}>
               die Vornahme von Zahlungen von für den Abschluss der Verfahren
               erforderlichen Gebühren,
             </Text>
           </View>
           <View style={s.liRow}>
             <Text style={s.liDash}>•</Text>
-            <Text style={{ flex: 1 }}>
+            <Text style={{ flex: 1, textAlign: "justify" }}>
               die Entgegennahme der die Verfahren betreffenden schriftlichen
               sowie elektronischen Unterlagen, die Durchführung des
               Schriftverkehrs und das Öffnen der an mich adressierten Post und
@@ -465,23 +514,27 @@ export default function VollmachtArbeitgeberPdfDocument({ form }) {
           </View>
           <View style={s.liRow}>
             <Text style={s.liDash}>•</Text>
-            <Text style={{ flex: 1 }}>
+            <Text style={{ flex: 1, textAlign: "justify" }}>
               den Antrag auf Aufnahme der Familienzusammenführung nach § 81a
               Absatz 4 AufenthG ins beschleunigte Fachkräfteverfahren.
             </Text>
           </View>
         </View>
 
-        <Text style={[s.p, { marginTop: 10 }]}>
+        <Text style={[s.p, { marginTop: 10, textAlign: "justify" }]}>
           Der Bevollmächtigte ist berechtigt, eine Untervollmacht, die den
           Umfang dieser Vollmacht nicht überschreiten darf, zu erteilen und zu
-          widerrufen [auf die Möglichkeit der Verwendung des Musters für die
-          Untervollmacht als Anlage zu einer Vollmacht nach § 81a Abs. 1
-          AufenthG wird hingewiesen]. Die Vollmacht erlischt mit Abschluss des
-          beschleunigten Fachkräfteverfahrens.
+          widerrufen [
+          <Text style={{ fontStyle: "italic" }}>
+            auf die Möglichkeit der Verwendung des Musters für die
+            Untervollmacht als Anlage zu einer Vollmacht nach § 81a Abs. 1
+            AufenthG wird hingewiesen
+          </Text>
+          ]. Die Vollmacht erlischt mit Abschluss des beschleunigten
+          Fachkräfteverfahrens.
         </Text>
 
-        <Text style={[s.p, { marginTop: 10 }]}>
+        <Text style={[s.p, { marginTop: 10, textAlign: "justify" }]}>
           Da diese Vollmacht meine rechtliche Möglichkeit selbst zu handeln
           nicht ausschließt, bitte ich um direkten Kontakt zu mir, sofern dies
           zur Klärung von Sachverhalten und zur Verfahrensbeschleunigung
@@ -493,7 +546,7 @@ export default function VollmachtArbeitgeberPdfDocument({ form }) {
             {isOmitted("candidatePlaceDate") ? null : (
               <View style={s.formRow}>
                 <Text style={s.formLabel}>
-                  {form?.candidateBirthPlace || "Ort"},
+                  {form?.candidateBirthPlace || "Ort"},{" "}
                 </Text>
                 {hasValue(form?.candidatePlaceDate) ? (
                   <Text style={s.formValue}>{form.candidatePlaceDate}</Text>
@@ -510,12 +563,7 @@ export default function VollmachtArbeitgeberPdfDocument({ form }) {
           <View style={s.signatureBlock}>
             {isOmitted("employerPlaceDate") ? null : (
               <View style={s.formRow}>
-                <Text style={s.formLabel}>Ort, Datum:</Text>
-                {hasValue(form?.employerPlaceDate) ? (
-                  <Text style={s.formValue}>{form.employerPlaceDate}</Text>
-                ) : (
-                  <View style={s.formUnderline} />
-                )}
+                <Text style={s.formLabel}>{form?.employerCity || "Ort"},</Text>
               </View>
             )}
             <View style={s.signatureLabel}>
