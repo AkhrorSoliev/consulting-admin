@@ -55,8 +55,14 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
     const TOP = 12;
     const top = items.slice(0, TOP);
     const others = items.slice(TOP).reduce((sum, x) => sum + (x.count || 0), 0);
-    const labels = [...top.map((x) => x.name), ...(others > 0 ? ["Andere"] : [])];
-    const values = [...top.map((x) => x.count || 0), ...(others > 0 ? [others] : [])];
+    const labels = [
+      ...top.map((x) => x.name),
+      ...(others > 0 ? ["Andere"] : []),
+    ];
+    const values = [
+      ...top.map((x) => x.count || 0),
+      ...(others > 0 ? [others] : []),
+    ];
 
     return {
       labels,
@@ -428,7 +434,9 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
 
             <div className="stat bg-base-100 shadow rounded-box border border-base-200">
               <div className="stat-title">Sammlungen ({kindLabel})</div>
-              <div className="stat-value text-secondary">{totalCollections}</div>
+              <div className="stat-value text-secondary">
+                {totalCollections}
+              </div>
               <div className="stat-desc">
                 {kind === "allTime" ? "Historische Liste" : "Aktive Kategorien"}
               </div>
@@ -444,7 +452,8 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
               <div className="stat-title">Mit Diplom ({kindLabel})</div>
               <div className="stat-value text-info">{diplomaStats.has}</div>
               <div className="stat-desc">
-                ({totalUsers > 0
+                (
+                {totalUsers > 0
                   ? ((diplomaStats.has / totalUsers) * 100).toFixed(0)
                   : 0}
                 %)
@@ -460,7 +469,10 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
                   Verteilung nach Berufsfeld
                 </h2>
                 <div className="h-64 md:h-80">
-                  <Bar data={perCollectionBarData} options={defaultBarOptions} />
+                  <Bar
+                    data={perCollectionBarData}
+                    options={defaultBarOptions}
+                  />
                 </div>
               </div>
             </div>
@@ -480,11 +492,11 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="card bg-base-100 shadow border border-base-200">
               <div className="card-body">
-                <h2 className="card-title text-lg mb-4">
-                  Lead-Statistik
-                </h2>
+                <h2 className="card-title text-lg mb-4">Lead-Statistik</h2>
                 {leadCounts.length === 0 ? (
-                  <div className="opacity-70 text-sm">Keine Lead-Daten verfügbar.</div>
+                  <div className="opacity-70 text-sm">
+                    Keine Lead-Daten verfügbar.
+                  </div>
                 ) : (
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -621,10 +633,7 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
                 </h2>
                 <div className="h-64 md:h-80">
                   {certTypeCounts.length > 0 ? (
-                    <Bar
-                      data={certTypesBarData}
-                      options={defaultBarOptions}
-                    />
+                    <Bar data={certTypesBarData} options={defaultBarOptions} />
                   ) : (
                     <div className="h-full grid place-items-center opacity-60 text-sm">
                       Zertifikat-Typen nicht verfügbar.
@@ -732,7 +741,9 @@ function Home() {
 
     // Transaktions-Spam vermeiden: nur versuchen, wenn ALL-TIME fehlt oder Summen dahinter liegen.
     const liveTotal = Number(liveStats?.totals?.candidates || 0);
-    const allTotal = allTimeStats ? Number(allTimeStats?.totals?.candidates || 0) : null;
+    const allTotal = allTimeStats
+      ? Number(allTimeStats?.totals?.candidates || 0)
+      : null;
     const shouldFix = allTotal === null || allTotal < liveTotal;
     if (!shouldFix) return;
 
@@ -809,14 +820,18 @@ function Home() {
     };
 
     const normalizeGender = (val) => {
-      const g = String(val || "").trim().toLowerCase();
+      const g = String(val || "")
+        .trim()
+        .toLowerCase();
       if (["männlich", "maennlich", "m", "male"].includes(g)) return "male";
       if (["weiblich", "w", "female", "f"].includes(g)) return "female";
       return "unknown";
     };
 
     const normalizeMarital = (val) => {
-      const s = String(val || "").trim().toLowerCase();
+      const s = String(val || "")
+        .trim()
+        .toLowerCase();
       if (!s) return "unknown";
       if (s.includes("ledig")) return "single";
       if (s.includes("verheiratet")) return "married";
@@ -824,7 +839,9 @@ function Home() {
     };
 
     const normalizeLevel = (val) => {
-      const lv = String(val || "").trim().toUpperCase();
+      const lv = String(val || "")
+        .trim()
+        .toUpperCase();
       const allowed = ["A1", "A2", "B1", "B2", "C1", "C2"];
       return allowed.includes(lv) ? lv : "UNKNOWN";
     };
@@ -852,7 +869,9 @@ function Home() {
       exp.forEach((e) => {
         const start = parseMonth(e?.beginn);
         const end =
-          String(e?.ende || "").trim().toLowerCase() === "bis heute"
+          String(e?.ende || "")
+            .trim()
+            .toLowerCase() === "bis heute"
             ? new Date()
             : parseMonth(e?.ende);
         if (!start) return;
@@ -895,7 +914,8 @@ function Home() {
       const docs = payload?.documents || {};
       if (Array.isArray(att?.languageCertificatesDetailed))
         return att.languageCertificatesDetailed;
-      if (Array.isArray(docs?.certificatesDetailed)) return docs.certificatesDetailed;
+      if (Array.isArray(docs?.certificatesDetailed))
+        return docs.certificatesDetailed;
       if (Array.isArray(payload?.languageCertificatesDetailed))
         return payload.languageCertificatesDetailed;
       return [];
@@ -958,7 +978,8 @@ function Home() {
           : [];
         stats.totals.byMajor[safeName] = docs.length;
         stats.totals.candidates += docs.length;
-        stats.totals.byMajorLead[safeName] = stats.totals.byMajorLead[safeName] || {};
+        stats.totals.byMajorLead[safeName] =
+          stats.totals.byMajorLead[safeName] || {};
 
         docs.forEach((d) => {
           const safeKey = (input) =>
@@ -1086,9 +1107,9 @@ function Home() {
   }, [collectionNames]);
 
   return (
-    <div className="p-4 md:p-6 bg-base-200/30 min-h-screen">
+    <div className="">
       <div className="mb-8">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="text-white flex items-start justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-3xl font-bold mb-2">Dashboard & Statistiken</h1>
             <p className="text-base opacity-70">
@@ -1110,7 +1131,8 @@ function Home() {
         <div className="text-center py-24 opacity-70">
           <h3 className="text-xl font-medium">Keine Statistiken gefunden</h3>
           <p className="mt-2">
-            Statistikdokumente wurden noch nicht erstellt. Sie werden automatisch erstellt, wenn neue Kandidaten hinzugefügt werden.
+            Statistikdokumente wurden noch nicht erstellt. Sie werden
+            automatisch erstellt, wenn neue Kandidaten hinzugefügt werden.
           </p>
         </div>
       ) : (
@@ -1163,7 +1185,8 @@ function Home() {
                       Keine Gesamtstatistik verfügbar (stats/global)
                     </h3>
                     <p className="mt-2">
-                      Wird automatisch erstellt, wenn neue Kandidaten hinzugefügt werden.
+                      Wird automatisch erstellt, wenn neue Kandidaten
+                      hinzugefügt werden.
                     </p>
                   </div>
                 ) : (

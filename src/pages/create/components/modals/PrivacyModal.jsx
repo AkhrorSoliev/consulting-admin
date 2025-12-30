@@ -56,18 +56,23 @@ export default function PrivacyModal({ open, onClose }) {
               <ul className="list-disc pl-6 space-y-2">
                 <li>
                   Ihre Daten werden{" "}
-                  <strong>niemals an Dritte verkauft oder frei weitergegeben</strong>
+                  <strong>
+                    niemals an Dritte verkauft oder frei weitergegeben
+                  </strong>
                   .
                 </li>
                 <li>
-                  Informationen über eine Kandidatin oder einen Kandidaten werden{" "}
-                  <strong>nur in dem für den Arbeitgeber erforderlichen Umfang</strong>{" "}
+                  Informationen über eine Kandidatin oder einen Kandidaten
+                  werden{" "}
+                  <strong>
+                    nur in dem für den Arbeitgeber erforderlichen Umfang
+                  </strong>{" "}
                   und <strong>auf Grundlage Ihrer Einwilligung</strong>{" "}
                   bereitgestellt.
                 </li>
                 <li>
-                  Alle Daten werden auf sicheren Servern gespeichert und sind vor
-                  unbefugtem Zugriff geschützt.
+                  Alle Daten werden auf sicheren Servern gespeichert und sind
+                  vor unbefugtem Zugriff geschützt.
                 </li>
               </ul>
               <p>
@@ -91,5 +96,3 @@ export default function PrivacyModal({ open, onClose }) {
     </div>
   );
 }
-
-

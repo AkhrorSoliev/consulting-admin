@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import Snowfall from "react-snowfall";
+import { getCurrentSeason } from "../utils/seasonalBackground";
 
-function isWinterSeason(date = new Date()) {
-  const m = date.getMonth(); // 0=Jan ... 11=Dec
-  return m === 11 || m === 0 || m === 1;
+function isWinterSeason() {
+  const season = getCurrentSeason();
+  return season === "winter";
 }
 
 function prefersReducedMotion() {
   if (typeof window === "undefined") return false;
-  return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false;
+  return (
+    window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false
+  );
 }
 
 function resolveTheme() {
@@ -94,5 +97,3 @@ export default function WinterSnowfall({ theme: themeProp }) {
     />
   );
 }
-
-

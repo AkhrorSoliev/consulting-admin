@@ -2,6 +2,8 @@ import { Outlet, useLocation, Link } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import Navbar from "../components/Navbar";
+import SeasonalBackground from "../components/SeasonalBackground";
+import ConfirmActionModal from "../components/ConfirmActionModal";
 import { FaHome, FaUserCircle } from "react-icons/fa";
 import { FiUsers } from "react-icons/fi";
 import {
@@ -17,6 +19,7 @@ import MobileNavbar from "../components/MobileNavbar";
 
 function MainLayout() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const location = useLocation();
   const { logoutUser, isPending } = useLogout();
   const { theme, toggleTheme } = useTheme();
@@ -51,102 +54,120 @@ function MainLayout() {
   }, [isDrawerOpen]);
 
   return (
-    <div className="relative min-h-screen bg-base-200">
-      <Navbar
-        isSidebarOpen={isDrawerOpen}
-        onToggleSidebar={() => setIsDrawerOpen((prev) => !prev)}
-      >
-        <Link
-          to="/"
-          className="btn btn-ghost gap-2 hidden sm:inline-flex"
-          aria-label="Zur Startseite"
-          data-sidebar-toggle
+    <SeasonalBackground>
+      <div className="relative min-h-screen">
+        <Navbar
+          isSidebarOpen={isDrawerOpen}
+          onToggleSidebar={() => setIsDrawerOpen((prev) => !prev)}
         >
-          <FaHome className="text-xl" />
-          <span className="font-medium">Home</span>
-        </Link>
-        <Link
-          to="/profile"
-          className="btn btn-ghost gap-2 hidden sm:inline-flex"
-          aria-label="Profil"
-          data-sidebar-toggle
-        >
-          <FaUserCircle className="text-xl" />
-          <span className="font-medium">Profil</span>
-        </Link>
-        {!loadingRole && (role === "super_admin" || role === "admin") && (
           <Link
-            to="/settings"
+            to="/"
             className="btn btn-ghost gap-2 hidden sm:inline-flex"
-            aria-label="Einstellungen"
+            aria-label="Zur Startseite"
             data-sidebar-toggle
           >
-            <MdSettings className="text-xl" />
-            <span className="font-medium">Einstellungen</span>
+            <FaHome className="text-xl" />
+            <span className="font-medium">Home</span>
           </Link>
-        )}
-        {!loadingRole && (role === "super_admin" || role === "admin") && (
           <Link
-            to="/candidates"
+            to="/profile"
             className="btn btn-ghost gap-2 hidden sm:inline-flex"
-            aria-label="Kandidaten"
+            aria-label="Profil"
             data-sidebar-toggle
           >
-            <FiUsers className="text-xl" />
-            <span className="font-medium">Kandidaten</span>
+            <FaUserCircle className="text-xl" />
+            <span className="font-medium">Profil</span>
           </Link>
-        )}
-        <button
-          type="button"
-          onClick={toggleTheme}
-          className="btn btn-ghost btn-square"
-          aria-label="Theme wechseln"
-          data-sidebar-toggle
-        >
-          {isDracula ? (
-            <MdLightMode className="text-xl" />
-          ) : (
-            <MdDarkMode className="text-xl" />
+          {!loadingRole && (role === "super_admin" || role === "admin") && (
+            <Link
+              to="/settings"
+              className="btn btn-ghost gap-2 hidden sm:inline-flex"
+              aria-label="Einstellungen"
+              data-sidebar-toggle
+            >
+              <MdSettings className="text-xl" />
+              <span className="font-medium">Einstellungen</span>
+            </Link>
           )}
-        </button>
-        <button
-          type="button"
-          onClick={logoutUser}
-          disabled={isPending}
-          className="btn btn-outline btn-secondary gap-2"
-          aria-label="Abmelden"
-          data-sidebar-toggle
-        >
-          {isPending ? (
-            "Abmelden..."
-          ) : (
-            <>
-              <MdOutlineLogout className="text-xl" />
-              <span className="hidden sm:inline">Abmelden</span>
-            </>
+          {!loadingRole && (role === "super_admin" || role === "admin") && (
+            <Link
+              to="/candidates"
+              className="btn btn-ghost gap-2 hidden sm:inline-flex"
+              aria-label="Kandidaten"
+              data-sidebar-toggle
+            >
+              <FiUsers className="text-xl" />
+              <span className="font-medium">Kandidaten</span>
+            </Link>
           )}
-        </button>
-      </Navbar>
-      <MobileNavbar />
-      <main className="flex-1 overflow-y-auto px-4 py-4 lg:px-6 pb-16 md:pb-0">
-        <Outlet />
-      </main>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="btn btn-ghost btn-square"
+            aria-label="Theme wechseln"
+            data-sidebar-toggle
+          >
+            {isDracula ? (
+              <MdLightMode className="text-xl" />
+            ) : (
+              <MdDarkMode className="text-xl" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowLogoutModal(true)}
+            disabled={isPending}
+            className="btn btn-outline btn-secondary gap-2"
+            aria-label="Abmelden"
+            data-sidebar-toggle
+          >
+            {isPending ? (
+              "Abmelden..."
+            ) : (
+              <>
+                <MdOutlineLogout className="text-xl" />
+                <span className="hidden sm:inline">Abmelden</span>
+              </>
+            )}
+          </button>
+        </Navbar>
+        <MobileNavbar />
+        <main
+          className={`p-4 md:p-6 min-h-screen ${
+            isDracula ? "bg-base-200/30" : ""
+          }`}
+        >
+          <Outlet />
+        </main>
 
-      {isDrawerOpen && (
-        <button
-          type="button"
-          aria-label="Overlay to close sidebar"
-          className="fixed inset-0 z-30 bg-black/30 backdrop-blur-[1px]"
-          onClick={() => setIsDrawerOpen(false)}
+        {isDrawerOpen && (
+          <button
+            type="button"
+            aria-label="Overlay to close sidebar"
+            className="fixed inset-0 z-30 bg-black/30 backdrop-blur-[1px]"
+            onClick={() => setIsDrawerOpen(false)}
+          />
+        )}
+
+        <Sidebar
+          ref={sidebarRef}
+          isOpen={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
         />
-      )}
 
-      <Sidebar
-        ref={sidebarRef}
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-      />
-    </div>
+        <ConfirmActionModal
+          open={showLogoutModal}
+          onClose={() => setShowLogoutModal(false)}
+          onConfirm={logoutUser}
+          title="Abmelden bestätigen"
+          message="Möchten Sie sich wirklich abmelden?"
+          confirmLabel="Abmelden"
+          confirmVariant="error"
+          busy={isPending}
+          confirmIcon={<MdOutlineLogout />}
+        />
+      </div>
+    </SeasonalBackground>
   );
 }
 

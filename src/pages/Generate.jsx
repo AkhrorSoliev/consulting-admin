@@ -21,6 +21,8 @@ import {
   FaExternalLinkAlt,
   FaSave,
   FaTrash,
+  FaUndo,
+  FaEnvelope,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import { pdf } from "@react-pdf/renderer";
@@ -6086,49 +6088,9 @@ function Generate() {
             onSendEmail={handleSendStatusEmail}
             sendingValue={sendingStepValue}
             disabled={isLimitedAdmin}
+            resetStages={resetCandidateStages}
+            openCustomEmailModal={openCustomEmailModal}
           />
-          <div className="mt-3 flex justify-end">
-            <button
-              type="button"
-              className="btn btn-sm btn-outline mr-2"
-              onClick={resetCandidateStages}
-              disabled={Boolean(sendingStepValue)}
-              title="Kandidatenstufen auf Anfang (Stufe 1) zurücksetzen und E-Mail-Zähler auf 0 setzen"
-            >
-              Stufen zurücksetzen
-            </button>
-            <button
-              type="button"
-              className="btn btn-sm btn-outline"
-              onClick={openCustomEmailModal}
-              disabled={Boolean(sendingStepValue)}
-            >
-              Benutzerdefinierte E-Mail
-            </button>
-          </div>
-          <div className="text-xs opacity-60 mt-2">
-            Letzte Aktualisierung:{" "}
-            {statusUpdatedAt
-              ? (() => {
-                  try {
-                    const d = new Date(statusUpdatedAt);
-                    if (Number.isNaN(d.getTime())) return "—";
-                    return new Intl.DateTimeFormat("uz-UZ", {
-                      year: "numeric",
-                      month: "2-digit",
-                      day: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      hour12: false,
-                      timeZone: "Asia/Tashkent",
-                    }).format(d);
-                  } catch {
-                    return "—";
-                  }
-                })()
-              : "—"}
-            {statusUpdatedBy ? ` • Von: ${statusUpdatedBy}` : ""}
-          </div>
 
           {/* Outgoing documents to the candidate */}
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -6411,6 +6373,40 @@ function Generate() {
                   );
                 })()}
               </div>
+            </div>
+          </div>
+          <div className="mt-3 p-3 bg-base-200 rounded-lg border border-base-300">
+            <div className="text-sm font-medium text-base-content opacity-80">
+              Letzte Aktualisierung:{" "}
+              <span className="font-normal">
+                {statusUpdatedAt
+                  ? (() => {
+                      try {
+                        const d = new Date(statusUpdatedAt);
+                        if (Number.isNaN(d.getTime())) return "—";
+                        return new Intl.DateTimeFormat("uz-UZ", {
+                          year: "numeric",
+                          month: "2-digit",
+                          day: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: false,
+                          timeZone: "Asia/Tashkent",
+                        }).format(d);
+                      } catch {
+                        return "—";
+                      }
+                    })()
+                  : "—"}
+              </span>
+              {statusUpdatedBy ? (
+                <span className="font-normal">
+                  {" • Von: "}
+                  <span className="text-primary">{statusUpdatedBy}</span>
+                </span>
+              ) : (
+                ""
+              )}
             </div>
           </div>
         </div>

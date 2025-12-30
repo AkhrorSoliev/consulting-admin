@@ -117,7 +117,8 @@ function SuperAdminUserManagement() {
       if (createdUid) {
         for (let attempt = 0; attempt < 4; attempt++) {
           const list = await loadUsers();
-          if (Array.isArray(list) && list.some((u) => u?.uid === createdUid)) break;
+          if (Array.isArray(list) && list.some((u) => u?.uid === createdUid))
+            break;
           await sleep(500);
         }
       } else {

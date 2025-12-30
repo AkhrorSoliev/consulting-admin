@@ -150,7 +150,7 @@ export default function CandidatesDeletedUsers() {
       message: `Major: ${
         major || "—"
       }\n\nHinweis: Der Kandidat wird in Firebase wiederhergestellt.`,
-      confirmLabel: "Wiederherstellen",
+      confirmLabel: "Restore",
       confirmVariant: "btn-primary",
     });
   }
@@ -169,7 +169,7 @@ export default function CandidatesDeletedUsers() {
       title: "Endgültig löschen?",
       message:
         "Hinweis: Der Kandidat wird aus der Collection deleted_users entfernt.\nUpload-Dateilinks werden ebenfalls gelöscht.\nNicht wiederherstellbar.",
-      confirmLabel: "Endgültig löschen",
+      confirmLabel: "Delete",
       confirmVariant: "btn-error",
       seconds: 5,
     });
@@ -341,40 +341,52 @@ export default function CandidatesDeletedUsers() {
                   );
                 }}
                 footer={
-                  <div className="flex justify-end gap-2">
+                  <div className="flex flex-col sm:flex-row justify-end gap-1 sm:gap-2">
                     <button
                       type="button"
-                      className="btn btn-sm btn-primary"
+                      className="btn btn-xs sm:btn-sm btn-primary"
                       onClick={() => restore(r)}
                       disabled={disabled}
                       title="Wiederherstellen"
                     >
                       {restoring ? (
                         <>
-                          <span className="loading loading-spinner loading-sm" />
-                          Wiederherstellen...
+                          <span className="loading loading-spinner loading-xs sm:loading-sm" />
+                          <span className="hidden xs:inline">Restore...</span>
+                          <span className="xs:hidden">...</span>
                         </>
                       ) : (
                         <>
-                          Wiederherstellen <MdOutlineRestorePage size={18} />
+                          <span className="hidden xs:inline">Restore</span>
+                          <MdOutlineRestorePage
+                            size={16}
+                            className="xs:hidden"
+                          />
+                          <MdOutlineRestorePage
+                            size={18}
+                            className="hidden xs:inline"
+                          />
                         </>
                       )}
                     </button>
                     <button
                       type="button"
-                      className="btn btn-sm btn-error btn-outline"
+                      className="btn btn-xs sm:btn-sm btn-error btn-outline"
                       onClick={() => deleteForever(r)}
                       disabled={disabled}
                       title="Endgültig löschen (nicht wiederherstellbar)"
                     >
                       {deleting ? (
                         <>
-                          <span className="loading loading-spinner loading-sm" />
-                          Wird gelöscht...
+                          <span className="loading loading-spinner loading-xs sm:loading-sm" />
+                          <span className="hidden xs:inline">Deleting...</span>
+                          <span className="xs:hidden">...</span>
                         </>
                       ) : (
                         <>
-                          Endgültig löschen <FiTrash2 size={16} />
+                          <span className="hidden xs:inline">Delete</span>
+                          <FiTrash2 size={14} className="xs:hidden" />
+                          <FiTrash2 size={16} className="hidden xs:inline" />
                         </>
                       )}
                     </button>

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 
 function toBtnClass(variant) {
-  const v = String(variant || "").trim().toLowerCase();
+  const v = String(variant || "")
+    .trim()
+    .toLowerCase();
   if (v === "error" || v === "danger" || v === "destructive")
     return "btn btn-error";
   if (v === "warning") return "btn btn-warning";
@@ -20,6 +22,7 @@ export default function ConfirmActionModal({
   confirmVariant = "primary",
   seconds = 0,
   busy = false,
+  confirmIcon,
 }) {
   const initialSeconds = Math.max(0, Number(seconds) || 0);
   const [remaining, setRemaining] = useState(initialSeconds);
@@ -33,7 +36,10 @@ export default function ConfirmActionModal({
     if (!open) return;
     if (busy) return;
     if (remaining <= 0) return;
-    const t = window.setTimeout(() => setRemaining((s) => Math.max(0, s - 1)), 1000);
+    const t = window.setTimeout(
+      () => setRemaining((s) => Math.max(0, s - 1)),
+      1000
+    );
     return () => window.clearTimeout(t);
   }, [open, busy, remaining]);
 
@@ -106,9 +112,15 @@ export default function ConfirmActionModal({
                   Bitte warten...
                 </>
               ) : remaining > 0 ? (
-                `${confirmLabel} (${remaining})`
+                <>
+                  {confirmIcon && <span className="mr-2">{confirmIcon}</span>}
+                  {`${confirmLabel} (${remaining})`}
+                </>
               ) : (
-                confirmLabel
+                <>
+                  {confirmIcon && <span className="mr-2">{confirmIcon}</span>}
+                  {confirmLabel}
+                </>
               )}
             </button>
           </div>
@@ -117,5 +129,3 @@ export default function ConfirmActionModal({
     </div>
   );
 }
-
-
