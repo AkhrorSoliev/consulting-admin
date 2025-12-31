@@ -163,6 +163,14 @@ function MajorSettingsModal({
   const [employerLocationName, setEmployerLocationName] = useState("");
   const [employerLocationUrl, setEmployerLocationUrl] = useState("");
 
+  const [metaName, setMetaName] = useState("");
+  const [metaSlug, setMetaSlug] = useState("");
+  const [metaTitle, setMetaTitle] = useState("");
+  const [isSavingMeta, setIsSavingMeta] = useState(false);
+  const [metaValidationError, setMetaValidationError] = useState("");
+  const [candidateCount, setCandidateCount] = useState(0);
+  const [checkingCandidates, setCheckingCandidates] = useState(false);
+
   const [leadLinksActive, setLeadLinksActive] = useState(true);
   const [leadLinks, setLeadLinks] = useState([]);
   const [newLeadName, setNewLeadName] = useState("");
@@ -276,6 +284,28 @@ function MajorSettingsModal({
         setEmployerTelegramGroupId(
           String(data?.interviewEmployer?.telegramGroupId || "").trim()
         );
+
+        setMetaName(String(data?.name || "").trim());
+        setMetaSlug(String(data?.slug || "").trim());
+        setMetaTitle(String(data?.title || "").trim());
+        setMetaValidationError("");
+
+        // Check if candidates exist for this Berufsfeld
+        setCheckingCandidates(true);
+        try {
+          const colName = resolveMajorCollectionName(major);
+          if (colName) {
+            const countSnap = await getCountFromServer(collection(db, colName));
+            setCandidateCount(countSnap.data().count || 0);
+          } else {
+            setCandidateCount(0);
+          }
+        } catch (e) {
+          console.error("Failed to check candidate count:", e);
+          setCandidateCount(0);
+        } finally {
+          setCheckingCandidates(false);
+        }
 
         setLeadLinksActive(data?.leadLinksActive !== false);
         const rows = Array.isArray(data?.leadLinks) ? data.leadLinks : [];
@@ -688,6 +718,176 @@ function MajorSettingsModal({
                   <div className="py-6 text-sm opacity-70">Wird geladen...</div>
                 ) : tab === "link" ? (
                   <div className="space-y-4">
+                    {candidateCount === 0 && !checkingCandidates && (
+                      <div className="rounded-lg border border-base-300 bg-base-200/20 p-4 space-y-4">
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">
+                            Yo'nalish ma'lumotlari
+                          </div>
+                        </div>
+
+                        {metaValidationError && (
+                          <div className="alert alert-error">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="stroke-current shrink-0 h-6 w-6"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth="2"
+                                d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
+                              />
+                            </svg>
+                            <span>{metaValidationError}</span>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 gap-3">
+                          <div className="form-control">
+                            <label className="label" htmlFor="meta-name">
+                              <span className="label-text">
+                                Name (ichki nom)
+                              </span>
+                            </label>
+                            <input
+                              id="meta-name"
+                              type="text"
+                              className="input input-bordered w-full"
+                              placeholder="masalan: pflegefachkraft"
+                              value={metaName}
+                              onChange={(e) => {
+                                setMetaName(e.target.value);
+                                setMetaValidationError("");
+                              }}
+                              disabled={isSavingMeta}
+                            />
+                          </div>
+                          <div className="form-control">
+                            <label className="label" htmlFor="meta-slug">
+                              <span className="label-text">
+                                Slug (URL uchun)
+                              </span>
+                            </label>
+                            <input
+                              id="meta-slug"
+                              type="text"
+                              className="input input-bordered w-full"
+                              placeholder="masalan: pflegefachkraft"
+                              value={metaSlug}
+                              onChange={(e) => {
+                                setMetaSlug(e.target.value);
+                                setMetaValidationError("");
+                              }}
+                              disabled={isSavingMeta}
+                            />
+                          </div>
+                          <div className="form-control">
+                            <label className="label" htmlFor="meta-title">
+                              <span className="label-text">
+                                Title (ko'rinadigan nom)
+                              </span>
+                            </label>
+                            <input
+                              id="meta-title"
+                              type="text"
+                              className="input input-bordered w-full"
+                              placeholder="masalan: Pflegefachkraft"
+                              value={metaTitle}
+                              onChange={(e) => {
+                                setMetaTitle(e.target.value);
+                                setMetaValidationError("");
+                              }}
+                              disabled={isSavingMeta}
+                            />
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="btn btn-primary w-full"
+                          onClick={async () => {
+                            if (!majorKey) return;
+                            const safeName = String(metaName || "").trim();
+                            const safeSlug = String(metaSlug || "").trim();
+                            const safeTitle = String(metaTitle || "").trim();
+
+                            if (!safeName || !safeSlug || !safeTitle) {
+                              setMetaValidationError(
+                                "Barcha maydonlarni to'ldiring."
+                              );
+                              return;
+                            }
+
+                            setIsSavingMeta(true);
+                            setMetaValidationError("");
+                            try {
+                              // Check if name already exists in metadata (excluding current document)
+                              const nameQuery = query(
+                                collection(db, "meta"),
+                                where("name", "==", safeName),
+                                limit(10)
+                              );
+                              const nameSnap = await getDocs(nameQuery);
+                              const existingDocs = nameSnap.docs.filter(
+                                (d) => d.id !== majorKey
+                              );
+
+                              if (existingDocs.length > 0) {
+                                setMetaValidationError(
+                                  `"${safeName}" nomi allaqachon mavjud. Boshqa nom tanlang.`
+                                );
+                                setIsSavingMeta(false);
+                                return;
+                              }
+
+                              // Check if slug already exists (excluding current document)
+                              const slugQuery = query(
+                                collection(db, "meta"),
+                                where("slug", "==", safeSlug),
+                                limit(10)
+                              );
+                              const slugSnap = await getDocs(slugQuery);
+                              const existingSlugDocs = slugSnap.docs.filter(
+                                (d) => d.id !== majorKey
+                              );
+
+                              if (existingSlugDocs.length > 0) {
+                                setMetaValidationError(
+                                  `"${safeSlug}" slug allaqachon mavjud. Boshqa slug tanlang.`
+                                );
+                                setIsSavingMeta(false);
+                                return;
+                              }
+
+                              const now = Date.now();
+                              await updateMetaByName(majorKey, {
+                                name: safeName,
+                                slug: safeSlug,
+                                title: safeTitle,
+                                updatedAt: now,
+                              });
+                              toast.success("Yo'nalish ma'lumotlari saqlandi!");
+                            } catch (e) {
+                              setMetaValidationError(
+                                "Saqlashda xatolik yuz berdi."
+                              );
+                              console.error("Meta save error:", e);
+                            } finally {
+                              setIsSavingMeta(false);
+                            }
+                          }}
+                          disabled={isSavingMeta || isLoading}
+                        >
+                          {isSavingMeta
+                            ? "Saqlanmoqda..."
+                            : "Ma'lumotlarni saqlash"}
+                        </button>
+                      </div>
+                    )}
+
                     <div className="rounded-lg border border-base-300 bg-base-200/20 p-4 space-y-4">
                       <div className="min-w-0">
                         <div className="font-medium truncate">
