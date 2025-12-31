@@ -53,7 +53,6 @@ import {
   subscribeToCollections,
   subscribeToMetaByName,
   upsertEmailAndPassIdFirestore,
-  upsertUserRemoteAllUsers,
   deleteEmailAndPassIdByEmail,
   saveArchivedUserSnapshotFirestore,
   saveDeletedUserSnapshotFirestore,
@@ -4193,20 +4192,7 @@ function Generate() {
         }
       }
 
-      // ---- Sync to external user registry (all_users) (best-effort) ----
-      try {
-        const latest = await getDocumentDataById(col, docId);
-        await upsertUserRemoteAllUsers({
-          firebaseId: docId,
-          major: col,
-          payload: latest && typeof latest === "object" ? latest : payload,
-        });
-      } catch (err) {
-        console.error("all_users sync failed:", err);
-        toast.error(
-          "In Firebase gespeichert, aber Fehler beim Schreiben in die externe Benutzerdatenbank."
-        );
-      }
+      // JSON API all_users sync removed as per requirements
 
       if (shouldSyncEmail) {
         try {

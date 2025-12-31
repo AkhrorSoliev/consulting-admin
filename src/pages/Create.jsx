@@ -1908,6 +1908,10 @@ function Create() {
           }))
           .filter((it) => /^https?:\/\//.test(it.url));
 
+        // Extract teId from URL and save as telegramId in Firestore
+        const teIdParam = String(searchParams.get("teId") || "").trim();
+        const telegramId = teIdParam || null;
+
         const payload = {
           ...lebenslauf,
           // Keep a canonical field name aligned with the json-api registry (`passportId`)
@@ -1915,6 +1919,8 @@ function Create() {
           passportId: passportNumber || null,
           // Tracking: optional lead param from URL (/create?major=...&lead=...)
           lead: String(leadValue || "").trim(),
+          // Telegram ID from bot deep link (URL param: teId, saved as: telegramId)
+          telegramId: telegramId,
           attachments: {
             diplomas: safeDiplomaUrls,
             languageCertificates: safeLangUrls,

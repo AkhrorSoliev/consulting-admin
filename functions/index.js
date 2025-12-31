@@ -10,6 +10,8 @@ const {
   createOneTimeChatInviteLink,
   getTelegramChatsFromUpdates,
 } = require("./src/services/telegram");
+const { Telegraf } = require("telegraf");
+// Bot initialization removed - registration functionality disabled
 
 admin.initializeApp(); // Admin SDK bypasses security rules
 const db = admin.firestore();
@@ -1167,4 +1169,182 @@ exports.setUserRole = onCall(async (request) => {
   }
   await admin.auth().setCustomUserClaims(uid, { role });
   return { ok: true, uid, role };
+});
+
+// ---- Telegram Bot Integration ----
+
+const initBot = require("./src/bot/index");
+
+// Bot webhook endpoint
+exports.telegramBotWebhook = onRequest(
+  { secrets: [TELEGRAM_BOT_TOKEN] },
+  async (req, res) => {
+    try {
+      if (req.method !== "POST") {
+        return res.status(405).json({ ok: false, error: "method-not-allowed" });
+      }
+
+      const botToken = String(TELEGRAM_BOT_TOKEN.value() || "").trim();
+      if (!botToken) {
+        return res.status(500).json({ ok: false, error: "bot-token-missing" });
+      }
+
+      const bot = initBot(db, botToken);
+      if (!bot) {
+        return res.status(500).json({ ok: false, error: "bot-init-failed" });
+      }
+
+      // Handle webhook update
+      await bot.handleUpdate(req.body, res);
+      return res.status(200).json({ ok: true });
+    } catch (err) {
+      logger.error("telegramBotWebhook error", err);
+      return res.status(500).json({
+        ok: false,
+        error: "internal",
+        details: String(err?.message || err),
+      });
+    }
+  }
+);
+
+// Admin: Send one-time invite link to a specific candidate
+exports.sendInviteToCandidate = onCall(
+  { secrets: [TELEGRAM_BOT_TOKEN] },
+  async (request) => {
+    // 1. Auth check
+    const role = String(request.auth?.token?.role || "");
+    if (role !== "admin" && role !== "super_admin") {
+      throw new HttpsError("permission-denied", "Admins only.");
+    }
+
+    const { candidateId, collectionName, groupId } = request.data || {};
+    if (!candidateId || !collectionName || !groupId) {
+      throw new HttpsError(
+        "invalid-argument",
+        "Missing candidateId, collectionName, or groupId"
+      );
+    }
+
+    // 2. Fetch candidate to get available Telegram Chat ID
+    // (We look for telegramChatId field which our bot saved)
+    const docSnap = await db.collection(collectionName).doc(candidateId).get();
+    if (!docSnap.exists) {
+      throw new HttpsError("not-found", "Candidate not found");
+    }
+    const data = docSnap.data();
+    const telegramChatId = data.telegramChatId;
+
+    if (!telegramChatId) {
+      throw new HttpsError(
+        "failed-precondition",
+        "Bu kandidat Telegram orqali ro‘yxatdan o‘tmagan (Chat ID yo‘q)."
+      );
+    }
+
+    // 3. Generate Link
+    const token = TELEGRAM_BOT_TOKEN.value();
+    const bot = new Telegraf(token);
+
+    // Get Group Chat ID
+    const groupSnap = await db.collection("telegram_groups").doc(groupId).get();
+    if (!groupSnap.exists) {
+      throw new HttpsError("not-found", "Telegram group not found in DB");
+    }
+    const groupChatId = groupSnap.data().chat_id;
+    if (!groupChatId) {
+      throw new HttpsError("failed-precondition", "Group has no chat_id");
+    }
+
+    let inviteLink;
+    try {
+      const result = await createOneTimeChatInviteLink({
+        botToken: token,
+        chatId: groupChatId,
+        memberLimit: 1,
+      });
+      inviteLink = result.invite_link;
+    } catch (e) {
+      logger.error("Invite generation failed:", e);
+      throw new HttpsError(
+        "internal",
+        "invite-generation-failed: " + e.message
+      );
+    }
+
+    // 4. Send Link to User
+    try {
+      await bot.telegram.sendMessage(
+        telegramChatId,
+        `🎉 Sizning arizangiz qabul qilindi!\n\nQuyidagi link orqali guruhga qo‘shilishingiz mumkin (Link faqat 1 marta ishlaydi):\n${inviteLink}`
+      );
+    } catch (e) {
+      logger.error("Sending message to user failed:", e);
+      throw new HttpsError(
+        "unavailable",
+        "Link yaratildi, lekin foydalanuvchiga yuborishda xatolik: " +
+          e.message,
+        { inviteLink }
+      );
+    }
+
+    return { ok: true, sent: true };
+  }
+);
+
+// Admin: Kick (Ban/Unban) a candidate from a group
+exports.kickCandidate = onCall(
+  { secrets: [TELEGRAM_BOT_TOKEN] },
+  async (request) => {
+    // 1. Auth check
+    const role = String(request.auth?.token?.role || "");
+    if (role !== "admin" && role !== "super_admin") {
+      throw new HttpsError("permission-denied", "Admins only.");
+    }
+
+    const { candidateId, collectionName, groupId } = request.data || {};
+
+    // 2. Fetch IDs
+    const docSnap = await db.collection(collectionName).doc(candidateId).get();
+    if (!docSnap.exists)
+      throw new HttpsError("not-found", "Candidate not found");
+    const telegramChatId = docSnap.data().telegramChatId;
+    if (!telegramChatId)
+      throw new HttpsError("failed-precondition", "No Telegram Chat ID");
+
+    const groupSnap = await db.collection("telegram_groups").doc(groupId).get();
+    if (!groupSnap.exists) throw new HttpsError("not-found", "Group not found");
+    const groupChatId = groupSnap.data().chat_id;
+
+    // 3. Kick
+    const token = TELEGRAM_BOT_TOKEN.value();
+    const bot = new Telegraf(token);
+
+    try {
+      // banChatMember kicks the user.
+      await bot.telegram.banChatMember(groupChatId, telegramChatId);
+      // Optional: unban immediately to allow re-joining later if needed?
+      // Usually "kick" implies ban + unban.
+      await bot.telegram.unbanChatMember(groupChatId, telegramChatId);
+    } catch (e) {
+      logger.error("Kick failed:", e);
+      throw new HttpsError("internal", "Kick failed: " + e.message);
+    }
+
+    return { ok: true, kicked: true };
+  }
+);
+
+// DEBUG: Check Majors
+exports.debugMajors = onRequest(async (req, res) => {
+  try {
+    const snap = await db
+      .collection("meta")
+      .where("linkActive", "==", true)
+      .get();
+    const majors = snap.docs.map((d) => ({ id: d.id, data: d.data() }));
+    res.json({ count: majors.length, majors });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
