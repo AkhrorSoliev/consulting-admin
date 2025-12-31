@@ -31,6 +31,7 @@ import {
   where,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
+import LinkCopyModal from "./LinkCopyModal";
 
 function toInputDateString(value) {
   if (!value) return "";
@@ -1371,6 +1372,10 @@ export default function MajorsList() {
   const [loadingCounts, setLoadingCounts] = useState({});
   const [togglingMajorId, setTogglingMajorId] = useState("");
   const [settingsMajor, setSettingsMajor] = useState(null); // { major, key }
+  const [linkCopyModal, setLinkCopyModal] = useState({
+    open: false,
+    major: null,
+  });
   const { role } = useUserRole();
   const isLimitedAdmin = useMemo(() => role === "limited_admin", [role]);
   const isSettingsOpen = Boolean(settingsMajor);
@@ -1401,14 +1406,7 @@ export default function MajorsList() {
       );
       return;
     }
-    navigator.clipboard
-      .writeText(link)
-      .then(() => {
-        toast.success("Link in die Zwischenablage kopiert!");
-      })
-      .catch(() => {
-        toast.error("Link konnte nicht kopiert werden");
-      });
+    setLinkCopyModal({ open: true, major });
   };
 
   // Delete is currently disabled globally; we keep UI minimal per requirement.
@@ -1545,6 +1543,22 @@ export default function MajorsList() {
 
   return (
     <div>
+      <LinkCopyModal
+        open={linkCopyModal.open}
+        onClose={() => setLinkCopyModal({ open: false, major: null })}
+        regularLink={
+          linkCopyModal.major ? buildCreateLink(linkCopyModal.major) : ""
+        }
+        majorCode={
+          linkCopyModal.major
+            ? linkCopyModal.major?.linkId ||
+              linkCopyModal.major?.uuid ||
+              linkCopyModal.major?.id ||
+              linkCopyModal.major?.collectionName ||
+              linkCopyModal.major
+            : ""
+        }
+      />
       {!isLimitedAdmin ? (
         <MajorSettingsModal
           open={isSettingsOpen}
