@@ -12,6 +12,7 @@ import {
   FaChartLine,
   FaComments,
   FaEnvelopeOpen,
+  FaTelegram,
 } from "react-icons/fa";
 import {
   deleteCandidateWithCurrentStats,
@@ -553,14 +554,11 @@ function CollectionCv() {
       (snap) => {
         const list = snap.docs.map((d) => {
           const data = d.data() || {};
-          const attachments = data.attachments || {};
-          const langCerts = Array.isArray(attachments?.languageCertificates)
-            ? attachments.languageCertificates
+          const documents = data.documents || {};
+          const langCerts = Array.isArray(documents?.certificates)
+            ? documents.certificates
             : [];
-          const extraCerts = Array.isArray(attachments?.certificates)
-            ? attachments.certificates
-            : [];
-          const hasCertificate = langCerts.length > 0 || extraCerts.length > 0;
+          const hasCertificate = langCerts.length > 0;
           const hasExperience =
             Array.isArray(data.berufserfahrung) &&
             data.berufserfahrung.length > 0;
@@ -633,6 +631,7 @@ function CollectionCv() {
             hasComment,
             commentUpdatedAt: commentMeta?.updatedAt || null,
             stageDecisions,
+            telegramId: data.telegramId || null,
           };
         });
         setItems(list);
@@ -1180,6 +1179,14 @@ function CollectionCv() {
                           </span>
                         ) : null}
                         <span>{formatCreatedAt(item.createdAt)}</span>
+                        {item.telegramId ? (
+                          <span
+                            className="inline-flex items-center gap-1 text-[#0088cc]"
+                            title="Über Telegram registriert"
+                          >
+                            <FaTelegram className="w-3 h-3" />
+                          </span>
+                        ) : null}
                       </>
                     }
                     topRight={

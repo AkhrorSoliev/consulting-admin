@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { FaEnvelope, FaTelegram } from "react-icons/fa";
 import CollapsibleSection from "../../../../components/CollapsibleSection";
 
 function InfoRow({ label, value }) {
@@ -68,6 +69,7 @@ export default function StageEmailModal({
   examples = null,
   selectedExample,
   setSelectedExample,
+  hasTelegramId = false,
 }) {
   if (!open) return null;
 
@@ -112,11 +114,31 @@ export default function StageEmailModal({
       <div className="relative w-full max-w-4xl mx-auto max-h-[90vh] overflow-hidden">
         <div className="bg-base-100 text-base-content rounded-box shadow-2xl border border-base-300 flex flex-col h-full max-h-[90vh]">
           <div className="flex items-start justify-between gap-3 shrink-0 p-6 pb-4">
-            <div>
-              <h3 className="text-lg font-bold">{title}</h3>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-bold">{title}</h3>
+                <div className="flex items-center gap-1.5">
+                  <FaEnvelope
+                    className="w-4 h-4 text-primary"
+                    title="Email orqali yuboriladi"
+                  />
+                  {hasTelegramId && (
+                    <FaTelegram
+                      className="w-4 h-4 text-[#0088cc]"
+                      title="Telegram orqali ham yuboriladi"
+                    />
+                  )}
+                </div>
+              </div>
               {subtitle ? (
                 <p className="text-sm opacity-70">{subtitle}</p>
               ) : null}
+              {hasTelegramId && (
+                <p className="text-xs text-[#0088cc] mt-1 flex items-center gap-1">
+                  <FaTelegram className="w-3 h-3" />
+                  Xabar Telegram orqali ham yuboriladi
+                </p>
+              )}
             </div>
             <button
               type="button"

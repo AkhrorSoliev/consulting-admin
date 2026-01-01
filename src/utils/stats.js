@@ -164,46 +164,24 @@ function normalizeLangLevel(val) {
 }
 
 function extractDiplomas(payload) {
-  const att = payload?.attachments || {};
   const docs = payload?.documents || {};
-  const dok = payload?.dokumente || {};
-  const list =
-    (Array.isArray(att?.diplomas) ? att.diplomas : []) ||
-    (Array.isArray(docs?.diplomas) ? docs.diplomas : []) ||
-    (Array.isArray(dok?.diplome) ? dok.diplome : []);
-  // prefer attachments if present; else fall back
-  if (Array.isArray(att?.diplomas)) return att.diplomas;
-  if (Array.isArray(docs?.diplomas)) return docs.diplomas;
-  if (Array.isArray(dok?.diplome)) return dok.diplome;
-  return Array.isArray(list) ? list : [];
+  return Array.isArray(docs?.diplomas) ? docs.diplomas : [];
 }
 
 function extractCertificates(payload) {
-  const att = payload?.attachments || {};
   const docs = payload?.documents || {};
-  const dok = payload?.dokumente || {};
-
-  // For stats, "certificates" mostly represent language certificates in this app.
-  if (Array.isArray(att?.languageCertificates)) return att.languageCertificates;
-  if (Array.isArray(docs?.certificates)) return docs.certificates;
-  if (Array.isArray(dok?.zertifikate)) return dok.zertifikate;
-  return [];
+  return Array.isArray(docs?.certificates) ? docs.certificates : [];
 }
 
 function extractCertificateDetails(payload) {
-  const att = payload?.attachments || {};
   const docs = payload?.documents || {};
-  // New schema: detailed rows with { url, type }
-  if (Array.isArray(att?.languageCertificatesDetailed))
-    return att.languageCertificatesDetailed;
-  if (Array.isArray(docs?.certificatesDetailed)) return docs.certificatesDetailed;
-  if (Array.isArray(payload?.languageCertificatesDetailed))
-    return payload.languageCertificatesDetailed;
-  return [];
+  return Array.isArray(docs?.certificatesDetailed)
+    ? docs.certificatesDetailed
+    : [];
 }
 
 function hasNoLanguageCertificateFlag(payload) {
-  return Boolean(payload?.attachments?.noLanguageCertificate);
+  return Boolean(payload?.documents?.noLanguageCertificate);
 }
 
 export function buildCandidateStatsIncrements(major, payload, options = {}) {
@@ -301,29 +279,26 @@ export function buildCandidateStatsIncrementsWithFactor(
   const diplomas = extractDiplomas(payload);
   const langCerts = extractCertificates(payload);
 
-  inc["attachments.diplomas.filesTotal"] = increment(diplomas.length * f);
-  inc[
-    `attachments.diplomas.candidates.${diplomas.length > 0 ? "has" : "none"}`
-  ] = increment(1 * f);
+  inc["documents.diplomas.filesTotal"] = increment(diplomas.length * f);
+  inc[`documents.diplomas.candidates.${diplomas.length > 0 ? "has" : "none"}`] =
+    increment(1 * f);
   const dipBucket =
     diplomas.length >= 4
       ? "4+"
       : diplomas.length >= 1
       ? String(diplomas.length)
       : "0";
-  inc[`attachments.diplomas.countBuckets.${safeKey(dipBucket)}`] = increment(
+  inc[`documents.diplomas.countBuckets.${safeKey(dipBucket)}`] = increment(
     1 * f
   );
 
   const noLangCert = hasNoLanguageCertificateFlag(payload);
   const hasLangCert = !noLangCert && langCerts.length > 0;
-  inc["attachments.languageCertificates.filesTotal"] = increment(
+  inc["documents.languageCertificates.filesTotal"] = increment(
     langCerts.length * f
   );
   inc[
-    `attachments.languageCertificates.candidates.${
-      hasLangCert ? "has" : "none"
-    }`
+    `documents.languageCertificates.candidates.${hasLangCert ? "has" : "none"}`
   ] = increment(1 * f);
 
   // Language certificate types (only when a file exists and type is specified)
@@ -334,7 +309,7 @@ export function buildCandidateStatsIncrementsWithFactor(
         const url = String(row?.url || "").trim();
         const type = String(row?.type || "").trim();
         if (!url || !type) return;
-        inc[`attachments.languageCertificates.byType.${safeKey(type)}`] =
+        inc[`documents.languageCertificates.byType.${safeKey(type)}`] =
           increment(1 * f);
       });
     }
@@ -412,7 +387,11 @@ export async function addCandidateWithDualStats(major, payload, options = {}) {
       // eslint-disable-next-line no-console
       console.warn("Stats update not permitted; saving candidate only.");
       await setDoc(candidateRef, payload);
-      return { id: candidateRef.id, statsUpdated: false, reason: "stats-permission-denied" };
+      return {
+        id: candidateRef.id,
+        statsUpdated: false,
+        reason: "stats-permission-denied",
+      };
     }
     throw err;
   }
@@ -570,9 +549,9 @@ function buildCandidateStatsNumbers(major, payload, options = {}) {
 
   const diplomas = extractDiplomas(payload);
   const certs = extractCertificates(payload);
-  add("attachments.diplomas.filesTotal", diplomas.length);
+  add("documents.diplomas.filesTotal", diplomas.length);
   add(
-    `attachments.diplomas.candidates.${diplomas.length > 0 ? "has" : "none"}`,
+    `documents.diplomas.candidates.${diplomas.length > 0 ? "has" : "none"}`,
     1
   );
   const dipBucket =
@@ -581,15 +560,13 @@ function buildCandidateStatsNumbers(major, payload, options = {}) {
       : diplomas.length >= 1
       ? String(diplomas.length)
       : "0";
-  add(`attachments.diplomas.countBuckets.${safeKey(dipBucket)}`, 1);
+  add(`documents.diplomas.countBuckets.${safeKey(dipBucket)}`, 1);
 
   const noLangCert = hasNoLanguageCertificateFlag(payload);
   const hasLangCert = !noLangCert && certs.length > 0;
-  add("attachments.languageCertificates.filesTotal", certs.length);
+  add("documents.languageCertificates.filesTotal", certs.length);
   add(
-    `attachments.languageCertificates.candidates.${
-      hasLangCert ? "has" : "none"
-    }`,
+    `documents.languageCertificates.candidates.${hasLangCert ? "has" : "none"}`,
     1
   );
 
@@ -600,7 +577,7 @@ function buildCandidateStatsNumbers(major, payload, options = {}) {
         const url = String(row?.url || "").trim();
         const type = String(row?.type || "").trim();
         if (!url || !type) return;
-        add(`attachments.languageCertificates.byType.${safeKey(type)}`, 1);
+        add(`documents.languageCertificates.byType.${safeKey(type)}`, 1);
       });
     }
   }
@@ -694,8 +671,12 @@ function mergeCandidatePayloadForStats(oldPayload, patch) {
         : {}),
     },
     tracking: {
-      ...(oldP?.tracking && typeof oldP.tracking === "object" ? oldP.tracking : {}),
-      ...(next?.tracking && typeof next.tracking === "object" ? next.tracking : {}),
+      ...(oldP?.tracking && typeof oldP.tracking === "object"
+        ? oldP.tracking
+        : {}),
+      ...(next?.tracking && typeof next.tracking === "object"
+        ? next.tracking
+        : {}),
     },
     meta: {
       ...(oldP?.meta && typeof oldP.meta === "object" ? oldP.meta : {}),
@@ -755,13 +736,13 @@ export async function updateCandidateWithCurrentStats(
       return;
     }
 
-    const oldNums = buildCandidateStatsNumbers(
+    const oldNums = buildCandidateStatsNumbers(safeMajor, oldPayload, options);
+    const mergedForStats = mergeCandidatePayloadForStats(oldPayload, payload);
+    const newNums = buildCandidateStatsNumbers(
       safeMajor,
-      oldPayload,
+      mergedForStats,
       options
     );
-    const mergedForStats = mergeCandidatePayloadForStats(oldPayload, payload);
-    const newNums = buildCandidateStatsNumbers(safeMajor, mergedForStats, options);
     const delta = diffCounters(oldNums, newNums);
     const inc = deltaToIncrements(delta);
     inc["meta.updatedAt"] = Date.now();
@@ -827,7 +808,11 @@ export async function updateCandidateWithDualStats(
 
     const oldNums = buildCandidateStatsNumbers(safeMajor, oldPayload, options);
     const mergedForStats = mergeCandidatePayloadForStats(oldPayload, payload);
-    const newNums = buildCandidateStatsNumbers(safeMajor, mergedForStats, options);
+    const newNums = buildCandidateStatsNumbers(
+      safeMajor,
+      mergedForStats,
+      options
+    );
     const delta = diffCounters(oldNums, newNums);
     const inc = deltaToIncrements(delta);
     inc["meta.updatedAt"] = Date.now();
@@ -938,7 +923,8 @@ export async function rebuildStatsDocsFromExistingData(
           payload?.source?.lead;
         const leadKey = safeKey(leadRaw, "");
         if (leadKey) {
-          stats.totals.byLead[leadKey] = (stats.totals.byLead[leadKey] || 0) + 1;
+          stats.totals.byLead[leadKey] =
+            (stats.totals.byLead[leadKey] || 0) + 1;
           stats.totals.byMajorLead[major][leadKey] =
             (stats.totals.byMajorLead[major][leadKey] || 0) + 1;
         }
@@ -1012,8 +998,8 @@ export async function rebuildStatsDocsFromExistingData(
         const diplomas = extractDiplomas(payload);
         const langCerts = extractCertificates(payload);
 
-        stats.attachments.diplomas.filesTotal += diplomas.length;
-        stats.attachments.diplomas.candidates[
+        stats.documents.diplomas.filesTotal += diplomas.length;
+        stats.documents.diplomas.candidates[
           diplomas.length > 0 ? "has" : "none"
         ] += 1;
         const dipBucket =
@@ -1022,12 +1008,12 @@ export async function rebuildStatsDocsFromExistingData(
             : diplomas.length >= 1
             ? String(diplomas.length)
             : "0";
-        stats.attachments.diplomas.countBuckets[dipBucket] += 1;
+        stats.documents.diplomas.countBuckets[dipBucket] += 1;
 
         const noLangCert = hasNoLanguageCertificateFlag(payload);
         const hasLangCert = !noLangCert && langCerts.length > 0;
-        stats.attachments.languageCertificates.filesTotal += langCerts.length;
-        stats.attachments.languageCertificates.candidates[
+        stats.documents.languageCertificates.filesTotal += langCerts.length;
+        stats.documents.languageCertificates.candidates[
           hasLangCert ? "has" : "none"
         ] += 1;
         if (hasLangCert) {
@@ -1038,8 +1024,8 @@ export async function rebuildStatsDocsFromExistingData(
               const type = String(row?.type || "").trim();
               if (!url || !type) return;
               const k = safeKey(type);
-              stats.attachments.languageCertificates.byType[k] =
-                (stats.attachments.languageCertificates.byType[k] || 0) + 1;
+              stats.documents.languageCertificates.byType[k] =
+                (stats.documents.languageCertificates.byType[k] || 0) + 1;
             });
           }
         }

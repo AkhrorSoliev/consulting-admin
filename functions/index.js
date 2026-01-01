@@ -1194,16 +1194,17 @@ exports.telegramBotWebhook = onRequest(
         return res.status(500).json({ ok: false, error: "bot-init-failed" });
       }
 
-      // Handle webhook update
+      // Handle webhook update - bot.handleUpdate automatically sends response
       await bot.handleUpdate(req.body, res);
-      return res.status(200).json({ ok: true });
     } catch (err) {
       logger.error("telegramBotWebhook error", err);
-      return res.status(500).json({
-        ok: false,
-        error: "internal",
-        details: String(err?.message || err),
-      });
+      if (!res.headersSent) {
+        return res.status(500).json({
+          ok: false,
+          error: "internal",
+          details: String(err?.message || err),
+        });
+      }
     }
   }
 );
@@ -1332,6 +1333,73 @@ exports.kickCandidate = onCall(
     }
 
     return { ok: true, kicked: true };
+  }
+);
+
+// POST /sendTelegramMessage
+// Body: { telegramId: string, message: string, parseMode?: string }
+// Send a message to a specific user via Telegram bot
+exports.sendTelegramMessage = onRequest(
+  { secrets: [TELEGRAM_BOT_TOKEN] },
+  async (req, res) => {
+    try {
+      setCors(req, res);
+      if (req.method === "OPTIONS") return res.status(204).send("");
+      if (req.method !== "POST") {
+        return res.status(405).json({ ok: false, error: "method-not-allowed" });
+      }
+
+      // Auth (admin-only)
+      const decoded = await verifyFirebaseIdToken(req);
+      assertAdminLikeClaims(decoded);
+
+      const telegramId = String(req.body?.telegramId || "").trim();
+      const message = String(req.body?.message || "").trim();
+      const parseMode = String(req.body?.parseMode || "HTML").trim();
+
+      if (!telegramId) {
+        return res.status(400).json({ ok: false, error: "missing-telegramId" });
+      }
+      if (!message) {
+        return res.status(400).json({ ok: false, error: "missing-message" });
+      }
+
+      const botToken = String(TELEGRAM_BOT_TOKEN.value() || "").trim();
+      if (!botToken) {
+        return res.status(500).json({ ok: false, error: "bot-token-missing" });
+      }
+
+      const bot = new Telegraf(botToken);
+
+      try {
+        await bot.telegram.sendMessage(telegramId, message, {
+          parse_mode: parseMode,
+        });
+        return res.status(200).json({ ok: true, sent: true });
+      } catch (sendError) {
+        logger.error("Failed to send Telegram message", {
+          telegramId,
+          error: String(sendError?.message || sendError),
+        });
+        return res.status(500).json({
+          ok: false,
+          error: "send-failed",
+          details: String(sendError?.message || sendError),
+        });
+      }
+    } catch (err) {
+      logger.error("sendTelegramMessage error", err);
+      setCors(req, res);
+      const status = Number(err?.status) || 500;
+      const code = String(err?.code || "internal");
+      const details =
+        status >= 500
+          ? String(err?.message || err)
+          : String(err?.details || err?.message || "");
+      return res
+        .status(status)
+        .json({ ok: false, error: code, details: details || undefined });
+    }
   }
 );
 

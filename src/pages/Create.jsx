@@ -1921,33 +1921,15 @@ function Create() {
           lead: String(leadValue || "").trim(),
           // Telegram ID from bot deep link (URL param: teId, saved as: telegramId)
           telegramId: telegramId,
-          attachments: {
-            diplomas: safeDiplomaUrls,
-            languageCertificates: safeLangUrls,
-            languageCertificatesDetailed: langCertDetailed,
-            // Persist explicit flag so admin can distinguish "none uploaded" vs "no certificates exist".
-            noLanguageCertificate: Boolean(noLanguageCertificates),
-            // Backward compatible aliases (some admin views look here)
-            passport: safePassportUrls,
-            passports: safePassportUrls,
-          },
+          // Canonical document storage - single source of truth
           documents: {
             diplomas: safeDiplomaUrls,
             certificates: safeLangUrls,
             certificatesDetailed: langCertDetailed,
-            // Canonical: array of URLs (even if only one file is allowed)
             passport: safePassportUrls,
-            passports: safePassportUrls,
+            // Persist explicit flag so admin can distinguish "none uploaded" vs "no certificates exist"
+            noLanguageCertificate: Boolean(noLanguageCertificates),
           },
-          // Legacy field names used by older parts of the admin panel
-          dokumente: {
-            diplome: safeDiplomaUrls,
-            zertifikate: safeLangUrls,
-            reisepass: safePassportUrls,
-            reisepaesse: safePassportUrls,
-            passports: safePassportUrls,
-          },
-          languageCertificatesDetailed: langCertDetailed,
           status: {
             value: CANDIDATE_STATUS_DEFAULT,
             label: candidateStatusMap[CANDIDATE_STATUS_DEFAULT].label,
