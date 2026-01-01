@@ -86,10 +86,20 @@ module.exports = (db, token) => {
       }
 
       // User is a member - proceed with registration
-      const majorCode = startPayload.trim();
-      const registrationLink = `https://admin.consultinguz.de/create?major=${encodeURIComponent(
+      // Parse startPayload to extract major and lead parameters
+      // Format: "major" or "major__lead__leadName" (double underscore as separator)
+      const payload = startPayload.trim();
+      const parts = payload.split("__lead__");
+      const majorCode = parts[0];
+      const leadParam = parts.length > 1 ? parts[1] : null;
+
+      let registrationLink = `https://admin.consultinguz.de/create?major=${encodeURIComponent(
         majorCode
       )}&teId=${telegramId}`;
+
+      if (leadParam) {
+        registrationLink += `&lead=${encodeURIComponent(leadParam)}`;
+      }
 
       logger.info("Generated registration link", {
         telegramId,
@@ -178,10 +188,20 @@ module.exports = (db, token) => {
       }
 
       // Generate registration link
-      const majorCode = startPayload.trim();
-      const registrationLink = `https://admin.consultinguz.de/create?major=${encodeURIComponent(
+      // Parse startPayload to extract major and lead parameters
+      // Format: "major" or "major__lead__leadName" (double underscore as separator)
+      const payload = startPayload.trim();
+      const parts = payload.split("__lead__");
+      const majorCode = parts[0];
+      const leadParam = parts.length > 1 ? parts[1] : null;
+
+      let registrationLink = `https://admin.consultinguz.de/create?major=${encodeURIComponent(
         majorCode
       )}&teId=${telegramId}`;
+
+      if (leadParam) {
+        registrationLink += `&lead=${encodeURIComponent(leadParam)}`;
+      }
 
       await ctx.reply(
         `Ajoyib! ✅\n\n` +
