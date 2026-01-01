@@ -175,7 +175,6 @@ function MajorSettingsModal({
   const [leadLinksActive, setLeadLinksActive] = useState(true);
   const [leadLinks, setLeadLinks] = useState([]);
   const [newLeadName, setNewLeadName] = useState("");
-  const [newLeadTelegramGroupId, setNewLeadTelegramGroupId] = useState("");
   const [deleteLead, setDeleteLead] = useState(null); // { id, name }
 
   // ---- Telegram groups (used for interview link shortcuts) ----
@@ -494,25 +493,18 @@ function MajorSettingsModal({
       return;
     }
 
-    const telegramGroupId = String(newLeadTelegramGroupId || "").trim();
     const newLead = {
       id: generateLocalId(),
       name,
       active: true,
-      telegramGroupId: telegramGroupId || "",
     };
 
     const next = [...(Array.isArray(leadLinks) ? leadLinks : []), newLead];
     setLeadLinks(next);
     setNewLeadName("");
-    setNewLeadTelegramGroupId("");
     await persistLeadSettings(next, leadLinksActive);
 
-    if (telegramGroupId) {
-      toast.success(`Lead qo'shildi va Telegram guruhiga bog'landi!`);
-    } else {
-      toast.success("Lead qo'shildi!");
-    }
+    toast.success("Lead qo'shildi!");
   };
 
   const handleToggleLeadActive = async (id, checked) => {
@@ -908,17 +900,13 @@ function MajorSettingsModal({
                         <div className="font-medium truncate">
                           Lead linklar (qo'shimcha)
                         </div>
-                        <div className="text-xs text-base-content/60 mt-1">
-                          Lead qo'shishda Telegram guruhini tanlasangiz, lead
-                          avtomatik guruhga bog'lanadi
-                        </div>
                       </div>
 
                       <div className="space-y-3">
-                        <div className="flex flex-col sm:flex-row gap-2">
+                        <div className="flex gap-2">
                           <input
                             type="text"
-                            className="input input-bordered w-full"
+                            className="input input-bordered flex-1"
                             placeholder="Lead nomi (masalan: germaniyLive)"
                             value={newLeadName}
                             onChange={(e) => setNewLeadName(e.target.value)}
@@ -932,29 +920,6 @@ function MajorSettingsModal({
                               !isLinkActive || !leadLinksActive || isSavingLeads
                             }
                           />
-                          <select
-                            className="select select-bordered w-full sm:w-auto min-w-[200px]"
-                            value={newLeadTelegramGroupId}
-                            onChange={(e) =>
-                              setNewLeadTelegramGroupId(e.target.value)
-                            }
-                            disabled={
-                              !isLinkActive || !leadLinksActive || isSavingLeads
-                            }
-                          >
-                            <option value="">Telegram guruh (ixtiyoriy)</option>
-                            {tgGroups.map((g) => {
-                              const gid = String(g?.id || "").trim();
-                              const gname = String(
-                                g?.name || g?.id || ""
-                              ).trim();
-                              return (
-                                <option key={gid} value={gid}>
-                                  {gname}
-                                </option>
-                              );
-                            })}
-                          </select>
                           <button
                             type="button"
                             className="btn btn-primary whitespace-nowrap"
@@ -1084,18 +1049,7 @@ function MajorSettingsModal({
                                 major?.id ||
                                 major?.collectionName ||
                                 major;
-                              const leadTelegramLink = `https://t.me/consultinguz_admin_bot?start=${majorId}_${leadName}`;
-                              const leadTgGroupId = String(
-                                l?.telegramGroupId || ""
-                              ).trim();
-                              const leadTgGroup = leadTgGroupId
-                                ? tgGroups.find((g) => g.id === leadTgGroupId)
-                                : null;
-                              const leadTgGroupName = leadTgGroup
-                                ? String(
-                                    leadTgGroup?.name || leadTgGroup?.id || ""
-                                  ).trim()
-                                : "";
+                              const leadTelegramLink = `https://t.me/consultinguz_admin_bot?start=${majorId}__lead__${leadName}`;
                               const canCopy =
                                 isLinkActive && leadLinksActive && leadActive;
                               return (
@@ -1108,12 +1062,6 @@ function MajorSettingsModal({
                                       <span className="font-semibold text-base truncate">
                                         {leadName || "Lead"}
                                       </span>
-                                      {leadTgGroupName && (
-                                        <span className="badge badge-sm badge-primary gap-1">
-                                          <FaTelegramPlane className="h-3 w-3" />
-                                          {leadTgGroupName}
-                                        </span>
-                                      )}
                                     </div>
                                     <div className="flex items-center gap-2 shrink-0">
                                       <input
