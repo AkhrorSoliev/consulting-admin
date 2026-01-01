@@ -2036,16 +2036,28 @@ function Create() {
       <div className="min-h-screen bg-base-200">
         <div className="max-w-3xl mx-auto min-h-screen grid place-items-center p-4">
           <div className="card bg-base-100 shadow w-full max-w-lg">
-            <div className="card-body items-center text-center">
-              <h2 className="text-2xl font-bold">Link aktiv emas</h2>
-              <p className="opacity-80">
-                {blockedLinkTitle
-                  ? `“${blockedLinkTitle}” uchun forma vaqtincha o‘chirilgan.`
-                  : "Bu forma vaqtincha o‘chirilgan."}
-              </p>
-              <p className="text-sm opacity-70">
-                Iltimos, sizga link bergan admin bilan bog‘laning.
-              </p>
+            <div className="card-body items-center text-center space-y-4">
+              <div className="text-6xl">⚠️</div>
+              <h2 className="text-2xl font-bold">
+                Ushbu yo'nalish vaqtincha faol emas
+              </h2>
+              <div className="space-y-2">
+                <p className="text-lg font-medium flex items-center justify-center gap-2">
+                  📢 Yangi yo'nalishlar va e'lonlar uchun:
+                </p>
+                <p className="text-base opacity-80">
+                  👉 @Consulting_UZB kanaliga a'zo bo'ling
+                </p>
+              </div>
+              <a
+                href="https://t.me/Consulting_UZB"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary btn-lg gap-2 mt-4"
+              >
+                <FaTelegramPlane className="text-xl" />
+                Kanalga o'tish
+              </a>
             </div>
           </div>
         </div>

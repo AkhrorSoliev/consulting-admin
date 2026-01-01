@@ -166,48 +166,7 @@ export default function CandidatesArchivedUsers() {
 
   async function restore(record) {
     if (!isPrivileged) return;
-    const key = String(record?.id || "").trim() || "x";
-    try {
-      setRestoringKey(key);
-
-      // 1) Resolve major from remote record and verify it exists in Firestore meta.
-      const rawMajor = String(
-        record?.sourceMajor || record?.major || ""
-      ).trim();
-      let resolved = null;
-      if (rawMajor) {
-        try {
-          resolved = await getMetaByName(rawMajor);
-        } catch {
-          resolved = null;
-        }
-      }
-
-      // 2) If missing/unknown -> ask user to choose a major.
-      if (!rawMajor || !resolved?.collectionName) {
-        openMajorModal(record);
-        return;
-      }
-
-      // Ask confirmation via modal (not window.confirm)
-      setConfirmState({
-        kind: "restore",
-        record,
-        majorKey: resolved.collectionName,
-        majorLabel: resolved.title || resolved.collectionName,
-        title: "Kandidaten wiederherstellen?",
-        message: `Major: ${
-          resolved?.title || resolved?.collectionName || rawMajor || "—"
-        }\n\nHinweis: Der Kandidat wird in Firebase wiederhergestellt und mit all_users synchronisiert.`,
-        confirmLabel: "Wiederherstellen",
-        confirmVariant: "btn-primary",
-      });
-    } catch (e) {
-      console.error(e);
-      toast.error("Fehler beim Wiederherstellen.");
-    } finally {
-      setRestoringKey("");
-    }
+    openMajorModal(record);
   }
 
   async function confirmRestoreFromModal() {
@@ -276,16 +235,67 @@ export default function CandidatesArchivedUsers() {
         if (!majorCol) throw new Error("major missing for restore");
 
         const payload = stripArchivedUserMetaForRestore(record);
+
+        // 1) Track direction history - preserve existing history and add current direction
+        const previousMajor = String(
+          record?.sourceMajor || record?.major || ""
+        ).trim();
+        const previousMajorTitle =
+          String(record?.sourceMajorTitle || "").trim() || previousMajor;
+        const directionHistory = Array.isArray(payload.directionHistory)
+          ? [...payload.directionHistory]
+          : [];
+
+        // Add the direction candidate was in before being archived (not "archived" itself)
+        if (previousMajor) {
+          directionHistory.push({
+            major: previousMajor,
+            majorTitle: previousMajorTitle,
+            movedAt: Date.now(),
+            movedToMajor: majorCol,
+          });
+        }
+
+        // 2) Preserve old registration date and add new one
+        const oldRegistrationDate =
+          payload.registrationDate || payload.createdAt || Date.now();
+        const registrationHistory = Array.isArray(payload.registrationHistory)
+          ? [...payload.registrationHistory]
+          : [];
+
+        if (oldRegistrationDate) {
+          registrationHistory.push({
+            date: oldRegistrationDate,
+            major: previousMajor || "unknown",
+            type: "original",
+          });
+        }
+
+        // 3) Create new registration date (current timestamp) to ensure it appears at top
+        const newRegistrationDate = Date.now();
+
+        // 4) Add all tracking fields to payload
+        const enhancedPayload = {
+          ...payload,
+          directionHistory,
+          registrationHistory,
+          registrationDate: newRegistrationDate,
+          createdAt: newRegistrationDate,
+          restoredAt: newRegistrationDate,
+          restoredFrom: previousMajor || "unknown",
+          restoredToMajor: majorCol,
+        };
+
         const { id: newId } = await addCandidateWithDualStats(
           majorCol,
-          payload,
+          enhancedPayload,
           {
             majorLabel: String(c.majorLabel || "").trim() || majorCol,
           }
         );
 
-        const email = extractEmailFromSnapshot(payload);
-        const passportId = extractPassportIdFromSnapshot(payload);
+        const email = extractEmailFromSnapshot(enhancedPayload);
+        const passportId = extractPassportIdFromSnapshot(enhancedPayload);
         if (email) {
           await upsertEmailAndPassIdFirestore({
             email,

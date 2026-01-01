@@ -254,9 +254,8 @@ function SuperAdminUserManagement() {
         <h2 className="text-lg font-semibold">Benutzerverwaltung</h2>
         <button
           type="button"
-          className={`btn btn-sm btn-outline btn-square ${
-            loading ? "btn-disabled" : ""
-          }`}
+          className={`btn btn-sm btn-outline btn-square ${loading ? "btn-disabled" : ""
+            }`}
           onClick={() => loadUsers()}
           disabled={loading}
           aria-label="Aktualisieren"
@@ -365,9 +364,8 @@ function SuperAdminUserManagement() {
                   </td>
                   <td>
                     <span
-                      className={`badge ${
-                        u.disabled ? "badge-error" : "badge-success"
-                      }`}
+                      className={`badge ${u.disabled ? "badge-error" : "badge-success"
+                        }`}
                     >
                       {u.disabled ? "deaktiviert" : "aktiv"}
                     </span>
