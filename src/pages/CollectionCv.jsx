@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { db } from "../firebase/config";
-import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
+import {
+  collection,
+  onSnapshot,
+  orderBy,
+  query,
+  doc,
+  updateDoc,
+} from "firebase/firestore";
 import toast from "react-hot-toast";
 import {
   FaCommentDots,
@@ -13,6 +20,8 @@ import {
   FaComments,
   FaEnvelopeOpen,
   FaTelegram,
+  FaThumbsUp,
+  FaThumbsDown,
 } from "react-icons/fa";
 import {
   deleteCandidateWithCurrentStats,
@@ -609,6 +618,7 @@ function CollectionCv() {
               stageDecisions[k] = raw;
             }
           }
+          const reaction = data?.reaction || null;
           return {
             id: d.id,
             createdAt: data.createdAt || 0,
@@ -632,6 +642,7 @@ function CollectionCv() {
             commentUpdatedAt: commentMeta?.updatedAt || null,
             stageDecisions,
             telegramId: data.telegramId || null,
+            reaction,
           };
         });
         setItems(list);
@@ -756,6 +767,36 @@ function CollectionCv() {
       toast.error("Fehler beim Archivieren.");
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function handleReaction(itemId, reactionType) {
+    const colName = String(resolvedMajor?.collectionName || "").trim();
+    if (!colName || !itemId) return;
+
+    try {
+      const candidateRef = doc(db, colName, itemId);
+      const currentItem = items.find((item) => item.id === itemId);
+      const currentReaction = currentItem?.reaction;
+
+      const newReaction =
+        currentReaction === reactionType ? null : reactionType;
+
+      await updateDoc(candidateRef, {
+        reaction: newReaction,
+        reactionUpdatedAt: Date.now(),
+      });
+
+      toast.success(
+        newReaction === "like"
+          ? "👍 Gefällt mir"
+          : newReaction === "dislike"
+          ? "👎 Gefällt mir nicht"
+          : "Reaktion entfernt"
+      );
+    } catch (err) {
+      console.error(err);
+      toast.error("Fehler beim Speichern der Reaktion.");
     }
   }
 
@@ -1227,42 +1268,88 @@ function CollectionCv() {
                     ].filter(Boolean)}
                     emptyLabel="Keine Kontaktdaten"
                     footer={
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-base-300/60 bg-base-100/60 w-fit max-w-full"
-                          title={
-                            (item.emailSentCount || 0) > 0
-                              ? `E-Mails gesendet: ${item.emailSentCount || 0}${
-                                  item.emailLastSentAt
-                                    ? ` • Zuletzt: ${formatCreatedAt(
-                                        item.emailLastSentAt
-                                      )}`
-                                    : ""
-                                }`
-                              : "E-Mails gesendet: 0"
-                          }
-                        >
-                          <FaEnvelope className="shrink-0 w-4 h-4 text-base-content/50" />
-                          <span className="tabular-nums text-sm font-semibold">
-                            {item.emailSentCount || 0}
-                          </span>
-                        </div>
-
-                        {item.hasComment ? (
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
                           <div
-                            className="inline-flex items-center justify-center w-10 h-10 rounded-xl border border-base-300/60 bg-base-100/60"
+                            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-base-300/60 bg-base-100/60 w-fit max-w-full"
                             title={
-                              item.commentUpdatedAt
-                                ? `Kommentar aktualisiert: ${formatCreatedAt(
-                                    item.commentUpdatedAt
-                                  )}`
-                                : "Kommentar vorhanden"
+                              (item.emailSentCount || 0) > 0
+                                ? `E-Mails gesendet: ${
+                                    item.emailSentCount || 0
+                                  }${
+                                    item.emailLastSentAt
+                                      ? ` • Zuletzt: ${formatCreatedAt(
+                                          item.emailLastSentAt
+                                        )}`
+                                      : ""
+                                  }`
+                                : "E-Mails gesendet: 0"
                             }
                           >
-                            <FaCommentDots className="w-4 h-4 text-success" />
-                            <span className="sr-only">Kommentar vorhanden</span>
+                            <FaEnvelope className="shrink-0 w-4 h-4 text-base-content/50" />
+                            <span className="tabular-nums text-sm font-semibold">
+                              {item.emailSentCount || 0}
+                            </span>
                           </div>
-                        ) : null}
+
+                          {item.hasComment ? (
+                            <div
+                              className="inline-flex items-center justify-center w-10 h-10 rounded-xl border border-base-300/60 bg-base-100/60"
+                              title={
+                                item.commentUpdatedAt
+                                  ? `Kommentar aktualisiert: ${formatCreatedAt(
+                                      item.commentUpdatedAt
+                                    )}`
+                                  : "Kommentar vorhanden"
+                              }
+                            >
+                              <FaCommentDots className="w-4 h-4 text-success" />
+                              <span className="sr-only">
+                                Kommentar vorhanden
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
+
+                        <div
+                          className="flex items-center gap-1"
+                          data-no-card-click
+                        >
+                          <button
+                            type="button"
+                            className={[
+                              "btn btn-sm btn-circle",
+                              item.reaction === "like"
+                                ? "btn-success text-white"
+                                : "btn-ghost hover:btn-success hover:text-white",
+                            ].join(" ")}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReaction(item.id, "like");
+                            }}
+                            title="Gefällt mir"
+                            disabled={deletingId === item.id}
+                          >
+                            <FaThumbsUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            className={[
+                              "btn btn-sm btn-circle",
+                              item.reaction === "dislike"
+                                ? "btn-error text-white"
+                                : "btn-ghost hover:btn-error hover:text-white",
+                            ].join(" ")}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleReaction(item.id, "dislike");
+                            }}
+                            title="Gefällt mir nicht"
+                            disabled={deletingId === item.id}
+                          >
+                            <FaThumbsDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
                     }
                   />

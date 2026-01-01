@@ -16,7 +16,7 @@ const { Telegraf } = require("telegraf");
 admin.initializeApp(); // Admin SDK bypasses security rules
 const db = admin.firestore();
 
-setGlobalOptions({ maxInstances: 10 });
+setGlobalOptions({ maxInstances: 10, cpu: 0.5 });
 
 // ---- Secrets ----
 // Store via: firebase functions:secrets:set TELEGRAM_BOT_TOKEN
