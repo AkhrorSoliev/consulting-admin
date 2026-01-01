@@ -68,6 +68,7 @@ function CollectionCv() {
   const [langLevelFilter, setLangLevelFilter] = useState("all");
   const { role } = useUserRole();
   const isLimitedAdmin = role === "limited_admin";
+  const isSuperAdmin = role === "super_admin";
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
@@ -771,6 +772,11 @@ function CollectionCv() {
   }
 
   async function handleReaction(itemId, reactionType) {
+    if (!isSuperAdmin) {
+      toast.error("Faqat super_admin reaktsiya qo'ya oladi.");
+      return;
+    }
+
     const colName = String(resolvedMajor?.collectionName || "").trim();
     if (!colName || !itemId) return;
 
@@ -1322,13 +1328,20 @@ function CollectionCv() {
                               item.reaction === "like"
                                 ? "btn-success text-white"
                                 : "btn-ghost hover:btn-success hover:text-white",
+                              !isSuperAdmin
+                                ? "opacity-50 cursor-not-allowed"
+                                : "",
                             ].join(" ")}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleReaction(item.id, "like");
                             }}
-                            title="Gefällt mir"
-                            disabled={deletingId === item.id}
+                            title={
+                              isSuperAdmin
+                                ? "Gefällt mir"
+                                : "Faqat super_admin uchun"
+                            }
+                            disabled={deletingId === item.id || !isSuperAdmin}
                           >
                             <FaThumbsUp className="w-3.5 h-3.5" />
                           </button>
@@ -1339,13 +1352,20 @@ function CollectionCv() {
                               item.reaction === "dislike"
                                 ? "btn-error text-white"
                                 : "btn-ghost hover:btn-error hover:text-white",
+                              !isSuperAdmin
+                                ? "opacity-50 cursor-not-allowed"
+                                : "",
                             ].join(" ")}
                             onClick={(e) => {
                               e.stopPropagation();
                               handleReaction(item.id, "dislike");
                             }}
-                            title="Gefällt mir nicht"
-                            disabled={deletingId === item.id}
+                            title={
+                              isSuperAdmin
+                                ? "Gefällt mir nicht"
+                                : "Faqat super_admin uchun"
+                            }
+                            disabled={deletingId === item.id || !isSuperAdmin}
                           >
                             <FaThumbsDown className="w-3.5 h-3.5" />
                           </button>

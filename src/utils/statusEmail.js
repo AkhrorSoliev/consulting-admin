@@ -77,22 +77,24 @@ function pickStageCopy(stage, decision) {
   if (stage === "stage_1") {
     if (d === "accepted") {
       return {
-        subject: "1-bosqich: Ichki suhbatga taklif",
-        title: "Ichki suhbatga taklif",
+        subject: "✅ 1-bosqich: Ichki suhbatga taklif",
+        emailTitle: "Ichki suhbatga taklif",
+        statusLabel: "1-bosqich (ichki suhbat) — kutilmoqda",
         mainText:
-          "Sizning arizangiz ko‘rib chiqildi va Siz 1-bosqich suhbatiga taklif etilganingizni mamnuniyat bilan ma’lum qilamiz.",
+          "Sizning arizangiz ko'rib chiqildi. 1-bosqich — ichki suhbat uchun navbat belgilandi.",
         nextStepNote:
-          "1-bosqich suhbatida ishtirok etish uchun iltimos, quyidagi Google Meet havolasi orqali uchrashuvga qo‘shiling va belgilangan vaqtda ishtirok etishingizni tasdiqlang.",
+          "Iltimos, belgilangan vaqt va ko'rsatmalarga amal qiling. Qo'shimcha ma'lumotlar kerak bo'lsa, siz bilan bog'lanamiz.",
         ...commonClosing,
       };
     }
     return {
-      subject: "1-bosqich: Rad javobi",
-      title: "Arizangiz ko‘rib chiqildi",
+      subject: "❌ 1-bosqich: Rad etildi",
+      emailTitle: "Arizangiz ko'rib chiqildi",
+      statusLabel: "1-bosqich — rad etildi",
       mainText:
-        "Sizning arizangiz ko‘rib chiqildi. Afsuski, hujjatlaringiz ushbu bo‘sh ish o‘rni talablariga mos kelmadi.",
+        "Sizning arizangiz diqqat bilan ko'rib chiqildi. Afsuski, hujjatlaringiz ushbu lavozim talablariga to'liq mos kelmadi.",
       nextStepNote:
-        "Sizga boshqa mavjud bo‘sh ish o‘rinlarimizga hujjat topshirib, yana urinib ko‘rishingizni tavsiya qilamiz. Qiziqishingiz va vaqtingiz uchun minnatdorchilik bildiramiz.",
+        "Sizga boshqa mavjud bo'sh ish o'rinlarimizga ariza topshirib, qayta urinib ko'rishingizni tavsiya qilamiz. Qiziqishingiz va vaqtingiz uchun samimiy minnatdorchilik bildiramiz.",
       ...commonClosing,
     };
   }
@@ -100,39 +102,41 @@ function pickStageCopy(stage, decision) {
   if (stage === "stage_2") {
     if (d === "accepted") {
       return {
-        subject: "2-bosqich: Ariza holati yangilandi",
-        title: "Ichki suhbatdan muvaffaqiyatli o'tdingiz",
+        subject: "✅ 2-bosqich: Rahbariyat bilan suhbatga taklif",
+        emailTitle: "Rahbariyat bilan suhbatga taklif",
+        statusLabel: "2-bosqich (rahbariyat bilan suhbat) — kutilmoqda",
         mainText:
-          "Siz ichki suhbatdan muvaffaqiyatli o‘tdingiz. Keyingi bosqichlarga tayyorgarlik ko‘rishingizni so‘raymiz.",
+          "Tabriklaymiz! Siz 1-bosqich ichki suhbatdan muvaffaqiyatli o'tdingiz. Endi 2-bosqich — rahbariyat bilan suhbatga taklif qilinasiz.",
         nextStepNote:
-          "Keyingi jarayonlar bo'yicha zarur ma'lumotlar Sizga qo'shimcha ravishda taqdim etiladi. Jarayon davomida qo'shimcha ma'lumot zarur bo'lsa, Siz bilan bevosita bog'lanamiz.",
+          "Suhbatga oid barcha zarur ma'lumotlar (sana, vaqt va havola) quyida keltirilgan. Iltimos, belgilangan vaqtda ishtirok etishingizni tasdiqlang.",
         examples: [
           {
             id: "example1",
             title: "1-misol: Standart tabrik",
             content:
-              "Sizning bilim va tajribangiz yuqori baholandi. Ichki suhbatdan muvaffaqiyatli o‘tganingiz bilan tabriklaymiz.",
+              "Sizning bilim va tajribangiz yuqori baholandi. Ichki suhbatdan muvaffaqiyatli o'tganingiz bilan tabriklaymiz.",
           },
           {
             id: "example2",
             title: "2-misol: Yuqori rahbariyat bilan suhbat",
             content: `Siz ConsultingUz rahbari Orif Akhmadaliyev bilan ikkinchi bosqich ichki suhbatga taklif qilinasiz.
 
-Suhbatga oid barcha zarur ma’lumotlar (sana, vaqt va Google Meet havolasi) quyida keltirilgan. Iltimos, ko‘rsatilgan Google Meet havolasi orqali qo‘shiling.
+Suhbatga oid barcha zarur ma'lumotlar (sana, vaqt va Google Meet havolasi) quyida keltirilgan. Iltimos, ko'rsatilgan Google Meet havolasi orqali qo'shiling.
 
-Keyingi bosqichlar bo‘yicha batafsil ma’lumotlar Sizga qo‘shimcha tarzda taqdim etiladi. Jarayon davomida qo‘shimcha ma’lumot zarur bo‘lsa, Siz bilan bevosita bog‘lanamiz.`,
+Keyingi bosqichlar bo'yicha batafsil ma'lumotlar Sizga qo'shimcha tarzda taqdim etiladi. Jarayon davomida qo'shimcha ma'lumot zarur bo'lsa, Siz bilan bevosita bog'lanamiz.`,
           },
         ],
         ...commonClosing,
       };
     }
     return {
-      subject: "2-bosqich: Rad javobi",
-      title: "Ariza holati yangilandi",
+      subject: "❌ 2-bosqich: Rad etildi",
+      emailTitle: "Ariza holati yangilandi",
+      statusLabel: "2-bosqich — rad etildi",
       mainText:
-        "Afsuski, tanlov jarayonining ushbu bosqichida Sizning nomzodingiz keyingi bosqichga o‘tkazilmadi.",
+        "Afsuski, tanlov jarayonining 2-bosqichida sizning nomzodingiz keyingi bosqichga o'tkazilmadi.",
       nextStepNote:
-        "Qaror tanlov mezonlari asosida qabul qilindi. Qiziqishingiz va jarayonga ajratgan vaqtingiz uchun minnatdorchilik bildiramiz hamda kelgusida yana urinib ko‘rishingizni tavsiya qilamiz.",
+        "Qaror tanlov mezonlari asosida qabul qilindi. Qiziqishingiz va jarayonga ajratgan vaqtingiz uchun samimiy minnatdorchilik bildiramiz. Kelgusida boshqa imkoniyatlar paydo bo'lganda, qayta urinib ko'rishingizni tavsiya qilamiz.",
       ...commonClosing,
     };
   }
@@ -140,22 +144,24 @@ Keyingi bosqichlar bo‘yicha batafsil ma’lumotlar Sizga qo‘shimcha tarzda t
   if (stage === "stage_3") {
     if (d === "accepted") {
       return {
-        subject: "3-bosqich: Ish beruvchi bilan suhbat",
-        title: "Ish beruvchi bilan suhbatga taklif",
+        subject: "✅ 3-bosqich: Ish beruvchi bilan suhbatga taklif",
+        emailTitle: "Ish beruvchi bilan suhbatga taklif",
+        statusLabel: "3-bosqich (ish beruvchi bilan suhbat) — kutilmoqda",
         mainText:
-          "Siz tanlov jarayonining keyingi bosqichiga o‘tdingiz. Ish beruvchi bilan suhbatga taklif etilasiz.",
+          "Tabriklaymiz! Siz tanlov jarayonining 3-bosqichiga muvaffaqiyatli o'tdingiz. Endi ish beruvchi bilan bevosita suhbatga taklif qilinasiz.",
         nextStepNote:
-          "Suhbat tafsilotlarini diqqat bilan ko‘rib chiqing va belgilangan vaqtda ishtirok etishingizni tasdiqlang.",
+          "Suhbat tafsilotlari (sana, vaqt va havola) quyida keltirilgan. Iltimos, belgilangan vaqtda ishtirok etishingizni tasdiqlang va suhbatga yaxshi tayyorgarlik ko'ring.",
         ...commonClosing,
       };
     }
     return {
-      subject: "3-bosqich: Rad javobi",
-      title: "Ariza holati yangilandi",
+      subject: "❌ 3-bosqich: Rad etildi",
+      emailTitle: "Ariza holati yangilandi",
+      statusLabel: "3-bosqich — rad etildi",
       mainText:
-        "Afsuski, tanlov jarayonining ushbu bosqichida Sizning nomzodingiz keyingi bosqichga o‘tkazilmadi.",
+        "Afsuski, tanlov jarayonining 3-bosqichida sizning nomzodingiz keyingi bosqichga o'tkazilmadi.",
       nextStepNote:
-        "Qiziqishingiz va vaqtingiz uchun minnatdorchilik bildiramiz. Kelgusida boshqa mos bo‘sh ish o‘rinlarimizga hujjat topshirib, yana urinib ko‘rishingizni tavsiya qilamiz.",
+        "Qiziqishingiz va jarayonga ajratgan vaqtingiz uchun samimiy minnatdorchilik bildiramiz. Kelgusida boshqa mos imkoniyatlar paydo bo'lganda, qayta ariza topshirishingizni tavsiya qilamiz.",
       ...commonClosing,
     };
   }
@@ -163,22 +169,24 @@ Keyingi bosqichlar bo‘yicha batafsil ma’lumotlar Sizga qo‘shimcha tarzda t
   // stage_4
   if (d === "accepted") {
     return {
-      subject: "4-bosqich: Hujjatlarni yuklash",
-      title: "Hujjatlarni yuklash",
+      subject: "✅ 4-bosqich: Hujjatlarni yuklash",
+      emailTitle: "Hujjatlarni yuklash",
+      statusLabel: "4-bosqich (hujjatlar yuklash) — kutilmoqda",
       mainText:
-        "Siz ish beruvchi bilan o‘tkazilgan suhbatdan muvaffaqiyatli o‘tdingiz. Iltimos, quyidagi havola orqali tizimga kirib, talab etilgan hujjatlarni yuklang.",
+        "Tabriklaymiz! Siz ish beruvchi bilan o'tkazilgan suhbatdan muvaffaqiyatli o'tdingiz. Endi yakuniy bosqich — zarur hujjatlarni yuklash bosqichiga o'tdingiz.",
       nextStepNote:
-        "Shuningdek, imzolanishi lozim bo‘lgan hujjatlarni yuklab olib, ularni imzolaganingizdan so‘ng, yana ushbu havola orqali qayta yuklashingizni so‘raymiz.",
+        "Iltimos, quyidagi havola orqali tizimga kirib, talab etilgan barcha hujjatlarni yuklang. Imzolanishi kerak bo'lgan hujjatlarni yuklab olib, imzolaganingizdan so'ng, qayta yuklashingizni so'raymiz.",
       ...commonClosing,
     };
   }
   return {
-    subject: "4-bosqich: Rad javobi",
-    title: "Ariza holati yangilandi",
+    subject: "❌ 4-bosqich: Rad etildi",
+    emailTitle: "Ariza holati yangilandi",
+    statusLabel: "4-bosqich — rad etildi",
     mainText:
-      "Afsuski, tanlov jarayonining yakuniy bosqichida Sizning nomzodingiz bo‘yicha ijobiy qaror qabul qilinmadi.",
+      "Afsuski, tanlov jarayonining yakuniy bosqichida sizning nomzodingiz bo'yicha ijobiy qaror qabul qilinmadi.",
     nextStepNote:
-      "Qiziqishingiz va vaqtingiz uchun minnatdorchilik bildiramiz. Kelgusida mos bo‘sh ish o‘rinlarimiz paydo bo‘lsa, Sizni xabardor qilishimiz mumkin.",
+      "Qiziqishingiz va jarayonga ajratgan barcha vaqtingiz uchun samimiy minnatdorchilik bildiramiz. Kelgusida mos imkoniyatlar paydo bo'lganda, sizni xabardor qilishimiz mumkin.",
     ...commonClosing,
   };
 }
@@ -513,4 +521,150 @@ function buildDetailRows({ additionalInfo, decisionNote, channelsText }) {
   `;
 
   return `${rowsTable}${channelsBlock || ""}`;
+}
+
+/**
+ * Build a clean Telegram-formatted message (no HTML email conversion)
+ * @param {Object} params
+ * @returns {Object} { message: string, keyboard: Array } Telegram message with inline keyboard
+ */
+export function buildTelegramStatusMessage({
+  statusValue,
+  firstName,
+  lastName,
+  stageDecision,
+  decisionNote,
+  additionalInfo,
+  copyOverrides,
+}) {
+  const normalizedStatusValue = statusValue || CANDIDATE_STATUS_DEFAULT;
+  const status = getCandidateStatus(normalizedStatusValue);
+  const fullName = buildFullName(firstName, lastName);
+
+  const decision = normalizeDecision(stageDecision);
+  const copy = applyCopyOverrides(
+    pickStageCopy(normalizedStatusValue, decision),
+    copyOverrides
+  );
+
+  const statusLabelText = String(
+    copy.statusLabel !== undefined && String(copy.statusLabel || "").trim()
+      ? copy.statusLabel
+      : status.label
+  ).trim();
+
+  const emailTitle = String(
+    copy.emailTitle || "Ariza holati yangilandi"
+  ).trim();
+  const mainText = String(copy.mainText || "").trim();
+  const nextStepNote = String(copy.nextStepNote || "").trim();
+
+  // Build message parts with new improved format
+  const parts = [];
+
+  // Header with emoji
+  parts.push(`📧 <b>${emailTitle}</b>\n`);
+
+  // Greeting
+  parts.push(`👤 <b>Hurmatli ${fullName},</b>\n`);
+
+  // Main intro
+  parts.push(
+    `Sizning arizangiz holatini yangiladik. Quyida joriy holat va keyingi qadamlar bilan tanishishingiz mumkin.\n`
+  );
+
+  // Status
+  parts.push(`🟢 <b>Holat:</b>`);
+  parts.push(`<b>${statusLabelText}</b>\n`);
+
+  // Main text
+  if (mainText) {
+    parts.push(`📋 <b>Ma'lumot:</b>`);
+    parts.push(`${mainText}\n`);
+  }
+
+  // Next step note
+  if (nextStepNote) {
+    parts.push(`${nextStepNote}\n`);
+  }
+
+  // Decision note
+  if (decisionNote) {
+    parts.push(`💬 <i>Qo'shimcha izoh:</i> ${decisionNote}\n`);
+  }
+
+  // Additional info section
+  const dt = String(additionalInfo?.dateTime || "").trim();
+  const link = String(additionalInfo?.link || "").trim();
+  const locName = String(additionalInfo?.locationName || "").trim();
+  const locUrl = String(additionalInfo?.locationUrl || "").trim();
+
+  if (dt || link || locName || locUrl) {
+    parts.push(`━━━━━━━━━━━━━━━\n`);
+    parts.push(`📋 <b>Qo'shimcha ma'lumotlar:</b>\n`);
+
+    if (dt) {
+      parts.push(`🗓 <b>Sana / Vaqt:</b>`);
+      parts.push(`<b>${formatInterviewDateTime(dt)}</b>\n`);
+    }
+    if (link) {
+      const linkType = String(additionalInfo?.linkType || "").toLowerCase();
+      const linkLabel =
+        linkType === "telegram"
+          ? "Suhbat uchun Telegram havolasi:"
+          : "Suhbat uchun havola:";
+      parts.push(`🔗 <b>${linkLabel}</b>`);
+      parts.push(`👉 <a href="${link}">Guruhga qo'shilish</a>\n`);
+    }
+    if (locName || locUrl) {
+      parts.push(`📍 <b>Lokatsiya:</b>`);
+      if (locUrl) {
+        parts.push(
+          `👉 <a href="${locUrl}">${locName || "Manzilni ko'rish"}</a>\n`
+        );
+      } else {
+        parts.push(`${locName}\n`);
+      }
+    }
+  }
+
+  // Channels info with improved formatting
+  parts.push(`━━━━━━━━━━━━━━━\n`);
+  parts.push(`📢 <b>Foydali havolalar:</b>\n`);
+  parts.push(`📌 <b>ConsultingUz rasmiy kanali:</b>`);
+  parts.push(`👉 <a href="https://t.me/Consulting_UZB">Kanalga o'tish</a>\n`);
+  parts.push(`📍 <b>O'zbekiston bo'ylab nemis tili markazlarimiz:</b>`);
+  parts.push(
+    `👉 <a href="https://t.me/dafsprachzentrum">Markazlar ro'yxati</a>\n`
+  );
+
+  parts.push(`━━━━━━━━━━━━━━━\n`);
+
+  // Closing
+  parts.push(`🤝 <b>Hurmat bilan,</b>`);
+  parts.push(`<b>ConsultingUz jamoasi</b>`);
+
+  // Build inline keyboard
+  const keyboard = [];
+
+  // Add interview link button if available
+  if (link) {
+    const linkType = String(additionalInfo?.linkType || "").toLowerCase();
+    const buttonText =
+      linkType === "telegram"
+        ? "🔗 Suhbat guruhiga qo'shilish"
+        : "🔗 Suhbatga qo'shilish";
+    keyboard.push([{ text: buttonText, url: link }]);
+  }
+
+  // Add channel buttons
+  keyboard.push([
+    { text: "📌 ConsultingUz kanali", url: "https://t.me/Consulting_UZB" },
+    { text: "📍 Nemis tili markazlari", url: "https://t.me/dafsprachzentrum" },
+  ]);
+
+  return {
+    message: parts.join("\n"),
+    keyboard: keyboard.length > 0 ? keyboard : null,
+  };
 }
