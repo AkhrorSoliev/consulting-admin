@@ -189,12 +189,62 @@ export default function CandidatesDeletedUsers() {
         if (!major) throw new Error("major is missing on deleted snapshot");
         const payload = stripDeletedUserMetaForRestore(record);
 
-        const { id: newId } = await addCandidateWithDualStats(major, payload, {
-          majorLabel,
-        });
+        // 1) Track direction history - preserve existing history and add current direction
+        const previousMajor = major;
+        const directionHistory = Array.isArray(payload.directionHistory)
+          ? [...payload.directionHistory]
+          : [];
 
-        const email = extractEmailFromSnapshot(payload);
-        const passportId = extractPassportIdFromSnapshot(payload);
+        // Add the direction candidate was in before being deleted (not "deleted" itself)
+        if (previousMajor) {
+          directionHistory.push({
+            major: previousMajor,
+            majorTitle: majorLabel,
+            movedAt: Date.now(),
+            movedToMajor: major,
+          });
+        }
+
+        // 2) Preserve old registration date and add new one
+        const oldRegistrationDate =
+          payload.registrationDate || payload.createdAt || Date.now();
+        const registrationHistory = Array.isArray(payload.registrationHistory)
+          ? [...payload.registrationHistory]
+          : [];
+
+        if (oldRegistrationDate) {
+          registrationHistory.push({
+            date: oldRegistrationDate,
+            major: previousMajor || "unknown",
+            type: "original",
+          });
+        }
+
+        // 3) Create new registration date (current timestamp) to ensure it appears at top
+        const newRegistrationDate = Date.now();
+
+        // 4) Add all tracking fields to payload
+        const enhancedPayload = {
+          ...payload,
+          directionHistory,
+          registrationHistory,
+          registrationDate: newRegistrationDate,
+          createdAt: newRegistrationDate,
+          restoredAt: newRegistrationDate,
+          restoredFrom: previousMajor || "unknown",
+          restoredToMajor: major,
+        };
+
+        const { id: newId } = await addCandidateWithDualStats(
+          major,
+          enhancedPayload,
+          {
+            majorLabel,
+          }
+        );
+
+        const email = extractEmailFromSnapshot(enhancedPayload);
+        const passportId = extractPassportIdFromSnapshot(enhancedPayload);
         if (email) {
           await upsertEmailAndPassIdFirestore({ email, major, passportId });
         }

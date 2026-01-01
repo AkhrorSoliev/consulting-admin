@@ -817,7 +817,7 @@ function CollectionCv() {
           onConfirm={confirmDelete}
           candidateName={deleteTarget?.name}
           isDeleting={Boolean(deletingId)}
-          seconds={5}
+          skipCountdown={true}
         />
         <div className="mb-4 sm:mb-6 flex items-center justify-between flex-col md:flex-row lg:flex-row">
           <div className="w-full md:w-auto">
