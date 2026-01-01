@@ -87,7 +87,7 @@ import {
   trackTelegramInviteSent,
 } from "../utils/telegramInvites";
 import { sendBrevoEmail } from "../utils/brevo";
-import { sendEmailViaTelegram } from "../utils/telegram";
+import { sendEmailViaTelegram, sendStatusViaTelegram } from "../utils/telegram";
 import RichTextEditor from "../components/RichTextEditor";
 import { useUserRole } from "../hooks/useUserRole";
 import DeleteCandidateModal from "../components/DeleteCandidateModal";
@@ -2605,10 +2605,15 @@ function Generate() {
       const candidateTelegramId = docCv?.telegramId;
       if (candidateTelegramId) {
         try {
-          await sendEmailViaTelegram({
+          await sendStatusViaTelegram({
             telegramId: candidateTelegramId,
-            subject,
-            htmlContent,
+            statusValue: stepValue,
+            firstName: formCv.personalInfo.name,
+            lastName: formCv.personalInfo.lastName,
+            stageDecision: normalizedDecision,
+            decisionNote,
+            additionalInfo: info,
+            copyOverrides: finalCopyOverrides,
           });
           toast.success("Xabar Telegram orqali ham yuborildi! 📱");
         } catch (telegramError) {

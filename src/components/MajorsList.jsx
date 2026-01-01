@@ -13,6 +13,7 @@ import {
   FaLink,
   FaComments,
   FaBuilding,
+  FaTelegramPlane,
 } from "react-icons/fa";
 import { FaUserTie } from "react-icons/fa";
 import toast from "react-hot-toast";
@@ -174,6 +175,7 @@ function MajorSettingsModal({
   const [leadLinksActive, setLeadLinksActive] = useState(true);
   const [leadLinks, setLeadLinks] = useState([]);
   const [newLeadName, setNewLeadName] = useState("");
+  const [newLeadTelegramGroupId, setNewLeadTelegramGroupId] = useState("");
   const [deleteLead, setDeleteLead] = useState(null); // { id, name }
 
   // ---- Telegram groups (used for interview link shortcuts) ----
@@ -491,13 +493,26 @@ function MajorSettingsModal({
       toast.error("Ein solcher Lead existiert bereits.");
       return;
     }
-    const next = [
-      ...(Array.isArray(leadLinks) ? leadLinks : []),
-      { id: generateLocalId(), name, active: true },
-    ];
+
+    const telegramGroupId = String(newLeadTelegramGroupId || "").trim();
+    const newLead = {
+      id: generateLocalId(),
+      name,
+      active: true,
+      telegramGroupId: telegramGroupId || "",
+    };
+
+    const next = [...(Array.isArray(leadLinks) ? leadLinks : []), newLead];
     setLeadLinks(next);
     setNewLeadName("");
+    setNewLeadTelegramGroupId("");
     await persistLeadSettings(next, leadLinksActive);
+
+    if (telegramGroupId) {
+      toast.success(`Lead qo'shildi va Telegram guruhiga bog'landi!`);
+    } else {
+      toast.success("Lead qo'shildi!");
+    }
   };
 
   const handleToggleLeadActive = async (id, checked) => {
@@ -891,31 +906,66 @@ function MajorSettingsModal({
                     <div className="rounded-lg border border-base-300 bg-base-200/20 p-4 space-y-4">
                       <div className="min-w-0">
                         <div className="font-medium truncate">
-                          Lead linklar (qo‘shimcha)
+                          Lead linklar (qo'shimcha)
+                        </div>
+                        <div className="text-xs text-base-content/60 mt-1">
+                          Lead qo'shishda Telegram guruhini tanlasangiz, lead
+                          avtomatik guruhga bog'lanadi
                         </div>
                       </div>
 
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        <input
-                          type="text"
-                          className="input input-bordered w-full"
-                          placeholder="Lead nomi (masalan: germaniyLive)"
-                          value={newLeadName}
-                          onChange={(e) => setNewLeadName(e.target.value)}
-                          disabled={
-                            !isLinkActive || !leadLinksActive || isSavingLeads
-                          }
-                        />
-                        <button
-                          type="button"
-                          className="btn btn-primary"
-                          onClick={handleAddLead}
-                          disabled={
-                            !isLinkActive || !leadLinksActive || isSavingLeads
-                          }
-                        >
-                          Lead qo‘shish
-                        </button>
+                      <div className="space-y-3">
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <input
+                            type="text"
+                            className="input input-bordered w-full"
+                            placeholder="Lead nomi (masalan: germaniyLive)"
+                            value={newLeadName}
+                            onChange={(e) => setNewLeadName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                handleAddLead();
+                              }
+                            }}
+                            disabled={
+                              !isLinkActive || !leadLinksActive || isSavingLeads
+                            }
+                          />
+                          <select
+                            className="select select-bordered w-full sm:w-auto min-w-[200px]"
+                            value={newLeadTelegramGroupId}
+                            onChange={(e) =>
+                              setNewLeadTelegramGroupId(e.target.value)
+                            }
+                            disabled={
+                              !isLinkActive || !leadLinksActive || isSavingLeads
+                            }
+                          >
+                            <option value="">Telegram guruh (ixtiyoriy)</option>
+                            {tgGroups.map((g) => {
+                              const gid = String(g?.id || "").trim();
+                              const gname = String(
+                                g?.name || g?.id || ""
+                              ).trim();
+                              return (
+                                <option key={gid} value={gid}>
+                                  {gname}
+                                </option>
+                              );
+                            })}
+                          </select>
+                          <button
+                            type="button"
+                            className="btn btn-primary whitespace-nowrap"
+                            onClick={handleAddLead}
+                            disabled={
+                              !isLinkActive || !leadLinksActive || isSavingLeads
+                            }
+                          >
+                            Lead qo'shish
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -923,7 +973,10 @@ function MajorSettingsModal({
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <div className="font-medium truncate">
-                            Asosiy link
+                            Asosiy linklar
+                          </div>
+                          <div className="text-xs text-base-content/60 mt-1">
+                            Ariza to'ldirish uchun asosiy linklar
                           </div>
                         </div>
                         <input
@@ -934,27 +987,82 @@ function MajorSettingsModal({
                             onToggleLinkActive?.(e.target.checked)
                           }
                           disabled={Boolean(isTogglingLink)}
-                          aria-label="Asosiy link"
+                          aria-label="Asosiy linklar"
                         />
                       </div>
 
-                      <button
-                        type="button"
-                        className="btn primary-content w-full justify-between gap-3"
-                        onClick={onCopyLink}
-                        disabled={
-                          !isLinkActive ||
-                          !createLink ||
-                          Boolean(isTogglingLink) ||
-                          Boolean(isLoading)
-                        }
-                        title={createLink || ""}
-                      >
-                        <span className="truncate min-w-0">{createLink}</span>
-                        <span className="shrink-0">
-                          <FaRegCopy />
-                        </span>
-                      </button>
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium text-base-content/70">
+                          Web link
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-outline w-full justify-between gap-3"
+                          onClick={onCopyLink}
+                          disabled={
+                            !isLinkActive ||
+                            !createLink ||
+                            Boolean(isTogglingLink) ||
+                            Boolean(isLoading)
+                          }
+                          title={createLink || ""}
+                        >
+                          <span className="truncate min-w-0">{createLink}</span>
+                          <span className="shrink-0">
+                            <FaRegCopy />
+                          </span>
+                        </button>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="text-sm font-medium text-base-content/70 flex items-center gap-2">
+                          <FaTelegramPlane className="text-primary" />
+                          Telegram link
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-outline w-full justify-between gap-3"
+                          onClick={() => {
+                            const telegramLink = `https://t.me/consultinguz_admin_bot?start=${
+                              major?.linkId ||
+                              major?.uuid ||
+                              major?.id ||
+                              major?.collectionName ||
+                              major
+                            }`;
+                            navigator.clipboard
+                              .writeText(telegramLink)
+                              .then(() =>
+                                toast.success("Telegram link nusxalandi!")
+                              )
+                              .catch(() => toast.error("Link nusxalanmadi."));
+                          }}
+                          disabled={
+                            !isLinkActive ||
+                            Boolean(isTogglingLink) ||
+                            Boolean(isLoading)
+                          }
+                          title={`https://t.me/consultinguz_admin_bot?start=${
+                            major?.linkId ||
+                            major?.uuid ||
+                            major?.id ||
+                            major?.collectionName ||
+                            major
+                          }`}
+                        >
+                          <span className="truncate min-w-0">
+                            https://t.me/consultinguz_admin_bot?start=
+                            {major?.linkId ||
+                              major?.uuid ||
+                              major?.id ||
+                              major?.collectionName ||
+                              major}
+                          </span>
+                          <span className="shrink-0">
+                            <FaRegCopy />
+                          </span>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="rounded-lg border border-base-300 bg-base-200/30 p-4 space-y-3">
@@ -970,76 +1078,155 @@ function MajorSettingsModal({
                               const leadName = String(l?.name || "").trim();
                               const leadActive = l?.active !== false;
                               const leadUrl = buildCreateLink(major, leadName);
+                              const majorId =
+                                major?.linkId ||
+                                major?.uuid ||
+                                major?.id ||
+                                major?.collectionName ||
+                                major;
+                              const leadTelegramLink = `https://t.me/consultinguz_admin_bot?start=${majorId}_${leadName}`;
+                              const leadTgGroupId = String(
+                                l?.telegramGroupId || ""
+                              ).trim();
+                              const leadTgGroup = leadTgGroupId
+                                ? tgGroups.find((g) => g.id === leadTgGroupId)
+                                : null;
+                              const leadTgGroupName = leadTgGroup
+                                ? String(
+                                    leadTgGroup?.name || leadTgGroup?.id || ""
+                                  ).trim()
+                                : "";
                               const canCopy =
-                                isLinkActive &&
-                                leadLinksActive &&
-                                leadActive &&
-                                Boolean(leadUrl);
+                                isLinkActive && leadLinksActive && leadActive;
                               return (
                                 <div
                                   key={l.id}
-                                  className="flex items-center gap-2"
+                                  className="rounded-lg border border-base-300 bg-base-100 p-3 space-y-3"
                                 >
-                                  <button
-                                    type="button"
-                                    className="btn btn-outline grow justify-between gap-2"
-                                    onClick={() => {
-                                      if (!canCopy) {
-                                        toast.error(
-                                          "Der Lead-Link ist derzeit nicht aktiv (oder global deaktiviert)."
-                                        );
-                                        return;
-                                      }
-                                      navigator.clipboard
-                                        .writeText(leadUrl)
-                                        .then(() =>
-                                          toast.success(
-                                            "Lead-Link wurde kopiert!"
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <span className="font-semibold text-base truncate">
+                                        {leadName || "Lead"}
+                                      </span>
+                                      {leadTgGroupName && (
+                                        <span className="badge badge-sm badge-primary gap-1">
+                                          <FaTelegramPlane className="h-3 w-3" />
+                                          {leadTgGroupName}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <input
+                                        type="checkbox"
+                                        className="toggle toggle-secondary toggle-sm"
+                                        checked={leadActive}
+                                        onChange={async (e) =>
+                                          handleToggleLeadActive(
+                                            l.id,
+                                            e.target.checked
                                           )
-                                        )
-                                        .catch(() =>
-                                          toast.error(
-                                            "Lead-Link konnte nicht kopiert werden."
-                                          )
-                                        );
-                                    }}
-                                    disabled={!canCopy || isSavingLeads}
-                                    title={leadUrl || ""}
-                                  >
-                                    <span className="truncate text-left w-0 flex-1">
-                                      {leadName || "Lead"}
-                                    </span>
-                                    <FaRegCopy className="shrink-0" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="btn btn-outline btn-error btn-sm"
-                                    onClick={async () => {
-                                      setDeleteLead({
-                                        id: l.id,
-                                        name: leadName || "Lead",
-                                      });
-                                    }}
-                                    disabled={isSavingLeads || !leadLinksActive}
-                                    aria-label="Leadni o‘chirish"
-                                    title="Delete"
-                                  >
-                                    <FaTrash className="text-xl" />
-                                  </button>
-                                  <input
-                                    type="checkbox"
-                                    className="toggle toggle-secondary"
-                                    checked={leadActive}
-                                    onChange={async (e) =>
-                                      handleToggleLeadActive(
-                                        l.id,
-                                        e.target.checked
-                                      )
-                                    }
-                                    disabled={isSavingLeads || !leadLinksActive}
-                                    aria-label="Leadni aktiv qilish"
-                                    title="Lead ON/OFF"
-                                  />
+                                        }
+                                        disabled={
+                                          isSavingLeads || !leadLinksActive
+                                        }
+                                        aria-label="Leadni aktiv qilish"
+                                        title="Lead ON/OFF"
+                                      />
+                                      <button
+                                        type="button"
+                                        className="btn btn-outline btn-error btn-xs"
+                                        onClick={async () => {
+                                          setDeleteLead({
+                                            id: l.id,
+                                            name: leadName || "Lead",
+                                          });
+                                        }}
+                                        disabled={
+                                          isSavingLeads || !leadLinksActive
+                                        }
+                                        aria-label="Leadni o'chirish"
+                                        title="Delete"
+                                      >
+                                        <FaTrash />
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                    <div className="space-y-1">
+                                      <div className="text-xs font-medium text-base-content/60 flex items-center gap-1">
+                                        <FaLink className="h-3 w-3" />
+                                        Web link
+                                      </div>
+                                      <button
+                                        type="button"
+                                        className="btn btn-outline btn-sm w-full justify-between gap-2 text-xs"
+                                        onClick={() => {
+                                          if (!canCopy || !leadUrl) {
+                                            toast.error(
+                                              "Lead link aktiv emas yoki mavjud emas."
+                                            );
+                                            return;
+                                          }
+                                          navigator.clipboard
+                                            .writeText(leadUrl)
+                                            .then(() =>
+                                              toast.success(
+                                                "Web link nusxalandi!"
+                                              )
+                                            )
+                                            .catch(() =>
+                                              toast.error("Link nusxalanmadi.")
+                                            );
+                                        }}
+                                        disabled={
+                                          !canCopy || isSavingLeads || !leadUrl
+                                        }
+                                        title={leadUrl || ""}
+                                      >
+                                        <span className="truncate text-left">
+                                          {leadUrl ? "Nusxalash" : "Link yo'q"}
+                                        </span>
+                                        <FaRegCopy className="shrink-0" />
+                                      </button>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                      <div className="text-xs font-medium text-base-content/60 flex items-center gap-1">
+                                        <FaTelegramPlane className="h-3 w-3 text-primary" />
+                                        Telegram link
+                                      </div>
+                                      <button
+                                        type="button"
+                                        className="btn btn-outline btn-sm w-full justify-between gap-2 text-xs"
+                                        onClick={() => {
+                                          if (!canCopy) {
+                                            toast.error(
+                                              "Lead link aktiv emas."
+                                            );
+                                            return;
+                                          }
+                                          navigator.clipboard
+                                            .writeText(leadTelegramLink)
+                                            .then(() =>
+                                              toast.success(
+                                                "Telegram link nusxalandi!"
+                                              )
+                                            )
+                                            .catch(() =>
+                                              toast.error("Link nusxalanmadi.")
+                                            );
+                                        }}
+                                        disabled={!canCopy || isSavingLeads}
+                                        title={leadTelegramLink}
+                                      >
+                                        <span className="truncate text-left">
+                                          Nusxalash
+                                        </span>
+                                        <FaRegCopy className="shrink-0" />
+                                      </button>
+                                    </div>
+                                  </div>
                                 </div>
                               );
                             })}

@@ -1,12 +1,13 @@
 import { auth } from "../firebase/config";
+import { buildTelegramStatusMessage } from "./statusEmail";
 
 const FUNCTIONS_BASE_URL =
   import.meta.env.MODE === "production"
     ? "https://us-central1-consulting-admin-uz.cloudfunctions.net"
-    : "http://127.0.0.1:5001/consulting-admin-uz/us-central1";
+    : "http://127.0.0.1:5001/consulting-bdb74/us-central1";
 
 /**
- * Convert HTML email template to Telegram-friendly format
+ * Convert HTML email template to Telegram-friendly format (LEGACY - for custom emails)
  * @param {string} htmlContent - HTML content from email
  * @param {string} subject - Email subject
  * @returns {string} Telegram-formatted message
@@ -66,12 +67,14 @@ export function convertEmailToTelegramFormat(htmlContent, subject) {
  * @param {string} telegramId - Telegram user ID
  * @param {string} message - Message to send (HTML formatted)
  * @param {string} parseMode - Parse mode (default: HTML)
+ * @param {Array} keyboard - Optional inline keyboard buttons
  * @returns {Promise<{ok: boolean, sent?: boolean, error?: string}>}
  */
 export async function sendTelegramMessage(
   telegramId,
   message,
-  parseMode = "HTML"
+  parseMode = "HTML",
+  keyboard = null
 ) {
   try {
     const user = auth.currentUser;
@@ -92,6 +95,7 @@ export async function sendTelegramMessage(
         telegramId,
         message,
         parseMode,
+        keyboard,
       }),
     });
 
@@ -111,7 +115,42 @@ export async function sendTelegramMessage(
 }
 
 /**
- * Send email content via Telegram
+ * Send status email via Telegram with clean formatting
+ * @param {Object} params
+ * @param {string} params.telegramId - Telegram user ID
+ * @param {string} params.statusValue - Status value (stage_1, stage_2, etc.)
+ * @param {string} params.firstName - Candidate first name
+ * @param {string} params.lastName - Candidate last name
+ * @param {string} params.stageDecision - Decision (accepted/rejected)
+ * @param {string} params.decisionNote - Optional decision note
+ * @param {Object} params.additionalInfo - Additional info (dateTime, link, location)
+ * @param {Object} params.copyOverrides - Copy overrides from template
+ * @returns {Promise<{ok: boolean, sent?: boolean, error?: string}>}
+ */
+export async function sendStatusViaTelegram({
+  telegramId,
+  statusValue,
+  firstName,
+  lastName,
+  stageDecision,
+  decisionNote,
+  additionalInfo,
+  copyOverrides,
+}) {
+  const { message, keyboard } = buildTelegramStatusMessage({
+    statusValue,
+    firstName,
+    lastName,
+    stageDecision,
+    decisionNote,
+    additionalInfo,
+    copyOverrides,
+  });
+  return sendTelegramMessage(telegramId, message, "HTML", keyboard);
+}
+
+/**
+ * Send email content via Telegram (for custom emails)
  * @param {Object} params
  * @param {string} params.telegramId - Telegram user ID
  * @param {string} params.subject - Email subject

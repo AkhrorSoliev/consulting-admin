@@ -1356,6 +1356,7 @@ exports.sendTelegramMessage = onRequest(
       const telegramId = String(req.body?.telegramId || "").trim();
       const message = String(req.body?.message || "").trim();
       const parseMode = String(req.body?.parseMode || "HTML").trim();
+      const keyboard = req.body?.keyboard || null;
 
       if (!telegramId) {
         return res.status(400).json({ ok: false, error: "missing-telegramId" });
@@ -1372,9 +1373,18 @@ exports.sendTelegramMessage = onRequest(
       const bot = new Telegraf(botToken);
 
       try {
-        await bot.telegram.sendMessage(telegramId, message, {
+        const options = {
           parse_mode: parseMode,
-        });
+        };
+
+        // Add inline keyboard if provided
+        if (keyboard && Array.isArray(keyboard) && keyboard.length > 0) {
+          options.reply_markup = {
+            inline_keyboard: keyboard,
+          };
+        }
+
+        await bot.telegram.sendMessage(telegramId, message, options);
         return res.status(200).json({ ok: true, sent: true });
       } catch (sendError) {
         logger.error("Failed to send Telegram message", {

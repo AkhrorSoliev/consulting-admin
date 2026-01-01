@@ -49,13 +49,24 @@ service cloud.firestore {
              diff.changedKeys().hasOnly(['commentar', 'commentarMeta', 'berufserfahrung', 'ausbildung']) &&
              limitedAdminValidCommentMeta();
     }
+
+    function isUpdatingReaction() {
+      let diff = request.resource.data.diff(resource.data);
+      return diff.affectedKeys().hasAny(['reaction', 'reactionUpdatedAt']);
+    }
+
+    function adminCanUpdate() {
+      // Regular admin can update anything EXCEPT reaction fields
+      return !isUpdatingReaction();
+    }
+
     match /{document=**} {
       allow read: if isSuperAdmin() || isAdmin() || isLimitedAdmin();
 
       allow create, delete: if isSuperAdmin() || isAdmin();
 
       allow update: if isSuperAdmin() ||
-                     isAdmin() ||
+                     (isAdmin() && adminCanUpdate()) ||
                      (isLimitedAdmin() && limitedAdminCanUpdate());
     }
   }
