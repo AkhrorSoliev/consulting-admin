@@ -1,0 +1,56 @@
+export const DRIVING_LICENSE_OPTIONS = [
+  "AM",
+  "A1",
+  "A2",
+  "A",
+  "B",
+  "BE",
+  "C1",
+  "C1E",
+  "C",
+  "CE",
+  "D1",
+  "D1E",
+  "D",
+  "DE",
+  "T",
+];
+
+export const LANG_CERT_TYPES = [
+  "DAF Sprachzentrum Zertifikat",
+  "Goethe-Zertifikat",
+  "TestDaF",
+  "telc Deutsch",
+  "ÖSD",
+];
+
+export const INITIAL_FORM = {
+  personalInfo: {
+    name: "",
+    lastName: "",
+    gender: "",
+    address: "",
+    birthDate: "",
+    birthPlace: "",
+    maritalStatus: "",
+    childrenCount: "",
+    noChildren: false,
+    hasDrivingLicense: false,
+    drivingLicenseType: "",
+    phone: "",
+    passportNumber: "",
+    email: "",
+    photo: "",
+  },
+  experience: [],
+  education: [],
+  skills: { softSkills: [], pcSkills: [], languages: {} },
+  documents: {
+    diplomas: [],
+    certificates: [],
+    certificatesDetailed: [],
+    passport: [],
+    noLanguageCertificate: false,
+  },
+  commentar: "",
+};

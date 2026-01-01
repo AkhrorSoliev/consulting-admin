@@ -23,12 +23,10 @@ import {
   FaTrash,
   FaUndo,
   FaEnvelope,
+  FaTelegram,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import { pdf } from "@react-pdf/renderer";
-import * as pdfjsLib from "pdfjs-dist";
-import pdfjsWorkerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { extractPassportCanvasFromCanvas } from "../utils/passportImageProcessing";
 import CvPdfDocument from "./generate/pdf/CvPdfDocument";
 import FormInput from "../components/FormInput";
 import PhoneInputWithCountry from "../components/PhoneInputWithCountry";
@@ -89,6 +87,7 @@ import {
   trackTelegramInviteSent,
 } from "../utils/telegramInvites";
 import { sendBrevoEmail } from "../utils/brevo";
+import { sendEmailViaTelegram } from "../utils/telegram";
 import RichTextEditor from "../components/RichTextEditor";
 import { useUserRole } from "../hooks/useUserRole";
 import DeleteCandidateModal from "../components/DeleteCandidateModal";
@@ -111,591 +110,30 @@ import {
   subscribeToEmailTemplates,
   toCopyOverridesFromTemplateDoc,
 } from "../utils/emailTemplates";
-
-function safeJson(value, space = 2, maxLen = 120_000) {
-  try {
-    const s = JSON.stringify(value, null, space);
-    if (typeof s === "string" && s.length > maxLen) {
-      return `${s.slice(0, maxLen)}\n... (truncated ${
-        s.length - maxLen
-      } chars)`;
-    }
-    return s;
-  } catch (e) {
-    return `"(unserializable)" ${e?.message || ""}`.trim();
-  }
-}
-
-function safeClone(value) {
-  // structuredClone is not available in some environments (older browsers / webviews).
-  // Our form state is plain JSON, so JSON clone is an acceptable fallback.
-  try {
-    if (typeof structuredClone === "function") return structuredClone(value);
-  } catch {
-    // ignore and fallback to JSON clone
-  }
-  return JSON.parse(JSON.stringify(value ?? null));
-}
-
-function todayDdMmYyyy() {
-  try {
-    const d = new Date();
-    const dd = String(d.getDate()).padStart(2, "0");
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const yyyy = String(d.getFullYear());
-    return `${dd}.${mm}.${yyyy}`;
-  } catch {
-    return "";
-  }
-}
-
-async function blobToDataUrl(blob) {
-  return await new Promise((resolve, reject) => {
-    try {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    } catch (e) {
-      reject(e);
-    }
-  });
-}
-
-function normalizeMaybeUrl(value) {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  if (/^https?:\/\//i.test(raw)) return raw;
-  return raw;
-}
-
-function getFunctionsBaseCandidates() {
-  const out = [];
-  const explicit = String(import.meta?.env?.VITE_FUNCTIONS_BASE || "").trim();
-  if (explicit) out.push(explicit);
-
-  // Fallback: derive Functions base from Firebase project id (works in many setups)
-  // Note: HTTP Functions default region is typically `us-central1` unless configured otherwise.
-  const projectId = String(
-    import.meta?.env?.VITE_FIREBASE_PROJECT_ID || ""
-  ).trim();
-  if (projectId) {
-    out.push(`https://us-central1-${projectId}.cloudfunctions.net`);
-    // Some projects deploy in the same region as Firestore (your firebase.json uses europe-west3).
-    out.push(`https://europe-west3-${projectId}.cloudfunctions.net`);
-  }
-
-  const normalized = out
-    .map((b) =>
-      String(b || "")
-        .trim()
-        .replace(/\/+$/, "")
-    )
-    .filter(Boolean);
-  return Array.from(new Set(normalized));
-}
-
-function buildProxyAssetUrlCandidates(rawUrl) {
-  const raw = normalizeMaybeUrl(rawUrl);
-  if (!raw) return [];
-
-  // We only proxy json-api.uz URLs (the backend allowlist enforces this too).
-  let u;
-  try {
-    u = new URL(raw);
-  } catch {
-    return [];
-  }
-  const host = String(u.hostname || "").toLowerCase();
-  const isJsonApi = host === "json-api.uz";
-  if (!isJsonApi) return [];
-
-  // Local dev fallback: Vite proxy (same-origin).
-  try {
-    let isLocalhost = false;
-    try {
-      const lh = String(window?.location?.hostname || "").toLowerCase();
-      isLocalhost =
-        lh === "localhost" ||
-        lh === "127.0.0.1" ||
-        lh === "::1" ||
-        /^192\.168\.\d+\.\d+$/.test(lh);
-    } catch {
-      // ignore
-    }
-    const isDev = Boolean(import.meta?.env?.DEV) || isLocalhost;
-    if (isDev) {
-      return [`/__pdf_proxy${u.pathname}${u.search || ""}`];
-    }
-  } catch {
-    // ignore
-  }
-
-  // Production: Firebase Functions proxy (CORS bypass)
-  const bases = getFunctionsBaseCandidates();
-  return bases.map(
-    (base) => `${String(base)}/proxyPdf?url=${encodeURIComponent(raw)}`
-  );
-}
-
-function buildProxyAssetUrl(rawUrl) {
-  const candidates = buildProxyAssetUrlCandidates(rawUrl);
-  return candidates[0] || normalizeMaybeUrl(rawUrl);
-}
-
-function sniffFileKindFromArrayBuffer(ab) {
-  try {
-    const u8 = new Uint8Array(ab instanceof ArrayBuffer ? ab : []);
-    if (u8.length >= 5) {
-      // %PDF-
-      if (
-        u8[0] === 0x25 &&
-        u8[1] === 0x50 &&
-        u8[2] === 0x44 &&
-        u8[3] === 0x46 &&
-        u8[4] === 0x2d
-      )
-        return "pdf";
-    }
-    if (u8.length >= 3) {
-      // JPEG: FF D8 FF
-      if (u8[0] === 0xff && u8[1] === 0xd8 && u8[2] === 0xff) return "jpeg";
-    }
-    if (u8.length >= 8) {
-      // PNG: 89 50 4E 47 0D 0A 1A 0A
-      if (
-        u8[0] === 0x89 &&
-        u8[1] === 0x50 &&
-        u8[2] === 0x4e &&
-        u8[3] === 0x47 &&
-        u8[4] === 0x0d &&
-        u8[5] === 0x0a &&
-        u8[6] === 0x1a &&
-        u8[7] === 0x0a
-      )
-        return "png";
-    }
-    if (u8.length >= 12) {
-      // WEBP: RIFF....WEBP
-      const riff =
-        u8[0] === 0x52 && u8[1] === 0x49 && u8[2] === 0x46 && u8[3] === 0x46;
-      const webp =
-        u8[8] === 0x57 && u8[9] === 0x45 && u8[10] === 0x42 && u8[11] === 0x50;
-      if (riff && webp) return "webp";
-    }
-  } catch {
-    // ignore
-  }
-  return "unknown";
-}
-
-function rotateCanvas180(srcCanvas) {
-  try {
-    const sw = srcCanvas?.width || 0;
-    const sh = srcCanvas?.height || 0;
-    if (!sw || !sh) return null;
-    const out = document.createElement("canvas");
-    out.width = sw;
-    out.height = sh;
-    const ctx = out.getContext("2d", { alpha: false });
-    if (!ctx) return null;
-    // white background
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, out.width, out.height);
-    ctx.translate(out.width, out.height);
-    ctx.rotate(Math.PI);
-    ctx.drawImage(srcCanvas, 0, 0);
-    return out;
-  } catch {
-    return null;
-  }
-}
-
-async function blobToJpegDataUrlBestEffort(blob, { quality = 0.92 } = {}) {
-  try {
-    const b = blob instanceof Blob ? blob : null;
-    if (!b) return "";
-    const objUrl = URL.createObjectURL(b);
-    try {
-      const img = await new Promise((resolve, reject) => {
-        const el = new Image();
-        el.onload = () => resolve(el);
-        el.onerror = reject;
-        el.src = objUrl;
-      });
-      const canvas = document.createElement("canvas");
-      canvas.width = img.naturalWidth || img.width || 0;
-      canvas.height = img.naturalHeight || img.height || 0;
-      if (!canvas.width || !canvas.height) return "";
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return "";
-      ctx.imageSmoothingEnabled = true;
-      try {
-        ctx.imageSmoothingQuality = "high";
-      } catch {
-        // ignore
-      }
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      const processed =
-        extractPassportCanvasFromCanvas(canvas, {
-          paddingLeftRightPx: 40,
-          paddingBottomPx: 60,
-          paddingTopPx: 8,
-        }) || canvas;
-      // Keep same behavior as /settings/documents/beratungsvertrag live preview:
-      // After robust crop+rotation normalization, rotate 180° to match scan output.
-      const rotated = rotateCanvas180(processed) || processed;
-      return rotated.toDataURL("image/jpeg", quality);
-    } finally {
-      URL.revokeObjectURL(objUrl);
-    }
-  } catch {
-    return "";
-  }
-}
-
-async function pdfArrayBufferFirstPageToJpegDataUrlBestEffort(
-  arrayBuffer,
-  {
-    scale = 2,
-    quality = 0.92,
-    // Crop away blank margins so embedded passport images don't look tiny in PDFs.
-    crop = true,
-    whiteThreshold = 245,
-    cropPaddingTopBottomPx = 60,
-    cropPaddingLeftRightPx = 40,
-    forcePortrait = true,
-  } = {}
-) {
-  try {
-    // pdfjs needs a worker; set it once (best-effort)
-    try {
-      // eslint-disable-next-line no-param-reassign
-      pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerSrc;
-    } catch {
-      // ignore
-    }
-
-    const ab = arrayBuffer instanceof ArrayBuffer ? arrayBuffer : null;
-    if (!ab) return "";
-    // pdfjs is most reliable with Uint8Array input
-    const doc = await pdfjsLib.getDocument({ data: new Uint8Array(ab) })
-      .promise;
-    const page = await doc.getPage(1);
-    const viewport = page.getViewport({ scale });
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.ceil(viewport.width);
-    canvas.height = Math.ceil(viewport.height);
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return "";
-    await page.render({ canvasContext: ctx, viewport }).promise;
-
-    if (!crop) return canvas.toDataURL("image/jpeg", quality);
-
-    // ---- Robust crop + rotation normalization (passport-only) ----
-    try {
-      const processed =
-        extractPassportCanvasFromCanvas(canvas, {
-          paddingLeftRightPx: cropPaddingLeftRightPx,
-          paddingBottomPx: cropPaddingTopBottomPx,
-          paddingTopPx: 8,
-        }) || canvas;
-      // Keep same behavior as /settings/documents/beratungsvertrag live preview:
-      // After robust crop+rotation normalization, rotate 180° to match scan output.
-      const rotated = rotateCanvas180(processed) || processed;
-      // forcePortrait kept for compatibility; extractor already prefers portrait
-      return rotated.toDataURL("image/jpeg", quality);
-    } catch {
-      return canvas.toDataURL("image/jpeg", quality);
-    }
-  } catch {
-    return "";
-  }
-}
-
-async function fetchUrlAsImageDataUrlBestEffort(url) {
-  const safeUrl = String(url || "").trim();
-  if (!safeUrl) return "";
-  try {
-    const proxyCandidates = buildProxyAssetUrlCandidates(safeUrl);
-    const rawAttempt = normalizeMaybeUrl(safeUrl);
-    // IMPORTANT:
-    // In production, json-api.uz links can work directly (CORS enabled for admin origin).
-    // The Contract template page works even without Functions base by using the raw URL.
-    // So we always try the raw URL first, then fall back to proxies.
-    const tryUrls = Array.from(
-      new Set([rawAttempt, ...(proxyCandidates || [])].filter(Boolean))
-    );
-
-    let res = null;
-    for (const attemptUrl of tryUrls) {
-      try {
-        const r = await fetch(String(attemptUrl || ""), { method: "GET" });
-        if (r && r.ok) {
-          res = r;
-          break;
-        }
-      } catch {
-        // ignore and try next
-      }
-    }
-    if (!res) return "";
-
-    const ct = String(res.headers.get("content-type") || "").toLowerCase();
-    const ab = await res.arrayBuffer();
-    const sniffed = sniffFileKindFromArrayBuffer(ab);
-    const looksPdf =
-      sniffed === "pdf" ||
-      ct.includes("application/pdf") ||
-      safeUrl.toLowerCase().includes(".pdf");
-
-    if (looksPdf) {
-      const jpg = await pdfArrayBufferFirstPageToJpegDataUrlBestEffort(ab);
-      return jpg || "";
-    }
-
-    const mimeFromSniff =
-      sniffed === "jpeg"
-        ? "image/jpeg"
-        : sniffed === "png"
-        ? "image/png"
-        : sniffed === "webp"
-        ? "image/webp"
-        : "";
-    const blob = new Blob([ab], {
-      type:
-        mimeFromSniff ||
-        (ct.startsWith("image/") ? ct : "application/octet-stream"),
-    });
-
-    const jpeg = await blobToJpegDataUrlBestEffort(blob);
-    if (jpeg) return jpeg;
-    return "";
-  } catch {
-    return "";
-  }
-}
-
-function toDateTimeLocalString(value) {
-  if (!value) return "";
-  function formatDateTimeLocalInTimeZone(date, timeZone) {
-    try {
-      const d = date instanceof Date ? date : new Date(date);
-      if (Number.isNaN(d.getTime())) return "";
-      const formatter = new Intl.DateTimeFormat("en-GB", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-        timeZone,
-      });
-      const parts = formatter.formatToParts(d).reduce((acc, part) => {
-        acc[part.type] = part.value;
-        return acc;
-      }, {});
-      if (
-        !parts.year ||
-        !parts.month ||
-        !parts.day ||
-        !parts.hour ||
-        !parts.minute
-      ) {
-        return "";
-      }
-      return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
-    } catch {
-      return "";
-    }
-  }
-
-  if (typeof value === "string") {
-    const s = value.trim();
-    if (!s) return "";
-    // datetime-local: yyyy-mm-ddThh:mm
-    // If it's already a plain datetime-local string (NO timezone info), keep as-is.
-    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(s))
-      return s.slice(0, 16);
-    // If it contains timezone (Z or +hh:mm/-hh:mm), normalize to Asia/Tashkent for the input.
-    if (/[zZ]$/.test(s) || /[+\-]\d{2}:\d{2}$/.test(s)) {
-      const out = formatDateTimeLocalInTimeZone(new Date(s), "Asia/Tashkent");
-      if (out) return out;
-    }
-    // yyyy-mm-dd -> yyyy-mm-ddT00:00
-    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return `${s}T00:00`;
-    // dd.mm.yyyy -> yyyy-mm-ddT00:00
-    const m = s.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-    if (m) {
-      const [, dd, mm, yyyy] = m;
-      return `${yyyy}-${mm}-${dd}T00:00`;
-    }
-    return "";
-  }
-  if (typeof value === "number") {
-    // IMPORTANT: datetime-local expects *local wall time*; toISOString() is UTC and shifts time.
-    // We standardize on Toshkent time for scheduling fields.
-    return formatDateTimeLocalInTimeZone(new Date(value), "Asia/Tashkent");
-  }
-  return "";
-}
-
-function inferLinkType(link, fallback = "zoom") {
-  const raw = String(link || "").toLowerCase();
-  if (raw.includes("t.me/") || raw.includes("telegram")) return "telegram";
-  return fallback;
-}
-
-function createEmptyStageInfo() {
-  return {
-    dateTime: "",
-    link: "",
-    linkType: "zoom",
-    useGeneratedLink: false,
-    locationName: "",
-    locationUrl: "",
-  };
-}
-
-function getTelegramGroupIdForStage(metaInfo, stageValue) {
-  const meta = metaInfo && typeof metaInfo === "object" ? metaInfo : {};
-  const internalType = String(
-    meta?.interviewInternal?.linkType || ""
-  ).toLowerCase();
-  const leadershipType = String(
-    meta?.interviewLeadership?.linkType || ""
-  ).toLowerCase();
-  const employerType = String(
-    meta?.interviewEmployer?.linkType || ""
-  ).toLowerCase();
-  const internal =
-    internalType === "telegram"
-      ? String(meta?.interviewInternal?.telegramGroupId || "").trim()
-      : "";
-  const leadership =
-    leadershipType === "telegram"
-      ? String(meta?.interviewLeadership?.telegramGroupId || "").trim()
-      : "";
-  const employer =
-    employerType === "telegram"
-      ? String(meta?.interviewEmployer?.telegramGroupId || "").trim()
-      : "";
-  const stage = String(stageValue || "").trim();
-  if (stage === "stage_1") return internal || "";
-  if (stage === "stage_2") return leadership || internal || "";
-  if (stage === "stage_3" || stage === "stage_4")
-    return employer || leadership || internal || "";
-  return leadership || internal || employer || "";
-}
-
-function ensureTelegramGroupNameFactory({
-  getDocFn,
-  docFn,
-  dbRef,
-  cacheRef,
-  setMap,
-}) {
-  return async function ensureTelegramGroupName(groupDocId) {
-    const id = String(groupDocId || "").trim();
-    if (!id) return "";
-    const cached = cacheRef.current?.[id];
-    if (cached) return String(cached || "");
-    try {
-      const snap = await getDocFn(docFn(dbRef, "telegram_groups", id));
-      const data = snap.exists() ? snap.data() || {} : {};
-      const name = String(data?.name || "").trim() || id;
-      cacheRef.current = { ...(cacheRef.current || {}), [id]: name };
-      setMap((prev) => ({ ...(prev || {}), [id]: name }));
-      return name;
-    } catch {
-      const fallback = id;
-      cacheRef.current = { ...(cacheRef.current || {}), [id]: fallback };
-      setMap((prev) => ({ ...(prev || {}), [id]: fallback }));
-      return fallback;
-    }
-  };
-}
-
-function formatGermanAddress(parts) {
-  const street = String(parts?.street || "").trim();
-  const houseNumber = String(parts?.houseNumber || "").trim();
-  const postalCode = String(parts?.postalCode || "").trim();
-  const city = String(parts?.city || "").trim();
-  const country = String(parts?.country || "").trim();
-
-  const streetLine = [street, houseNumber].filter(Boolean).join(" ").trim();
-  const cityLine = [postalCode, city].filter(Boolean).join(" ").trim();
-  return [streetLine, cityLine, country].filter(Boolean).join(", ").trim();
-}
-
-function parseGermanAddress(raw) {
-  const normalized = String(raw || "")
-    .replace(/\s*\n+\s*/g, ", ")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-
-  if (!normalized) {
-    return {
-      street: "",
-      houseNumber: "",
-      postalCode: "",
-      city: "",
-      country: "",
-    };
-  }
-
-  const parts = normalized
-    .split(",")
-    .map((p) => p.trim())
-    .filter(Boolean);
-
-  let streetLine = normalized;
-  let postalCode = "";
-  let city = "";
-  let country = "";
-
-  // If we have 3 parts like: "Street 1", "12345 Berlin", "Deutschland"
-  if (parts.length >= 3) {
-    const maybeCountry = parts[parts.length - 1];
-    if (maybeCountry && !/\d/.test(maybeCountry)) {
-      country = maybeCountry;
-      streetLine = parts.slice(0, parts.length - 1).join(", ");
-    }
-  }
-
-  // Split off postal code + city at the end, if present:
-  // "... , 12345 Berlin" (DE) or "... , 150100 Fergana" (UZ)
-  // Create.jsx currently collects 6-digit codes, so we support both 5 and 6 digits
-  // to avoid corrupt parsing ("1" leaking into house number, etc.).
-  const mPlz = streetLine.match(/^(.*?)(?:,\s*)?(\d{5,6})\s+(.+)$/);
-  if (mPlz) {
-    streetLine = String(mPlz[1] || "")
-      .trim()
-      .replace(/,+\s*$/, "");
-    postalCode = String(mPlz[2] || "").trim();
-    city = String(mPlz[3] || "").trim();
-  }
-
-  let street = streetLine;
-  let houseNumber = "";
-  const mHouse = streetLine.match(/^(.*\D)\s+(\d+\w*)$/);
-  if (mHouse) {
-    street = String(mHouse[1] || "").trim();
-    houseNumber = String(mHouse[2] || "").trim();
-  }
-
-  return { street, houseNumber, postalCode, city, country };
-}
-
-function isGermanAddressComplete(parts) {
-  return (
-    Boolean(String(parts?.street || "").trim()) &&
-    Boolean(String(parts?.houseNumber || "").trim()) &&
-    /^\d{5,6}$/.test(String(parts?.postalCode || "").trim()) &&
-    Boolean(String(parts?.city || "").trim()) &&
-    Boolean(String(parts?.country || "").trim())
-  );
-}
+import {
+  safeJson,
+  safeClone,
+  todayDdMmYyyy,
+  toDateTimeLocalString,
+  parseGermanAddress,
+  formatGermanAddress,
+  isGermanAddressComplete,
+  inferLinkType,
+  createEmptyStageInfo,
+  getTelegramGroupIdForStage,
+  ensureTelegramGroupNameFactory,
+  buildProxyAssetUrl,
+  fetchUrlAsImageDataUrlBestEffort,
+} from "./generate/utils";
+import { usePdfGeneration } from "./generate/hooks";
+import { useDocumentManagement } from "./generate/hooks";
+import { useFormNormalization } from "./generate/hooks";
+import { useAddressManagement } from "./generate/hooks";
+import {
+  DRIVING_LICENSE_OPTIONS,
+  LANG_CERT_TYPES,
+  INITIAL_FORM,
+} from "./generate/constants/formDefaults";
 
 function Generate() {
   const { major, id } = useParams();
@@ -732,36 +170,6 @@ function Generate() {
       return false;
     }
   }, []);
-  const DRIVING_LICENSE_OPTIONS = useMemo(
-    () => [
-      "AM",
-      "A1",
-      "A2",
-      "A",
-      "B",
-      "BE",
-      "C1",
-      "C1E",
-      "C",
-      "CE",
-      "D1",
-      "D1E",
-      "D",
-      "DE",
-      "T",
-    ],
-    []
-  );
-  const LANG_CERT_TYPES = useMemo(
-    () => [
-      "DAF Sprachzentrum Zertifikat",
-      "Goethe-Zertifikat",
-      "TestDaF",
-      "telc Deutsch",
-      "ÖSD",
-    ],
-    []
-  );
   const [docCv, setDocCv] = useState(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -926,8 +334,13 @@ function Generate() {
       experience: [],
       education: [],
       skills: { softSkills: [], pcSkills: [], languages: {} },
-      documents: { diplomas: [], certificates: [], passport: [] },
-      languageCertificatesDetailed: [],
+      documents: {
+        diplomas: [],
+        certificates: [],
+        certificatesDetailed: [],
+        passport: [],
+        noLanguageCertificate: false,
+      },
       commentar: "",
     }),
     []
@@ -1044,18 +457,19 @@ function Generate() {
         certificates: Array.isArray(safe?.documents?.certificates)
           ? safe.documents.certificates.map((c) => String(c || ""))
           : [],
+        certificatesDetailed: Array.isArray(
+          safe?.documents?.certificatesDetailed
+        )
+          ? safe.documents.certificatesDetailed.map((cert) => ({
+              url: String(cert?.url || "").trim(),
+              type: String(cert?.type || "").trim(),
+            }))
+          : [],
         passport: Array.isArray(safe?.documents?.passport)
           ? safe.documents.passport.map((p) => String(p || ""))
           : [],
+        noLanguageCertificate: Boolean(safe?.documents?.noLanguageCertificate),
       },
-      languageCertificatesDetailed: Array.isArray(
-        safe?.languageCertificatesDetailed
-      )
-        ? safe.languageCertificatesDetailed.map((cert) => ({
-            url: String(cert?.url || "").trim(),
-            type: String(cert?.type || "").trim(),
-          }))
-        : [],
       commentar: commentHtml,
     };
   }
@@ -2485,78 +1899,27 @@ function Generate() {
     };
 
     const f = data?.faehigkeiten || {};
-    const d = data?.dokumente || {};
-    const att = data?.attachments || {};
+    const docs = data?.documents || {};
 
-    let diplomas = [];
-    if (Array.isArray(d?.diplome)) {
-      diplomas = d.diplome;
-    } else if (typeof d?.diplome === "string" && String(d.diplome).trim()) {
-      diplomas = [d.diplome];
-    } else if (Array.isArray(att?.diplomas)) {
-      diplomas = att.diplomas;
-    } else if (
-      typeof att?.diplomas === "string" &&
-      String(att.diplomas).trim()
-    ) {
-      diplomas = [att.diplomas];
-    }
-    diplomas = Array.isArray(diplomas)
-      ? diplomas.map((u) => String(u || "").trim()).filter(Boolean)
+    // Read from canonical documents object
+    let diplomas = Array.isArray(docs?.diplomas)
+      ? docs.diplomas.map((u) => String(u || "").trim()).filter(Boolean)
       : [];
 
-    let certificates = [];
-    let languageCertificatesDetailed = [];
-
-    // Handle languageCertificatesDetailed first (from Create.jsx format)
-    if (Array.isArray(att?.languageCertificatesDetailed)) {
-      languageCertificatesDetailed = att.languageCertificatesDetailed;
-      // Extract URLs for backward compatibility
-      certificates = att.languageCertificatesDetailed
-        .map((cert) => cert.url)
-        .filter((url) => url && typeof url === "string");
-    } else if (Array.isArray(d?.zertifikate)) {
-      certificates = d.zertifikate;
-    } else if (
-      typeof d?.zertifikate === "string" &&
-      String(d.zertifikate).trim()
-    ) {
-      certificates = [d.zertifikate];
-    } else if (Array.isArray(att?.languageCertificates)) {
-      certificates = att.languageCertificates;
-    } else if (
-      typeof att?.languageCertificates === "string" &&
-      String(att.languageCertificates).trim()
-    ) {
-      certificates = [att.languageCertificates];
-    }
-    certificates = Array.isArray(certificates)
-      ? certificates.map((u) => String(u || "").trim()).filter(Boolean)
+    const certificates = Array.isArray(docs?.certificates)
+      ? docs.certificates.map((u) => String(u || "").trim()).filter(Boolean)
       : [];
 
-    const passportCandidates = [
-      att?.passport,
-      ...(Array.isArray(att?.passports) ? att.passports : []),
-      d?.reisepass,
-      d?.passport,
-      ...(Array.isArray(d?.reisepaesse) ? d.reisepaesse : []),
-      ...(Array.isArray(d?.passports) ? d.passports : []),
-      (data?.documents || {})?.passport,
-      ...(Array.isArray((data?.documents || {})?.passports)
-        ? (data?.documents || {})?.passports
-        : []),
-    ];
-    const passport = passportCandidates
-      .flatMap((p) => (Array.isArray(p) ? p : [p]))
-      .map((p) => String(p || "").trim())
-      .filter(Boolean);
-    // Dedupe (some docs store the same URL in multiple legacy fields)
-    const seenPassport = new Set();
-    let passportUnique = passport.filter((u) => {
-      if (seenPassport.has(u)) return false;
-      seenPassport.add(u);
-      return true;
-    });
+    const certificatesDetailed = Array.isArray(docs?.certificatesDetailed)
+      ? docs.certificatesDetailed.map((cert) => ({
+          url: String(cert?.url || "").trim(),
+          type: String(cert?.type || "").trim(),
+        }))
+      : [];
+
+    let passportUnique = Array.isArray(docs?.passport)
+      ? docs.passport.map((p) => String(p || "").trim()).filter(Boolean)
+      : [];
 
     // Conservative fallback: only treat a diploma entry as passport if its name
     // looks like a passport (contains "pass" / "reisepass"). This avoids
@@ -2642,9 +2005,10 @@ function Generate() {
       documents: {
         diplomas,
         certificates,
+        certificatesDetailed,
         passport: passportUnique,
+        noLanguageCertificate: Boolean(docs?.noLanguageCertificate),
       },
-      languageCertificatesDetailed,
       commentar: String(data?.commentar || ""),
     };
   }
@@ -2702,31 +2066,22 @@ function Generate() {
         pcKenntnisse: f.skills?.pcSkills || [],
         sprachen: f.skills?.languages || {},
       },
-      dokumente: {
-        diplome: f.documents?.diplomas || [],
-        zertifikate: f.documents?.certificates || [],
-        reisepass: f.documents?.passport || [],
-        reisepaesse: Array.isArray(f.documents?.passport)
-          ? f.documents.passport
-          : [],
-      },
       documents: {
         diplomas: f.documents?.diplomas || [],
         certificates: f.documents?.certificates || [],
+        certificatesDetailed: Array.isArray(f?.documents?.certificatesDetailed)
+          ? f.documents.certificatesDetailed.map((cert) => ({
+              url: String(cert?.url || "").trim(),
+              type: String(cert?.type || "").trim(),
+            }))
+          : [],
         passport: Array.isArray(f.documents?.passport)
           ? f.documents.passport
           : f.documents?.passport
           ? [f.documents.passport]
           : [],
+        noLanguageCertificate: Boolean(f?.documents?.noLanguageCertificate),
       },
-      languageCertificatesDetailed: Array.isArray(
-        f?.languageCertificatesDetailed
-      )
-        ? f.languageCertificatesDetailed.map((cert) => ({
-            url: String(cert?.url || "").trim(),
-            type: String(cert?.type || "").trim(),
-          }))
-        : [],
       commentar: String(getCommentHtml(f) || ""),
     };
   }
@@ -2781,25 +2136,26 @@ function Generate() {
           updatedDocs[selectedDocumentType] = [];
         }
 
-        // For certificates, also update languageCertificatesDetailed if type is selected
+        // For certificates, also update certificatesDetailed if type is selected
         if (selectedDocumentType === "certificates") {
-          // Add to regular certificates array for backward compatibility
+          // Add to regular certificates array
           updatedDocs[selectedDocumentType] = [
             ...updatedDocs[selectedDocumentType],
             url,
           ];
 
-          // Also add to languageCertificatesDetailed with empty type (user will set type later)
+          // Also add to certificatesDetailed with empty type (user will set type later)
           const updatedDetailed = Array.isArray(
-            prev.languageCertificatesDetailed
+            prev.documents?.certificatesDetailed
           )
-            ? [...prev.languageCertificatesDetailed, { url, type: "" }]
+            ? [...prev.documents.certificatesDetailed, { url, type: "" }]
             : [{ url, type: "" }];
+
+          updatedDocs.certificatesDetailed = updatedDetailed;
 
           updatedForm = {
             ...prev,
             documents: updatedDocs,
-            languageCertificatesDetailed: updatedDetailed,
           };
         } else {
           // For passport and diplomas, just add to regular arrays
@@ -2832,8 +2188,6 @@ function Generate() {
 
           await updateDocument(collectionName, candidateDocId, {
             documents: docData.documents,
-            dokumente: docData.dokumente,
-            languageCertificatesDetailed: docData.languageCertificatesDetailed,
           });
 
           toast.success(
@@ -3247,6 +2601,24 @@ function Generate() {
         throw new Error("E-Mail wurde nicht gesendet (success=false).");
       }
 
+      // Send via Telegram if candidate has telegramId
+      const candidateTelegramId = docCv?.telegramId;
+      if (candidateTelegramId) {
+        try {
+          await sendEmailViaTelegram({
+            telegramId: candidateTelegramId,
+            subject,
+            htmlContent,
+          });
+          toast.success("Xabar Telegram orqali ham yuborildi! 📱");
+        } catch (telegramError) {
+          console.error("Failed to send via Telegram:", telegramError);
+          toast.error(
+            "E-Mail yuborildi, lekin Telegram xabar yuborishda xatolik."
+          );
+        }
+      }
+
       // Count "sent" telegram invites when email was successfully sent with telegram link
       try {
         const usedTelegramLink =
@@ -3545,6 +2917,24 @@ function Generate() {
       });
       if (res?.success === false) {
         throw new Error("E-Mail wurde nicht gesendet (success=false).");
+      }
+
+      // Send via Telegram if candidate has telegramId
+      const candidateTelegramId = docCv?.telegramId;
+      if (candidateTelegramId) {
+        try {
+          await sendEmailViaTelegram({
+            telegramId: candidateTelegramId,
+            subject: safeSubject,
+            htmlContent: finalHtml,
+          });
+          toast.success("Xabar Telegram orqali ham yuborildi! 📱");
+        } catch (telegramError) {
+          console.error("Failed to send via Telegram:", telegramError);
+          toast.error(
+            "E-Mail yuborildi, lekin Telegram xabar yuborishda xatolik."
+          );
+        }
       }
 
       // Count "sent" telegram invites for custom email (if telegram link was included)
@@ -4736,9 +4126,20 @@ function Generate() {
               <section className={formSectionClass}>
                 <div className="card-body space-y-4 min-h-[calc(100vh-2rem)]pb-4">
                   <div className="flex items-center justify-between gap-3">
-                    <h2 className="card-title text-2xl font-bold">
-                      Daten bearbeiten
-                    </h2>
+                    <div className="flex items-center gap-3">
+                      <h2 className="card-title text-2xl font-bold">
+                        Daten bearbeiten
+                      </h2>
+                      {docCv?.telegramId ? (
+                        <span
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0088cc]/10 text-[#0088cc] text-sm font-medium"
+                          title="Über Telegram registriert"
+                        >
+                          <FaTelegram className="w-3.5 h-3.5" />
+                          <span className="text-xs">Telegram</span>
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
 
                   {isLimitedAdmin && (
@@ -5694,8 +5095,9 @@ function Generate() {
                           Zertifikate
                         </h4>
                         <div className="flex flex-col gap-2">
-                          {(!formCv.languageCertificatesDetailed ||
-                            formCv.languageCertificatesDetailed.length === 0) &&
+                          {(!formCv.documents?.certificatesDetailed ||
+                            formCv.documents.certificatesDetailed.length ===
+                              0) &&
                           (!formCv.documents?.certificates ||
                             formCv.documents.certificates.length === 0) ? (
                             <div className="p-3 bg-base-200 rounded text-sm text-center opacity-60 italic border border-dashed border-base-300">
@@ -5707,11 +5109,11 @@ function Generate() {
                                 Nur PDF
                               </div>
                               <ul className="space-y-2">
-                                {/* Show languageCertificatesDetailed if available */}
+                                {/* Show certificatesDetailed if available */}
                                 {Array.isArray(
-                                  formCv.languageCertificatesDetailed
+                                  formCv.documents?.certificatesDetailed
                                 ) &&
-                                  formCv.languageCertificatesDetailed.map(
+                                  formCv.documents.certificatesDetailed.map(
                                     (cert, i) => {
                                       const isMarkedForDeletion =
                                         documentsMarkedForDeletion.certificates.some(
@@ -5794,16 +5196,19 @@ function Generate() {
                                               onChange={(e) => {
                                                 setFormCv((prev) => {
                                                   const updatedDetailed = [
-                                                    ...prev.languageCertificatesDetailed,
+                                                    ...prev.documents
+                                                      .certificatesDetailed,
                                                   ];
                                                   updatedDetailed[i] = {
                                                     ...updatedDetailed[i],
                                                     type: e.target.value,
                                                   };
 
-                                                  // Also update the regular certificates array for backward compatibility
+                                                  // Also update the regular certificates array
                                                   const updatedDocs = {
                                                     ...prev.documents,
+                                                    certificatesDetailed:
+                                                      updatedDetailed,
                                                   };
                                                   updatedDocs.certificates =
                                                     updatedDetailed
@@ -5818,8 +5223,6 @@ function Generate() {
                                                   const updatedForm = {
                                                     ...prev,
                                                     documents: updatedDocs,
-                                                    languageCertificatesDetailed:
-                                                      updatedDetailed,
                                                   };
 
                                                   // Auto-save certificate type change to Firebase
@@ -5846,8 +5249,8 @@ function Generate() {
                                                           collectionName,
                                                           candidateDocId,
                                                           {
-                                                            languageCertificatesDetailed:
-                                                              docData.languageCertificatesDetailed,
+                                                            documents:
+                                                              docData.documents,
                                                           }
                                                         );
                                                       }
@@ -5884,11 +5287,12 @@ function Generate() {
                                     }
                                   )}
 
-                                {/* Show legacy certificates if no languageCertificatesDetailed */}
+                                {/* Show legacy certificates if no certificatesDetailed */}
                                 {!Array.isArray(
-                                  formCv.languageCertificatesDetailed
+                                  formCv.documents?.certificatesDetailed
                                 ) ||
-                                formCv.languageCertificatesDetailed.length === 0
+                                formCv.documents.certificatesDetailed.length ===
+                                  0
                                   ? formCv.documents?.certificates?.map(
                                       (url, i) => {
                                         const isMarkedForDeletion =
@@ -6571,6 +5975,7 @@ function Generate() {
         examples={stageEmailPreview?.examples || null}
         selectedExample={selectedExample}
         setSelectedExample={setSelectedExample}
+        hasTelegramId={Boolean(docCv?.telegramId)}
       />
 
       <CustomEmailModal
