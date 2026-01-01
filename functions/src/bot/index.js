@@ -2,7 +2,7 @@ const { Telegraf } = require("telegraf");
 const logger = require("firebase-functions/logger");
 
 // Required channel ID - users must join this channel to use the bot
-const REQUIRED_CHANNEL_ID = "-1001516217763"; // https://t.me/akhror_web
+const REQUIRED_CHANNEL_ID = "-1001561510642"; // https://t.me/Consulting_UZB
 
 module.exports = (db, token) => {
   if (!token) {
@@ -59,7 +59,7 @@ module.exports = (db, token) => {
                 [
                   {
                     text: "📢 Kanalga a'zo bo'lish",
-                    url: "https://t.me/akhror_web",
+                    url: "https://t.me/Consulting_UZB",
                   },
                 ],
                 [
