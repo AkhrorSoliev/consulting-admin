@@ -42,6 +42,10 @@ exports.health = onRequest((req, res) => {
   });
 });
 
+// Download proxy to bypass CORS and force download with correct filename
+const { downloadProxy } = require("./src/downloadProxy");
+exports.downloadProxy = downloadProxy;
+
 // ---- Helper ----
 function setCors(req, res) {
   const origin = req.get("Origin") || "";

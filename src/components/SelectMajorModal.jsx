@@ -1,3 +1,5 @@
+import { FiX, FiCheck } from "react-icons/fi";
+
 export default function SelectMajorModal({
   open,
   majors,
@@ -38,7 +40,7 @@ export default function SelectMajorModal({
                 if (confirming) return;
                 onCancel?.();
               }}
-              aria-label="Modalni yopish"
+              aria-label="Modal schließen"
             >
               ✕
             </button>
@@ -46,14 +48,15 @@ export default function SelectMajorModal({
 
           {list.length === 0 ? (
             <div className="rounded-lg border border-base-300 bg-base-200/60 p-4">
-              Majorlar ro&apos;yxati bo&apos;sh.
+              Keine Berufsfelder verfügbar.
             </div>
           ) : (
             <div className="max-h-[55vh] overflow-auto rounded-lg border border-base-300 bg-base-100">
               <ul className="divide-y divide-base-200">
                 {list.map((m) => {
-                  const key = String(m?.collectionName || m?.linkId || m?.id || "")
-                    .trim();
+                  const key = String(
+                    m?.collectionName || m?.linkId || m?.id || ""
+                  ).trim();
                   if (!key) return null;
                   const label = String(m?.title || m?.name || key).trim();
                   const secondary = String(m?.collectionName || "").trim();
@@ -96,7 +99,8 @@ export default function SelectMajorModal({
               }}
               disabled={confirming}
             >
-              Bekor qilish
+              <FiX size={18} />
+              Abbrechen
             </button>
             <button
               type="button"
@@ -107,10 +111,13 @@ export default function SelectMajorModal({
               {confirming ? (
                 <>
                   <span className="loading loading-spinner loading-sm" />
-                  Tiklanmoqda...
+                  Wird wiederhergestellt...
                 </>
               ) : (
-                "Tasdiqlash"
+                <>
+                  <FiCheck size={18} />
+                  Bestätigen
+                </>
               )}
             </button>
           </div>
@@ -119,5 +126,3 @@ export default function SelectMajorModal({
     </div>
   );
 }
-
-

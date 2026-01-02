@@ -33,11 +33,18 @@ import CandidatesDeletedUsers from "./pages/candidates/CandidatesDeletedUsers";
 import Vermittlungsvertrag from "./pages/Vermittlungsvertrag";
 import Vollmacht from "./pages/Vollmacht";
 import VollmachtArbeitgeber from "./pages/VollmachtArbeitgeber";
+import DataExchange from "./pages/DataExchange";
+import NotFound from "./pages/NotFound";
 
 function DocumentsLegacyRedirect() {
   const { templateId } = useParams();
   const t = String(templateId || "").trim();
-  return <Navigate to={t ? `/settings/documents/${t}` : "/settings/documents"} replace />;
+  return (
+    <Navigate
+      to={t ? `/settings/documents/${t}` : "/settings/documents"}
+      replace
+    />
+  );
 }
 
 function App() {
@@ -79,9 +86,15 @@ function App() {
               children: [
                 { index: true, element: <DocumentsSettings /> },
                 { path: "beratungsvertrag", element: <Contract /> },
-                { path: "vermittlungsvertrag", element: <Vermittlungsvertrag /> },
+                {
+                  path: "vermittlungsvertrag",
+                  element: <Vermittlungsvertrag />,
+                },
                 { path: "vollmacht", element: <Vollmacht /> },
-                { path: "vollmacht-arbeitgeber", element: <VollmachtArbeitgeber /> },
+                {
+                  path: "vollmacht-arbeitgeber",
+                  element: <VollmachtArbeitgeber />,
+                },
               ],
             },
           ],
@@ -113,6 +126,14 @@ function App() {
     {
       path: "/create",
       element: <Create />,
+    },
+    {
+      path: "/dataExchange/:id",
+      element: <DataExchange />,
+    },
+    {
+      path: "*",
+      element: <NotFound />,
     },
   ]);
 

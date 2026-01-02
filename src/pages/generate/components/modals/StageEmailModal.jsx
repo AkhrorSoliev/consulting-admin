@@ -270,42 +270,44 @@ export default function StageEmailModal({
                         />
                       </div>
                       <div className="form-control">
-                        <label className="label" htmlFor="stage-email-link">
-                          <span className="label-text font-medium">Link</span>
-                        </label>
-                        <div className="flex items-center gap-2 mb-2">
-                          <input
-                            id="stage-email-link-generate"
-                            type="checkbox"
-                            className="checkbox checkbox-sm"
-                            checked={useGeneratedLink}
-                            disabled={!allowAutoGenerateTelegram}
-                            onChange={(e) =>
-                              setAdditionalInfoForm?.((prev) => ({
-                                ...(prev || {}),
-                                useGeneratedLink: Boolean(e.target.checked),
-                              }))
-                            }
-                          />
-                          <label
-                            htmlFor="stage-email-link-generate"
-                            className={`text-sm ${
-                              allowAutoGenerateTelegram ? "" : "opacity-60"
-                            }`}
-                          >
-                            {allowAutoGenerateTelegram ? (
-                              <span className="text-xs opacity-70">
-                                Telegram guruh nomi:{" "}
-                                <span className="font-semibold">
-                                  {String(autoTelegramGroupLabel || "—")}
-                                </span>
-                              </span>
-                            ) : (
-                              <span className="text-xs opacity-60">
-                                Guruh: —
-                              </span>
-                            )}
+                        <div className="flex items-center gap-2">
+                          <label className="label" htmlFor="stage-email-link">
+                            <span className="label-text font-medium">Link</span>
                           </label>
+                          <div className="flex items-center gap-2 mb-2">
+                            <input
+                              id="stage-email-link-generate"
+                              type="checkbox"
+                              className="checkbox checkbox-sm"
+                              checked={useGeneratedLink}
+                              disabled={!allowAutoGenerateTelegram}
+                              onChange={(e) =>
+                                setAdditionalInfoForm?.((prev) => ({
+                                  ...(prev || {}),
+                                  useGeneratedLink: Boolean(e.target.checked),
+                                }))
+                              }
+                            />
+                            <label
+                              htmlFor="stage-email-link-generate"
+                              className={`text-sm ${
+                                allowAutoGenerateTelegram ? "" : "opacity-60"
+                              }`}
+                            >
+                              {allowAutoGenerateTelegram ? (
+                                <span className="text-xs opacity-70">
+                                  Telegram guruh nomi:{" "}
+                                  <span className="font-semibold">
+                                    {String(autoTelegramGroupLabel || "—")}
+                                  </span>
+                                </span>
+                              ) : (
+                                <span className="text-xs opacity-60">
+                                  Guruh: —
+                                </span>
+                              )}
+                            </label>
+                          </div>
                         </div>
                         <input
                           id="stage-email-link"

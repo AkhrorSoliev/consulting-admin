@@ -1588,19 +1588,10 @@ function Generate() {
         }
       }
 
-      // If no major (or unknown) -> ask user to choose
-      if (!majorKey || !resolvedMeta?.collectionName) {
-        setMajorModalKey("");
-        setMajorModalOpen(true);
-        return;
-      }
-
-      const ok = window.confirm(
-        `Möchten Sie den Kandidaten wiederherstellen?\n\nBereich (Major): ${
-          resolvedMeta?.title || resolvedMeta?.collectionName || majorKey
-        }\n\nHinweis: Nach der Wiederherstellung können E-Mails versendet werden.`
-      );
-      if (!ok) return;
+      // Always open Berufsfeld selection modal to allow choosing any major
+      setMajorModalKey(majorKey || "");
+      setMajorModalOpen(true);
+      return;
 
       // Restore based on source
       if (remoteKind === "all") {
@@ -2556,6 +2547,11 @@ function Generate() {
         }
       }
 
+      const dataExchangeLink =
+        stepValue === "stage_4" && normalizedDecision === "accepted"
+          ? `https://admin.consultinguz.de/dataExchange/${docId}`
+          : "";
+
       const { subject, message, htmlContent } = buildStatusEmailTemplate({
         statusValue: stepValue,
         firstName: formCv.personalInfo.name,
@@ -2564,6 +2560,7 @@ function Generate() {
         decisionNote,
         additionalInfo: info,
         copyOverrides: finalCopyOverrides,
+        dataExchangeLink,
       });
       const res = await sendBrevoEmail({
         to: recipientEmail,
@@ -2588,6 +2585,7 @@ function Generate() {
             decisionNote,
             additionalInfo: info,
             copyOverrides: finalCopyOverrides,
+            dataExchangeLink,
           });
           toast.success("Nachricht auch per Telegram gesendet! 📱");
         } catch (telegramError) {
@@ -3058,7 +3056,7 @@ function Generate() {
 
   function handleSendStatusEmail(stepValue) {
     if (isLimitedAdmin) {
-      toast.error("Sizda e-mail yuborish uchun ruxsat yo‘q.");
+      toast.error("Sizda e-mail yuborish uchun ruxsat yo'q.");
       return;
     }
     if (stepValue !== statusValue) {
@@ -3081,11 +3079,23 @@ function Generate() {
     }
     setPendingStageStep(stepValue);
     setStageDecision("accepted");
+
+    const docId = String(id || "").trim();
+    const dataExchangeLink =
+      stepValue === "stage_4" && docId
+        ? `https://admin.consultinguz.de/dataExchange/${docId}`
+        : "";
+
     setStageAdditionalInfoForm({
       dateTime: toDateTimeLocalString(initialInfo?.dateTime),
-      link: String(initialInfo?.link || ""),
+      link:
+        stepValue === "stage_4" && dataExchangeLink
+          ? dataExchangeLink
+          : String(initialInfo?.link || ""),
       linkType:
-        initialInfo?.linkType === "telegram"
+        stepValue === "stage_4"
+          ? "other"
+          : initialInfo?.linkType === "telegram"
           ? "telegram"
           : inferLinkType(initialInfo?.link, "zoom"),
       useGeneratedLink:
@@ -3533,6 +3543,16 @@ function Generate() {
             majorLabel: col,
           });
         }
+      }
+
+      // Create/update metadata for DataExchange
+      try {
+        await updateDocument("candidate_metadata", docId, {
+          collectionName: col,
+          updatedAt: Date.now(),
+        });
+      } catch (metaErr) {
+        console.error("Error updating candidate metadata:", metaErr);
       }
 
       // JSON API all_users sync removed as per requirements
@@ -5338,6 +5358,85 @@ function Generate() {
                         </div>
                       )}
                     </CollapsibleSection>
+
+                    <CollapsibleSection
+                      title="Von Kandidat erhaltene Dokumente"
+                      count={
+                        docCv?.incomingDocuments
+                          ? Object.keys(docCv.incomingDocuments).length
+                          : 0
+                      }
+                      defaultOpen={false}
+                    >
+                      {(() => {
+                        const incomingDocs = docCv?.incomingDocuments || {};
+                        const entries = Object.entries(incomingDocs).filter(
+                          ([, v]) =>
+                            v &&
+                            typeof v === "object" &&
+                            String(v?.url || "").trim()
+                        );
+
+                        if (entries.length === 0) {
+                          return (
+                            <div className="p-3 bg-base-200 rounded text-sm text-center opacity-60 italic border border-dashed border-base-300">
+                              Keine Dokumente vom Kandidaten erhalten.
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="space-y-3">
+                            {entries.map(([docId, docData]) => {
+                              const fileName =
+                                String(docData?.fileName || "").trim() ||
+                                "Dokument";
+                              const url = String(docData?.url || "").trim();
+                              const uploadedAt = docData?.uploadedAt;
+
+                              return (
+                                <div
+                                  key={docId}
+                                  className="border border-base-300 rounded-lg p-3 bg-base-50"
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-semibold text-sm mb-1">
+                                        {fileName}
+                                      </div>
+                                      <a
+                                        href={url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="link link-primary text-xs break-all"
+                                      >
+                                        {url}
+                                      </a>
+                                      {uploadedAt && (
+                                        <div className="text-xs text-base-content/60 mt-1">
+                                          Hochgeladen:{" "}
+                                          {new Date(uploadedAt).toLocaleString(
+                                            "de-DE"
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <a
+                                      href={url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="btn btn-sm btn-outline gap-2"
+                                    >
+                                      <FaExternalLinkAlt />
+                                    </a>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </CollapsibleSection>
                   </fieldset>
 
                   {!isLimitedAdmin && (
@@ -5672,11 +5771,49 @@ function Generate() {
 
             <div className="card bg-base-100 border border-base-300 shadow-xl">
               <div className="card-body">
-                <div>
-                  <h3 className="card-title">Gesendete Dokumente (Links)</h3>
-                  <p className="text-sm text-base-content/70">
-                    Hochgeladene Dateilinks werden hier angezeigt.
-                  </p>
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div>
+                    <h3 className="card-title">Gesendete Dokumente (Links)</h3>
+                    <p className="text-sm text-base-content/70">
+                      Hochgeladene Dateilinks werden hier angezeigt.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-primary gap-2"
+                    onClick={async () => {
+                      const dataExchangeUrl = `${window.location.origin}/dataExchange/${candidateDocId}`;
+                      try {
+                        if (
+                          navigator?.clipboard &&
+                          typeof navigator.clipboard.writeText === "function"
+                        ) {
+                          await navigator.clipboard.writeText(dataExchangeUrl);
+                          toast.success("DataExchange-Link kopiert.");
+                        } else {
+                          throw new Error("clipboard-unavailable");
+                        }
+                      } catch {
+                        try {
+                          const ta = document.createElement("textarea");
+                          ta.value = dataExchangeUrl;
+                          ta.style.position = "fixed";
+                          ta.style.opacity = "0";
+                          document.body.appendChild(ta);
+                          ta.focus();
+                          ta.select();
+                          document.execCommand("copy");
+                          document.body.removeChild(ta);
+                          toast.success("DataExchange-Link kopiert.");
+                        } catch {
+                          toast.error("Fehler beim Kopieren des Links.");
+                        }
+                      }
+                    }}
+                    disabled={!candidateDocId}
+                  >
+                    Copy Link
+                  </button>
                 </div>
 
                 {(() => {

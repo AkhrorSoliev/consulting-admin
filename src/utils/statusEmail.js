@@ -234,6 +234,7 @@ export function buildStatusEmailTemplate({
   decisionNote,
   additionalInfo,
   copyOverrides,
+  dataExchangeLink,
 }) {
   const normalizedStatusValue = statusValue || CANDIDATE_STATUS_DEFAULT;
   const status = getCandidateStatus(normalizedStatusValue);
@@ -275,6 +276,11 @@ export function buildStatusEmailTemplate({
             .join(locationName && locationUrl ? " — " : ""),
         }
       : null,
+    normalizedStatusValue === "stage_4" &&
+    decision === "accepted" &&
+    dataExchangeLink
+      ? { label: "Hujjatlar yuklash havolasi", value: dataExchangeLink }
+      : null,
   ].filter(Boolean);
 
   const detailBlock = buildKeyValueBlock("Qo'shimcha ma'lumotlar:", extraRows);
@@ -313,12 +319,22 @@ export function buildStatusEmailTemplate({
     mainText,
     nextStepNote,
     additionalInfo:
-      dateTime || link || locationName || locationUrl
+      dateTime ||
+      link ||
+      locationName ||
+      locationUrl ||
+      (normalizedStatusValue === "stage_4" &&
+        decision === "accepted" &&
+        dataExchangeLink)
         ? {
             dateTime: dateTime || "",
             link: link || "",
             locationName: locationName || "",
             locationUrl: locationUrl || "",
+            dataExchangeLink:
+              normalizedStatusValue === "stage_4" && decision === "accepted"
+                ? dataExchangeLink || ""
+                : "",
           }
         : null,
     decisionNote: decisionNote || "",
@@ -475,6 +491,9 @@ function buildDetailRows({ additionalInfo, decisionNote, channelsText }) {
     const link = String(additionalInfo.link || "").trim();
     const locName = String(additionalInfo.locationName || "").trim();
     const locUrl = String(additionalInfo.locationUrl || "").trim();
+    const dataExchangeLink = String(
+      additionalInfo.dataExchangeLink || ""
+    ).trim();
     if (dt) {
       rows.push({
         label: "📅 Sana / Vaqt",
@@ -493,6 +512,12 @@ function buildDetailRows({ additionalInfo, decisionNote, channelsText }) {
         value: [locName || "", locUrl || ""]
           .filter(Boolean)
           .join(locName && locUrl ? " — " : ""),
+      });
+    }
+    if (dataExchangeLink) {
+      rows.push({
+        label: "📄 Hujjatlar yuklash havolasi",
+        value: dataExchangeLink,
       });
     }
   }
@@ -536,6 +561,7 @@ export function buildTelegramStatusMessage({
   decisionNote,
   additionalInfo,
   copyOverrides,
+  dataExchangeLink,
 }) {
   const normalizedStatusValue = statusValue || CANDIDATE_STATUS_DEFAULT;
   const status = getCandidateStatus(normalizedStatusValue);
@@ -598,8 +624,9 @@ export function buildTelegramStatusMessage({
   const link = String(additionalInfo?.link || "").trim();
   const locName = String(additionalInfo?.locationName || "").trim();
   const locUrl = String(additionalInfo?.locationUrl || "").trim();
+  const dataExchangeLinkTg = String(dataExchangeLink || "").trim();
 
-  if (dt || link || locName || locUrl) {
+  if (dt || link || locName || locUrl || dataExchangeLinkTg) {
     parts.push(`━━━━━━━━━━━━━━━\n`);
     parts.push(`📋 <b>Qo'shimcha ma'lumotlar:</b>\n`);
 
@@ -625,6 +652,12 @@ export function buildTelegramStatusMessage({
       } else {
         parts.push(`${locName}\n`);
       }
+    }
+    if (dataExchangeLinkTg) {
+      parts.push(`📄 <b>Hujjatlar yuklash havolasi:</b>`);
+      parts.push(
+        `👉 <a href="${dataExchangeLinkTg}">Hujjatlarni yuklash</a>\n`
+      );
     }
   }
 
@@ -655,6 +688,13 @@ export function buildTelegramStatusMessage({
         ? "🔗 Suhbat guruhiga qo'shilish"
         : "🔗 Suhbatga qo'shilish";
     keyboard.push([{ text: buttonText, url: link }]);
+  }
+
+  // Add DataExchange link button for stage_4 accepted
+  if (dataExchangeLinkTg) {
+    keyboard.push([
+      { text: "📄 Hujjatlarni yuklash", url: dataExchangeLinkTg },
+    ]);
   }
 
   // Add channel buttons

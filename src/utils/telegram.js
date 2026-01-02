@@ -132,6 +132,7 @@ export async function sendTelegramMessage(
  * @param {string} params.decisionNote - Optional decision note
  * @param {Object} params.additionalInfo - Additional info (dateTime, link, location)
  * @param {Object} params.copyOverrides - Copy overrides from template
+ * @param {string} params.dataExchangeLink - DataExchange link for stage_4 accepted
  * @returns {Promise<{ok: boolean, sent?: boolean, error?: string}>}
  */
 export async function sendStatusViaTelegram({
@@ -143,6 +144,7 @@ export async function sendStatusViaTelegram({
   decisionNote,
   additionalInfo,
   copyOverrides,
+  dataExchangeLink,
 }) {
   const { message, keyboard } = buildTelegramStatusMessage({
     statusValue,
@@ -152,6 +154,7 @@ export async function sendStatusViaTelegram({
     decisionNote,
     additionalInfo,
     copyOverrides,
+    dataExchangeLink,
   });
   return sendTelegramMessage(telegramId, message, "HTML", keyboard);
 }
