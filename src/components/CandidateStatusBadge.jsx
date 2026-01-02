@@ -10,13 +10,15 @@ const toneClass = {
 function CandidateStatusBadge({ value, className = "", display = "full" }) {
   const status = getCandidateStatus(value);
   const tone = status.badgeTone || "info";
-  const classes = `${toneClass[tone] || toneClass.info} badge min-w-0 max-w-full overflow-hidden ${className}`;
+  const classes = `bg-base-300 badge min-w-0 max-w-full overflow-hidden ${className}`;
 
   const normalized = String(value || "").trim();
   const m = normalized.match(/^stage_(\d+)$/);
   const stageNumber = m ? m[1] : "";
   const displayLabel =
-    display === "stage" && stageNumber ? `${stageNumber}-bosqich` : status.label;
+    display === "stage" && stageNumber
+      ? `${stageNumber}-bosqich`
+      : status.label;
 
   return (
     <span className={classes} title={status.label}>

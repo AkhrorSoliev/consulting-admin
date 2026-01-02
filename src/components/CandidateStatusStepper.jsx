@@ -37,16 +37,16 @@ function CandidateStatusStepper({
             const isCompleted = idx < currentIndex;
             const isSending = sendingValue === step.value;
             const borderClass = isCurrent
-              ? "border-primary bg-primary/5 shadow-lg"
+              ? "border-warning bg-warning/5 shadow-lg"
               : isCompleted
               ? "border-success bg-success/5"
               : "border-base-300 bg-base-100 opacity-60";
             const badgeClass = isCurrent
-              ? "bg-primary text-primary-content"
+              ? "bg-warning text-warning-content"
               : isCompleted
               ? "bg-success text-success-content"
               : "bg-base-300 text-base-content";
-            const btnClass = isCurrent ? "btn-primary" : "btn-outline";
+            const btnClass = isCurrent ? "btn-warning" : "btn-outline";
             return (
               <div
                 key={step.value}
