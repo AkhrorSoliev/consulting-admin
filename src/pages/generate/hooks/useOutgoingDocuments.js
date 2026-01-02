@@ -91,7 +91,6 @@ export function useOutgoingDocuments(
         });
         return true;
       } catch (e) {
-        console.error("persistOutgoingDocs failed:", e);
         toast.error("Hujjatlar bo'limini saqlashda xatolik.");
         outgoingDocsRef.current = prevSnapshot;
         setOutgoingDocs(prevSnapshot);

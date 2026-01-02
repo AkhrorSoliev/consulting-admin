@@ -1,10 +1,18 @@
 import { auth } from "../firebase/config";
 import { buildTelegramStatusMessage } from "./statusEmail";
 
-const FUNCTIONS_BASE_URL =
-  import.meta.env.MODE === "production"
-    ? "https://us-central1-consulting-admin-uz.cloudfunctions.net"
-    : "http://127.0.0.1:5001/consulting-bdb74/us-central1";
+function getFunctionsBaseUrl() {
+  const env = import.meta.env || {};
+  const explicit = String(env.VITE_FUNCTIONS_BASE || "").trim();
+  if (explicit) {
+    return explicit.replace(/\/+$/, "");
+  }
+  const projectId = String(env.VITE_FIREBASE_PROJECT_ID || "").trim();
+  if (projectId) {
+    return `https://us-central1-${projectId}.cloudfunctions.net`;
+  }
+  return "https://us-central1-consulting-bdb74.cloudfunctions.net";
+}
 
 /**
  * Convert HTML email template to Telegram-friendly format (LEGACY - for custom emails)
@@ -83,7 +91,7 @@ export async function sendTelegramMessage(
     }
 
     const token = await user.getIdToken();
-    const url = `${FUNCTIONS_BASE_URL}/sendTelegramMessage`;
+    const url = `${getFunctionsBaseUrl()}/sendTelegramMessage`;
 
     const response = await fetch(url, {
       method: "POST",
@@ -109,7 +117,6 @@ export async function sendTelegramMessage(
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("Failed to send Telegram message:", error);
     throw error;
   }
 }

@@ -103,7 +103,6 @@ export async function createCollection(name, createdBy) {
     try {
       await incrementDirectionsTotal();
     } catch (err) {
-      console.error("incrementDirectionsTotal failed:", err);
       // non-blocking: major creation should still succeed
     }
 
@@ -119,7 +118,6 @@ export async function createCollection(name, createdBy) {
     };
   } catch (error) {
     toast.error(`Fehler: ${error.message}`);
-    console.error("createCollection error:", error);
     return { created: false, reason: "error", error };
   }
 }
@@ -163,10 +161,7 @@ export async function getMetaByName(name) {
 export function subscribeToMetaByName(name, callback, onError) {
   const safe = String(name || "").trim();
   const cb = typeof callback === "function" ? callback : () => {};
-  const errCb =
-    typeof onError === "function"
-      ? onError
-      : (e) => console.error("subscribeToMetaByName error:", e);
+  const errCb = typeof onError === "function" ? onError : (e) => {};
 
   if (!safe) {
     try {
@@ -288,9 +283,7 @@ export function subscribeToCollections(callback) {
     });
 
     return unsubscribe;
-  } catch (error) {
-    console.error("subscribeToCollections error:", error);
-  }
+  } catch (error) {}
 }
 
 export async function deleteCollectionByName(name) {
@@ -313,7 +306,6 @@ export async function deleteCollectionByName(name) {
     toast.success(`Sammlung „${colName}“ wurde gelöscht!`);
   } catch (error) {
     toast.error(`Fehler: ${error.message}`);
-    console.error("deleteCollectionByName error:", error);
   }
 }
 
@@ -850,7 +842,6 @@ export async function upsertUserRemoteAllUsers({
     }
   } catch (e) {
     // ignore and fallback to POST
-    console.warn("upsertUserRemoteAllUsers: check/update failed:", e);
   }
 
   const res = await fetch(USERS_ALL_ENDPOINT, {
@@ -1236,14 +1227,10 @@ export async function deleteConsultingUploadUrlsStrict(urls) {
     new Set(list.map((u) => String(u || "").trim()).filter(Boolean))
   );
   if (unique.length === 0) {
-    console.debug(
-      "[upload-delete] No consultinguz file URLs found in snapshot."
-    );
     return { ok: true, deleted: 0 };
   }
 
   // Promise.all to match expected behavior; enrich error with url for debugging.
-  console.debug("[upload-delete] Deleting consultinguz files:", unique);
   await Promise.all(
     unique.map((u) =>
       deleteUploadedFileRemote(u).catch((e) => {
@@ -1314,9 +1301,6 @@ export async function registerPassportRemote(passportNumber, major) {
   });
   // If the endpoint doesn't exist, don't block the overall submission flow.
   if (res.status === 404) {
-    console.warn(
-      "[passport-registry] Endpoint missing (404). Create json-api.uz collection 'all_Passports' or update the endpoint path."
-    );
     return { ok: false, unavailable: true, status: 404 };
   }
   if (!res.ok)

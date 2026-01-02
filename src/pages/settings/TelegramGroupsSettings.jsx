@@ -14,8 +14,8 @@ import {
   limit,
 } from "firebase/firestore";
 import useUserRole from "../../hooks/useUserRole";
-import { db } from "../../firebase/config";
-import { fetchTelegramGroupsFromUpdates } from "../../utils/telegramInvites";
+import { db, auth } from "../../firebase/config";
+import { generateTelegramInviteLink } from "../../utils/telegramInvites";
 
 function normalizeChatId(raw) {
   // Telegram chat_id can be a number or string like "-100123...".
@@ -34,8 +34,11 @@ export default function TelegramGroupsSettings() {
 
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [suggested, setSuggested] = useState([]);
-  const [loadingSuggested, setLoadingSuggested] = useState(false);
+  const [generatingLink, setGeneratingLink] = useState({});
+  const [showMembersModal, setShowMembersModal] = useState(null);
+  const [members, setMembers] = useState([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [removingMember, setRemovingMember] = useState({});
 
   const canEdit = canAccess;
 
@@ -71,35 +74,6 @@ export default function TelegramGroupsSettings() {
     return { id: res.id, created: true };
   }
 
-  async function refreshTelegramGroupsFromBot({ toastOnSuccess = false } = {}) {
-    if (!canAccess) return;
-    setLoadingSuggested(true);
-    try {
-      const chats = await fetchTelegramGroupsFromUpdates({ limit: 100 });
-      setSuggested(Array.isArray(chats) ? chats : []);
-      if (toastOnSuccess) toast.success("Yangilandi.");
-    } catch (e) {
-      console.error("fetchTelegramGroupsFromUpdates failed:", e);
-      setSuggested([]);
-      toast.error(
-        "Telegram’dan guruhlar olinmadi. Bot guruh ichida kamida 1 ta xabar ko‘rgan bo‘lishi kerak."
-      );
-    } finally {
-      setLoadingSuggested(false);
-    }
-  }
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!canAccess) return;
-      await refreshTelegramGroupsFromBot({ toastOnSuccess: false });
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [canAccess]);
-
   useEffect(() => {
     setLoading(true);
     const q = query(
@@ -114,7 +88,6 @@ export default function TelegramGroupsSettings() {
         setLoading(false);
       },
       (err) => {
-        console.error("telegram_groups snapshot error:", err);
         toast.error("Telegram guruhlar yuklanmadi.");
         setLoading(false);
       }
@@ -143,81 +116,39 @@ export default function TelegramGroupsSettings() {
   }, [groups]);
 
   const mergedRows = useMemo(() => {
-    const map = new Map();
+    return groups
+      .map((g) => {
+        const chatId = String(g?.chat_id || "").trim();
+        const docId = String(g?.id || "").trim();
+        const name = String(g?.name || g?.id || "").trim();
+        const active = g?.active !== false;
+        const linksGeneratedCount = Number(
+          g?.linksGeneratedCount ?? g?.linksSentCount
+        );
+        const linksDispatchedCount = Number(g?.linksDispatchedCount);
+        const safeGenerated = Number.isFinite(linksGeneratedCount)
+          ? linksGeneratedCount
+          : 0;
+        const safeDispatched = Number.isFinite(linksDispatchedCount)
+          ? linksDispatchedCount
+          : 0;
 
-    // Firestore (authoritative for active)
-    for (const g of Array.isArray(groups) ? groups : []) {
-      const chatId = String(g?.chat_id || "").trim();
-      const docId = String(g?.id || "").trim();
-      const name = String(g?.name || g?.id || "").trim();
-      const active = g?.active !== false;
-      const linksGeneratedCount = Number(
-        g?.linksGeneratedCount ?? g?.linksSentCount
-      );
-      const linksDispatchedCount = Number(g?.linksDispatchedCount);
-      const safeGenerated = Number.isFinite(linksGeneratedCount)
-        ? linksGeneratedCount
-        : 0;
-      const safeDispatched = Number.isFinite(linksDispatchedCount)
-        ? linksDispatchedCount
-        : 0;
-
-      if (chatId) {
-        map.set(`chat:${chatId}`, {
-          key: `chat:${chatId}`,
+        return {
+          key: chatId ? `chat:${chatId}` : `doc:${docId}`,
           source: "firestore",
           docId,
           chat_id: chatId,
-          name: name || chatId,
+          name: name || chatId || docId,
           active,
           linksGeneratedCount: safeGenerated,
           linksDispatchedCount: safeDispatched,
-        });
-      } else if (docId) {
-        // Legacy/misconfigured doc: keep it visible by doc id
-        map.set(`doc:${docId}`, {
-          key: `doc:${docId}`,
-          source: "firestore",
-          docId,
-          chat_id: "",
-          name: name || docId,
-          active,
-          linksGeneratedCount: safeGenerated,
-          linksDispatchedCount: safeDispatched,
-        });
-      }
-    }
-
-    // Suggested (not yet in Firestore)
-    for (const c of Array.isArray(suggested) ? suggested : []) {
-      const chatId = String(c?.chat_id || "").trim();
-      if (!chatId) continue;
-      const key = `chat:${chatId}`;
-      if (map.has(key)) continue;
-      const name = String(c?.name || "").trim();
-      map.set(key, {
-        key,
-        source: "suggested",
-        docId: "",
-        chat_id: chatId,
-        name: name || chatId,
-        active: false,
-        linksGeneratedCount: 0,
-        linksDispatchedCount: 0,
+        };
+      })
+      .sort((a, b) => {
+        if (a.active !== b.active) return a.active ? -1 : 1;
+        return String(a.name || "").localeCompare(String(b.name || ""));
       });
-    }
-
-    const rows = Array.from(map.values());
-    rows.sort((a, b) => {
-      // active first, then "new", then name
-      if (a.active !== b.active) return a.active ? -1 : 1;
-      const aNew = a.source === "suggested";
-      const bNew = b.source === "suggested";
-      if (aNew !== bNew) return aNew ? -1 : 1;
-      return String(a.name || "").localeCompare(String(b.name || ""));
-    });
-    return rows;
-  }, [groups, suggested]);
+  }, [groups]);
 
   const toggleActive = async (id, next) => {
     if (!canEdit) {
@@ -231,10 +162,125 @@ export default function TelegramGroupsSettings() {
         active: Boolean(next),
       });
     } catch (e) {
-      console.error("toggle telegram group active failed:", e);
-      toast.error("O‘zgartirib bo‘lmadi.");
+      toast.error("O'zgartirib bo'lmadi.");
     }
   };
+
+  const handleGenerateLink = async (groupId) => {
+    if (!canEdit) {
+      toast.error("Ruxsat yo'q.");
+      return;
+    }
+    setGeneratingLink((prev) => ({ ...prev, [groupId]: true }));
+    try {
+      const result = await generateTelegramInviteLink({ groupId });
+      if (result?.invite_link) {
+        await navigator.clipboard.writeText(result.invite_link);
+        toast.success("Link yaratildi va clipboard'ga nusxalandi!");
+      } else {
+        toast.error("Link yaratilmadi.");
+      }
+    } catch (e) {
+      toast.error(
+        "Link yaratishda xatolik: " + (e?.message || "Noma'lum xatolik")
+      );
+    } finally {
+      setGeneratingLink((prev) => ({ ...prev, [groupId]: false }));
+    }
+  };
+
+  const handleShowMembers = async (groupId) => {
+    setShowMembersModal(groupId);
+    setLoadingMembers(true);
+    setMembers([]);
+    try {
+      const response = await fetchGroupMembers(groupId);
+      setMembers(response?.members || []);
+    } catch (e) {
+      toast.error("A'zolarni yuklashda xatolik.");
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
+
+  const handleRemoveMember = async (groupId, userId) => {
+    if (!canEdit) {
+      toast.error("Ruxsat yo'q.");
+      return;
+    }
+    const key = `${groupId}_${userId}`;
+    setRemovingMember((prev) => ({ ...prev, [key]: true }));
+    try {
+      await removeTelegramGroupMember({ groupId, userId });
+      toast.success("A'zo guruhdan o'chirildi.");
+      setMembers((prev) => prev.filter((m) => m.user_id !== userId));
+    } catch (e) {
+      toast.error("A'zoni o'chirishda xatolik.");
+    } finally {
+      setRemovingMember((prev) => ({ ...prev, [key]: false }));
+    }
+  };
+
+  async function fetchGroupMembers(groupId) {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Not authenticated");
+    const token = await user.getIdToken();
+    const bases = getFunctionsBaseCandidates();
+    for (const base of bases) {
+      try {
+        const url = `${base}/getTelegramGroupMembers?groupId=${encodeURIComponent(
+          groupId
+        )}`;
+        const res = await fetch(url, {
+          method: "GET",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const json = await res.json();
+        if (res.ok && json?.ok) return json;
+      } catch (e) {
+        continue;
+      }
+    }
+    throw new Error("Failed to fetch members");
+  }
+
+  async function removeTelegramGroupMember({ groupId, userId }) {
+    const user = auth.currentUser;
+    if (!user) throw new Error("Not authenticated");
+    const token = await user.getIdToken();
+    const bases = getFunctionsBaseCandidates();
+    for (const base of bases) {
+      try {
+        const url = `${base}/removeTelegramGroupMember`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ groupId, userId }),
+        });
+        const json = await res.json();
+        if (res.ok && json?.ok) return json;
+      } catch (e) {
+        continue;
+      }
+    }
+    throw new Error("Failed to remove member");
+  }
+
+  function getFunctionsBaseCandidates() {
+    const env = import.meta.env || {};
+    const explicit = String(env.VITE_FUNCTIONS_BASE || "").trim();
+    if (explicit) return [explicit.replace(/\/+$/, "")];
+    const out = [];
+    const projectId = String(env.VITE_FIREBASE_PROJECT_ID || "").trim();
+    if (projectId) {
+      out.push(`https://us-central1-${projectId}.cloudfunctions.net`);
+      out.push(`https://europe-west3-${projectId}.cloudfunctions.net`);
+    }
+    return out.filter(Boolean);
+  }
 
   if (loadingRole) {
     return <div className="text-sm text-base-content/60">Wird geladen...</div>;
@@ -259,29 +305,21 @@ export default function TelegramGroupsSettings() {
         <p className="text-sm text-base-content/70">
           Active = ON bo‘lsa tizimda ko‘rinadi, OFF bo‘lsa tizimda ko‘rinmaydi.
           Refresh esa botdan ro‘yxatni yangilab, yangi guruh bor-yo‘qligini
-          tekshiradi.
         </p>
       </div>
 
       <div className="rounded-lg border border-base-300 bg-base-100 p-4 space-y-3">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            className="btn btn-sm btn-outline btn-primary"
-            onClick={() =>
-              refreshTelegramGroupsFromBot({ toastOnSuccess: true })
-            }
-            disabled={loadingSuggested}
-          >
-            {loadingSuggested ? "Yuklanmoqda..." : "Refresh"}
-          </button>
+        <div className="text-sm opacity-70">
+          <strong>💡 Qanday ishlaydi:</strong> Botni guruhga admin qilib
+          qo'shing va guruhga xabar yozing. Guruh avtomatik ravishda bu yerda
+          paydo bo'ladi.
         </div>
 
         {mergedRows.length === 0 ? (
           <div className="text-sm opacity-70">
-            {loading || loadingSuggested
+            {loading
               ? "Yuklanmoqda..."
-              : "Hozircha guruh yo‘q."}
+              : "Hozircha guruh yo'q. Botni guruhga qo'shing va xabar yozing."}
           </div>
         ) : (
           <div className="divide-y divide-base-200 rounded-lg border border-base-200">
@@ -321,7 +359,28 @@ export default function TelegramGroupsSettings() {
                       </div>
                     ) : null}
                   </div>
-                  <div className="flex items-center">
+                  <div className="flex items-center gap-2">
+                    {docId && checked && (
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-outline btn-info"
+                          onClick={() => handleGenerateLink(docId)}
+                          disabled={generatingLink[docId]}
+                          title="Link yaratish"
+                        >
+                          {generatingLink[docId] ? "..." : "🔗 Link"}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-outline btn-warning"
+                          onClick={() => handleShowMembers(docId)}
+                          title="A'zolarni ko'rish"
+                        >
+                          👥 A'zolar
+                        </button>
+                      </>
+                    )}
                     <label className="label cursor-pointer gap-2">
                       <span className="text-sm">Active</span>
                       <input
@@ -335,7 +394,6 @@ export default function TelegramGroupsSettings() {
                               await toggleActive(docId, next);
                               return;
                             }
-                            // Suggested (not in Firestore yet): only ON creates/imports it.
                             if (!next) return;
                             await upsertByChatId({
                               name: name || "",
@@ -344,8 +402,7 @@ export default function TelegramGroupsSettings() {
                             });
                             toast.success("Tizimga qo'shildi.");
                           } catch (err) {
-                            console.error(err);
-                            toast.error("O‘zgartirib bo‘lmadi.");
+                            toast.error("O'zgartirib bo'lmadi.");
                           }
                         }}
                       />
@@ -380,6 +437,78 @@ export default function TelegramGroupsSettings() {
           <div className="stat-value">{stats.linksDispatchedTotal}</div>
         </div>
       </div>
+
+      {showMembersModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setShowMembersModal(null)}
+        >
+          <div
+            className="bg-base-100 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Guruh a'zolari</h3>
+              <button
+                type="button"
+                className="btn btn-sm btn-circle btn-ghost"
+                onClick={() => setShowMembersModal(null)}
+              >
+                ✕
+              </button>
+            </div>
+            {loadingMembers ? (
+              <div className="text-center py-8 text-sm opacity-70">
+                Yuklanmoqda...
+              </div>
+            ) : members.length === 0 ? (
+              <div className="text-center py-8 text-sm opacity-70">
+                A'zolar topilmadi yoki bot guruhda admin emas.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {members.map((member) => (
+                  <div
+                    key={member.user_id}
+                    className="flex items-center justify-between p-3 rounded-lg border border-base-300"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="font-semibold truncate">
+                        {member.first_name || "—"}
+                      </div>
+                      <div className="text-xs opacity-70">
+                        {member.username ? `@${member.username}` : ""}
+                        {member.status ? ` · ${member.status}` : ""}
+                      </div>
+                    </div>
+                    {member.status !== "creator" &&
+                      member.status !== "administrator" && (
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-error"
+                          onClick={() =>
+                            handleRemoveMember(showMembersModal, member.user_id)
+                          }
+                          disabled={
+                            removingMember[
+                              `${showMembersModal}_${member.user_id}`
+                            ]
+                          }
+                        >
+                          {removingMember[
+                            `${showMembersModal}_${member.user_id}`
+                          ]
+                            ? "..."
+                            : "O'chirish"}
+                        </button>
+                      )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

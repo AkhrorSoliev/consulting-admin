@@ -36,7 +36,6 @@ export function useUserRole(options = {}) {
           setRole(token?.claims?.role || null);
         }
       } catch (err) {
-        console.error("Failed to load user role:", err);
         if (active) {
           setRole(null);
         }
@@ -57,16 +56,3 @@ export function useUserRole(options = {}) {
 }
 
 export default useUserRole;
-
-
-
-
-
-
-
-
-
-
-
-
-

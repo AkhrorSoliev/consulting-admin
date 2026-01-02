@@ -91,10 +91,6 @@ export function usePdfGeneration(formCv, addressFields) {
       }
     }
     if (!passportSrc && docUrls.length) {
-      console.warn(
-        "[Beratungsvertrag] Attachment could not be embedded. Tried URLs:",
-        docUrls
-      );
     }
 
     const fileBase =

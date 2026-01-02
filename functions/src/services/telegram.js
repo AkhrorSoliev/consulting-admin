@@ -173,22 +173,53 @@ async function getTelegramChatsFromUpdates({ botToken, limit = 100 } = {}) {
   assertTelegramBotTokenOrThrow(token);
 
   const lim = Math.max(1, Math.min(100, Math.floor(Number(limit) || 100)));
+
+  // Get all updates without offset to see all groups
   const url = `https://api.telegram.org/bot${token}/getUpdates?limit=${encodeURIComponent(
     String(lim)
   )}`;
 
-  const res = await fetch(url, { method: "GET" });
-  const json = await safeJson(res);
+  let res;
+  let json;
+  try {
+    res = await fetch(url, {
+      method: "GET",
+      signal: AbortSignal.timeout(30000), // 30 second timeout
+    });
+    json = await safeJson(res);
+  } catch (fetchError) {
+    const e = new Error("telegram-api-fetch-failed");
+    e.code = "telegram-api-fetch-failed";
+    e.status = 502;
+    e.details = {
+      message: String(fetchError?.message || fetchError),
+      name: fetchError?.name,
+    };
+    throw e;
+  }
+
   if (!res.ok || json?.ok !== true) {
     const e = new Error("telegram-updates-failed");
     e.code = "telegram-updates-failed";
     e.status = 502;
-    e.details = { httpStatus: res.status, telegram: json };
+    e.details = {
+      httpStatus: res.status,
+      telegram: json,
+      description: json?.description || "Unknown error",
+      errorCode: json?.error_code,
+    };
     throw e;
   }
 
   const out = new Map(); // chat_id -> {chat_id,name,type}
   const updates = Array.isArray(json?.result) ? json.result : [];
+
+  // If no updates found, return empty array (bot hasn't received any messages yet)
+  if (updates.length === 0) {
+    return [];
+  }
+
+  // Process all updates to find all groups
   updates.forEach((u) => {
     const chat =
       u?.message?.chat ||
@@ -214,6 +245,250 @@ async function getTelegramChatsFromUpdates({ botToken, limit = 100 } = {}) {
   );
 }
 
-module.exports = { createOneTimeChatInviteLink, getTelegramChatsFromUpdates };
+/**
+ * Remove a user from a Telegram group/supergroup.
+ *
+ * @param {object} args
+ * @param {string} args.botToken Telegram bot token (server secret)
+ * @param {string|number} args.chatId Telegram chat_id (string or number)
+ * @param {string|number} args.userId Telegram user_id to remove
+ * @returns {Promise<{ok: boolean}>}
+ */
+async function removeChatMember({ botToken, chatId, userId } = {}) {
+  const token = normalizeTelegramBotToken(botToken);
+  if (!token) {
+    const e = new Error("telegram-token-missing");
+    e.code = "telegram-token-missing";
+    e.status = 500;
+    throw e;
+  }
 
+  assertTelegramBotTokenOrThrow(token);
 
+  const safeChatId = String(chatId ?? "").trim();
+  if (!safeChatId) {
+    const e = new Error("telegram-chat_id-missing");
+    e.code = "telegram-chat_id-missing";
+    e.status = 500;
+    throw e;
+  }
+
+  const safeUserId = String(userId ?? "").trim();
+  if (!safeUserId) {
+    const e = new Error("telegram-user_id-missing");
+    e.code = "telegram-user_id-missing";
+    e.status = 400;
+    throw e;
+  }
+
+  const url = `https://api.telegram.org/bot${token}/banChatMember`;
+
+  const body = {
+    chat_id: safeChatId,
+    user_id: safeUserId,
+    revoke_messages: false,
+  };
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  const json = await safeJson(res);
+  if (!res.ok || json?.ok !== true) {
+    const e = new Error("telegram-api-failed");
+    e.code = "telegram-api-failed";
+    e.status = 502;
+    e.details = {
+      httpStatus: res.status,
+      telegram: json,
+    };
+    throw e;
+  }
+
+  // Unban immediately so user can rejoin later if needed
+  const unbanUrl = `https://api.telegram.org/bot${token}/unbanChatMember`;
+  const unbanBody = {
+    chat_id: safeChatId,
+    user_id: safeUserId,
+    only_if_banned: true,
+  };
+
+  await fetch(unbanUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(unbanBody),
+  });
+
+  return { ok: true };
+}
+
+/**
+ * Get list of chat members (admins only for groups).
+ *
+ * @param {object} args
+ * @param {string} args.botToken Telegram bot token (server secret)
+ * @param {string|number} args.chatId Telegram chat_id (string or number)
+ * @returns {Promise<Array<{ user_id: string, first_name: string, username: string, status: string }>>}
+ */
+async function getChatMembers({ botToken, chatId } = {}) {
+  const token = normalizeTelegramBotToken(botToken);
+  if (!token) {
+    const e = new Error("telegram-token-missing");
+    e.code = "telegram-token-missing";
+    e.status = 500;
+    throw e;
+  }
+
+  assertTelegramBotTokenOrThrow(token);
+
+  const safeChatId = String(chatId ?? "").trim();
+  if (!safeChatId) {
+    const e = new Error("telegram-chat_id-missing");
+    e.code = "telegram-chat_id-missing";
+    e.status = 500;
+    throw e;
+  }
+
+  // Note: getChatAdministrators is the only reliable way to get members from groups
+  // For full member list, the group needs to be a supergroup and bot needs admin rights
+  const url = `https://api.telegram.org/bot${token}/getChatAdministrators`;
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: safeChatId }),
+  });
+
+  const json = await safeJson(res);
+  if (!res.ok || json?.ok !== true) {
+    const e = new Error("telegram-api-failed");
+    e.code = "telegram-api-failed";
+    e.status = 502;
+    e.details = {
+      httpStatus: res.status,
+      telegram: json,
+    };
+    throw e;
+  }
+
+  const members = Array.isArray(json?.result) ? json.result : [];
+  return members.map((m) => ({
+    user_id: String(m?.user?.id ?? "").trim(),
+    first_name: String(m?.user?.first_name || "").trim(),
+    username: String(m?.user?.username || "").trim(),
+    status: String(m?.status || "").trim(),
+  }));
+}
+
+/**
+ * Remove a user from all groups where bot is admin.
+ * Fetches all groups from telegram_groups collection and removes user from each.
+ *
+ * @param {object} args
+ * @param {string} args.botToken Telegram bot token (server secret)
+ * @param {string|number} args.userId Telegram user_id to remove
+ * @param {object} args.db Firestore database instance
+ * @returns {Promise<{ total: number, removed: number, failed: number, results: Array }>}
+ */
+async function removeUserFromAllGroups({ botToken, userId, db } = {}) {
+  const token = normalizeTelegramBotToken(botToken);
+  if (!token) {
+    const e = new Error("telegram-token-missing");
+    e.code = "telegram-token-missing";
+    e.status = 500;
+    throw e;
+  }
+
+  assertTelegramBotTokenOrThrow(token);
+
+  const safeUserId = String(userId ?? "").trim();
+  if (!safeUserId) {
+    const e = new Error("telegram-user_id-missing");
+    e.code = "telegram-user_id-missing";
+    e.status = 400;
+    throw e;
+  }
+
+  if (!db) {
+    const e = new Error("database-instance-missing");
+    e.code = "database-instance-missing";
+    e.status = 500;
+    throw e;
+  }
+
+  // Get all active groups from Firestore
+  const groupsSnapshot = await db
+    .collection("telegram_groups")
+    .where("active", "==", true)
+    .get();
+
+  if (groupsSnapshot.empty) {
+    return { total: 0, removed: 0, failed: 0, results: [] };
+  }
+
+  const results = [];
+  let removed = 0;
+  let failed = 0;
+
+  // Try to remove user from each group
+  for (const doc of groupsSnapshot.docs) {
+    const groupData = doc.data();
+    const chatId = String(groupData?.chat_id || "").trim();
+
+    if (!chatId) {
+      results.push({
+        group_id: doc.id,
+        group_name: groupData?.name || "Unknown",
+        success: false,
+        error: "Missing chat_id",
+      });
+      failed++;
+      continue;
+    }
+
+    try {
+      await removeChatMember({ botToken: token, chatId, userId: safeUserId });
+      results.push({
+        group_id: doc.id,
+        group_name: groupData?.name || chatId,
+        chat_id: chatId,
+        success: true,
+      });
+      removed++;
+    } catch (err) {
+      const errorMsg = String(err?.message || err);
+      // Ignore "user not found" or "user not in chat" errors
+      const isNotMemberError =
+        errorMsg.includes("USER_NOT_PARTICIPANT") ||
+        errorMsg.includes("user not found") ||
+        errorMsg.includes("PARTICIPANT_NOT_FOUND");
+
+      results.push({
+        group_id: doc.id,
+        group_name: groupData?.name || chatId,
+        chat_id: chatId,
+        success: false,
+        error: errorMsg,
+        was_not_member: isNotMemberError,
+      });
+      failed++;
+    }
+  }
+
+  return {
+    total: groupsSnapshot.size,
+    removed,
+    failed,
+    results,
+  };
+}
+
+module.exports = {
+  createOneTimeChatInviteLink,
+  getTelegramChatsFromUpdates,
+  removeChatMember,
+  getChatMembers,
+  removeUserFromAllGroups,
+};

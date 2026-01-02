@@ -217,7 +217,6 @@ function MajorSettingsModal({
       const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() || {}) }));
       setTgGroups(list);
     } catch (e) {
-      console.error("load telegram groups failed:", e);
       setTgGroups([]);
     }
   }
@@ -302,7 +301,6 @@ function MajorSettingsModal({
             setCandidateCount(0);
           }
         } catch (e) {
-          console.error("Failed to check candidate count:", e);
           setCandidateCount(0);
         } finally {
           setCheckingCandidates(false);
@@ -322,8 +320,6 @@ function MajorSettingsModal({
       } catch (e) {
         if (!cancelled) {
           toast.error("Meta-Daten konnten nicht geladen werden.");
-          // eslint-disable-next-line no-console
-          console.error("MajorSettingsModal load meta error:", e);
         }
       } finally {
         if (!cancelled) setIsLoading(false);
@@ -406,7 +402,6 @@ function MajorSettingsModal({
             sent += 1;
           } catch (e) {
             failed += 1;
-            console.error("telegram invite email failed for", to, e);
           }
         }
       }
@@ -422,9 +417,7 @@ function MajorSettingsModal({
         if (sent > 0) {
           await trackTelegramInviteSent({ groupId: safeGroupId, count: sent });
         }
-      } catch (e) {
-        console.error("trackTelegramInviteSent failed:", e);
-      }
+      } catch (e) {}
 
       toast.success(
         `Fertig: gesendet=${sent}, fehler=${failed}, gesamt=${emails.length}`
@@ -449,8 +442,7 @@ function MajorSettingsModal({
       await navigator.clipboard.writeText(invite_link);
       toast.success("Invite link nusxalandi.");
     } catch (e) {
-      console.error("generate/copy invite failed", e);
-      toast.error("Invite link yaratib bo‘lmadi.");
+      toast.error("Invite link yaratib bo'lmadi.");
     } finally {
       setInviteCopyLoading((p) => ({ ...p, [scope]: false }));
     }
@@ -469,8 +461,6 @@ function MajorSettingsModal({
       toast.success("Lead-Links wurden gespeichert.");
     } catch (e) {
       toast.error("Fehler beim Speichern der Lead-Links.");
-      // eslint-disable-next-line no-console
-      console.error("persistLeadSettings error:", e);
     } finally {
       setIsSavingLeads(false);
     }
@@ -584,8 +574,6 @@ function MajorSettingsModal({
       toast.success("Zusätzliche Informationen gespeichert!");
     } catch (e) {
       toast.error("Speichern fehlgeschlagen.");
-      // eslint-disable-next-line no-console
-      console.error("MajorSettingsModal save error:", e);
     } finally {
       setIsSaving(false);
     }
@@ -881,7 +869,6 @@ function MajorSettingsModal({
                               setMetaValidationError(
                                 "Saqlashda xatolik yuz berdi."
                               );
-                              console.error("Meta save error:", e);
                             } finally {
                               setIsSavingMeta(false);
                             }
@@ -1795,8 +1782,6 @@ export default function MajorsList() {
         })
       );
       toast.error("Fehler beim Ändern.");
-      // eslint-disable-next-line no-console
-      console.error("toggle linkActive failed:", e);
     } finally {
       setTogglingMajorId("");
     }
@@ -1844,7 +1829,6 @@ export default function MajorsList() {
               const snap = await getCountFromServer(collection(db, col));
               return [col, snap.data().count || 0];
             } catch (e) {
-              console.error("getCountFromServer failed for", col, e);
               return [col, null];
             }
           })
@@ -1865,9 +1849,7 @@ export default function MajorsList() {
           });
           return out;
         });
-      } catch (e) {
-        console.error("fallback count error", e);
-      }
+      } catch (e) {}
     };
     fetchCounts();
     return () => {

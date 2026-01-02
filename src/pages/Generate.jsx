@@ -88,6 +88,7 @@ import {
 } from "../utils/telegramInvites";
 import { sendBrevoEmail } from "../utils/brevo";
 import { sendEmailViaTelegram, sendStatusViaTelegram } from "../utils/telegram";
+import { removeUserFromTelegramGroups } from "../utils/removeFromTelegramGroups";
 import RichTextEditor from "../components/RichTextEditor";
 import { useUserRole } from "../hooks/useUserRole";
 import DeleteCandidateModal from "../components/DeleteCandidateModal";
@@ -561,7 +562,6 @@ function Generate() {
       });
       return true;
     } catch (e) {
-      console.error("persistOutgoingDocs failed:", e);
       toast.error("Hujjatlar bo‘limini saqlashda xatolik.");
       outgoingDocsRef.current = prevSnapshot;
       setOutgoingDocs(prevSnapshot);
@@ -596,10 +596,6 @@ function Generate() {
       } catch (err) {
         if (Number(err?.status) === 404) {
           remoteMissing = true;
-          console.warn(
-            `[outgoing-delete] Remote file missing (404) for ${safeId}:`,
-            url
-          );
         } else {
           throw err;
         }
@@ -712,10 +708,6 @@ function Generate() {
       }
     }
     if (!passportSrc && docUrls.length) {
-      console.warn(
-        "[Beratungsvertrag] Attachment could not be embedded. Tried URLs:",
-        docUrls
-      );
     }
 
     const fileBase =
@@ -996,7 +988,6 @@ function Generate() {
         toast.success("PDF tayyor bo‘ldi va upload qilindi.");
       }
     } catch (e) {
-      console.error("Outgoing doc generate/upload failed:", e);
       toast.error("Fehler beim Erstellen oder Hochladen der PDF.");
     } finally {
       setOutgoingBusyById((p) => ({ ...(p || {}), [templateId]: false }));
@@ -1026,7 +1017,6 @@ function Generate() {
         toast.error("Linkni o‘chirishda xatolik.");
       }
     } catch (e) {
-      console.error("Outgoing doc delete failed:", e);
       toast.error("Linkni o‘chirishda xatolik.");
     } finally {
       setOutgoingBusyById((p) => ({ ...(p || {}), [tplId]: false }));
@@ -1080,7 +1070,6 @@ function Generate() {
           }
         } catch (error) {
           hadError = true;
-          console.error(`Bulk outgoing doc delete failed for ${tplId}:`, error);
         }
       }
 
@@ -1270,7 +1259,6 @@ function Generate() {
         setMetaLoading(false);
       },
       (e) => {
-        console.error("subscribeToMetaByName failed:", e);
         if (!gotFirst) {
           setResolvedMajor({
             collectionName: key,
@@ -1349,7 +1337,6 @@ function Generate() {
           if (!cancelled) setRemoteRecord(null);
         }
       } catch (e) {
-        console.error("remoteMode load failed:", e);
         if (!cancelled) setRemoteRecord(null);
       } finally {
         if (!cancelled) setRemoteLoading(false);
@@ -1409,10 +1396,6 @@ function Generate() {
             } catch {
               // ignore
             }
-            console.log(
-              "[Generate] Firestore candidate snapshot:",
-              debugPayload
-            );
           }
           const status = data?.status || {};
           setStatusValue(
@@ -1472,7 +1455,6 @@ function Generate() {
       setNotFound(false);
       setLoading(false);
     } catch (e) {
-      console.error("remoteMode mapDocToForm failed:", e);
       setDocCv(null);
       setNotFound(true);
       setLoading(false);
@@ -1724,7 +1706,6 @@ function Generate() {
 
       toast.error("Remote-Quelle unbekannt (kind).");
     } catch (e) {
-      console.error(e);
       toast.error("Fehler beim Wiederherstellen.");
     } finally {
       setRestoreBusy(false);
@@ -1845,7 +1826,6 @@ function Generate() {
 
       toast.error("Remote-Quelle unbekannt (kind).");
     } catch (e) {
-      console.error(e);
       toast.error("Fehler beim Wiederherstellen.");
     } finally {
       setRestoreBusy(false);
@@ -2103,9 +2083,7 @@ function Generate() {
         ...prev,
         personalInfo: { ...prev.personalInfo, photo: base64 },
       }));
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) {}
   }
 
   async function handleDocumentFileChange(e) {
@@ -2197,13 +2175,11 @@ function Generate() {
           toast.success(`Dokument erfolgreich zu ${typeName} hochgeladen`);
         }
       } catch (saveErr) {
-        console.error("Error auto-saving document:", saveErr);
         toast.success(
           `Dokument erfolgreich zu ${typeName} hochgeladen (Speichern fehlgeschlagen)`
         );
       }
     } catch (err) {
-      console.error(err);
       toast.error("Fehler beim Hochladen des Dokuments");
     }
   }
@@ -2441,7 +2417,6 @@ function Generate() {
       }
       return true;
     } catch (err) {
-      console.error(err);
       if (!silent) {
         toast.error("Fehler beim Speichern des Status.");
       }
@@ -2540,8 +2515,7 @@ function Generate() {
           info.link = invite_link;
           info.linkType = "telegram";
         } catch (e) {
-          console.error("generateTelegramInviteLink failed:", e);
-          toast.error("Telegram invite link yaratib bo‘lmadi.");
+          toast.error("Telegram-Einladungslink konnte nicht erstellt werden.");
           return;
         }
       } else if (
@@ -2615,11 +2589,10 @@ function Generate() {
             additionalInfo: info,
             copyOverrides: finalCopyOverrides,
           });
-          toast.success("Xabar Telegram orqali ham yuborildi! 📱");
+          toast.success("Nachricht auch per Telegram gesendet! 📱");
         } catch (telegramError) {
-          console.error("Failed to send via Telegram:", telegramError);
           toast.error(
-            "E-Mail yuborildi, lekin Telegram xabar yuborishda xatolik."
+            "E-Mail wurde gesendet, aber Telegram-Nachricht konnte nicht gesendet werden."
           );
         }
       }
@@ -2630,30 +2603,13 @@ function Generate() {
           String(info?.linkType || "").toLowerCase() === "telegram" &&
           Boolean(telegramGroupIdForStage);
 
-        if (DEBUG_GENERATE) {
-          console.log("[Generate] Telegram link tracking:", {
-            usedTelegramLink,
-            linkType: info?.linkType,
-            telegramGroupIdForStage,
-            stepValue,
-            useGeneratedLink: info?.useGeneratedLink,
-          });
-        }
-
         if (usedTelegramLink) {
           await trackTelegramInviteSent({
             groupId: telegramGroupIdForStage,
             count: 1,
           });
-          if (DEBUG_GENERATE) {
-            console.log(
-              "[Generate] Telegram sent counter updated for group:",
-              telegramGroupIdForStage
-            );
-          }
         }
       } catch (e) {
-        console.error("trackTelegramInviteSent failed:", e);
         // Don't fail the email send if counter update fails
         toast.error(
           "E-Mail wurde gesendet, aber Telegram-Zähler konnte nicht aktualisiert werden."
@@ -2677,9 +2633,7 @@ function Generate() {
           [`${stageBase}.decidedBy`]: user?.email || user?.uid || "admin",
           [`${stageBase}.decisionNote`]: String(decisionNote || "").trim(),
         });
-      } catch (e) {
-        console.error("emailMeta update failed:", e);
-      }
+      } catch (e) {}
 
       if (normalizedDecision === "accepted") {
         const nextValue = getNextStepValue(stepValue) || stepValue;
@@ -2699,6 +2653,31 @@ function Generate() {
           .filter(Boolean)
           .join(" ")
           .trim();
+
+        // Remove user from Telegram groups if they have telegramId
+        const candidateTelegramId = docCv?.telegramId;
+        if (candidateTelegramId) {
+          try {
+            toast("Foydalanuvchi Telegram guruhlaridan chiqarilmoqda...", {
+              autoClose: 2000,
+            });
+            const result = await removeUserFromTelegramGroups(
+              candidateTelegramId
+            );
+            if (result.ok) {
+              const msg =
+                result.removed > 0
+                  ? `Foydalanuvchi ${result.removed} ta guruhdan chiqarildi`
+                  : "Foydalanuvchi guruhlarda topilmadi";
+              toast.success(msg);
+            }
+          } catch (removeErr) {
+            toast.error(
+              "Telegram guruhlaridan chiqarishda xatolik. Davom etilmoqda..."
+            );
+          }
+        }
+
         if (itemId) {
           setDeleteTarget({
             id: itemId,
@@ -2709,7 +2688,6 @@ function Generate() {
         }
       }
     } catch (err) {
-      console.error(err);
       toast.error(
         "Fehler beim Senden der E-Mail. Bitte später erneut versuchen."
       );
@@ -2771,7 +2749,6 @@ function Generate() {
       setDeleteTarget(null);
       navigate(`/collectionCv/${resolvedMajor?.linkId || major}`);
     } catch (err) {
-      console.error(err);
       toast.error("Fehler beim Löschen.");
     } finally {
       setIsDeletingCandidate(false);
@@ -2815,7 +2792,6 @@ function Generate() {
       setDeleteTarget(null);
       navigate(`/collectionCv/${resolvedMajor?.linkId || major}`);
     } catch (err) {
-      console.error(err);
       toast.error("Fehler beim Archivieren.");
     } finally {
       setIsDeletingCandidate(false);
@@ -2933,11 +2909,10 @@ function Generate() {
             subject: safeSubject,
             htmlContent: finalHtml,
           });
-          toast.success("Xabar Telegram orqali ham yuborildi! 📱");
+          toast.success("Nachricht auch per Telegram gesendet! 📱");
         } catch (telegramError) {
-          console.error("Failed to send via Telegram:", telegramError);
           toast.error(
-            "E-Mail yuborildi, lekin Telegram xabar yuborishda xatolik."
+            "E-Mail wurde gesendet, aber Telegram-Nachricht konnte nicht gesendet werden."
           );
         }
       }
@@ -2951,29 +2926,13 @@ function Generate() {
           safeStatusValue
         );
 
-        if (DEBUG_GENERATE) {
-          console.log("[Generate] Custom email telegram link tracking:", {
-            usedTelegramLink,
-            linkType: additionalInfo?.linkType,
-            telegramGroupIdForStage,
-            statusValue: safeStatusValue,
-          });
-        }
-
         if (usedTelegramLink && telegramGroupIdForStage) {
           await trackTelegramInviteSent({
             groupId: telegramGroupIdForStage,
             count: 1,
           });
-          if (DEBUG_GENERATE) {
-            console.log(
-              "[Generate] Custom email telegram sent counter updated for group:",
-              telegramGroupIdForStage
-            );
-          }
         }
       } catch (e) {
-        console.error("trackTelegramInviteSent (custom email) failed:", e);
         // Don't fail the email send if counter update fails
       }
 
@@ -2991,13 +2950,10 @@ function Generate() {
             "emailMeta.lastSentType": "custom",
           });
         }
-      } catch (e) {
-        console.error("emailMeta update failed:", e);
-      }
+      } catch (e) {}
 
       setIsCustomEmailModalOpen(false);
     } catch (err) {
-      console.error(err);
       toast.error(
         "Fehler beim Senden der benutzerdefinierten E-Mail. Bitte später erneut versuchen."
       );
@@ -3050,7 +3006,6 @@ function Generate() {
       setStatusUpdatedBy(user?.email || user?.uid || "admin");
       toast.success("Stufen wurden zurückgesetzt.");
     } catch (e) {
-      console.error(e);
       toast.error("Fehler beim Zurücksetzen der Stufen.");
     }
   }
@@ -3265,7 +3220,6 @@ function Generate() {
         examples,
       };
     } catch (err) {
-      console.error("stageEmailPreview error:", err);
       return {
         to: recipientEmail,
         subject: "",
@@ -3392,7 +3346,6 @@ function Generate() {
         ),
       };
     } catch (err) {
-      console.error("customEmailPreview error:", err);
       return { to: recipientEmail, subject: "", message: "", htmlContent: "" };
     }
   }, [
@@ -3517,12 +3470,7 @@ function Generate() {
               await deleteUploadedFileRemote(url);
             } catch (err) {
               if (Number(err?.status) === 404) {
-                console.warn(
-                  `[document-delete] Remote file missing (404):`,
-                  url
-                );
               } else {
-                console.error(`Failed to delete remote file:`, url, err);
               }
             }
           }
@@ -3593,7 +3541,6 @@ function Generate() {
         try {
           await updateEmailRemote(oldEmail, newEmail, col);
         } catch (err) {
-          console.error("updateEmailRemote failed:", err);
           toast.error(
             "In Firebase gespeichert, aber Fehler beim Aktualisieren der externen E-Mail-Datenbank."
           );
@@ -3679,7 +3626,6 @@ function Generate() {
         );
       }
     } catch (e) {
-      console.error(e);
       toast.error("Fehler beim Speichern.");
     } finally {
       setIsSaving(false);
@@ -3722,7 +3668,6 @@ function Generate() {
       link.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      console.error(e);
       toast.error("Fehler beim Erstellen der PDF.");
     } finally {
       setIsDownloading(false);
@@ -3845,9 +3790,7 @@ function Generate() {
       const parsed = new Date(val);
       if (!Number.isNaN(parsed.getTime()))
         return parsed.toLocaleString("de-DE");
-    } catch (err) {
-      console.error("formatCommentDate error:", err);
-    }
+    } catch (err) {}
     return "";
   }
 
@@ -5259,12 +5202,7 @@ function Generate() {
                                                           }
                                                         );
                                                       }
-                                                    } catch (saveErr) {
-                                                      console.error(
-                                                        "Error auto-saving certificate type:",
-                                                        saveErr
-                                                      );
-                                                    }
+                                                    } catch (saveErr) {}
                                                   }, 500);
 
                                                   return updatedForm;
@@ -5579,11 +5517,11 @@ function Generate() {
               <div className="card-body">
                 <div>
                   <h3 className="card-title">
-                    Kandidatga jo‘natiladigan hujjatlar
+                    An Kandidaten zu sendende Dokumente
                   </h3>
                   <p className="text-sm text-base-content/70">
-                    Switch yoqilsa PDF generatsiya bo‘ladi va avtomatik upload
-                    qilinadi.
+                    Wenn der Schalter aktiviert ist, wird das PDF generiert und
+                    automatisch hochgeladen.
                   </p>
                 </div>
 
@@ -5600,12 +5538,12 @@ function Generate() {
                       !candidateDocId ||
                       Boolean(sendingStepValue)
                     }
-                    title="Barcha yuborilgan linklarni o‘chirish"
+                    title="Alle gesendeten Links löschen"
                   >
                     {outgoingBulkBusy ? (
                       <span className="loading loading-spinner loading-xs" />
                     ) : null}
-                    <span>Hammasini o‘chirish</span>
+                    <span>Alle löschen</span>
                   </button>
                 </div>
 
@@ -5629,7 +5567,7 @@ function Generate() {
                             <Link
                               to={tpl.to}
                               className="link link-hover font-semibold truncate inline-flex items-center gap-2"
-                              title="Template'ni ochish"
+                              title="Vorlage öffnen"
                             >
                               <span className="truncate">{tpl.title}</span>
                               <FaExternalLinkAlt className="opacity-70" />
@@ -5663,9 +5601,9 @@ function Generate() {
                                     })
                                   }
                                   disabled={disabled}
-                                  title="PDF'ni qayta yaratish va qayta upload qilish"
+                                  title="PDF neu generieren und erneut hochladen"
                                 >
-                                  Qayta generatsiya
+                                  Neu generieren
                                 </button>
                               </div>
                             ) : null}
@@ -5680,9 +5618,9 @@ function Generate() {
                                     })
                                   }
                                   disabled={disabled}
-                                  title="PDF'ni qayta yaratish va qayta upload qilish"
+                                  title="PDF neu generieren und erneut hochladen"
                                 >
-                                  Qayta generatsiya
+                                  Neu generieren
                                 </button>
                               </div>
                             ) : null}
@@ -5697,9 +5635,9 @@ function Generate() {
                                     })
                                   }
                                   disabled={disabled}
-                                  title="PDF'ni qayta yaratish va qayta upload qilish"
+                                  title="PDF neu generieren und erneut hochladen"
                                 >
-                                  Qayta generatsiya
+                                  Neu generieren
                                 </button>
                               </div>
                             ) : null}
@@ -5725,7 +5663,7 @@ function Generate() {
                   })}
                   {DOCUMENT_TEMPLATES.length === 0 ? (
                     <div className="text-sm opacity-70">
-                      Hozircha template yo‘q.
+                      Derzeit keine Vorlagen verfügbar.
                     </div>
                   ) : null}
                 </div>
@@ -5735,9 +5673,9 @@ function Generate() {
             <div className="card bg-base-100 border border-base-300 shadow-xl">
               <div className="card-body">
                 <div>
-                  <h3 className="card-title">Yuborilgan hujjatlar (linklar)</h3>
+                  <h3 className="card-title">Gesendete Dokumente (Links)</h3>
                   <p className="text-sm text-base-content/70">
-                    Upload bo‘lgan fayl linklari shu yerda chiqadi.
+                    Hochgeladene Dateilinks werden hier angezeigt.
                   </p>
                 </div>
 
@@ -5749,7 +5687,7 @@ function Generate() {
                   if (entries.length === 0) {
                     return (
                       <div className="text-sm opacity-70">
-                        Hozircha upload qilingan hujjat yo‘q.
+                        Derzeit keine hochgeladenen Dokumente.
                       </div>
                     );
                   }
@@ -5803,7 +5741,7 @@ function Generate() {
                                         await navigator.clipboard.writeText(
                                           url
                                         );
-                                        toast.success("Link nusxalandi.");
+                                        toast.success("Link kopiert.");
                                       } else {
                                         throw new Error(
                                           "clipboard-unavailable"
@@ -5821,7 +5759,7 @@ function Generate() {
                                         ta.select();
                                         document.execCommand("copy");
                                         document.body.removeChild(ta);
-                                        toast.success("Link nusxalandi.");
+                                        toast.success("Link kopiert.");
                                       } catch {
                                         toast.error(
                                           "Fehler beim Kopieren des Links."
@@ -5837,7 +5775,7 @@ function Generate() {
                                   className="btn btn-sm btn-outline btn-error"
                                   onClick={() => handleDeleteOutgoingDoc(docId)}
                                   disabled={disabled}
-                                  title="Linkni o‘chirish (remote va Firestore)"
+                                  title="Link löschen (Remote und Firestore)"
                                 >
                                   {busy ? (
                                     <span className="loading loading-spinner loading-sm" />

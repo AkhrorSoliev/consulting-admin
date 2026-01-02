@@ -73,7 +73,6 @@ export function useDocumentManagement(
         });
         return true;
       } catch (e) {
-        console.error("persistOutgoingDocs failed:", e);
         toast.error("Hujjatlar bo'limini saqlashda xatolik.");
         outgoingDocsRef.current = prevSnapshot;
         setOutgoingDocs(prevSnapshot);
@@ -114,10 +113,6 @@ export function useDocumentManagement(
         } catch (err) {
           if (Number(err?.status) === 404) {
             remoteMissing = true;
-            console.warn(
-              `[outgoing-delete] Remote file missing (404) for ${safeId}:`,
-              url
-            );
           } else {
             throw err;
           }

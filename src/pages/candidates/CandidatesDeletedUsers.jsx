@@ -105,7 +105,6 @@ export default function CandidatesDeletedUsers() {
       const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setItems(Array.isArray(data) ? data : []);
     } catch (e) {
-      console.error(e);
       toast.error("Fehler beim Laden (Gelöschte).");
       setItems([]);
     } finally {
@@ -257,7 +256,6 @@ export default function CandidatesDeletedUsers() {
         setConfirmState(null);
         await load();
       } catch (e) {
-        console.error(e);
         toast.error("Fehler beim Wiederherstellen.");
       } finally {
         setRestoringKey("");
@@ -286,7 +284,6 @@ export default function CandidatesDeletedUsers() {
         setConfirmState(null);
         await load();
       } catch (e) {
-        console.error(e);
         toast.error("Fehler beim Löschen.");
       } finally {
         setDeletingKey("");

@@ -575,13 +575,10 @@ function Create() {
     // Submission state should be tracked per-major, otherwise a candidate
     // can't submit again for a different major.
     const majorCollection = String(majorInfo?.collectionName || "").trim();
-    console.log("🔍 DEBUG: majorCollection =", majorCollection);
-    console.log("🔍 DEBUG: majorLoading =", majorLoading);
 
     // Major hali aniqlanmagan bo'lsa (yoki yuklanayotgan bo'lsa) UI'ni "pending"da ushlab turamiz,
     // aks holda form bir zum ko'rinib, keyin Thank You ga o'tib ketadi (flicker).
     if (!majorCollection || majorLoading) {
-      console.log("🔍 DEBUG: Major yo'q yoki loading, isSubmitted = null");
       setIsSubmitted(null);
       return;
     }
@@ -589,12 +586,8 @@ function Create() {
     try {
       const storageKey = `createCvSubmitted:${majorCollection}`;
       const v = localStorage.getItem(storageKey);
-      console.log("🔍 DEBUG: localStorage key =", storageKey);
-      console.log("🔍 DEBUG: localStorage value =", v);
-      console.log("🔍 DEBUG: isSubmitted =", v === "true");
       setIsSubmitted(v === "true");
     } catch (error) {
-      console.error("🔍 DEBUG: localStorage xatosi:", error);
       // Best-effort: agar storage o'qilmasa, form ko'rsatamiz (bloklab qo'ymaymiz)
       setIsSubmitted(false);
     }
@@ -902,7 +895,6 @@ function Create() {
           }
         }
       } catch (e) {
-        console.error("Email registry live check failed:", e);
       } finally {
         if (emailCheckSeqRef.current === seq) {
           setIsEmailChecking(false);
@@ -981,7 +973,6 @@ function Create() {
           }
         }
       } catch (e) {
-        console.error("Passport registry live check failed:", e);
       } finally {
         if (passportCheckSeqRef.current === seq) {
           setIsPassportChecking(false);
@@ -1382,9 +1373,7 @@ function Create() {
         shouldTouch: true,
         shouldValidate: true,
       });
-    } catch (err) {
-      console.error("Fehler beim Lesen des Fotos:", err);
-    }
+    } catch (err) {}
   }
 
   function addExperience() {
@@ -2023,11 +2012,10 @@ function Create() {
         }
         setIsSubmitted(true);
       } catch (error) {
-        console.error("Fehler beim Senden an Firestore:", error);
-        toast.error(`Fehler beim Senden: ${error.message}`);
+        toast.error(`Fehler: ${error.message}`);
       }
     } finally {
-      setIsUploading(false);
+      setIsSubmitting(false);
     }
   }
 

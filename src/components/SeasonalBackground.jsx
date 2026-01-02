@@ -12,40 +12,31 @@ function SeasonalBackground({ children, className = "" }) {
     const season = getCurrentSeason();
     const imagePath = getSeasonalBackgroundPath();
 
-    console.log("Current season:", season);
-    console.log("Trying to load image:", imagePath);
-
     const img = new Image();
     img.onload = () => {
-      console.log("Successfully loaded:", imagePath);
       setBackgroundImage(imagePath);
       setIsLoading(false);
     };
     img.onerror = () => {
-      console.error("Failed to load:", imagePath);
       // Try fallback images
       const fallbackImages = ["/autumn.jpg", "/spring.jpg", "/summer.jpg"];
       let fallbackIndex = 0;
 
       const tryFallback = () => {
         if (fallbackIndex >= fallbackImages.length) {
-          console.error("All images failed to load");
           setIsLoading(false);
           return;
         }
 
         const fallbackImg = new Image();
         const fallbackPath = fallbackImages[fallbackIndex];
-        console.log("Trying fallback:", fallbackPath);
 
         fallbackImg.onload = () => {
-          console.log("Fallback loaded:", fallbackPath);
           setBackgroundImage(fallbackPath);
           setIsLoading(false);
         };
 
         fallbackImg.onerror = () => {
-          console.error("Fallback failed:", fallbackPath);
           fallbackIndex++;
           tryFallback();
         };

@@ -9,6 +9,9 @@ const crypto = require("crypto");
 const {
   createOneTimeChatInviteLink,
   getTelegramChatsFromUpdates,
+  removeChatMember,
+  getChatMembers,
+  removeUserFromAllGroups,
 } = require("./src/services/telegram");
 const { Telegraf } = require("telegraf");
 // Bot initialization removed - registration functionality disabled
@@ -551,7 +554,7 @@ exports.trackInviteSent = onRequest(async (req, res) => {
 // Returns recent groups/channels that appear in bot updates.
 // Auth: admin or super_admin
 exports.telegramGroupsFromUpdates = onRequest(
-  { secrets: [TELEGRAM_BOT_TOKEN] },
+  { secrets: [TELEGRAM_BOT_TOKEN], timeoutSeconds: 60 },
   async (req, res) => {
     try {
       setCors(req, res);
@@ -565,6 +568,7 @@ exports.telegramGroupsFromUpdates = onRequest(
 
       const botToken = String(TELEGRAM_BOT_TOKEN.value() || "").trim();
       if (!botToken) {
+        logger.error("Bot token is missing or empty");
         return res.status(500).json({ ok: false, error: "bot-token-missing" });
       }
 
@@ -573,10 +577,224 @@ exports.telegramGroupsFromUpdates = onRequest(
         ? Math.max(1, Math.min(100, Math.floor(limitRaw)))
         : 100;
 
+      logger.info("Fetching Telegram groups from updates", {
+        limit,
+        tokenLength: botToken.length,
+        tokenPrefix: botToken.substring(0, 10) + "...",
+      });
+
+      // Direct test of Telegram API
+      const testUrl = `https://api.telegram.org/bot${botToken}/getMe`;
+      try {
+        const testRes = await fetch(testUrl);
+        const testJson = await testRes.json();
+        logger.info("Telegram bot getMe test", {
+          ok: testJson.ok,
+          botUsername: testJson?.result?.username,
+        });
+      } catch (testErr) {
+        logger.error("Telegram bot getMe test failed", {
+          error: String(testErr),
+        });
+      }
+
       const chats = await getTelegramChatsFromUpdates({ botToken, limit });
+      logger.info("Successfully fetched Telegram groups", {
+        count: chats.length,
+      });
       return res.status(200).json({ ok: true, chats });
     } catch (err) {
-      logger.error("telegramGroupsFromUpdates error", err);
+      logger.error("telegramGroupsFromUpdates error", {
+        error: err,
+        message: err?.message,
+        code: err?.code,
+        details: err?.details,
+        stack: err?.stack,
+      });
+      setCors(req, res);
+      const status = Number(err?.status) || 500;
+      const code = String(err?.code || "internal");
+      const details = err?.details || {};
+      return res.status(status).json({
+        ok: false,
+        error: code,
+        message: String(err?.message || "Unknown error"),
+        details: typeof details === "object" ? details : String(details),
+      });
+    }
+  }
+);
+
+// POST /removeTelegramGroupMember
+// Body: { groupId: string, userId: string }
+// Remove a user from a Telegram group
+// Auth: admin or super_admin
+exports.removeTelegramGroupMember = onRequest(
+  { secrets: [TELEGRAM_BOT_TOKEN] },
+  async (req, res) => {
+    try {
+      setCors(req, res);
+      if (req.method === "OPTIONS") return res.status(204).send("");
+      if (req.method !== "POST") {
+        return res.status(405).json({ ok: false, error: "method-not-allowed" });
+      }
+
+      const decoded = await verifyFirebaseIdToken(req);
+      assertAdminLikeClaims(decoded);
+
+      const groupId = String(req.body?.groupId || "").trim();
+      const userId = String(req.body?.userId || "").trim();
+
+      if (!groupId) {
+        return res.status(400).json({ ok: false, error: "missing-groupId" });
+      }
+      if (!userId) {
+        return res.status(400).json({ ok: false, error: "missing-userId" });
+      }
+
+      const snap = await db.collection("telegram_groups").doc(groupId).get();
+      if (!snap.exists) {
+        return res.status(404).json({ ok: false, error: "group-not-found" });
+      }
+      const data = snap.data() || {};
+      const chatId = String(data.chat_id || "").trim();
+      if (!chatId) {
+        return res
+          .status(500)
+          .json({ ok: false, error: "group-missing-chat_id" });
+      }
+
+      const botToken = String(TELEGRAM_BOT_TOKEN.value() || "").trim();
+      if (!botToken) {
+        return res.status(500).json({ ok: false, error: "bot-token-missing" });
+      }
+
+      await removeChatMember({ botToken, chatId, userId });
+
+      return res.status(200).json({ ok: true });
+    } catch (err) {
+      logger.error("removeTelegramGroupMember error", err);
+      setCors(req, res);
+      const status = Number(err?.status) || 500;
+      const code = String(err?.code || "internal");
+      const details =
+        status >= 500
+          ? String(err?.message || err)
+          : String(err?.details || err?.message || "");
+      return res
+        .status(status)
+        .json({ ok: false, error: code, details: details || undefined });
+    }
+  }
+);
+
+// GET /getTelegramGroupMembers?groupId=xxx
+// Get members of a Telegram group
+// Auth: admin or super_admin
+exports.getTelegramGroupMembers = onRequest(
+  { secrets: [TELEGRAM_BOT_TOKEN] },
+  async (req, res) => {
+    try {
+      setCors(req, res);
+      if (req.method === "OPTIONS") return res.status(204).send("");
+      if (req.method !== "GET") {
+        return res.status(405).json({ ok: false, error: "method-not-allowed" });
+      }
+
+      const decoded = await verifyFirebaseIdToken(req);
+      assertAdminLikeClaims(decoded);
+
+      const groupId = String(req.query?.groupId || "").trim();
+      if (!groupId) {
+        return res.status(400).json({ ok: false, error: "missing-groupId" });
+      }
+
+      const snap = await db.collection("telegram_groups").doc(groupId).get();
+      if (!snap.exists) {
+        return res.status(404).json({ ok: false, error: "group-not-found" });
+      }
+      const data = snap.data() || {};
+      const chatId = String(data.chat_id || "").trim();
+      if (!chatId) {
+        return res
+          .status(500)
+          .json({ ok: false, error: "group-missing-chat_id" });
+      }
+
+      const botToken = String(TELEGRAM_BOT_TOKEN.value() || "").trim();
+      if (!botToken) {
+        return res.status(500).json({ ok: false, error: "bot-token-missing" });
+      }
+
+      const members = await getChatMembers({ botToken, chatId });
+
+      return res.status(200).json({ ok: true, members });
+    } catch (err) {
+      logger.error("getTelegramGroupMembers error", err);
+      setCors(req, res);
+      const status = Number(err?.status) || 500;
+      const code = String(err?.code || "internal");
+      return res.status(status).json({
+        ok: false,
+        error: code,
+        details:
+          status >= 500
+            ? String(err?.message || err)
+            : String(err?.details || ""),
+      });
+    }
+  }
+);
+
+// POST /removeUserFromTelegramGroups
+// Body: { telegramId: string }
+// Remove a user from all Telegram groups where bot is admin
+// Auth: admin or super_admin
+// Use case: When candidate is rejected, remove them from all groups
+exports.removeUserFromTelegramGroups = onRequest(
+  { secrets: [TELEGRAM_BOT_TOKEN] },
+  async (req, res) => {
+    try {
+      setCors(req, res);
+      if (req.method === "OPTIONS") return res.status(204).send("");
+      if (req.method !== "POST") {
+        return res.status(405).json({ ok: false, error: "method-not-allowed" });
+      }
+
+      const decoded = await verifyFirebaseIdToken(req);
+      assertAdminLikeClaims(decoded);
+
+      const telegramId = String(req.body?.telegramId || "").trim();
+      if (!telegramId) {
+        return res.status(400).json({ ok: false, error: "missing-telegramId" });
+      }
+
+      const botToken = String(TELEGRAM_BOT_TOKEN.value() || "").trim();
+      if (!botToken) {
+        return res.status(500).json({ ok: false, error: "bot-token-missing" });
+      }
+
+      logger.info("Removing user from all Telegram groups", { telegramId });
+
+      const result = await removeUserFromAllGroups({
+        botToken,
+        userId: telegramId,
+        db,
+      });
+
+      logger.info("User removal result", {
+        telegramId,
+        total: result.total,
+        removed: result.removed,
+        failed: result.failed,
+      });
+
+      return res.status(200).json({
+        ok: true,
+        ...result,
+      });
+    } catch (err) {
+      logger.error("removeUserFromTelegramGroups error", err);
       setCors(req, res);
       const status = Number(err?.status) || 500;
       const code = String(err?.code || "internal");

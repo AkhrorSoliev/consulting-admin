@@ -114,9 +114,7 @@ export async function restoreRemoteRecordToFirebase({
   // We do not want a transient json-api outage to block a successful restore.
   try {
     await registerEmailRemote(email, major, passportId);
-  } catch (e) {
-    console.warn("restoreRemoteRecordToFirebase: registerEmailRemote failed:", e);
-  }
+  } catch (e) {}
 
   // Best-effort: remove remote record from its list so it disappears from the UI
   try {
@@ -150,5 +148,3 @@ export async function moveArchivedRemoteRecordToDeleted({ record, deletedBy }) {
 
   return { moved: true, from: "archived", to: "deleted", remoteId };
 }
-
-

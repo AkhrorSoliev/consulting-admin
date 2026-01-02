@@ -705,43 +705,8 @@ function Home() {
   const ensureInFlightRef = useRef(false);
 
   useEffect(() => {
-    console.log("=== AKTIV YO'NALISHLAR ===");
-    console.log("Asosiy yo'nalishlar:");
-    console.log("  / - Home (Dashboard)");
-    console.log("  /profile - Profile");
-    console.log("  /collectionCv/:major - Collection CV");
-    console.log("  /generate/:major/:id - Generate");
-    console.log("  /create - Create");
-    console.log("  /login - Login");
-    console.log("\nCandidates yo'nalishlari:");
-    console.log("  /candidates - Candidates Layout");
-    console.log("  /candidates/all - All Users");
-    console.log("  /candidates/archived - Archived Users");
-    console.log("  /candidates/deleted - Deleted Users");
-    console.log("\nSettings yo'nalishlari:");
-    console.log("  /settings - Settings Layout");
-    console.log("  /settings/admins - Admins Settings");
-    console.log("  /settings/telegram-groups - Telegram Groups");
-    console.log("  /settings/template-emails - Template Emails");
-    console.log("  /settings/documents - Documents Settings");
-    console.log("  /settings/documents/beratungsvertrag - Beratungsvertrag");
-    console.log(
-      "  /settings/documents/vermittlungsvertrag - Vermittlungsvertrag"
-    );
-    console.log("  /settings/documents/vollmacht - Vollmacht");
-    console.log(
-      "  /settings/documents/vollmacht-arbeitgeber - Vollmacht Arbeitgeber"
-    );
-    console.log("========================");
-  }, []);
-
-  useEffect(() => {
     const unsub = subscribeToCollections((names) => {
       setCollectionNames(names || []);
-      console.log("=== BERUFSFELDER (Yo'nalishlar) ===");
-      console.log("Mavjud kolleksiyalar:", names);
-      console.log("Jami:", (names || []).length);
-      console.log("===================================");
     });
     return () => {
       if (typeof unsub === "function") unsub();
@@ -790,7 +755,6 @@ function Home() {
         ensureInFlightRef.current = true;
         await ensureStatsDocAtLeast("global", liveStats);
       } catch (e) {
-        console.error("ALL-TIME ensureStatsDocAtLeast fehlgeschlagen:", e);
       } finally {
         ensureInFlightRef.current = false;
       }
@@ -1125,7 +1089,6 @@ function Home() {
           onAnyUpdate();
         },
         (err) => {
-          console.error("LIVE onSnapshot Fehler:", err);
           if (cancelled) return;
           setError("Fehler beim Laden der Live-Daten.");
           setLoading(false);

@@ -260,7 +260,6 @@ export default function TemplateEmailsSettings() {
         htmlContent,
       };
     } catch (e) {
-      console.error("template preview error:", e);
       return {
         to: "candidate@example.com",
         subject: "",
@@ -298,7 +297,6 @@ export default function TemplateEmailsSettings() {
       toast.success("Vorlage gespeichert.");
       setBaselineForm(form);
     } catch (e) {
-      console.error(e);
       toast.error(e?.message || "Fehler beim Speichern der Vorlage.");
     } finally {
       setSaving(false);
@@ -316,7 +314,6 @@ export default function TemplateEmailsSettings() {
       await deleteEmailTemplate(stage, decision);
       toast.success("Auf Standard zurückgesetzt.");
     } catch (e) {
-      console.error(e);
       toast.error(e?.message || "Fehler beim Löschen.");
     } finally {
       setSaving(false);

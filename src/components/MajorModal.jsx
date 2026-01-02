@@ -65,7 +65,6 @@ function MajorModal() {
       }
     } catch (error) {
       setValidationError(`Fehler: ${error.message}`);
-      console.error("Create collection error:", error);
     }
   };
   return (

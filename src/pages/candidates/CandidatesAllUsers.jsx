@@ -6,7 +6,8 @@ import RemoteUserCard from "../../components/RemoteUserCard";
 
 export default function CandidatesAllUsers() {
   const { role, loadingRole } = useUserRole({ forceRefresh: true });
-  const isPrivileged = !loadingRole && (role === "super_admin" || role === "admin");
+  const isPrivileged =
+    !loadingRole && (role === "super_admin" || role === "admin");
 
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState([]);
@@ -19,7 +20,6 @@ export default function CandidatesAllUsers() {
       const data = await listRemoteUsers("all");
       setItems(Array.isArray(data) ? data : []);
     } catch (e) {
-      console.error(e);
       toast.error("Fehler beim Laden der Benutzerliste.");
       setItems([]);
     } finally {
@@ -33,7 +33,9 @@ export default function CandidatesAllUsers() {
   }, [isPrivileged]);
 
   const filtered = useMemo(() => {
-    const q = String(query || "").trim().toLowerCase();
+    const q = String(query || "")
+      .trim()
+      .toLowerCase();
     if (!q) return items;
     return items.filter((r) => {
       const name =
@@ -51,7 +53,9 @@ export default function CandidatesAllUsers() {
   }, [items, query]);
 
   if (!loadingRole && !isPrivileged) {
-    return <div className="text-sm text-base-content/70">Keine Berechtigung.</div>;
+    return (
+      <div className="text-sm text-base-content/70">Keine Berechtigung.</div>
+    );
   }
 
   return (
@@ -96,8 +100,13 @@ export default function CandidatesAllUsers() {
             const first = String(r?.persoenlicheDaten?.name || "").trim();
             const last = String(r?.persoenlicheDaten?.nachname || "").trim();
             const full = [first, last].filter(Boolean).join(" ") || "—";
-            const email = String(r?.persoenlicheDaten?.email || r?.email || "").trim() || "—";
-            const photo = String(r?.persoenlicheDaten?.foto || r?.foto || r?.photo || "").trim() || "";
+            const email =
+              String(r?.persoenlicheDaten?.email || r?.email || "").trim() ||
+              "—";
+            const photo =
+              String(
+                r?.persoenlicheDaten?.foto || r?.foto || r?.photo || ""
+              ).trim() || "";
             const major = String(r?.major || "").trim() || "—";
             const firebaseId = String(r?.firebaseId || "").trim() || "—";
             return (
@@ -117,5 +126,3 @@ export default function CandidatesAllUsers() {
     </div>
   );
 }
-
-

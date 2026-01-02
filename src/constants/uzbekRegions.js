@@ -6,10 +6,10 @@ export const UZBEK_REGIONS = [
   "Namangan Region",
   "Navoi Region",
   "Kashkadarya Region",
+  "Autonome Republik Karakalpakstan",
   "Samarkand Region",
   "Syrdarya Region",
   "Surkhandarya Region",
   "Tashkent Region",
   "Khorezm Region",
 ];
-
