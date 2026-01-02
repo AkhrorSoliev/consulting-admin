@@ -59,9 +59,7 @@ export function useSaveOperations(
         if (newEmail && newEmail !== oldEmailNorm) {
           try {
             await updateEmailRemote(oldEmailNorm, newEmail);
-          } catch (emailErr) {
-            console.warn("Email update failed:", emailErr);
-          }
+          } catch (emailErr) {}
         }
 
         // Update passport index if changed
@@ -76,16 +74,13 @@ export function useSaveOperations(
               newPassport,
               candidateCollection
             );
-          } catch (passErr) {
-            console.warn("Passport update failed:", passErr);
-          }
+          } catch (passErr) {}
         }
 
         setSavedBaselineJson(JSON.stringify(normalizedForm));
         toast.success("Muvaffaqiyatli saqlandi!");
         return true;
       } catch (error) {
-        console.error("Save error:", error);
         toast.error("Saqlashda xatolik yuz berdi.");
         return false;
       } finally {

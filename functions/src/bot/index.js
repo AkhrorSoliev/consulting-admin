@@ -242,6 +242,52 @@ module.exports = (db, token) => {
     }
   });
 
+  // Auto-save groups to Firestore when bot receives messages
+  bot.on("message", async (ctx) => {
+    try {
+      const chat = ctx.chat;
+      if (chat && ["group", "supergroup"].includes(chat.type)) {
+        const chatId = String(chat.id);
+        const chatTitle = chat.title || chatId;
+
+        // Check if group already exists in Firestore
+        const groupsRef = db.collection("telegram_groups");
+        const snapshot = await groupsRef
+          .where("chat_id", "==", chatId)
+          .limit(1)
+          .get();
+
+        if (snapshot.empty) {
+          // Add new group
+          await groupsRef.add({
+            chat_id: chatId,
+            name: chatTitle,
+            type: chat.type,
+            active: true,
+            linksSentCount: 0,
+            linksGeneratedCount: 0,
+            linksDispatchedCount: 0,
+            createdAt: new Date(),
+            lastMessageAt: new Date(),
+          });
+          logger.info("New group auto-saved to Firestore", {
+            chatId,
+            chatTitle,
+          });
+        } else {
+          // Update last message time
+          const doc = snapshot.docs[0];
+          await doc.ref.update({
+            name: chatTitle,
+            lastMessageAt: new Date(),
+          });
+        }
+      }
+    } catch (error) {
+      logger.error("Error auto-saving group", error);
+    }
+  });
+
   // Handle other commands
   bot.help((ctx) => {
     ctx.reply(

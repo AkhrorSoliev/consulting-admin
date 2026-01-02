@@ -96,7 +96,6 @@ export default function Contract() {
         didHydrateRef.current = true;
       }
     } catch (e) {
-      console.error(e);
       toast.error("Fehler beim Laden der Vorlage.");
       didHydrateRef.current = true;
     } finally {
@@ -132,7 +131,6 @@ export default function Contract() {
       if (!silent) toast.success("Template saqlandi.");
       return true;
     } catch (e) {
-      console.error(e);
       if (!silent) toast.error("Fehler beim Speichern der Vorlage.");
       return false;
     } finally {
@@ -201,7 +199,6 @@ export default function Contract() {
       URL.revokeObjectURL(url);
       toast.success("PDF wurde erstellt.");
     } catch (e) {
-      console.error(e);
       toast.error("Fehler beim Erstellen der PDF.");
     } finally {
       setIsDownloading(false);

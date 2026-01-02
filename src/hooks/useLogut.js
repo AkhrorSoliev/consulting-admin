@@ -19,7 +19,6 @@ export const useLogout = () => {
         toast.success("Abmeldung erfolgreich.");
       });
     } catch (error) {
-      console.log(error.message);
       setIsPending(false);
       toast.error("Fehler bei der Abmeldung.");
     }

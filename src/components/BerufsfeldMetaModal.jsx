@@ -106,8 +106,6 @@ export default function BerufsfeldMetaModal({ major, open, onClose }) {
       handleClose();
     } catch (e) {
       toast.error("Speichern fehlgeschlagen.");
-      // eslint-disable-next-line no-console
-      console.error("BerufsfeldMetaModal save error:", e);
     } finally {
       setIsSaving(false);
     }
@@ -133,10 +131,7 @@ export default function BerufsfeldMetaModal({ major, open, onClose }) {
           <div className="py-6 text-sm opacity-70">Wird geladen...</div>
         ) : (
           <div className="mt-4 space-y-3">
-            <CollapsibleSection
-              title="Ichki suxbat ma'lumotlari"
-              defaultOpen
-            >
+            <CollapsibleSection title="Ichki suxbat ma'lumotlari" defaultOpen>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="form-control">
                   <label className="label" htmlFor="internal-date">
@@ -168,9 +163,7 @@ export default function BerufsfeldMetaModal({ major, open, onClose }) {
               </div>
             </CollapsibleSection>
 
-            <CollapsibleSection
-              title="Ish beruvchi bilan suxbat ma'lumotlari"
-            >
+            <CollapsibleSection title="Ish beruvchi bilan suxbat ma'lumotlari">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="form-control">
                   <label className="label" htmlFor="employer-date">
@@ -224,5 +217,3 @@ export default function BerufsfeldMetaModal({ major, open, onClose }) {
     </dialog>
   );
 }
-
-

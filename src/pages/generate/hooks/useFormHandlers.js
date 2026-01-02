@@ -121,7 +121,6 @@ export function useFormHandlers(
           setRecentlyAdded((prev) => ({ ...prev, soft: [] }));
         }, 3000);
       } catch (error) {
-        console.error("Soft skills generation error:", error);
         toast.error("Soft skills yaratishda xatolik.");
       } finally {
         setIsGeneratingSoft(false);
@@ -157,7 +156,6 @@ export function useFormHandlers(
           setRecentlyAdded((prev) => ({ ...prev, pc: [] }));
         }, 3000);
       } catch (error) {
-        console.error("PC skills generation error:", error);
         toast.error("PC skills yaratishda xatolik.");
       } finally {
         setIsGeneratingPc(false);

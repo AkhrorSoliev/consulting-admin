@@ -384,8 +384,6 @@ export async function addCandidateWithDualStats(major, payload, options = {}) {
   } catch (err) {
     // If stats are locked down (permission denied), still allow candidate submission.
     if (err?.code === "permission-denied") {
-      // eslint-disable-next-line no-console
-      console.warn("Stats update not permitted; saving candidate only.");
       await setDoc(candidateRef, payload);
       return {
         id: candidateRef.id,
@@ -434,7 +432,6 @@ export function subscribeToStatsDoc(docId, callback) {
       callback(snap.exists() ? snap.data() : null);
     },
     (err) => {
-      console.error("subscribeToStatsDoc error:", err);
       callback(null, err);
     }
   );
@@ -1073,7 +1070,6 @@ export async function rebuildStatsDocsFromExistingData(
     if (toastProgress) toast.success("Statistik erfolgreich gespeichert.");
     return stats;
   } catch (err) {
-    console.error("rebuildStatsDocsFromExistingData error:", err);
     if (toastProgress) toast.error("Fehler beim Neuberechnen der Statistik.");
     throw err;
   }

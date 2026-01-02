@@ -52,12 +52,7 @@ function getFunctionsCandidatesOrThrow() {
   try {
     const env = import.meta.env || {};
     if (env.DEV) {
-      // eslint-disable-next-line no-console
-      console.error("[telegramInvites] Missing functions base.", {
-        VITE_FUNCTIONS_BASE: env.VITE_FUNCTIONS_BASE,
-        VITE_FIREBASE_PROJECT_ID: env.VITE_FIREBASE_PROJECT_ID,
-        VITE_SUBMIT_CANDIDATE_URL: env.VITE_SUBMIT_CANDIDATE_URL,
-      });
+      // Environment variables not configured
     }
   } catch {
     // ignore

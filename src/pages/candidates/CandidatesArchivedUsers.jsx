@@ -111,7 +111,6 @@ export default function CandidatesArchivedUsers() {
       const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setItems(Array.isArray(data) ? data : []);
     } catch (e) {
-      console.error(e);
       toast.error("Fehler beim Laden (Archiv).");
       setItems([]);
     } finally {
@@ -201,7 +200,6 @@ export default function CandidatesArchivedUsers() {
         confirmVariant: "btn-primary",
       });
     } catch (e) {
-      console.error(e);
       toast.error("Fehler beim Wiederherstellen.");
     } finally {
       setRestoringKey("");
@@ -310,7 +308,6 @@ export default function CandidatesArchivedUsers() {
         setConfirmState(null);
         await load();
       } catch (e) {
-        console.error(e);
         toast.error("Fehler beim Wiederherstellen.");
       } finally {
         setRestoringKey("");
@@ -351,7 +348,6 @@ export default function CandidatesArchivedUsers() {
         setConfirmState(null);
         await load();
       } catch (e) {
-        console.error(e);
         toast.error("Fehler beim Löschen.");
       } finally {
         setMovingKey("");

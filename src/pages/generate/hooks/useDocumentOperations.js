@@ -25,7 +25,6 @@ export function useDocumentOperations(
         }));
         toast.success("Rasm yuklandi.");
       } catch (error) {
-        console.error("Photo upload error:", error);
         toast.error("Rasmni yuklashda xatolik.");
       }
     },
@@ -56,7 +55,6 @@ export function useDocumentOperations(
 
         toast.success(`${urls.length} ta hujjat yuklandi.`);
       } catch (error) {
-        console.error("Document upload error:", error);
         toast.error("Hujjatlarni yuklashda xatolik.");
       }
     },
@@ -95,9 +93,7 @@ export function useDocumentOperations(
       for (const { url } of items) {
         if (url) {
           deletionPromises.push(
-            deleteUploadedFileRemote(url).catch((err) => {
-              console.warn(`Failed to delete ${url}:`, err);
-            })
+            deleteUploadedFileRemote(url).catch((err) => {})
           );
         }
       }
@@ -141,7 +137,6 @@ export function useDocumentOperations(
 
         toast.success(`${urls.length} ta sertifikat yuklandi.`);
       } catch (error) {
-        console.error("Certificate upload error:", error);
         toast.error("Sertifikatlarni yuklashda xatolik.");
       }
     },

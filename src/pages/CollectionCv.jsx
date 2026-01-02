@@ -650,7 +650,6 @@ function CollectionCv() {
         setLoading(false);
       },
       (err) => {
-        console.error(err);
         toast.error("Fehler beim Laden der Daten.");
         setLoading(false);
       }
@@ -722,7 +721,6 @@ function CollectionCv() {
       setDeleteModalOpen(false);
       setDeleteTarget(null);
     } catch (err) {
-      console.error(err);
       toast.error("Fehler beim Löschen.");
     } finally {
       setDeletingId(null);
@@ -764,7 +762,6 @@ function CollectionCv() {
       setDeleteModalOpen(false);
       setDeleteTarget(null);
     } catch (err) {
-      console.error(err);
       toast.error("Fehler beim Archivieren.");
     } finally {
       setDeletingId(null);
@@ -801,7 +798,6 @@ function CollectionCv() {
           : "Reaktion entfernt"
       );
     } catch (err) {
-      console.error(err);
       toast.error("Fehler beim Speichern der Reaktion.");
     }
   }
