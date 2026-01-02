@@ -21,14 +21,14 @@ function EmailPreview({ subject, to, htmlContent, message }) {
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <InfoRow label="Kimga" value={safeTo || "—"} />
-        <InfoRow label="Mavzu" value={safeSubject || "—"} />
+        <InfoRow label="An" value={safeTo || "—"} />
+        <InfoRow label="Betreff" value={safeSubject || "—"} />
       </div>
 
       {safeHtml ? (
         <div className="rounded-lg border border-base-300 bg-base-100 overflow-hidden">
           <iframe
-            title="E-mail ko‘rinishi"
+            title="E-Mail-Vorschau"
             className="w-full h-64 sm:h-80 md:h-96 bg-white"
             sandbox="allow-popups allow-popups-to-escape-sandbox"
             srcDoc={safeHtml}
@@ -36,9 +36,7 @@ function EmailPreview({ subject, to, htmlContent, message }) {
         </div>
       ) : (
         <div className="rounded-lg border border-base-300 bg-base-100 p-3">
-          <div className="text-xs opacity-60 mb-2">
-            HTML yo‘q (matn ko‘rinishi)
-          </div>
+          <div className="text-xs opacity-60 mb-2">Kein HTML (Textansicht)</div>
           <pre className="whitespace-pre-wrap text-sm leading-relaxed">
             {safeMsg || "—"}
           </pre>
@@ -120,12 +118,12 @@ export default function StageEmailModal({
                 <div className="flex items-center gap-1.5">
                   <FaEnvelope
                     className="w-4 h-4 text-primary"
-                    title="Email orqali yuboriladi"
+                    title="Wird per E-Mail gesendet"
                   />
                   {hasTelegramId && (
                     <FaTelegram
                       className="w-4 h-4 text-[#0088cc]"
-                      title="Telegram orqali ham yuboriladi"
+                      title="Wird auch per Telegram gesendet"
                     />
                   )}
                 </div>
@@ -136,7 +134,7 @@ export default function StageEmailModal({
               {hasTelegramId && (
                 <p className="text-xs text-[#0088cc] mt-1 flex items-center gap-1">
                   <FaTelegram className="w-3 h-3" />
-                  Xabar Telegram orqali ham yuboriladi
+                  Nachricht wird auch per Telegram gesendet
                 </p>
               )}
             </div>
@@ -144,7 +142,7 @@ export default function StageEmailModal({
               type="button"
               className="btn btn-ghost btn-sm"
               onClick={onClose}
-              aria-label="Yopish"
+              aria-label="Schließen"
             >
               ✕
             </button>
@@ -173,10 +171,11 @@ export default function StageEmailModal({
                         checked={decision === "accepted"}
                         onChange={() => setDecision?.("accepted")}
                       />
-                      <div className="font-semibold">Qabul qilish</div>
+                      <div className="font-semibold">Annehmen</div>
                     </div>
                     <p className="text-sm opacity-70">
-                      Ijobiy e-mail yuboriladi va keyingi bosqichga o‘tiladi.
+                      Positive E-Mail wird gesendet und zur nächsten Stufe
+                      übergegangen.
                     </p>
                   </div>
                 </label>
@@ -198,11 +197,11 @@ export default function StageEmailModal({
                         checked={decision === "rejected"}
                         onChange={() => setDecision?.("rejected")}
                       />
-                      <div className="font-semibold">Rad etish</div>
+                      <div className="font-semibold">Ablehnen</div>
                     </div>
                     <p className="text-sm opacity-70">
-                      Rad javobi e-mail yuboriladi. Keyingi bosqichga
-                      o‘tilmaydi.
+                      Ablehnungs-E-Mail wird gesendet. Es wird nicht zur
+                      nächsten Stufe übergegangen.
                     </p>
                   </div>
                 </label>
@@ -210,7 +209,7 @@ export default function StageEmailModal({
 
               {decision === "accepted" && examples && examples.length > 0 && (
                 <div className="bg-base-200/60 border border-base-300 rounded-lg p-4 space-y-3">
-                  <div className="font-semibold">E-mail mazmunini tanlang:</div>
+                  <div className="font-semibold">E-Mail-Inhalt auswählen:</div>
                   <div className="space-y-2">
                     {examples.map((example) => (
                       <label
@@ -246,14 +245,14 @@ export default function StageEmailModal({
               {showInfoPanel && (
                 <div className="bg-base-200/60 border border-base-300 rounded-lg p-4 space-y-3">
                   <div className="font-semibold">
-                    {previewTitle || "E-mailga qo‘shiladigan ma’lumotlar"}
+                    {previewTitle || "Zur E-Mail hinzuzufügende Informationen"}
                   </div>
                   {showAdditionalInfoEditor ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="form-control">
                         <label className="label" htmlFor="stage-email-datetime">
                           <span className="label-text font-medium">
-                            Sana / vaqt
+                            Datum / Uhrzeit
                           </span>
                         </label>
                         <input
@@ -296,14 +295,14 @@ export default function StageEmailModal({
                             >
                               {allowAutoGenerateTelegram ? (
                                 <span className="text-xs opacity-70">
-                                  Telegram guruh nomi:{" "}
+                                  Telegram-Gruppenname:{" "}
                                   <span className="font-semibold">
                                     {String(autoTelegramGroupLabel || "—")}
                                   </span>
                                 </span>
                               ) : (
                                 <span className="text-xs opacity-60">
-                                  Guruh: —
+                                  Gruppe: —
                                 </span>
                               )}
                             </label>
@@ -315,7 +314,7 @@ export default function StageEmailModal({
                           className="input input-bordered w-full"
                           placeholder={
                             useGeneratedLink && allowAutoGenerateTelegram
-                              ? "Invite link send paytida avtomatik yaratiladi"
+                              ? "Einladungslink wird beim Senden automatisch erstellt"
                               : "https://..."
                           }
                           value={String(additionalInfoForm?.link || "")}
@@ -336,7 +335,7 @@ export default function StageEmailModal({
                           htmlFor="stage-email-locationName"
                         >
                           <span className="label-text font-medium">
-                            Lokatsiya (nomi)
+                            Standort (Name)
                           </span>
                         </label>
                         <input
@@ -359,7 +358,7 @@ export default function StageEmailModal({
                           htmlFor="stage-email-locationUrl"
                         >
                           <span className="label-text font-medium">
-                            Lokatsiya (URL)
+                            Standort (URL)
                           </span>
                         </label>
                         <input

@@ -271,7 +271,10 @@ function DataExchange() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-base-200">
+      <div
+        className="min-h-screen flex items-center justify-center bg-base-200"
+        data-theme="winter"
+      >
         <div className="text-center">
           <span className="loading loading-spinner loading-lg"></span>
           <p className="mt-4 text-lg">Yuklanmoqda...</p>
@@ -282,7 +285,10 @@ function DataExchange() {
 
   if (notFound) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-base-200">
+      <div
+        className="min-h-screen flex items-center justify-center bg-base-200"
+        data-theme="winter"
+      >
         <div className="card bg-base-100 shadow-xl max-w-md mx-3">
           <div className="card-body text-center">
             <h2 className="card-title justify-center text-error">
@@ -302,16 +308,19 @@ function DataExchange() {
     );
   }
 
-  const outgoingEntries = Object.entries(outgoingDocs).filter(
-    ([, v]) => v && typeof v === "object" && String(v?.url || "").trim()
-  );
-
   const candidateName = `${candidateData?.name || ""} ${
     candidateData?.lastName || ""
   }`.trim();
 
+  const outgoingEntries = Object.entries(outgoingDocs).filter(
+    ([, v]) => v && typeof v === "object" && String(v?.url || "").trim()
+  );
+
   return (
-    <div className="min-h-screen bg-base-200 py-4 sm:py-8 px-3 sm:px-4">
+    <div
+      className="min-h-screen bg-base-200 py-4 sm:py-8 px-3 sm:px-4"
+      data-theme="winter"
+    >
       <div className="max-w-4xl mx-auto">
         <div className="card bg-base-100 shadow-xl">
           <div className="card-body p-4 sm:p-6">

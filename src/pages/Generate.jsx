@@ -3008,6 +3008,39 @@ function Generate() {
     }
   }
 
+  async function resetSingleStage(stageValue) {
+    if (isLimitedAdmin) {
+      toast.error("Sie haben keine Berechtigung, die Stufe zurückzusetzen.");
+      return;
+    }
+    if (sendingEmailLockRef.current || sendingStepValue) {
+      toast("E-Mail-Vorgang läuft, bitte warten...");
+      return;
+    }
+    const col = String(resolvedMajor?.collectionName || "").trim();
+    const docId = String(id || "").trim();
+    if (!col || !docId) return;
+
+    try {
+      const now = Date.now();
+      const statusMeta = getCandidateStatus(stageValue);
+      await updateDocument(col, docId, {
+        status: {
+          value: stageValue,
+          label: statusMeta.label,
+          updatedAt: now,
+          updatedBy: user?.email || user?.uid || "admin",
+        },
+      });
+      setStatusValue(stageValue);
+      setStatusUpdatedAt(now);
+      setStatusUpdatedBy(user?.email || user?.uid || "admin");
+      toast.success(`Stufe "${statusMeta.label}" wurde zurückgesetzt.`);
+    } catch (e) {
+      toast.error("Fehler beim Zurücksetzen der Stufe.");
+    }
+  }
+
   function getStageAdditionalInfo(stepValue) {
     const v = String(stepValue || "").trim();
     const normalizeInterview = (obj) => {
@@ -3056,7 +3089,7 @@ function Generate() {
 
   function handleSendStatusEmail(stepValue) {
     if (isLimitedAdmin) {
-      toast.error("Sizda e-mail yuborish uchun ruxsat yo'q.");
+      toast.error("Sie haben keine Berechtigung, E-Mails zu senden.");
       return;
     }
     if (stepValue !== statusValue) {
@@ -5608,6 +5641,7 @@ function Generate() {
             disabled={isLimitedAdmin}
             resetStages={resetCandidateStages}
             openCustomEmailModal={openCustomEmailModal}
+            onResetStage={resetSingleStage}
           />
 
           {/* Outgoing documents to the candidate */}
@@ -5778,42 +5812,59 @@ function Generate() {
                       Hochgeladene Dateilinks werden hier angezeigt.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-primary gap-2"
-                    onClick={async () => {
-                      const dataExchangeUrl = `${window.location.origin}/dataExchange/${candidateDocId}`;
-                      try {
-                        if (
-                          navigator?.clipboard &&
-                          typeof navigator.clipboard.writeText === "function"
-                        ) {
-                          await navigator.clipboard.writeText(dataExchangeUrl);
-                          toast.success("DataExchange-Link kopiert.");
-                        } else {
-                          throw new Error("clipboard-unavailable");
-                        }
-                      } catch {
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary gap-2"
+                      onClick={async () => {
+                        const dataExchangeUrl = `${window.location.origin}/dataExchange/${candidateDocId}`;
                         try {
-                          const ta = document.createElement("textarea");
-                          ta.value = dataExchangeUrl;
-                          ta.style.position = "fixed";
-                          ta.style.opacity = "0";
-                          document.body.appendChild(ta);
-                          ta.focus();
-                          ta.select();
-                          document.execCommand("copy");
-                          document.body.removeChild(ta);
-                          toast.success("DataExchange-Link kopiert.");
+                          if (
+                            navigator?.clipboard &&
+                            typeof navigator.clipboard.writeText === "function"
+                          ) {
+                            await navigator.clipboard.writeText(
+                              dataExchangeUrl
+                            );
+                            toast.success("DataExchange-Link kopiert.");
+                          } else {
+                            throw new Error("clipboard-unavailable");
+                          }
                         } catch {
-                          toast.error("Fehler beim Kopieren des Links.");
+                          try {
+                            const ta = document.createElement("textarea");
+                            ta.value = dataExchangeUrl;
+                            ta.style.position = "fixed";
+                            ta.style.opacity = "0";
+                            document.body.appendChild(ta);
+                            ta.focus();
+                            ta.select();
+                            document.execCommand("copy");
+                            document.body.removeChild(ta);
+                            toast.success("DataExchange-Link kopiert.");
+                          } catch {
+                            toast.error("Fehler beim Kopieren des Links.");
+                          }
                         }
-                      }
-                    }}
-                    disabled={!candidateDocId}
-                  >
-                    Copy Link
-                  </button>
+                      }}
+                      disabled={!candidateDocId}
+                    >
+                      <FaExternalLinkAlt className="text-xs" />
+                      Copy Link
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline gap-2"
+                      onClick={() => {
+                        const dataExchangeUrl = `${window.location.origin}/dataExchange/${candidateDocId}`;
+                        window.open(dataExchangeUrl, "_blank");
+                      }}
+                      disabled={!candidateDocId}
+                    >
+                      <FaExternalLinkAlt className="text-xs" />
+                      Öffnen
+                    </button>
+                  </div>
                 </div>
 
                 {(() => {
@@ -6013,15 +6064,15 @@ function Generate() {
       <StageEmailModal
         open={isStageEmailModalOpen}
         onClose={closeStageEmailModal}
-        title="Status e-mail yuborish"
+        title="Status-E-Mail senden"
         subtitle={
           pendingStageStep === "stage_2"
-            ? "2-bosqich e-mailida link va sana/vaqt yuborilmaydi."
+            ? "In der Stufe-2-E-Mail werden Link und Datum/Uhrzeit nicht gesendet."
             : isLimitedAdmin
-            ? "Sizda e-mail yuborish uchun ruxsat yo‘q."
+            ? "Sie haben keine Berechtigung, E-Mails zu senden."
             : metaLoading
-            ? "Qo‘shimcha ma’lumotlar yuklanmoqda..."
-            : "Qabul qilinganda sana/vaqt va link (yoki lokatsiya) e-mailga qo‘shiladi."
+            ? "Zusätzliche Informationen werden geladen..."
+            : "Bei Annahme werden Datum/Uhrzeit und Link (oder Standort) zur E-Mail hinzugefügt."
         }
         decision={stageDecision}
         setDecision={setStageDecision}

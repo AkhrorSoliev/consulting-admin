@@ -1,9 +1,11 @@
+import { useState } from "react";
 import {
   CANDIDATE_STATUS_OPTIONS,
   CANDIDATE_STATUS_DEFAULT,
 } from "../constants/candidateStatus";
 import CandidateStatusBadge from "./CandidateStatusBadge";
-import { FaUndo, FaEnvelope } from "react-icons/fa";
+import ConfirmActionModal from "./ConfirmActionModal";
+import { FaUndo, FaEnvelope, FaRedoAlt } from "react-icons/fa";
 
 function CandidateStatusStepper({
   currentValue = CANDIDATE_STATUS_DEFAULT,
@@ -12,12 +14,36 @@ function CandidateStatusStepper({
   disabled = false,
   resetStages,
   openCustomEmailModal,
+  onResetStage,
 }) {
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [pendingResetStage, setPendingResetStage] = useState(null);
+
   const steps = CANDIDATE_STATUS_OPTIONS;
   const currentIndex = Math.max(
     0,
     steps.findIndex((s) => s.value === currentValue)
   );
+
+  const handleResetStageClick = (stageValue) => {
+    setPendingResetStage(stageValue);
+    setIsResetModalOpen(true);
+  };
+
+  const handleConfirmReset = () => {
+    if (pendingResetStage) {
+      onResetStage?.(pendingResetStage);
+    }
+    setIsResetModalOpen(false);
+    setPendingResetStage(null);
+  };
+
+  const handleCloseModal = () => {
+    setIsResetModalOpen(false);
+    setPendingResetStage(null);
+  };
+
+  const pendingStageMeta = steps.find((s) => s.value === pendingResetStage);
 
   return (
     <div className="card bg-base-100 border border-base-300 shadow-xl">
@@ -77,9 +103,22 @@ function CandidateStatusStepper({
                   </button>
 
                   {isCompleted && (
-                    <div className="text-[10px] sm:text-xs text-success text-center font-medium">
-                      ✓ Abgeschlossen
-                    </div>
+                    <>
+                      <div className="text-[10px] sm:text-xs text-success text-center font-medium">
+                        ✓ Abgeschlossen
+                      </div>
+                      <button
+                        className="btn btn-xs sm:btn-sm w-full btn-outline btn-info"
+                        onClick={() => handleResetStageClick(step.value)}
+                        disabled={disabled || isSending}
+                        title={`${step.label} wiederholen`}
+                      >
+                        <FaRedoAlt className="text-xs sm:text-sm" />
+                        <span className="text-xs sm:text-sm ml-1">
+                          Wiederholen
+                        </span>
+                      </button>
+                    </>
                   )}
 
                   {!isCurrent && !isCompleted && (
@@ -123,6 +162,21 @@ function CandidateStatusStepper({
           </button>
         </div>
       </div>
+
+      <ConfirmActionModal
+        open={isResetModalOpen}
+        onClose={handleCloseModal}
+        onConfirm={handleConfirmReset}
+        title="Stufe wiederholen"
+        message={`Möchten Sie die Stufe "${
+          pendingStageMeta?.label || ""
+        }" wirklich wiederholen? Die aktuelle Stufe wird auf "${
+          pendingStageMeta?.label || ""
+        }" zurückgesetzt.`}
+        confirmLabel="Wiederholen"
+        confirmVariant="warning"
+        confirmIcon={<FaRedoAlt />}
+      />
     </div>
   );
 }

@@ -4,7 +4,6 @@ import App from "./App.jsx";
 import { Toaster } from "react-hot-toast";
 import { store } from "./app/store.js";
 import { Provider } from "react-redux";
-import WinterSnowfall from "./components/WinterSnowfall.jsx";
 import ThemeBootstrap from "./components/ThemeBootstrap.jsx";
 createRoot(document.getElementById("root")).render(
   <Provider store={store}>
@@ -17,7 +16,6 @@ createRoot(document.getElementById("root")).render(
         style: { zIndex: 100000 },
       }}
     />
-    <WinterSnowfall />
     <App />
   </Provider>
 );

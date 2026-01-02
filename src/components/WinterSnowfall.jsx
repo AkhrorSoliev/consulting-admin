@@ -19,17 +19,60 @@ function resolveTheme() {
   return document.documentElement.getAttribute("data-theme") || "winter";
 }
 
+function isSnowfallDisabledRoute() {
+  if (typeof window === "undefined") return false;
+  const path = window.location.pathname;
+  // Disable snowfall on DataExchange and Create pages
+  return path.includes("/dataExchange/") || path.includes("/create");
+}
+
 export default function WinterSnowfall({ theme: themeProp }) {
   const [snowflakeCount, setSnowflakeCount] = useState(55);
   const [theme, setTheme] = useState(() => themeProp ?? resolveTheme());
+  const [currentPath, setCurrentPath] = useState(() =>
+    typeof window !== "undefined" ? window.location.pathname : ""
+  );
+
+  // Listen to route changes
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handleRouteChange = () => {
+      setCurrentPath(window.location.pathname);
+    };
+
+    // Listen to popstate (back/forward navigation)
+    window.addEventListener("popstate", handleRouteChange);
+
+    // Listen to pushState/replaceState (programmatic navigation)
+    const originalPushState = window.history.pushState;
+    const originalReplaceState = window.history.replaceState;
+
+    window.history.pushState = function (...args) {
+      originalPushState.apply(this, args);
+      handleRouteChange();
+    };
+
+    window.history.replaceState = function (...args) {
+      originalReplaceState.apply(this, args);
+      handleRouteChange();
+    };
+
+    return () => {
+      window.removeEventListener("popstate", handleRouteChange);
+      window.history.pushState = originalPushState;
+      window.history.replaceState = originalReplaceState;
+    };
+  }, []);
 
   const enabled = useMemo(() => {
     // Allow explicit disabling via env var (useful for performance debugging)
     // Set: VITE_SNOWFALL=0
     if (import.meta?.env?.VITE_SNOWFALL === "0") return false;
     if (prefersReducedMotion()) return false;
+    if (isSnowfallDisabledRoute()) return false;
     return isWinterSeason();
-  }, []);
+  }, [currentPath]);
 
   // Keep theme synced even when toggled elsewhere (e.g., Navbar in MainLayout)
   useEffect(() => {

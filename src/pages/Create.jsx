@@ -2021,7 +2021,7 @@ function Create() {
 
   if (isLinkBlocked) {
     return (
-      <div className="min-h-screen bg-base-200">
+      <div className="min-h-screen bg-base-200" data-theme="winter">
         <div className="max-w-3xl mx-auto min-h-screen grid place-items-center p-4">
           <div className="card bg-base-100 shadow w-full max-w-lg">
             <div className="card-body items-center text-center space-y-4">
@@ -2054,7 +2054,10 @@ function Create() {
   }
 
   return (
-    <div className="min-h-dvh bg-base-200 lg:h-dvh lg:overflow-hidden">
+    <div
+      className="min-h-dvh bg-base-200 lg:h-dvh lg:overflow-hidden"
+      data-theme="winter"
+    >
       {isUploading ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-base-content/40 backdrop-blur-sm">
           <div
@@ -2257,7 +2260,9 @@ function Create() {
                             <Controller
                               control={control}
                               name="personalInfo.lastName"
-                              rules={{ required: "Nachname ist erforderlich" }}
+                              rules={{
+                                required: "Nachname ist erforderlich",
+                              }}
                               render={({ field }) => (
                                 <RequiredField>
                                   <FormInput
