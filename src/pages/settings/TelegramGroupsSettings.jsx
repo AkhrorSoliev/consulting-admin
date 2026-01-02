@@ -88,7 +88,7 @@ export default function TelegramGroupsSettings() {
         setLoading(false);
       },
       (err) => {
-        toast.error("Telegram guruhlar yuklanmadi.");
+        toast.error("Telegram-Gruppen konnten nicht geladen werden.");
         setLoading(false);
       }
     );
@@ -152,7 +152,7 @@ export default function TelegramGroupsSettings() {
 
   const toggleActive = async (id, next) => {
     if (!canEdit) {
-      toast.error("Ruxsat yo'q.");
+      toast.error("Keine Berechtigung.");
       return;
     }
     const safeId = String(id || "").trim();
@@ -162,13 +162,13 @@ export default function TelegramGroupsSettings() {
         active: Boolean(next),
       });
     } catch (e) {
-      toast.error("O'zgartirib bo'lmadi.");
+      toast.error("Konnte nicht geändert werden.");
     }
   };
 
   const handleGenerateLink = async (groupId) => {
     if (!canEdit) {
-      toast.error("Ruxsat yo'q.");
+      toast.error("Keine Berechtigung.");
       return;
     }
     setGeneratingLink((prev) => ({ ...prev, [groupId]: true }));
@@ -176,13 +176,14 @@ export default function TelegramGroupsSettings() {
       const result = await generateTelegramInviteLink({ groupId });
       if (result?.invite_link) {
         await navigator.clipboard.writeText(result.invite_link);
-        toast.success("Link yaratildi va clipboard'ga nusxalandi!");
+        toast.success("Link erstellt und in die Zwischenablage kopiert!");
       } else {
-        toast.error("Link yaratilmadi.");
+        toast.error("Link konnte nicht erstellt werden.");
       }
     } catch (e) {
       toast.error(
-        "Link yaratishda xatolik: " + (e?.message || "Noma'lum xatolik")
+        "Fehler beim Erstellen des Links: " +
+          (e?.message || "Unbekannter Fehler")
       );
     } finally {
       setGeneratingLink((prev) => ({ ...prev, [groupId]: false }));
@@ -197,7 +198,7 @@ export default function TelegramGroupsSettings() {
       const response = await fetchGroupMembers(groupId);
       setMembers(response?.members || []);
     } catch (e) {
-      toast.error("A'zolarni yuklashda xatolik.");
+      toast.error("Fehler beim Laden der Mitglieder.");
     } finally {
       setLoadingMembers(false);
     }
@@ -205,17 +206,17 @@ export default function TelegramGroupsSettings() {
 
   const handleRemoveMember = async (groupId, userId) => {
     if (!canEdit) {
-      toast.error("Ruxsat yo'q.");
+      toast.error("Keine Berechtigung.");
       return;
     }
     const key = `${groupId}_${userId}`;
     setRemovingMember((prev) => ({ ...prev, [key]: true }));
     try {
       await removeTelegramGroupMember({ groupId, userId });
-      toast.success("A'zo guruhdan o'chirildi.");
+      toast.success("Mitglied aus der Gruppe entfernt.");
       setMembers((prev) => prev.filter((m) => m.user_id !== userId));
     } catch (e) {
-      toast.error("A'zoni o'chirishda xatolik.");
+      toast.error("Fehler beim Entfernen des Mitglieds.");
     } finally {
       setRemovingMember((prev) => ({ ...prev, [key]: false }));
     }
@@ -291,8 +292,8 @@ export default function TelegramGroupsSettings() {
       <div className="rounded-lg border border-base-300 bg-base-100 p-4">
         <h2 className="text-lg font-semibold">Kein Zugriff</h2>
         <p className="text-sm text-error">
-          Bu bo'lim uchun <span className="font-mono">role=admin</span> yoki{" "}
-          <span className="font-mono">role=super_admin</span> kerak.
+          Für diesen Bereich ist <span className="font-mono">role=admin</span>{" "}
+          oder <span className="font-mono">role=super_admin</span> erforderlich.
         </p>
       </div>
     );
@@ -303,23 +304,23 @@ export default function TelegramGroupsSettings() {
       <div>
         <h2 className="text-lg font-semibold">Telegram Groups</h2>
         <p className="text-sm text-base-content/70">
-          Active = ON bo‘lsa tizimda ko‘rinadi, OFF bo‘lsa tizimda ko‘rinmaydi.
-          Refresh esa botdan ro‘yxatni yangilab, yangi guruh bor-yo‘qligini
+          Active = ON bedeutet sichtbar im System, OFF bedeutet nicht sichtbar.
+          Refresh aktualisiert die Liste vom Bot und prüft auf neue Gruppen
         </p>
       </div>
 
       <div className="rounded-lg border border-base-300 bg-base-100 p-4 space-y-3">
         <div className="text-sm opacity-70">
-          <strong>💡 Qanday ishlaydi:</strong> Botni guruhga admin qilib
-          qo'shing va guruhga xabar yozing. Guruh avtomatik ravishda bu yerda
-          paydo bo'ladi.
+          <strong>💡 So funktioniert es:</strong> Fügen Sie den Bot als Admin
+          zur Gruppe hinzu und schreiben Sie eine Nachricht in die Gruppe. Die
+          Gruppe erscheint automatisch hier.
         </div>
 
         {mergedRows.length === 0 ? (
           <div className="text-sm opacity-70">
             {loading
-              ? "Yuklanmoqda..."
-              : "Hozircha guruh yo'q. Botni guruhga qo'shing va xabar yozing."}
+              ? "Wird geladen..."
+              : "Noch keine Gruppen. Fügen Sie den Bot zur Gruppe hinzu und schreiben Sie eine Nachricht."}
           </div>
         ) : (
           <div className="divide-y divide-base-200 rounded-lg border border-base-200">
@@ -342,7 +343,7 @@ export default function TelegramGroupsSettings() {
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold truncate">{name || "—"}</div>
                     {isNew ? (
-                      <div className="text-xs opacity-70">Yangi</div>
+                      <div className="text-xs opacity-70">Neu</div>
                     ) : showStats ? (
                       <div className="text-xs opacity-70">
                         Generated:{" "}
@@ -354,7 +355,10 @@ export default function TelegramGroupsSettings() {
                           {safeSent}
                         </span>
                         {!hasChat ? (
-                          <span className="opacity-70"> · Sozlanmagan</span>
+                          <span className="opacity-70">
+                            {" "}
+                            · Nicht konfiguriert
+                          </span>
                         ) : null}
                       </div>
                     ) : null}
@@ -367,7 +371,7 @@ export default function TelegramGroupsSettings() {
                           className="btn btn-xs btn-outline btn-info"
                           onClick={() => handleGenerateLink(docId)}
                           disabled={generatingLink[docId]}
-                          title="Link yaratish"
+                          title="Link erstellen"
                         >
                           {generatingLink[docId] ? "..." : "🔗 Link"}
                         </button>
@@ -375,9 +379,9 @@ export default function TelegramGroupsSettings() {
                           type="button"
                           className="btn btn-xs btn-outline btn-warning"
                           onClick={() => handleShowMembers(docId)}
-                          title="A'zolarni ko'rish"
+                          title="Mitglieder anzeigen"
                         >
-                          👥 A'zolar
+                          👥 Mitglieder
                         </button>
                       </>
                     )}
@@ -400,9 +404,9 @@ export default function TelegramGroupsSettings() {
                               chat_id: row.chat_id,
                               active: true,
                             });
-                            toast.success("Tizimga qo'shildi.");
+                            toast.success("Zum System hinzugefügt.");
                           } catch (err) {
-                            toast.error("O'zgartirib bo'lmadi.");
+                            toast.error("Konnte nicht geändert werden.");
                           }
                         }}
                       />
@@ -417,7 +421,7 @@ export default function TelegramGroupsSettings() {
 
       <div className="stats stats-vertical sm:stats-horizontal shadow border border-base-300 bg-base-100">
         <div className="stat">
-          <div className="stat-title">Jami</div>
+          <div className="stat-title">Gesamt</div>
           <div className="stat-value text-primary">{stats.total}</div>
         </div>
         <div className="stat">
@@ -448,7 +452,7 @@ export default function TelegramGroupsSettings() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Guruh a'zolari</h3>
+              <h3 className="text-lg font-semibold">Gruppenmitglieder</h3>
               <button
                 type="button"
                 className="btn btn-sm btn-circle btn-ghost"
@@ -459,11 +463,11 @@ export default function TelegramGroupsSettings() {
             </div>
             {loadingMembers ? (
               <div className="text-center py-8 text-sm opacity-70">
-                Yuklanmoqda...
+                Wird geladen...
               </div>
             ) : members.length === 0 ? (
               <div className="text-center py-8 text-sm opacity-70">
-                A'zolar topilmadi yoki bot guruhda admin emas.
+                Keine Mitglieder gefunden oder Bot ist kein Admin in der Gruppe.
               </div>
             ) : (
               <div className="space-y-2">
@@ -499,7 +503,7 @@ export default function TelegramGroupsSettings() {
                             `${showMembersModal}_${member.user_id}`
                           ]
                             ? "..."
-                            : "O'chirish"}
+                            : "Entfernen"}
                         </button>
                       )}
                   </div>

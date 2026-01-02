@@ -65,7 +65,7 @@ function Profile() {
     setIsSaving(true);
     setStatusMessage(null);
     try {
-      if (!user) throw new Error("Avvalo tizimga kiring");
+      if (!user) throw new Error("Bitte melden Sie sich zuerst an");
       const updates = {};
       if (formData.displayName && formData.displayName !== user.displayName) {
         updates.displayName = formData.displayName;
@@ -76,7 +76,7 @@ function Profile() {
       }
       if (Object.keys(updates).length > 0) {
         await updateProfile(auth.currentUser, updates);
-        setStatusMessage({ type: "success", text: "Ma’lumotlar yangilandi" });
+        setStatusMessage({ type: "success", text: "Daten aktualisiert" });
         if (updates.photoURL) {
           setAvatarPreview(updates.photoURL);
         }
@@ -118,13 +118,13 @@ function Profile() {
           <div className="h-32 w-32 rounded-full border-4 border-base-200 bg-base-200 shadow-xl">
             <img
               src={avatarPreview}
-              alt="Profile avatar"
+              alt="Profilbild"
               className="h-full w-full rounded-full object-cover"
             />
           </div>
           <div className="text-center">
             <h1 className="text-2xl font-semibold">
-              {user?.displayName || "Foydalanuvchi"}
+              {user?.displayName || "Benutzer"}
             </h1>
             <p className="text-sm text-base-content/60">{user?.email || "—"}</p>
           </div>
@@ -132,13 +132,13 @@ function Profile() {
 
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Kontakt ma’lumotlar</h2>
+            <h2 className="text-lg font-semibold">Kontaktinformationen</h2>
             <button
               type="button"
               className="btn btn-xs btn-outline"
               onClick={() => setIsEditing((prev) => !prev)}
             >
-              {isEditing ? "Bekor qilish" : "O‘zgartirish"}
+              {isEditing ? "Abbrechen" : "Bearbeiten"}
             </button>
           </div>
           {statusMessage && (
@@ -191,7 +191,7 @@ function Profile() {
               className="btn btn-primary w-full"
               disabled={!isEditing || isSaving}
             >
-              {isSaving ? "Saqlanmoqda..." : "Saqlash"}
+              {isSaving ? "Wird gespeichert..." : "Speichern"}
             </button>
           </form>
         </div>
