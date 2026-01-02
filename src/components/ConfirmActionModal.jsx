@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { FiX, FiCheck } from "react-icons/fi";
 
 function toBtnClass(variant) {
   const v = String(variant || "")
@@ -98,6 +99,7 @@ export default function ConfirmActionModal({
               }}
               disabled={busy}
             >
+              <FiX size={18} />
               Abbrechen
             </button>
             <button
@@ -113,12 +115,12 @@ export default function ConfirmActionModal({
                 </>
               ) : remaining > 0 ? (
                 <>
-                  {confirmIcon && <span className="mr-2">{confirmIcon}</span>}
+                  {confirmIcon ? confirmIcon : <FiCheck size={18} />}
                   {`${confirmLabel} (${remaining})`}
                 </>
               ) : (
                 <>
-                  {confirmIcon && <span className="mr-2">{confirmIcon}</span>}
+                  {confirmIcon ? confirmIcon : <FiCheck size={18} />}
                   {confirmLabel}
                 </>
               )}

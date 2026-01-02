@@ -10,9 +10,12 @@ import {
   deleteConsultingUploadUrlsStrict,
   deleteEmailAndPassIdByEmail,
   extractConsultingUploadUrlsFromSnapshot,
+  getMetaByName,
+  subscribeToCollections,
   upsertEmailAndPassIdFirestore,
 } from "../../utils";
 import RemoteUserCard from "../../components/RemoteUserCard";
+import SelectMajorModal from "../../components/SelectMajorModal";
 import ConfirmActionModal from "../../components/ConfirmActionModal";
 import { db } from "../../firebase/config";
 import {
@@ -93,6 +96,11 @@ export default function CandidatesDeletedUsers() {
   const [items, setItems] = useState([]);
   const [query, setQuery] = useState("");
 
+  const [majors, setMajors] = useState([]);
+  const [majorModalOpen, setMajorModalOpen] = useState(false);
+  const [majorModalKey, setMajorModalKey] = useState("");
+  const [pendingRecord, setPendingRecord] = useState(null);
+
   async function load() {
     if (!isPrivileged) return;
     try {
@@ -117,6 +125,13 @@ export default function CandidatesDeletedUsers() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPrivileged]);
 
+  useEffect(() => {
+    const unsub = subscribeToCollections((list) => {
+      setMajors(Array.isArray(list) ? list : []);
+    });
+    return () => unsub?.();
+  }, []);
+
   const filtered = useMemo(() => {
     const q = String(query || "")
       .trim()
@@ -137,21 +152,90 @@ export default function CandidatesDeletedUsers() {
     });
   }, [items, query]);
 
-  async function restore(record) {
+  function openMajorModal(record) {
+    setPendingRecord(record || null);
+    setMajorModalKey("");
+    setMajorModalOpen(true);
+  }
+
+  function closeMajorModal() {
+    if (restoringKey) return;
+    setMajorModalOpen(false);
+    setMajorModalKey("");
+    setPendingRecord(null);
+  }
+
+  async function restoreToOriginal(record) {
     if (!isPrivileged) return;
-    const major = String(record?.sourceMajor || record?.major || "").trim();
-    const majorLabel = String(record?.sourceMajorTitle || "").trim() || major;
+    const originalMajor = String(
+      record?.sourceMajor || record?.major || ""
+    ).trim();
+    const originalMajorLabel =
+      String(record?.sourceMajorTitle || "").trim() || originalMajor;
+
+    if (!originalMajor) {
+      toast.error(
+        "Originaler Bereich nicht gefunden. Bitte wählen Sie einen Bereich."
+      );
+      openMajorModal(record);
+      return;
+    }
 
     setConfirmState({
       kind: "restore",
       record,
-      title: "Kandidat wiederherstellen?",
-      message: `Major: ${
-        major || "—"
-      }\n\nHinweis: Der Kandidat wird in Firebase wiederhergestellt.`,
-      confirmLabel: "Restore",
+      majorKey: originalMajor,
+      majorLabel: originalMajorLabel,
+      title: "In Bereich (Major) wiederherstellen?",
+      message: `Bereich: ${
+        originalMajorLabel || originalMajor
+      }\n\nHinweis: Der Kandidat wird in den ursprünglichen Bereich wiederhergestellt.`,
+      confirmLabel: "Wiederherstellen",
       confirmVariant: "btn-primary",
     });
+  }
+
+  async function restore(record) {
+    if (!isPrivileged) return;
+    openMajorModal(record);
+  }
+
+  async function confirmRestoreFromModal() {
+    if (!isPrivileged) return;
+    if (!pendingRecord) return;
+    if (!majorModalKey) {
+      toast.error("Bitte wählen Sie zuerst ein Berufsfeld.");
+      return;
+    }
+
+    const key = String(pendingRecord?.id || "").trim() || "x";
+    try {
+      setRestoringKey(key);
+      const meta = await getMetaByName(majorModalKey);
+      const col = String(meta?.collectionName || "").trim();
+      if (!col) {
+        toast.error("Berufsfeld nicht gefunden. Bitte erneut wählen.");
+        return;
+      }
+
+      closeMajorModal();
+      setConfirmState({
+        kind: "restore",
+        record: pendingRecord,
+        majorKey: col,
+        majorLabel: meta?.title || col,
+        title: "Kandidaten wiederherstellen?",
+        message: `Major: ${
+          meta?.title || col
+        }\n\nHinweis: Der Kandidat wird in Firebase wiederhergestellt.`,
+        confirmLabel: "Wiederherstellen",
+        confirmVariant: "btn-primary",
+      });
+    } catch (e) {
+      toast.error("Fehler beim Wiederherstellen.");
+    } finally {
+      setRestoringKey("");
+    }
   }
 
   async function deleteForever(record) {
@@ -168,8 +252,9 @@ export default function CandidatesDeletedUsers() {
       title: "Endgültig löschen?",
       message:
         "Hinweis: Der Kandidat wird aus der Collection deleted_users entfernt.\nUpload-Dateilinks werden ebenfalls gelöscht.\nNicht wiederherstellbar.",
-      confirmLabel: "Delete",
+      confirmLabel: "Löschen",
       confirmVariant: "btn-error",
+      confirmIcon: <FiTrash2 size={18} />,
       seconds: 5,
     });
   }
@@ -180,16 +265,20 @@ export default function CandidatesDeletedUsers() {
     const record = c.record;
 
     if (c.kind === "restore") {
-      const major = String(record?.sourceMajor || record?.major || "").trim();
-      const majorLabel = String(record?.sourceMajorTitle || "").trim() || major;
       const key = String(record?.id || "").trim() || "x";
       try {
         setRestoringKey(key);
+        const major = String(c.majorKey || "").trim();
         if (!major) throw new Error("major is missing on deleted snapshot");
+        const majorLabel = String(c.majorLabel || "").trim() || major;
         const payload = stripDeletedUserMetaForRestore(record);
 
         // 1) Track direction history - preserve existing history and add current direction
-        const previousMajor = major;
+        const previousMajor = String(
+          record?.sourceMajor || record?.major || ""
+        ).trim();
+        const previousMajorTitle =
+          String(record?.sourceMajorTitle || "").trim() || previousMajor;
         const directionHistory = Array.isArray(payload.directionHistory)
           ? [...payload.directionHistory]
           : [];
@@ -198,7 +287,7 @@ export default function CandidatesDeletedUsers() {
         if (previousMajor) {
           directionHistory.push({
             major: previousMajor,
-            majorTitle: majorLabel,
+            majorTitle: previousMajorTitle,
             movedAt: Date.now(),
             movedToMajor: major,
           });
@@ -313,6 +402,17 @@ export default function CandidatesDeletedUsers() {
         seconds={confirmState?.seconds || 0}
         busy={Boolean(restoringKey) || Boolean(deletingKey)}
       />
+      <SelectMajorModal
+        open={majorModalOpen}
+        majors={majors}
+        selectedKey={majorModalKey}
+        onSelectKey={setMajorModalKey}
+        onCancel={closeMajorModal}
+        onConfirm={confirmRestoreFromModal}
+        confirming={Boolean(restoringKey)}
+        title="Berufsfeld auswählen"
+        subtitle="Wählen Sie bitte ein Berufsfeld für die Wiederherstellung des Kandidaten."
+      />
       <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
         <div>
           <div className="text-lg font-semibold">Gelöschte Benutzer</div>
@@ -392,19 +492,46 @@ export default function CandidatesDeletedUsers() {
                     <button
                       type="button"
                       className="btn btn-xs sm:btn-sm btn-primary"
-                      onClick={() => restore(r)}
+                      onClick={() => restoreToOriginal(r)}
                       disabled={disabled}
-                      title="Wiederherstellen"
+                      title="In ursprünglichen Bereich wiederherstellen"
                     >
                       {restoring ? (
                         <>
                           <span className="loading loading-spinner loading-xs sm:loading-sm" />
-                          <span className="hidden xs:inline">Restore...</span>
+                          <span className="hidden xs:inline">Original...</span>
                           <span className="xs:hidden">...</span>
                         </>
                       ) : (
                         <>
-                          <span className="hidden xs:inline">Restore</span>
+                          <span className="hidden xs:inline">Original</span>
+                          <MdOutlineRestorePage
+                            size={16}
+                            className="xs:hidden"
+                          />
+                          <MdOutlineRestorePage
+                            size={18}
+                            className="hidden xs:inline"
+                          />
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-xs sm:btn-sm btn-outline"
+                      onClick={() => restore(r)}
+                      disabled={disabled}
+                      title="Berufsfeld auswählen"
+                    >
+                      {restoring ? (
+                        <>
+                          <span className="loading loading-spinner loading-xs sm:loading-sm" />
+                          <span className="hidden xs:inline">Auswählen...</span>
+                          <span className="xs:hidden">...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="hidden xs:inline">Auswählen</span>
                           <MdOutlineRestorePage
                             size={16}
                             className="xs:hidden"
