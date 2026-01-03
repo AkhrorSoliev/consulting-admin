@@ -1397,6 +1397,10 @@ exports.setUserRole = onCall(async (request) => {
 
 const initBot = require("./src/bot/index");
 
+// Cache bot instance to avoid re-initialization on every request
+let cachedBot = null;
+let cachedBotToken = null;
+
 // Bot webhook endpoint
 exports.telegramBotWebhook = onRequest(
   { secrets: [TELEGRAM_BOT_TOKEN] },
@@ -1411,13 +1415,19 @@ exports.telegramBotWebhook = onRequest(
         return res.status(500).json({ ok: false, error: "bot-token-missing" });
       }
 
-      const bot = initBot(db, botToken);
-      if (!bot) {
+      // Reuse cached bot if token hasn't changed
+      if (!cachedBot || cachedBotToken !== botToken) {
+        logger.info("Initializing new bot instance");
+        cachedBot = initBot(db, botToken);
+        cachedBotToken = botToken;
+      }
+
+      if (!cachedBot) {
         return res.status(500).json({ ok: false, error: "bot-init-failed" });
       }
 
       // Handle webhook update - bot.handleUpdate automatically sends response
-      await bot.handleUpdate(req.body, res);
+      await cachedBot.handleUpdate(req.body, res);
     } catch (err) {
       logger.error("telegramBotWebhook error", err);
       if (!res.headersSent) {

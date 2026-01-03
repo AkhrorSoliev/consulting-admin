@@ -15,10 +15,21 @@ module.exports = (db, token) => {
   // Helper function to check if user is a member of the required channel
   async function checkChannelMembership(userId) {
     try {
-      const member = await bot.telegram.getChatMember(
+      // Add timeout to prevent hanging on first request
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(
+          () => reject(new Error("Timeout checking membership")),
+          10000
+        );
+      });
+
+      const memberPromise = bot.telegram.getChatMember(
         REQUIRED_CHANNEL_ID,
         userId
       );
+
+      const member = await Promise.race([memberPromise, timeoutPromise]);
+
       // Member statuses: 'creator', 'administrator', 'member', 'restricted', 'left', 'kicked'
       const isMember = ["creator", "administrator", "member"].includes(
         member.status
@@ -57,6 +68,9 @@ module.exports = (db, token) => {
         startPayload,
       });
 
+      // Show loading message while checking membership
+      const loadingMsg = await ctx.reply("Tekshirilmoqda... ⏳");
+
       // Check channel membership first
       let isMember = false;
       try {
@@ -68,6 +82,13 @@ module.exports = (db, token) => {
           error: membershipError.message,
         });
         isMember = false;
+      }
+
+      // Delete loading message
+      try {
+        await ctx.deleteMessage(loadingMsg.message_id);
+      } catch (e) {
+        logger.warn("Could not delete loading message", e);
       }
 
       if (!isMember) {
@@ -177,6 +198,9 @@ module.exports = (db, token) => {
       const startPayload = ctx.match[1];
       const telegramId = ctx.from.id;
       const firstName = ctx.from.first_name || "";
+
+      // Show loading indicator
+      await ctx.answerCbQuery("Tekshirilmoqda... ⏳");
 
       // Check if user is now a member
       let isMember = false;
