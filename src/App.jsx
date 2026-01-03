@@ -4,6 +4,7 @@ import {
   Outlet,
   RouterProvider,
   useParams,
+  useLocation,
 } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout";
 import Home from "./pages/Home";
@@ -35,6 +36,8 @@ import Vollmacht from "./pages/Vollmacht";
 import VollmachtArbeitgeber from "./pages/VollmachtArbeitgeber";
 import DataExchange from "./pages/DataExchange";
 import NotFound from "./pages/NotFound";
+import { useDesktopOnly } from "./hooks/useDesktopOnly";
+import DesktopOnlyBlockedPage from "./components/DesktopOnlyBlockedPage";
 
 function DocumentsLegacyRedirect() {
   const { templateId } = useParams();
@@ -47,6 +50,20 @@ function DocumentsLegacyRedirect() {
   );
 }
 
+function DesktopOnlyWrapper({ children }) {
+  const { isDesktop, isChecking } = useDesktopOnly();
+
+  if (isChecking) {
+    return null;
+  }
+
+  if (!isDesktop) {
+    return <DesktopOnlyBlockedPage />;
+  }
+
+  return children;
+}
+
 function App() {
   const dispatch = useDispatch();
   const { authReady, user } = useSelector((state) => state.auth);
@@ -54,9 +71,11 @@ function App() {
     {
       path: "/",
       element: (
-        <ProtectedRoutes user={user}>
-          <MainLayout />
-        </ProtectedRoutes>
+        <DesktopOnlyWrapper>
+          <ProtectedRoutes user={user}>
+            <MainLayout />
+          </ProtectedRoutes>
+        </DesktopOnlyWrapper>
       ),
       children: [
         {
@@ -121,7 +140,11 @@ function App() {
     },
     {
       path: "/login",
-      element: user ? <Navigate to="/" /> : <Login />,
+      element: (
+        <DesktopOnlyWrapper>
+          {user ? <Navigate to="/" /> : <Login />}
+        </DesktopOnlyWrapper>
+      ),
     },
     {
       path: "/create",
