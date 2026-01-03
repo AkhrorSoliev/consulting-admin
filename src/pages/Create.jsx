@@ -217,6 +217,16 @@ function Create() {
   });
   const [isInputFocused, setIsInputFocused] = useState(false);
 
+  const TELEGRAM_SUPPORT_URL = "https://t.me/consultinguz_kundensupport";
+  const CHECK_REGISTRY_ENDPOINT =
+    import.meta.env.VITE_CHECK_REGISTRY_URL ||
+    (import.meta.env.VITE_FUNCTIONS_BASE &&
+      `${import.meta.env.VITE_FUNCTIONS_BASE}/checkRegistry`);
+  const SUBMIT_ENDPOINT =
+    import.meta.env.VITE_SUBMIT_CANDIDATE_URL ||
+    (import.meta.env.VITE_FUNCTIONS_BASE &&
+      `${import.meta.env.VITE_FUNCTIONS_BASE}/submitCandidate`);
+
   // Wizard steps: show one section at a time to reduce perceived form size
   const STEPS = useMemo(
     () => [
@@ -595,15 +605,6 @@ function Create() {
     }));
   }
 
-  const TELEGRAM_SUPPORT_URL = "https://t.me/consultinguz_kundensupport";
-  const CHECK_REGISTRY_ENDPOINT =
-    import.meta.env.VITE_CHECK_REGISTRY_URL ||
-    (import.meta.env.VITE_FUNCTIONS_BASE &&
-      `${import.meta.env.VITE_FUNCTIONS_BASE}/checkRegistry`);
-  const SUBMIT_ENDPOINT =
-    import.meta.env.VITE_SUBMIT_CANDIDATE_URL ||
-    (import.meta.env.VITE_FUNCTIONS_BASE &&
-      `${import.meta.env.VITE_FUNCTIONS_BASE}/submitCandidate`);
   // Phone/Country dropdown options come from `src/utils/const.js` via components
 
   useEffect(() => {
