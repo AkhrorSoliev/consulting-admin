@@ -69,10 +69,16 @@ module.exports = (db, token) => {
       });
 
       // Show loading message while checking membership
-      const loadingMsg = await ctx.reply("Tekshirilmoqda... ⏳");
+      let loadingMsg = null;
+      try {
+        loadingMsg = await ctx.reply("Tekshirilmoqda... ⏳");
+      } catch (e) {
+        logger.warn("Could not send loading message", e);
+      }
 
       // Check channel membership first
       let isMember = false;
+      let membershipCheckFailed = false;
       try {
         isMember = await checkChannelMembership(telegramId);
       } catch (membershipError) {
@@ -82,17 +88,26 @@ module.exports = (db, token) => {
           error: membershipError.message,
         });
         isMember = false;
+        membershipCheckFailed = true;
       }
 
       // Delete loading message
-      try {
-        await ctx.deleteMessage(loadingMsg.message_id);
-      } catch (e) {
-        logger.warn("Could not delete loading message", e);
+      if (loadingMsg) {
+        try {
+          await ctx.deleteMessage(loadingMsg.message_id);
+        } catch (e) {
+          logger.warn("Could not delete loading message", e);
+        }
       }
 
       if (!isMember) {
         // User is not a member - show channel join requirement
+        // Store startPayload in user's context for later retrieval
+        const checkData =
+          startPayload && startPayload.length < 50
+            ? `check:${startPayload}`
+            : "check_membership";
+
         await ctx.reply(
           `Salom ${firstName}! 👋\n\n` +
             `Botdan foydalanish uchun avval rasmiy kanalimizga a'zo bo'lishingiz kerak.\n\n` +
@@ -109,13 +124,30 @@ module.exports = (db, token) => {
                 [
                   {
                     text: "✅ Tekshirish",
-                    callback_data: `check_membership:${startPayload || "none"}`,
+                    callback_data: checkData,
                   },
                 ],
               ],
             },
           }
         );
+
+        // Store the startPayload in Firestore for later retrieval
+        if (startPayload) {
+          try {
+            await db
+              .collection("pending_registrations")
+              .doc(String(telegramId))
+              .set({
+                telegramId,
+                startPayload,
+                timestamp: new Date(),
+              });
+          } catch (e) {
+            logger.warn("Could not store pending registration", e);
+          }
+        }
+
         return;
       }
 
@@ -193,11 +225,32 @@ module.exports = (db, token) => {
   });
 
   // Handle callback query for membership verification
-  bot.action(/^check_membership:(.+)$/, async (ctx) => {
+  bot.action(/^check/, async (ctx) => {
     try {
-      const startPayload = ctx.match[1];
       const telegramId = ctx.from.id;
       const firstName = ctx.from.first_name || "";
+
+      // Extract startPayload from callback_data or Firestore
+      let startPayload = null;
+      const callbackData = ctx.callbackQuery.data;
+
+      if (callbackData.startsWith("check:")) {
+        // Short payload embedded in callback_data
+        startPayload = callbackData.substring(6);
+      } else {
+        // Long payload - retrieve from Firestore
+        try {
+          const doc = await db
+            .collection("pending_registrations")
+            .doc(String(telegramId))
+            .get();
+          if (doc.exists) {
+            startPayload = doc.data()?.startPayload || null;
+          }
+        } catch (e) {
+          logger.warn("Could not retrieve pending registration", e);
+        }
+      }
 
       // Show loading indicator
       await ctx.answerCbQuery("Tekshirilmoqda... ⏳");

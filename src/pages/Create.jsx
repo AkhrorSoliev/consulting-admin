@@ -56,6 +56,7 @@ import PrivacyModal from "./create/components/modals/PrivacyModal";
 import GuideModal from "./create/components/modals/GuideModal";
 import ExistingEmailModal from "./create/components/modals/ExistingEmailModal";
 import ExistingPassportModal from "./create/components/modals/ExistingPassportModal";
+import ExistingTelegramModal from "./create/components/modals/ExistingTelegramModal";
 import PdfPreviewModal from "./create/components/modals/PdfPreviewModal";
 import RequiredDocumentsModal from "./create/components/modals/RequiredDocumentsModal";
 import LivePreview from "./generate/components/LivePreview";
@@ -155,6 +156,9 @@ function Create() {
   const [isPassportModalOpen, setIsPassportModalOpen] = useState(false);
   const [existingPassportMajor, setExistingPassportMajor] = useState("");
   const [enteredPassport, setEnteredPassport] = useState("");
+  const [isTelegramModalOpen, setIsTelegramModalOpen] = useState(false);
+  const [existingTelegramMajor, setExistingTelegramMajor] = useState("");
+  const [isTelegramChecking, setIsTelegramChecking] = useState(false);
   const [searchParams] = useSearchParams();
   // Documents are stored as uploaded URLs + metadata so refresh doesn't lose progress.
   // Shapes:
@@ -411,6 +415,36 @@ function Create() {
       cancelled = true;
     };
   }, [searchParams]);
+
+  // Check Telegram ID on page load
+  useEffect(() => {
+    const teIdParam = String(searchParams.get("teId") || "").trim();
+    if (!teIdParam || !CHECK_REGISTRY_ENDPOINT) return;
+
+    let cancelled = false;
+    setIsTelegramChecking(true);
+
+    (async () => {
+      try {
+        const r = await checkRegistryLive({ telegramId: teIdParam });
+        if (cancelled) return;
+
+        if (r.ok && r?.json?.telegram?.exists) {
+          const major = String(r?.json?.telegram?.major || "Unbekannt");
+          setExistingTelegramMajor(major);
+          setIsTelegramModalOpen(true);
+        }
+      } catch (e) {
+        // Silently fail - user can still try to submit
+      } finally {
+        if (!cancelled) setIsTelegramChecking(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, CHECK_REGISTRY_ENDPOINT]);
 
   function formatGermanAddress(parts) {
     const street = String(parts?.street || "").trim();
@@ -807,7 +841,7 @@ function Create() {
   // However, for better UX we DO provide a public Cloud Function `/checkRegistry`
   // protected by CORS + rate limiting, and use it here for live checks.
 
-  async function checkRegistryLive({ email, passportId }) {
+  async function checkRegistryLive({ email, passportId, telegramId }) {
     if (!CHECK_REGISTRY_ENDPOINT) {
       // If not configured, skip live checks (submit will still enforce duplicates).
       return { ok: false, skipped: true };
@@ -822,6 +856,7 @@ function Create() {
         body: JSON.stringify({
           ...(email ? { email } : {}),
           ...(passportId ? { passportId } : {}),
+          ...(telegramId ? { telegramId } : {}),
         }),
       });
       const json = await res.json().catch(() => ({}));
@@ -1657,6 +1692,7 @@ function Create() {
   async function onSubmit(formData) {
     // Start loading immediately to reflect click action without delay
     setIsUploading(true);
+    setIsSubmitting(true);
     try {
       const blockingErrors = [];
       const errorLabels = {
@@ -1972,9 +2008,20 @@ function Create() {
           );
           setError("personalInfo.passportNumber", {
             type: "remoteExists",
-            message: `Diese Passnummer ist bereits für „${major}“ registriert.`,
+            message: `Diese Passnummer ist bereits für „${major}" registriert.`,
           });
           setIsPassportModalOpen(true);
+          return;
+        }
+        if (
+          res.status === 409 &&
+          String(json?.error || "") === "telegram-exists"
+        ) {
+          const major = String(json?.existing?.major || "Unbekannt");
+          toast.error(
+            `Diese Telegram-ID ist bereits für „${major}" registriert. Bitte kontaktieren Sie den Support.`,
+            { duration: 8000 }
+          );
           return;
         }
         if (!res.ok || !json?.ok) {
@@ -2017,6 +2064,7 @@ function Create() {
       }
     } finally {
       setIsSubmitting(false);
+      setIsUploading(false);
     }
   }
 
@@ -4571,6 +4619,12 @@ function Create() {
         }}
         enteredPassport={enteredPassport}
         existingMajor={existingPassportMajor}
+      />
+
+      <ExistingTelegramModal
+        open={isTelegramModalOpen}
+        onClose={() => setIsTelegramModalOpen(false)}
+        existingMajor={existingTelegramMajor}
       />
 
       {/* Bottom Sheet: City Picker (Mobile Only) */}

@@ -331,8 +331,8 @@ exports.proxyPdf = onRequest(async (req, res) => {
 });
 
 // POST /checkRegistry
-// Body: { email?: string, passportId?: string }
-// Returns: { ok: true, email?: { exists: boolean, major?: string|null }, passport?: { exists: boolean, major?: string|null } }
+// Body: { email?: string, passportId?: string, telegramId?: string }
+// Returns: { ok: true, email?: { exists: boolean, major?: string|null }, passport?: { exists: boolean, major?: string|null }, telegram?: { exists: boolean, major?: string|null } }
 //
 // Security:
 // - CORS allowlist (same as other public endpoints)
@@ -355,10 +355,11 @@ exports.checkRegistry = onRequest(async (req, res) => {
 
     const emailRaw = String(req.body?.email || "").trim();
     const passportRaw = String(req.body?.passportId || "").trim();
-    if (!emailRaw && !passportRaw) {
+    const telegramIdRaw = String(req.body?.telegramId || "").trim();
+    if (!emailRaw && !passportRaw && !telegramIdRaw) {
       return res
         .status(400)
-        .json({ ok: false, error: "missing-email-or-passportId" });
+        .json({ ok: false, error: "missing-email-passportId-or-telegramId" });
     }
 
     const out = { ok: true };
@@ -376,6 +377,15 @@ exports.checkRegistry = onRequest(async (req, res) => {
       const safePassport = normalizePassportIdForRegistry(passportRaw);
       const r = await checkPassportRegistry(safePassport);
       out.passport = {
+        exists: Boolean(r.exists),
+        ...(r.exists ? { major: String(r?.data?.major || null) || null } : {}),
+      };
+    }
+
+    if (telegramIdRaw) {
+      const safeTelegramId = telegramIdRaw;
+      const r = await checkTelegramIdRegistry(safeTelegramId);
+      out.telegram = {
         exists: Boolean(r.exists),
         ...(r.exists ? { major: String(r?.data?.major || null) || null } : {}),
       };
@@ -930,6 +940,19 @@ async function checkPassportRegistry(passportId) {
   return { exists: true, data: { id: d.id, ...d.data() } };
 }
 
+async function checkTelegramIdRegistry(telegramId) {
+  const safeTelegramId = String(telegramId || "").trim();
+  if (!safeTelegramId) return { exists: false };
+  const q = await db
+    .collection(EMAIL_AND_PASSID_COLLECTION)
+    .where("telegramId", "==", safeTelegramId)
+    .limit(1)
+    .get();
+  if (q.empty) return { exists: false };
+  const d = q.docs[0];
+  return { exists: true, data: { id: d.id, ...d.data() } };
+}
+
 async function upsertEmailPassportRegistry({ email, passportId, major }) {
   const safeEmail = normalizeEmailForRegistry(email);
   if (!safeEmail) return;
@@ -992,6 +1015,18 @@ function extractPassportIdFromAnyCandidateDoc(payload) {
   return String(passport || "").trim();
 }
 
+function extractTelegramIdFromAnyCandidateDoc(payload) {
+  const p = payload && typeof payload === "object" ? payload : {};
+  const telegramId =
+    p?.telegramId ??
+    p?.telegram_id ??
+    p?.tgId ??
+    p?.persoenlicheDaten?.telegramId ??
+    p?.personalInfo?.telegramId ??
+    "";
+  return String(telegramId || "").trim();
+}
+
 exports.syncEmailAndPassIdRegistry = onDocumentWritten(
   "{collectionId}/{docId}",
   async (event) => {
@@ -1007,10 +1042,12 @@ exports.syncEmailAndPassIdRegistry = onDocumentWritten(
       const afterData = event.data.after.data() || {};
       const emailRaw = extractEmailFromAnyCandidateDoc(afterData);
       const passportRaw = extractPassportIdFromAnyCandidateDoc(afterData);
+      const telegramIdRaw = extractTelegramIdFromAnyCandidateDoc(afterData);
 
       const safeEmail = normalizeEmailForRegistry(emailRaw);
       if (!safeEmail) return;
       const safePassport = normalizePassportIdForRegistry(passportRaw);
+      const safeTelegramId = telegramIdRaw || null;
 
       const registryRef = db
         .collection(EMAIL_AND_PASSID_COLLECTION)
@@ -1024,6 +1061,7 @@ exports.syncEmailAndPassIdRegistry = onDocumentWritten(
           sourceDocId: String(docId || "").trim() || null,
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           ...(safePassport ? { passportId: safePassport } : {}),
+          ...(safeTelegramId ? { telegramId: safeTelegramId } : {}),
         };
         if (!snap.exists) {
           tx.set(registryRef, {
@@ -1162,9 +1200,12 @@ exports.submitCandidate = onRequest(
         payload?.persoenlicheDaten?.reisepassNummer ??
         payload?.personalInfo?.passportNumber ??
         "";
+      const telegramIdFromPayload =
+        payload?.telegramId ?? payload?.telegram_id ?? payload?.tgId ?? "";
 
       const safeEmail = normalizeEmailForRegistry(emailFromPayload);
       const safePassport = normalizePassportIdForRegistry(passportFromPayload);
+      const safeTelegramId = String(telegramIdFromPayload || "").trim() || null;
 
       // Email must be present for the registry (and to reliably prevent duplicates).
       if (!safeEmail) {
@@ -1215,17 +1256,42 @@ exports.submitCandidate = onRequest(
             }
           }
 
-          // (c) Create candidate doc
+          // (c) Telegram ID duplicate check (best-effort if provided)
+          if (safeTelegramId) {
+            const q = db
+              .collection(EMAIL_AND_PASSID_COLLECTION)
+              .where("telegramId", "==", safeTelegramId)
+              .limit(1);
+            const qSnap = await tx.get(q);
+            if (!qSnap.empty) {
+              const d = qSnap.docs[0];
+              const data = d.data() || {};
+              const err = new Error("telegram-exists");
+              err.status = 409;
+              err.code = "telegram-exists";
+              err.existing = {
+                email: data.email || d.id || null,
+                major: data.major || null,
+                telegramId: data.telegramId || safeTelegramId,
+              };
+              throw err;
+            }
+          }
+
+          // (d) Create candidate doc
           tx.set(candidateRef, {
             ...payload,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
           });
 
-          // (d) Create registry entry (same email => deterministic doc id)
+          // (e) Create registry entry (same email => deterministic doc id)
           tx.set(registryRef, {
             email: safeEmail,
             major: String(targetCol || "").trim() || null,
+            sourceMajor: String(targetCol || "").trim() || null,
+            sourceDocId: String(candidateRef.id || "").trim() || null,
             ...(safePassport ? { passportId: safePassport } : {}),
+            ...(safeTelegramId ? { telegramId: safeTelegramId } : {}),
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
@@ -1248,6 +1314,17 @@ exports.submitCandidate = onRequest(
               email: null,
               major: null,
               passportId: safePassport,
+            },
+          });
+        }
+        if (status === 409 && code === "telegram-exists") {
+          return res.status(409).json({
+            ok: false,
+            error: "telegram-exists",
+            existing: e.existing || {
+              email: null,
+              major: null,
+              telegramId: safeTelegramId,
             },
           });
         }
@@ -1397,10 +1474,6 @@ exports.setUserRole = onCall(async (request) => {
 
 const initBot = require("./src/bot/index");
 
-// Cache bot instance to avoid re-initialization on every request
-let cachedBot = null;
-let cachedBotToken = null;
-
 // Bot webhook endpoint
 exports.telegramBotWebhook = onRequest(
   { secrets: [TELEGRAM_BOT_TOKEN] },
@@ -1415,19 +1488,14 @@ exports.telegramBotWebhook = onRequest(
         return res.status(500).json({ ok: false, error: "bot-token-missing" });
       }
 
-      // Reuse cached bot if token hasn't changed
-      if (!cachedBot || cachedBotToken !== botToken) {
-        logger.info("Initializing new bot instance");
-        cachedBot = initBot(db, botToken);
-        cachedBotToken = botToken;
-      }
-
-      if (!cachedBot) {
+      // Initialize bot for each request to ensure latest code is used
+      const bot = initBot(db, botToken);
+      if (!bot) {
         return res.status(500).json({ ok: false, error: "bot-init-failed" });
       }
 
       // Handle webhook update - bot.handleUpdate automatically sends response
-      await cachedBot.handleUpdate(req.body, res);
+      await bot.handleUpdate(req.body, res);
     } catch (err) {
       logger.error("telegramBotWebhook error", err);
       if (!res.headersSent) {
