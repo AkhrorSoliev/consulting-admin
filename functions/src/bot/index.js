@@ -20,13 +20,26 @@ module.exports = (db, token) => {
         userId
       );
       // Member statuses: 'creator', 'administrator', 'member', 'restricted', 'left', 'kicked'
-      return ["creator", "administrator", "member"].includes(member.status);
+      const isMember = ["creator", "administrator", "member"].includes(
+        member.status
+      );
+      logger.info("Channel membership check result", {
+        userId,
+        status: member.status,
+        isMember,
+      });
+      return isMember;
     } catch (error) {
       logger.error("Error checking channel membership", {
         userId,
-        error: error.message,
+        channelId: REQUIRED_CHANNEL_ID,
+        errorMessage: error.message,
+        errorCode: error.code,
+        errorResponse: error.response?.description,
       });
-      return false;
+      // If error is due to user not being found or other API issues,
+      // throw the error so it can be handled properly in the main handler
+      throw error;
     }
   }
 
@@ -45,7 +58,17 @@ module.exports = (db, token) => {
       });
 
       // Check channel membership first
-      const isMember = await checkChannelMembership(telegramId);
+      let isMember = false;
+      try {
+        isMember = await checkChannelMembership(telegramId);
+      } catch (membershipError) {
+        // Log the error but continue - we'll show the channel join message
+        logger.warn("Channel membership check failed, assuming not a member", {
+          telegramId,
+          error: membershipError.message,
+        });
+        isMember = false;
+      }
 
       if (!isMember) {
         // User is not a member - show channel join requirement
@@ -142,7 +165,8 @@ module.exports = (db, token) => {
     } catch (error) {
       logger.error("Error in bot /start handler", error);
       await ctx.reply(
-        "Kechirasiz, xatolik yuz berdi. Iltimos, qaytadan urinib ko'ring."
+        "Kechirasiz, xatolik yuz berdi.\n\n" +
+          "Iltimos, /start buyrug'ini qaytadan yuboring yoki linkni qaytadan oching."
       );
     }
   });
@@ -155,7 +179,20 @@ module.exports = (db, token) => {
       const firstName = ctx.from.first_name || "";
 
       // Check if user is now a member
-      const isMember = await checkChannelMembership(telegramId);
+      let isMember = false;
+      try {
+        isMember = await checkChannelMembership(telegramId);
+      } catch (membershipError) {
+        logger.warn("Channel membership check failed in callback", {
+          telegramId,
+          error: membershipError.message,
+        });
+        await ctx.answerCbQuery(
+          "❌ Kanal a'zoligini tekshirishda xatolik. Iltimos, qaytadan urinib ko'ring.",
+          { show_alert: true }
+        );
+        return;
+      }
 
       if (!isMember) {
         // Still not a member

@@ -145,6 +145,7 @@ function Create() {
   const [recentlyAdded, setRecentlyAdded] = useState({ soft: [], pc: [] });
   // null = 아직 확인 전 (major/localStorage hydrate qilinmagan), boolean = aniq holat
   const [isSubmitted, setIsSubmitted] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPrivacyOpen, setIsPrivacyOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isRequiredDocsOpen, setIsRequiredDocsOpen] = useState(false);
