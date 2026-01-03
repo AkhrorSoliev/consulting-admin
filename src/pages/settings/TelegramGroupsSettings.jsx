@@ -35,10 +35,6 @@ export default function TelegramGroupsSettings() {
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generatingLink, setGeneratingLink] = useState({});
-  const [showMembersModal, setShowMembersModal] = useState(null);
-  const [members, setMembers] = useState([]);
-  const [loadingMembers, setLoadingMembers] = useState(false);
-  const [removingMember, setRemovingMember] = useState({});
 
   const canEdit = canAccess;
 
@@ -190,86 +186,6 @@ export default function TelegramGroupsSettings() {
     }
   };
 
-  const handleShowMembers = async (groupId) => {
-    setShowMembersModal(groupId);
-    setLoadingMembers(true);
-    setMembers([]);
-    try {
-      const response = await fetchGroupMembers(groupId);
-      setMembers(response?.members || []);
-    } catch (e) {
-      toast.error("Fehler beim Laden der Mitglieder.");
-    } finally {
-      setLoadingMembers(false);
-    }
-  };
-
-  const handleRemoveMember = async (groupId, userId) => {
-    if (!canEdit) {
-      toast.error("Keine Berechtigung.");
-      return;
-    }
-    const key = `${groupId}_${userId}`;
-    setRemovingMember((prev) => ({ ...prev, [key]: true }));
-    try {
-      await removeTelegramGroupMember({ groupId, userId });
-      toast.success("Mitglied aus der Gruppe entfernt.");
-      setMembers((prev) => prev.filter((m) => m.user_id !== userId));
-    } catch (e) {
-      toast.error("Fehler beim Entfernen des Mitglieds.");
-    } finally {
-      setRemovingMember((prev) => ({ ...prev, [key]: false }));
-    }
-  };
-
-  async function fetchGroupMembers(groupId) {
-    const user = auth.currentUser;
-    if (!user) throw new Error("Not authenticated");
-    const token = await user.getIdToken();
-    const bases = getFunctionsBaseCandidates();
-    for (const base of bases) {
-      try {
-        const url = `${base}/getTelegramGroupMembers?groupId=${encodeURIComponent(
-          groupId
-        )}`;
-        const res = await fetch(url, {
-          method: "GET",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const json = await res.json();
-        if (res.ok && json?.ok) return json;
-      } catch (e) {
-        continue;
-      }
-    }
-    throw new Error("Failed to fetch members");
-  }
-
-  async function removeTelegramGroupMember({ groupId, userId }) {
-    const user = auth.currentUser;
-    if (!user) throw new Error("Not authenticated");
-    const token = await user.getIdToken();
-    const bases = getFunctionsBaseCandidates();
-    for (const base of bases) {
-      try {
-        const url = `${base}/removeTelegramGroupMember`;
-        const res = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ groupId, userId }),
-        });
-        const json = await res.json();
-        if (res.ok && json?.ok) return json;
-      } catch (e) {
-        continue;
-      }
-    }
-    throw new Error("Failed to remove member");
-  }
-
   function getFunctionsBaseCandidates() {
     const env = import.meta.env || {};
     const explicit = String(env.VITE_FUNCTIONS_BASE || "").trim();
@@ -365,25 +281,15 @@ export default function TelegramGroupsSettings() {
                   </div>
                   <div className="flex items-center gap-2">
                     {docId && checked && (
-                      <>
-                        <button
-                          type="button"
-                          className="btn btn-xs btn-outline btn-info"
-                          onClick={() => handleGenerateLink(docId)}
-                          disabled={generatingLink[docId]}
-                          title="Link erstellen"
-                        >
-                          {generatingLink[docId] ? "..." : "🔗 Link"}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-xs btn-outline btn-warning"
-                          onClick={() => handleShowMembers(docId)}
-                          title="Mitglieder anzeigen"
-                        >
-                          👥 Mitglieder
-                        </button>
-                      </>
+                      <button
+                        type="button"
+                        className="btn btn-xs btn-outline btn-info"
+                        onClick={() => handleGenerateLink(docId)}
+                        disabled={generatingLink[docId]}
+                        title="Link erstellen"
+                      >
+                        {generatingLink[docId] ? "..." : "🔗 Link"}
+                      </button>
                     )}
                     <label className="label cursor-pointer gap-2">
                       <span className="text-sm">Active</span>
@@ -441,78 +347,6 @@ export default function TelegramGroupsSettings() {
           <div className="stat-value">{stats.linksDispatchedTotal}</div>
         </div>
       </div>
-
-      {showMembersModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          onClick={() => setShowMembersModal(null)}
-        >
-          <div
-            className="bg-base-100 rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold">Gruppenmitglieder</h3>
-              <button
-                type="button"
-                className="btn btn-sm btn-circle btn-ghost"
-                onClick={() => setShowMembersModal(null)}
-              >
-                ✕
-              </button>
-            </div>
-            {loadingMembers ? (
-              <div className="text-center py-8 text-sm opacity-70">
-                Wird geladen...
-              </div>
-            ) : members.length === 0 ? (
-              <div className="text-center py-8 text-sm opacity-70">
-                Keine Mitglieder gefunden oder Bot ist kein Admin in der Gruppe.
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {members.map((member) => (
-                  <div
-                    key={member.user_id}
-                    className="flex items-center justify-between p-3 rounded-lg border border-base-300"
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold truncate">
-                        {member.first_name || "—"}
-                      </div>
-                      <div className="text-xs opacity-70">
-                        {member.username ? `@${member.username}` : ""}
-                        {member.status ? ` · ${member.status}` : ""}
-                      </div>
-                    </div>
-                    {member.status !== "creator" &&
-                      member.status !== "administrator" && (
-                        <button
-                          type="button"
-                          className="btn btn-xs btn-error"
-                          onClick={() =>
-                            handleRemoveMember(showMembersModal, member.user_id)
-                          }
-                          disabled={
-                            removingMember[
-                              `${showMembersModal}_${member.user_id}`
-                            ]
-                          }
-                        >
-                          {removingMember[
-                            `${showMembersModal}_${member.user_id}`
-                          ]
-                            ? "..."
-                            : "Entfernen"}
-                        </button>
-                      )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
