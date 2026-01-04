@@ -1501,3 +1501,10 @@ export {
   CURRENT_STATS_DOC_ID,
   statsDocRef,
 } from "./stats";
+
+export {
+  syncUserToFirestore,
+  getUserFromFirestore,
+  getUserData,
+  getUserByEmail,
+} from "./userSync";

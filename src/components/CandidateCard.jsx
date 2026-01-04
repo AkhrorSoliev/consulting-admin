@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { useRef } from "react";
+import { useRef, memo } from "react";
 
 function getAccentClass(tone) {
   switch (tone) {
@@ -26,7 +26,7 @@ function getInitials(name) {
   return parts.map((p) => p[0]?.toUpperCase()).join("");
 }
 
-export default function CandidateCard({
+const CandidateCard = memo(function CandidateCard({
   tone = "info",
   onClick,
   topRight,
@@ -188,7 +188,7 @@ export default function CandidateCard({
       ) : null}
     </div>
   );
-}
+});
 
 CandidateCard.propTypes = {
   tone: PropTypes.oneOf(["success", "warning", "primary", "info", "error"]),
@@ -209,3 +209,5 @@ CandidateCard.propTypes = {
   ),
   emptyLabel: PropTypes.string,
 };
+
+export default CandidateCard;

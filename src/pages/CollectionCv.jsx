@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { db } from "../firebase/config";
 import {
@@ -30,6 +30,7 @@ import {
   deleteEmailAndPassIdByEmail,
   saveArchivedUserSnapshotFirestore,
   saveDeletedUserSnapshotFirestore,
+  getUserByEmail,
 } from "../utils";
 import { useUserRole } from "../hooks/useUserRole";
 import DeleteCandidateModal from "../components/DeleteCandidateModal";
@@ -71,6 +72,10 @@ function CollectionCv() {
   const isSuperAdmin = role === "super_admin";
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [userPhotosCache, setUserPhotosCache] = useState({});
+  const fetchedEmailsRef = useRef(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 24;
 
   function calculateAgeFromDDMMYYYY(value) {
     try {
@@ -261,6 +266,27 @@ function CollectionCv() {
     drivingFilter !== "all" ||
     langLevelFilter !== "all" ||
     Boolean(searchQuery.trim());
+
+  // Pagination logic
+  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedItems = filteredItems.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    searchQuery,
+    certificateFilter,
+    experienceFilter,
+    commentFilter,
+    stageFilter,
+    stageOutcomeFilter,
+    ageFilter,
+    drivingFilter,
+    langLevelFilter,
+  ]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -558,10 +584,15 @@ function CollectionCv() {
       }
       return undefined;
     }
+
+    // Optimized query: fetch all data for search functionality
+    // Note: We need all documents for client-side search to work across all candidates
     const q = query(collection(db, name), orderBy("createdAt", "desc"));
+
     const unsub = onSnapshot(
       q,
       (snap) => {
+        console.log(`📊 Loaded ${snap.docs.length} candidates from Firestore`);
         const list = snap.docs.map((d) => {
           const data = d.data() || {};
           const documents = data.documents || {};
@@ -606,8 +637,12 @@ function CollectionCv() {
               ? emailSentCountRaw
               : Number(emailSentCountRaw) || 0;
           const emailLastSentAt = emailMeta?.lastSentAt || null;
+          const emailLastSentByName = emailMeta?.lastSentByName || "";
+          const emailLastSentByPhoto = emailMeta?.lastSentByPhoto || "";
           const hasComment = hasRichTextContent(data?.commentar);
           const commentMeta = data?.commentarMeta || {};
+          const commentUpdatedByName = commentMeta?.updatedByName || "";
+          const commentUpdatedByPhoto = commentMeta?.updatedByPhoto || "";
           const stageMeta =
             data?.stageMeta && typeof data.stageMeta === "object"
               ? data.stageMeta
@@ -620,6 +655,10 @@ function CollectionCv() {
             }
           }
           const reaction = data?.reaction || null;
+          const statusUpdatedBy = data?.status?.updatedBy || "";
+          const emailLastSentBy = emailMeta?.lastSentBy || "";
+          const commentUpdatedBy = commentMeta?.updatedByName || "";
+
           return {
             id: d.id,
             createdAt: data.createdAt || 0,
@@ -637,12 +676,20 @@ function CollectionCv() {
             statusLabel: statusMeta.label,
             statusTone: statusMeta.badgeTone || "info",
             statusUpdatedAt: data?.status?.updatedAt || null,
+            statusUpdatedBy,
             emailSentCount,
             emailLastSentAt,
+            emailLastSentBy,
+            emailLastSentByName,
+            emailLastSentByPhoto,
             hasComment,
             commentUpdatedAt: commentMeta?.updatedAt || null,
+            commentUpdatedBy,
+            commentUpdatedByName,
+            commentUpdatedByPhoto,
             stageDecisions,
             telegramId: data.telegramId || null,
+            lead: data.lead || null,
             reaction,
           };
         });
@@ -656,6 +703,76 @@ function CollectionCv() {
     );
     return () => unsub();
   }, [resolvedMajor.collectionName, metaLoading, resolvingMajor]);
+
+  // Fetch user photos from users collection based on status.updatedBy and commentMeta
+  useEffect(() => {
+    if (!items || items.length === 0) return;
+
+    const fetchUserPhotos = async () => {
+      const emailsToFetch = new Set();
+
+      // Collect all unique emails/names that need photo lookup
+      items.forEach((item) => {
+        // From status.updatedBy (email)
+        const statusUpdatedBy = item.statusUpdatedBy || "";
+        if (
+          statusUpdatedBy &&
+          statusUpdatedBy.includes("@") &&
+          !fetchedEmailsRef.current.has(statusUpdatedBy)
+        ) {
+          emailsToFetch.add(statusUpdatedBy);
+        }
+
+        // From emailMeta (already has photo, but we can refresh from users collection)
+        const emailLastSentBy = item.emailLastSentBy || "";
+        if (
+          emailLastSentBy &&
+          emailLastSentBy.includes("@") &&
+          !item.emailLastSentByPhoto &&
+          !fetchedEmailsRef.current.has(emailLastSentBy)
+        ) {
+          emailsToFetch.add(emailLastSentBy);
+        }
+
+        // From commentMeta (check if we need to fetch by name/email)
+        // Note: commentUpdatedByName might be email or display name
+        const commentUpdatedBy = item.commentUpdatedBy || "";
+        if (
+          commentUpdatedBy &&
+          commentUpdatedBy.includes("@") &&
+          !item.commentUpdatedByPhoto &&
+          !fetchedEmailsRef.current.has(commentUpdatedBy)
+        ) {
+          emailsToFetch.add(commentUpdatedBy);
+        }
+      });
+
+      if (emailsToFetch.size === 0) return;
+
+      // Fetch user data from users collection
+      const newPhotos = {};
+      for (const email of emailsToFetch) {
+        // Mark as fetched
+        fetchedEmailsRef.current.add(email);
+
+        try {
+          const userData = await getUserByEmail(email);
+          if (userData && userData.photoURL) {
+            newPhotos[email] = userData.photoURL;
+          }
+        } catch (error) {
+          console.error(`Failed to fetch user photo for ${email}:`, error);
+        }
+      }
+
+      // Update cache if we have new photos
+      if (Object.keys(newPhotos).length > 0) {
+        setUserPhotosCache((prev) => ({ ...prev, ...newPhotos }));
+      }
+    };
+
+    fetchUserPhotos();
+  }, [items]);
 
   function openDeleteModal(item) {
     if (isLimitedAdmin) {
@@ -1171,8 +1288,31 @@ function CollectionCv() {
         </div>
 
         {loading ? (
-          <div className="grid place-items-center py-24">
-            <span className="loading loading-spinner loading-lg text-primary"></span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div
+                key={i}
+                className="card bg-base-100 border border-base-300/60 shadow-sm animate-pulse"
+              >
+                <div className="card-body p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-16 h-16 rounded-full bg-base-300/50"></div>
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-base-300/50 rounded w-3/4"></div>
+                      <div className="h-3 bg-base-300/50 rounded w-1/2"></div>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-3 bg-base-300/50 rounded w-full"></div>
+                    <div className="h-3 bg-base-300/50 rounded w-5/6"></div>
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <div className="h-8 bg-base-300/50 rounded w-20"></div>
+                    <div className="h-8 bg-base-300/50 rounded w-20"></div>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         ) : items.length === 0 ? (
           <div className="grid place-items-center py-24">
@@ -1199,180 +1339,376 @@ function CollectionCv() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6">
-            {filteredItems.map((item) =>
-              (() => {
-                return (
-                  <CandidateCard
-                    key={item.id}
-                    tone={item.statusTone || "info"}
-                    onClick={() =>
-                      navigate(
-                        `/generate/${resolvedMajor.linkId || major}/${item.id}`
-                      )
-                    }
-                    busy={deletingId === item.id}
-                    name={item.name || "Ohne Namen"}
-                    photo={item.photo || ""}
-                    meta={
-                      <>
-                        {typeof item.age === "number" && item.age >= 1 ? (
-                          <span className="text-base-content/70">
-                            {item.age} Jahre
-                          </span>
-                        ) : null}
-                        <span>{formatCreatedAt(item.createdAt)}</span>
-                        {item.telegramId ? (
-                          <span
-                            className="inline-flex items-center gap-1 text-[#0088cc]"
-                            title="Über Telegram registriert"
-                          >
-                            <FaTelegram className="w-3 h-3" />
-                          </span>
-                        ) : null}
-                      </>
-                    }
-                    topRight={
-                      !isLimitedAdmin ? (
-                        <button
-                          className="btn btn-ghost btn-circle btn-sm text-error/70 hover:text-error hover:bg-error/10"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openDeleteModal(item);
-                          }}
-                          disabled={deletingId === item.id}
-                          title="Löschen"
-                          type="button"
-                        >
-                          {deletingId === item.id ? (
-                            <span className="loading loading-spinner loading-xs" />
-                          ) : (
-                            <FaTrash size={16} />
-                          )}
-                        </button>
-                      ) : null
-                    }
-                    lines={[
-                      item.phone
-                        ? {
-                            icon: <FaPhone className="w-4 h-4" />,
-                            text: item.phone,
-                            title: item.phone,
-                          }
-                        : null,
-                      item.email
-                        ? {
-                            icon: <FaEnvelope className="w-4 h-4" />,
-                            text: item.email,
-                            title: item.email,
-                          }
-                        : null,
-                    ].filter(Boolean)}
-                    emptyLabel="Keine Kontaktdaten"
-                    footer={
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-base-300/60 bg-base-100/60 w-fit max-w-full"
-                            title={
-                              (item.emailSentCount || 0) > 0
-                                ? `E-Mails gesendet: ${
-                                    item.emailSentCount || 0
-                                  }${
-                                    item.emailLastSentAt
-                                      ? ` • Zuletzt: ${formatCreatedAt(
-                                          item.emailLastSentAt
-                                        )}`
-                                      : ""
-                                  }`
-                                : "E-Mails gesendet: 0"
-                            }
-                          >
-                            <FaEnvelope className="shrink-0 w-4 h-4 text-base-content/50" />
-                            <span className="tabular-nums text-sm font-semibold">
-                              {item.emailSentCount || 0}
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6">
+              {paginatedItems.map((item) =>
+                (() => {
+                  return (
+                    <CandidateCard
+                      key={item.id}
+                      tone={item.statusTone || "info"}
+                      onClick={() =>
+                        navigate(
+                          `/generate/${resolvedMajor.linkId || major}/${
+                            item.id
+                          }`
+                        )
+                      }
+                      busy={deletingId === item.id}
+                      name={item.name || "Ohne Namen"}
+                      photo={item.photo || ""}
+                      meta={
+                        <>
+                          {typeof item.age === "number" && item.age >= 1 ? (
+                            <span className="text-base-content/70">
+                              {item.age} Jahre
                             </span>
-                          </div>
-
-                          {item.hasComment ? (
+                          ) : null}
+                          <span>{formatCreatedAt(item.createdAt)}</span>
+                          {item.telegramId ? (
+                            <span
+                              className="inline-flex items-center gap-1 text-[#0088cc]"
+                              title="Über Telegram registriert"
+                            >
+                              <FaTelegram className="w-3 h-3" />
+                            </span>
+                          ) : null}
+                          {item.lead ? (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400 text-xs font-medium"
+                              title={`Lead: ${item.lead}`}
+                            >
+                              {item.lead}
+                            </span>
+                          ) : null}
+                        </>
+                      }
+                      topRight={
+                        !isLimitedAdmin ? (
+                          <button
+                            className="btn btn-ghost btn-circle btn-sm text-error/70 hover:text-error hover:bg-error/10"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openDeleteModal(item);
+                            }}
+                            disabled={deletingId === item.id}
+                            title="Löschen"
+                            type="button"
+                          >
+                            {deletingId === item.id ? (
+                              <span className="loading loading-spinner loading-xs" />
+                            ) : (
+                              <FaTrash size={16} />
+                            )}
+                          </button>
+                        ) : null
+                      }
+                      lines={[
+                        item.phone
+                          ? {
+                              icon: <FaPhone className="w-4 h-4" />,
+                              text: item.phone,
+                              title: item.phone,
+                            }
+                          : null,
+                        item.email
+                          ? {
+                              icon: <FaEnvelope className="w-4 h-4" />,
+                              text: item.email,
+                              title: item.email,
+                            }
+                          : null,
+                      ].filter(Boolean)}
+                      emptyLabel="Keine Kontaktdaten"
+                      footer={
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
                             <div
-                              className="inline-flex items-center justify-center w-10 h-10 rounded-xl border border-base-300/60 bg-base-100/60"
+                              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-base-300/60 bg-base-100/60"
                               title={
-                                item.commentUpdatedAt
-                                  ? `Kommentar aktualisiert: ${formatCreatedAt(
-                                      item.commentUpdatedAt
-                                    )}`
-                                  : "Kommentar vorhanden"
+                                item.emailSentCount > 0
+                                  ? `E-Mails gesendet: ${
+                                      item.emailSentCount || 0
+                                    }${
+                                      item.emailLastSentAt
+                                        ? ` • Zuletzt: ${formatCreatedAt(
+                                            item.emailLastSentAt
+                                          )}`
+                                        : ""
+                                    }${
+                                      item.emailLastSentByName
+                                        ? ` • Von: ${item.emailLastSentByName}`
+                                        : ""
+                                    }`
+                                  : "E-Mails gesendet: 0"
                               }
                             >
-                              <FaCommentDots className="w-4 h-4 text-success" />
-                              <span className="sr-only">
-                                Kommentar vorhanden
+                              {(() => {
+                                // Priority: 1) userPhotosCache, 2) emailLastSentByPhoto, 3) initials
+                                const photoFromCache =
+                                  userPhotosCache[item.emailLastSentBy] || null;
+                                const photoUrl =
+                                  photoFromCache ||
+                                  item.emailLastSentByPhoto ||
+                                  "";
+
+                                if (photoUrl) {
+                                  return (
+                                    <>
+                                      <div className="avatar">
+                                        <div className="w-6 h-6 rounded-full">
+                                          <img
+                                            src={photoUrl}
+                                            alt={
+                                              item.emailLastSentByName || "User"
+                                            }
+                                            className="object-cover"
+                                          />
+                                        </div>
+                                      </div>
+                                      <FaEnvelope className="shrink-0 w-4 h-4 text-base-content/50" />
+                                    </>
+                                  );
+                                }
+
+                                if (item.emailLastSentByName) {
+                                  return (
+                                    <>
+                                      <div className="avatar placeholder">
+                                        <div className="w-6 h-6 rounded-full bg-primary text-primary-content text-xs">
+                                          <span>
+                                            {item.emailLastSentByName
+                                              .charAt(0)
+                                              .toUpperCase()}
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <FaEnvelope className="shrink-0 w-4 h-4 text-base-content/50" />
+                                    </>
+                                  );
+                                }
+
+                                return (
+                                  <FaEnvelope className="shrink-0 w-4 h-4 text-base-content/50" />
+                                );
+                              })()}
+                              <span className="tabular-nums text-sm font-semibold">
+                                {item.emailSentCount || 0}
                               </span>
                             </div>
-                          ) : null}
-                        </div>
 
-                        <div
-                          className="flex items-center gap-1"
-                          data-no-card-click
-                        >
-                          <button
-                            type="button"
-                            className={[
-                              "btn btn-sm btn-circle",
-                              item.reaction === "like"
-                                ? "btn-success text-white"
-                                : "btn-ghost hover:btn-success hover:text-white",
-                              !isSuperAdmin
-                                ? "opacity-50 cursor-not-allowed"
-                                : "",
-                            ].join(" ")}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleReaction(item.id, "like");
-                            }}
-                            title={
-                              isSuperAdmin
-                                ? "Gefällt mir"
-                                : "Faqat super_admin uchun"
-                            }
-                            disabled={deletingId === item.id || !isSuperAdmin}
+                            {item.hasComment ? (
+                              <div
+                                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-base-300/60 bg-base-100/60"
+                                title={
+                                  item.commentUpdatedAt
+                                    ? `Kommentar aktualisiert: ${formatCreatedAt(
+                                        item.commentUpdatedAt
+                                      )}${
+                                        item.commentUpdatedByName
+                                          ? ` • Von: ${item.commentUpdatedByName}`
+                                          : ""
+                                      }`
+                                    : "Kommentar vorhanden"
+                                }
+                              >
+                                {(() => {
+                                  // Priority: 1) userPhotosCache, 2) commentUpdatedByPhoto, 3) initials
+                                  const photoFromCache =
+                                    userPhotosCache[item.commentUpdatedBy] ||
+                                    null;
+                                  const photoUrl =
+                                    photoFromCache ||
+                                    item.commentUpdatedByPhoto ||
+                                    "";
+
+                                  if (photoUrl) {
+                                    return (
+                                      <>
+                                        <div className="avatar">
+                                          <div className="w-6 h-6 rounded-full">
+                                            <img
+                                              src={photoUrl}
+                                              alt={
+                                                item.commentUpdatedByName ||
+                                                "User"
+                                              }
+                                              className="object-cover"
+                                            />
+                                          </div>
+                                        </div>
+                                        <FaCommentDots className="shrink-0 w-5 h-5 text-success" />
+                                      </>
+                                    );
+                                  }
+
+                                  if (item.commentUpdatedByName) {
+                                    return (
+                                      <>
+                                        <div className="avatar placeholder">
+                                          <div className="w-6 h-6 rounded-full bg-success text-success-content text-xs">
+                                            <span>
+                                              {item.commentUpdatedByName
+                                                .charAt(0)
+                                                .toUpperCase()}
+                                            </span>
+                                          </div>
+                                        </div>
+                                        <FaCommentDots className="shrink-0 w-5 h-5 text-success" />
+                                      </>
+                                    );
+                                  }
+
+                                  return (
+                                    <FaCommentDots className="shrink-0 w-5 h-5 text-success" />
+                                  );
+                                })()}
+                                <span className="sr-only">
+                                  Kommentar vorhanden
+                                </span>
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <div
+                            className="flex items-center gap-1"
+                            data-no-card-click
                           >
-                            <FaThumbsUp className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            className={[
-                              "btn btn-sm btn-circle",
-                              item.reaction === "dislike"
-                                ? "btn-error text-white"
-                                : "btn-ghost hover:btn-error hover:text-white",
-                              !isSuperAdmin
-                                ? "opacity-50 cursor-not-allowed"
-                                : "",
-                            ].join(" ")}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleReaction(item.id, "dislike");
-                            }}
-                            title={
-                              isSuperAdmin
-                                ? "Gefällt mir nicht"
-                                : "Faqat super_admin uchun"
-                            }
-                            disabled={deletingId === item.id || !isSuperAdmin}
-                          >
-                            <FaThumbsDown className="w-3.5 h-3.5" />
-                          </button>
+                            <button
+                              type="button"
+                              className={[
+                                "btn btn-sm btn-circle",
+                                item.reaction === "like"
+                                  ? "btn-success text-white"
+                                  : "btn-ghost hover:btn-success hover:text-white",
+                                !isSuperAdmin
+                                  ? "opacity-50 cursor-not-allowed"
+                                  : "",
+                              ].join(" ")}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleReaction(item.id, "like");
+                              }}
+                              title={
+                                isSuperAdmin
+                                  ? "Gefällt mir"
+                                  : "Faqat super_admin uchun"
+                              }
+                              disabled={deletingId === item.id || !isSuperAdmin}
+                            >
+                              <FaThumbsUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              className={[
+                                "btn btn-sm btn-circle",
+                                item.reaction === "dislike"
+                                  ? "btn-error text-white"
+                                  : "btn-ghost hover:btn-error hover:text-white",
+                                !isSuperAdmin
+                                  ? "opacity-50 cursor-not-allowed"
+                                  : "",
+                              ].join(" ")}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleReaction(item.id, "dislike");
+                              }}
+                              title={
+                                isSuperAdmin
+                                  ? "Gefällt mir nicht"
+                                  : "Faqat super_admin uchun"
+                              }
+                              disabled={deletingId === item.id || !isSuperAdmin}
+                            >
+                              <FaThumbsDown className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
+                      }
+                    />
+                  );
+                })()
+              )}
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="mt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-sm text-base-content/70">
+                  Seite {currentPage} von {totalPages} • Zeige {startIndex + 1}-
+                  {Math.min(endIndex, filteredItems.length)} von{" "}
+                  {filteredItems.length} Kandidaten
+                </div>
+                <div className="join">
+                  <button
+                    className="join-item btn btn-sm"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                  >
+                    «
+                  </button>
+                  <button
+                    className="join-item btn btn-sm"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    ‹
+                  </button>
+
+                  {/* Page numbers */}
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((page) => {
+                      // Show first page, last page, current page, and 2 pages around current
+                      return (
+                        page === 1 ||
+                        page === totalPages ||
+                        Math.abs(page - currentPage) <= 2
+                      );
+                    })
+                    .map((page, idx, arr) => {
+                      // Add ellipsis if there's a gap
+                      const prevPage = arr[idx - 1];
+                      const showEllipsis = prevPage && page - prevPage > 1;
+
+                      return (
+                        <span key={page}>
+                          {showEllipsis && (
+                            <button className="join-item btn btn-sm btn-disabled">
+                              ...
+                            </button>
+                          )}
+                          <button
+                            className={`join-item btn btn-sm ${
+                              currentPage === page ? "btn-active" : ""
+                            }`}
+                            onClick={() => setCurrentPage(page)}
+                          >
+                            {page}
+                          </button>
+                        </span>
+                      );
+                    })}
+
+                  <button
+                    className="join-item btn btn-sm"
+                    onClick={() =>
+                      setCurrentPage((p) => Math.min(totalPages, p + 1))
                     }
-                  />
-                );
-              })()
+                    disabled={currentPage === totalPages}
+                  >
+                    ›
+                  </button>
+                  <button
+                    className="join-item btn btn-sm"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                  >
+                    »
+                  </button>
+                </div>
+              </div>
             )}
-          </div>
+          </>
         )}
       </div>
     </div>
