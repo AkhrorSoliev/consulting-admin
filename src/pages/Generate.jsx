@@ -24,6 +24,7 @@ import {
   FaUndo,
   FaEnvelope,
   FaTelegram,
+  FaRobot,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import { pdf } from "@react-pdf/renderer";
@@ -126,6 +127,7 @@ import {
   buildProxyAssetUrl,
   fetchUrlAsImageDataUrlBestEffort,
 } from "./generate/utils";
+import { correctCommentWithAI } from "../utils/openai";
 import { usePdfGeneration } from "./generate/hooks";
 import { useDocumentManagement } from "./generate/hooks";
 import { useFormNormalization } from "./generate/hooks";
@@ -366,6 +368,7 @@ function Generate() {
     updatedByPhoto: "",
     updatedByUid: "",
   });
+  const [isCorrectingComment, setIsCorrectingComment] = useState(false);
 
   // Document upload state
   const [selectedDocumentType, setSelectedDocumentType] = useState("");
@@ -3926,6 +3929,28 @@ function Generate() {
     setIsCommentEditorOpen(false);
   }
 
+  async function handleCorrectComment() {
+    if (!commentHtml || !commentHtml.trim()) {
+      toast.error("Kein Kommentar zum Korrigieren vorhanden.");
+      return;
+    }
+
+    setIsCorrectingComment(true);
+    try {
+      const correctedHtml = await correctCommentWithAI(commentHtml);
+      setCommentHtml(correctedHtml);
+      toast.success("Kommentar wurde erfolgreich korrigiert!");
+    } catch (error) {
+      console.error("Error correcting comment:", error);
+      toast.error(
+        "Fehler beim Korrigieren des Kommentars: " +
+          (error.message || "Unbekannter Fehler")
+      );
+    } finally {
+      setIsCorrectingComment(false);
+    }
+  }
+
   function appendToComment(nextHtmlBlock) {
     const block = String(nextHtmlBlock || "").trim();
     if (!block) return;
@@ -5518,6 +5543,36 @@ function Generate() {
                           />
                         )}
                         <div className="flex flex-wrap gap-2 mt-2">
+                          {isCommentEditorOpen && hasComment && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline btn-info"
+                              onClick={handleCorrectComment}
+                              disabled={
+                                isSaving ||
+                                loading ||
+                                notFound ||
+                                isCorrectingComment
+                              }
+                              title="Kommentar mit KI korrigieren"
+                            >
+                              {isCorrectingComment ? (
+                                <>
+                                  <span className="loading loading-spinner loading-xs" />
+                                  Korrigieren...
+                                </>
+                              ) : (
+                                <>
+                                  <img
+                                    src="/ai-icon.svg"
+                                    alt="AI"
+                                    className="w-4 h-4"
+                                  />
+                                  Korrigieren
+                                </>
+                              )}
+                            </button>
+                          )}
                           <button
                             type="button"
                             className="btn btn-sm btn-outline"
@@ -5574,6 +5629,36 @@ function Generate() {
                           />
                         )}
                         <div className="flex flex-wrap gap-2 mt-2">
+                          {isCommentEditorOpen && hasComment && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline btn-info w-full"
+                              onClick={handleCorrectComment}
+                              disabled={
+                                isSaving ||
+                                loading ||
+                                notFound ||
+                                isCorrectingComment
+                              }
+                              title="Kommentar mit KI korrigieren"
+                            >
+                              {isCorrectingComment ? (
+                                <>
+                                  <span className="loading loading-spinner loading-xs" />
+                                  Korrigieren...
+                                </>
+                              ) : (
+                                <>
+                                  <img
+                                    src="/ai-icon.svg"
+                                    alt="AI"
+                                    className="w-4 h-4"
+                                  />
+                                  Korrigieren
+                                </>
+                              )}
+                            </button>
+                          )}
                           <button
                             type="button"
                             className="btn btn-sm btn-outline w-full"
