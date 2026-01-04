@@ -368,6 +368,14 @@ function Generate() {
     updatedByPhoto: "",
     updatedByUid: "",
   });
+  const [emailMeta, setEmailMeta] = useState({
+    count: 0,
+    lastSentAt: null,
+    lastSentBy: "",
+    lastSentByName: "",
+    lastSentByPhoto: "",
+    lastSentType: "",
+  });
   const [isCorrectingComment, setIsCorrectingComment] = useState(false);
 
   // Document upload state
@@ -1375,6 +1383,12 @@ function Generate() {
       setLoading(false);
       return undefined;
     }
+
+    // Reset states when navigating to new candidate
+    setLoading(true);
+    setNotFound(false);
+    setDocCv(null);
+
     const ref = doc(db, col, docId);
     const unsub = onSnapshot(
       ref,
@@ -1409,6 +1423,20 @@ function Generate() {
           setStatusUpdatedAt(status?.updatedAt || null);
           setStatusUpdatedBy(status?.updatedBy || "");
           setDocCv(data);
+
+          // Console'ga kandidat ma'lumotlarini chiqarish
+          console.log("=== KANDIDAT MA'LUMOTLARI ===");
+          console.log("To'liq ma'lumot:", data);
+          console.log("Shaxsiy ma'lumotlar:", data?.persoenlicheDaten);
+          console.log("Email Meta:", data?.emailMeta);
+          console.log("Kommentar Meta:", data?.commentarMeta);
+          console.log("Status:", data?.status);
+          console.log("Berufserfahrung:", data?.berufserfahrung);
+          console.log("Ausbildung:", data?.ausbildung);
+          console.log("Faehigkeiten:", data?.faehigkeiten);
+          console.log("Documents:", data?.documents);
+          console.log("===========================");
+
           const cMeta = data?.commentarMeta || {};
           setCommentMeta({
             updatedAt: cMeta?.updatedAt || null,
@@ -1416,16 +1444,25 @@ function Generate() {
             updatedByPhoto: cMeta?.updatedByPhoto || "",
             updatedByUid: cMeta?.updatedByUid || "",
           });
+          const eMeta = data?.emailMeta || {};
+          setEmailMeta({
+            count: eMeta?.count || 0,
+            lastSentAt: eMeta?.lastSentAt || null,
+            lastSentBy: eMeta?.lastSentBy || "",
+            lastSentByName: eMeta?.lastSentByName || "",
+            lastSentByPhoto: eMeta?.lastSentByPhoto || "",
+            lastSentType: eMeta?.lastSentType || "",
+          });
           setNotFound(false);
-          if (!formInitialized) {
-            const mapped = mapDocToForm(data);
-            const normalized = normalizeForm(mapped);
-            setFormCv(normalized);
-            setFormInitialized(true);
-            // Don't show "success" validation colors on initial load.
-            setPhoneTouched(false);
-            setEmailTouched(false);
-          }
+
+          // Always update form with new data when document changes
+          const mapped = mapDocToForm(data);
+          const normalized = normalizeForm(mapped);
+          setFormCv(normalized);
+          setFormInitialized(true);
+          // Don't show "success" validation colors on initial load.
+          setPhoneTouched(false);
+          setEmailTouched(false);
         }
         setLoading(false);
       },
@@ -1435,7 +1472,7 @@ function Generate() {
       }
     );
     return () => unsub();
-  }, [resolvedMajor.collectionName, id, formInitialized]);
+  }, [resolvedMajor.collectionName, id]);
 
   useEffect(() => {
     if (!remoteMode) return undefined;
@@ -2621,11 +2658,17 @@ function Generate() {
 
       // Best-effort: store email send counters for list view (CollectionCv)
       try {
+        console.log("User object:", user);
+        console.log("User photoURL:", user?.photoURL);
+        console.log("User displayName:", user?.displayName);
         const stageBase = `stageMeta.${stepValue}`;
         await updateDocument(col, docId, {
           "emailMeta.count": increment(1),
           "emailMeta.lastSentAt": emailSentAt,
           "emailMeta.lastSentBy": user?.email || user?.uid || "admin",
+          "emailMeta.lastSentByName":
+            user?.displayName || user?.email || "Admin",
+          "emailMeta.lastSentByPhoto": user?.photoURL || "",
           "emailMeta.lastSentType": "status",
           "emailMeta.lastSentStage": stepValue,
           "emailMeta.lastSentDecision": normalizedDecision,
@@ -2633,6 +2676,16 @@ function Generate() {
           [`${stageBase}.decidedAt`]: emailSentAt,
           [`${stageBase}.decidedBy`]: user?.email || user?.uid || "admin",
           [`${stageBase}.decisionNote`]: String(decisionNote || "").trim(),
+        });
+
+        // Update local state
+        setEmailMeta({
+          count: (emailMeta.count || 0) + 1,
+          lastSentAt: emailSentAt,
+          lastSentBy: user?.email || user?.uid || "admin",
+          lastSentByName: user?.displayName || user?.email || "Admin",
+          lastSentByPhoto: user?.photoURL || "",
+          lastSentType: "status",
         });
       } catch (e) {}
 
@@ -2948,7 +3001,20 @@ function Generate() {
             "emailMeta.count": increment(1),
             "emailMeta.lastSentAt": emailSentAt,
             "emailMeta.lastSentBy": user?.email || user?.uid || "admin",
+            "emailMeta.lastSentByName":
+              user?.displayName || user?.email || "Admin",
+            "emailMeta.lastSentByPhoto": user?.photoURL || "",
             "emailMeta.lastSentType": "custom",
+          });
+
+          // Update local state
+          setEmailMeta({
+            count: (emailMeta.count || 0) + 1,
+            lastSentAt: emailSentAt,
+            lastSentBy: user?.email || user?.uid || "admin",
+            lastSentByName: user?.displayName || user?.email || "Admin",
+            lastSentByPhoto: user?.photoURL || "",
+            lastSentType: "custom",
           });
         }
       } catch (e) {}
@@ -4163,6 +4229,16 @@ function Generate() {
                         >
                           <FaTelegram className="w-3.5 h-3.5" />
                           <span className="text-xs">Telegram</span>
+                        </span>
+                      ) : null}
+                      {docCv?.lead ? (
+                        <span
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400 text-sm font-medium"
+                          title={`Lead: ${docCv.lead}`}
+                        >
+                          <span className="text-xs font-semibold">
+                            {docCv.lead}
+                          </span>
                         </span>
                       ) : null}
                     </div>
@@ -5719,6 +5795,39 @@ function Generate() {
       {/* Stepper should be below the form & preview */}
       {!remoteMode && !isLimitedAdmin && !loading && !notFound && (
         <div className="mt-6">
+          {/* Email Meta Info */}
+          {emailMeta.lastSentAt && (
+            <div className="mb-4 flex items-center gap-3 p-3 bg-base-200 rounded-lg border border-base-300">
+              <div className="avatar">
+                <div className="w-10 h-10 rounded-full">
+                  {emailMeta.lastSentByPhoto ? (
+                    <img
+                      src={emailMeta.lastSentByPhoto}
+                      alt={emailMeta.lastSentByName || "User"}
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-primary text-primary-content flex items-center justify-center font-semibold">
+                      {(emailMeta.lastSentByName || "U")
+                        .charAt(0)
+                        .toUpperCase()}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex-1">
+                <div className="text-sm font-semibold">
+                  {emailMeta.lastSentByName || "Unbekannter Benutzer"}
+                </div>
+                <div className="text-xs text-base-content/60">
+                  Letzte E-Mail gesendet:{" "}
+                  {new Date(emailMeta.lastSentAt).toLocaleString("de-DE")}
+                  {emailMeta.count > 0 &&
+                    ` • ${emailMeta.count} E-Mails gesamt`}
+                </div>
+              </div>
+            </div>
+          )}
+
           <CandidateStatusStepper
             currentValue={statusValue}
             onSendEmail={handleSendStatusEmail}

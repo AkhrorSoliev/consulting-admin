@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { updateProfile } from "firebase/auth";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { auth } from "../firebase/config";
 import { uploadFileToConsulting } from "../utils";
 import { useNavigate } from "react-router-dom";
 import { FaArrowLeft } from "react-icons/fa";
+import { login } from "../features/authSlice";
+import { syncUserToFirestore } from "../utils/userSync";
 
 function Profile() {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const user = useSelector((state) => state.auth.user);
   const [isEditing, setIsEditing] = useState(false);
   const [statusMessage, setStatusMessage] = useState(null);
@@ -76,6 +79,10 @@ function Profile() {
       }
       if (Object.keys(updates).length > 0) {
         await updateProfile(auth.currentUser, updates);
+        // Update Redux store with refreshed user data
+        dispatch(login(auth.currentUser));
+        // Sync updated user data to Firestore users collection
+        await syncUserToFirestore(auth.currentUser);
         setStatusMessage({ type: "success", text: "Daten aktualisiert" });
         if (updates.photoURL) {
           setAvatarPreview(updates.photoURL);

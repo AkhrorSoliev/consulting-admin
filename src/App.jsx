@@ -16,6 +16,7 @@ import { useEffect } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./firebase/config";
 import { login, setAuthReady } from "./features/authSlice";
+import { syncUserToFirestore } from "./utils/userSync";
 import Create from "./pages/Create";
 import Generate from "./pages/Generate";
 import Profile from "./pages/Profile";
@@ -168,13 +169,20 @@ function App() {
   ]);
 
   useEffect(() => {
-    onAuthStateChanged(auth, (user) => {
+    onAuthStateChanged(auth, async (user) => {
       if (user) {
         dispatch(login(user));
+        // Sync user data to Firestore users collection
+        try {
+          const result = await syncUserToFirestore(user);
+          console.log("[App] User sync result:", result);
+        } catch (error) {
+          console.error("[App] Failed to sync user:", error);
+        }
       }
       dispatch(setAuthReady());
     });
-  }, []);
+  }, [dispatch]);
 
   return <>{authReady && <RouterProvider router={routes} />}</>;
 }

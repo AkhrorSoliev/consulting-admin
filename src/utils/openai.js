@@ -17,11 +17,14 @@ async function correctTextWithAI(text) {
 1. Wenn der Text auf Usbekisch ist, übersetze ihn ins Deutsche (professionell und korrekt)
 2. Wenn der Text auf Deutsch ist, korrigiere nur Grammatik- und Rechtschreibfehler
 3. Entferne ALLE unnötigen Zeichen wie "---" oder andere Trennzeichen
-4. Mache den Text sauber und professionell
-5. Gib NUR den korrigierten/übersetzten Text zurück, ohne Erklärungen
-6. Behalte die natürliche Struktur bei, aber entferne überflüssige Zeichen
+4. Entferne ALLE Wiederholungen und doppelte Informationen - jede Information sollte nur EINMAL vorkommen
+5. Mache den Text sauber, professionell und prägnant
+6. Gib NUR den korrigierten/übersetzten Text zurück, ohne Erklärungen
+7. Behalte die natürliche Struktur bei, aber entferne überflüssige Zeichen und Wiederholungen
 
-WICHTIG: Entferne "---" und andere Trennzeichen komplett aus dem Text!`,
+WICHTIG: 
+- Entferne "---" und andere Trennzeichen komplett aus dem Text!
+- Entferne alle wiederholten Informationen - jede Information nur EINMAL!`,
         },
         {
           role: "user",
