@@ -706,7 +706,12 @@ function Home() {
 
   useEffect(() => {
     const unsub = subscribeToCollections((names) => {
-      setCollectionNames(names || []);
+      // Filter out soft-deleted directions
+      const activeNames = (names || []).filter((n) => {
+        if (typeof n === "string") return true;
+        return !n?.isDeleted;
+      });
+      setCollectionNames(activeNames);
     });
     return () => {
       if (typeof unsub === "function") unsub();

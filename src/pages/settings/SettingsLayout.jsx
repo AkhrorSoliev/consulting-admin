@@ -2,7 +2,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import useUserRole from "../../hooks/useUserRole";
 import { MdSettings, MdEmail, MdDescription } from "react-icons/md";
 import { FiUsers } from "react-icons/fi";
-import { FaTelegramPlane } from "react-icons/fa";
+import { FaTelegramPlane, FaFolderOpen } from "react-icons/fa";
 
 function menuItemClass({ isActive }) {
   const base =
@@ -59,6 +59,17 @@ export default function SettingsLayout() {
                       aria-hidden="true"
                     />
                     <span className="flex-1">Telegram Groups</span>
+                  </NavLink>
+                </li>
+              )}
+              {showAdmins && (
+                <li>
+                  <NavLink to="directions" className={menuItemClass} end>
+                    <FaFolderOpen
+                      className="h-[18px] w-[18px] opacity-90"
+                      aria-hidden="true"
+                    />
+                    <span className="flex-1">Yo'nalishlar</span>
                   </NavLink>
                 </li>
               )}

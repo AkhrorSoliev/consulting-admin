@@ -26,11 +26,13 @@ import TemplateEmailsSettings from "./pages/settings/TemplateEmailsSettings";
 import DocumentsSettings from "./pages/settings/DocumentsSettings";
 import SettingsIndexRedirect from "./pages/settings/SettingsIndexRedirect";
 import TelegramGroupsSettings from "./pages/settings/TelegramGroupsSettings";
+import DirectionsSettings from "./pages/settings/DirectionsSettings";
 import CandidatesLayout from "./pages/candidates/CandidatesLayout";
 import CandidatesIndexRedirect from "./pages/candidates/CandidatesIndexRedirect";
 import CandidatesAllUsers from "./pages/candidates/CandidatesAllUsers";
 import CandidatesArchivedUsers from "./pages/candidates/CandidatesArchivedUsers";
 import CandidatesDeletedUsers from "./pages/candidates/CandidatesDeletedUsers";
+import CandidatesArchivedDirections from "./pages/candidates/CandidatesArchivedDirections";
 import Vermittlungsvertrag from "./pages/Vermittlungsvertrag";
 import Vollmacht from "./pages/Vollmacht";
 import VollmachtArbeitgeber from "./pages/VollmachtArbeitgeber";
@@ -98,6 +100,7 @@ function App() {
             { index: true, element: <SettingsIndexRedirect /> },
             { path: "admins", element: <AdminsSettings /> },
             { path: "telegram-groups", element: <TelegramGroupsSettings /> },
+            { path: "directions", element: <DirectionsSettings /> },
             { path: "template-emails", element: <TemplateEmailsSettings /> },
             {
               path: "documents",
@@ -134,6 +137,10 @@ function App() {
             { path: "all", element: <CandidatesAllUsers /> },
             { path: "archived", element: <CandidatesArchivedUsers /> },
             { path: "deleted", element: <CandidatesDeletedUsers /> },
+            {
+              path: "archived-directions",
+              element: <CandidatesArchivedDirections />,
+            },
           ],
         },
       ],

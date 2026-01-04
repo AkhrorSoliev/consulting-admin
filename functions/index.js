@@ -1037,7 +1037,47 @@ exports.syncEmailAndPassIdRegistry = onDocumentWritten(
       if (IGNORED_COLLECTIONS_FOR_REGISTRY.has(collectionId)) return;
 
       const afterExists = Boolean(event?.data?.after?.exists);
-      if (!afterExists) return; // ignore deletes
+      const beforeExists = Boolean(event?.data?.before?.exists);
+
+      // Handle DELETE: remove from email_and_passId to allow re-registration
+      if (beforeExists && !afterExists) {
+        const beforeData = event.data.before.data() || {};
+        const emailRaw = extractEmailFromAnyCandidateDoc(beforeData);
+        const safeEmail = normalizeEmailForRegistry(emailRaw);
+
+        if (safeEmail) {
+          const registryRef = db
+            .collection(EMAIL_AND_PASSID_COLLECTION)
+            .doc(safeEmail);
+
+          await db.runTransaction(async (tx) => {
+            const snap = await tx.get(registryRef);
+            if (!snap.exists) return;
+
+            const data = snap.data() || {};
+            // Only delete if this registry entry belongs to the deleted candidate
+            if (
+              data.sourceMajor === collectionId &&
+              data.sourceDocId === docId
+            ) {
+              tx.delete(registryRef);
+              logger.info(
+                "Deleted email_and_passId entry for deleted candidate",
+                {
+                  email: safeEmail,
+                  major: collectionId,
+                  docId: docId,
+                }
+              );
+            }
+          });
+        }
+
+        return;
+      }
+
+      // Handle CREATE/UPDATE: sync to email_and_passId
+      if (!afterExists) return;
 
       const afterData = event.data.after.data() || {};
       const emailRaw = extractEmailFromAnyCandidateDoc(afterData);
@@ -1070,7 +1110,6 @@ exports.syncEmailAndPassIdRegistry = onDocumentWritten(
           });
           return;
         }
-        // Merge updates; do not remove existing passportId if the new doc doesn't have it.
         tx.set(registryRef, base, { merge: true });
       });
     } catch (e) {

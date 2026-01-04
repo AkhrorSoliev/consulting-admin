@@ -286,24 +286,52 @@ export function subscribeToCollections(callback) {
   } catch (error) {}
 }
 
-export async function deleteCollectionByName(name) {
+export async function deleteCollectionByName(name, options = {}) {
   try {
     const meta = await getMetaByName(name);
     const colName = meta?.collectionName || name;
     const metaId = meta?.id || name;
     const colRef = collection(db, colName);
     const docsSnapshot = await getDocs(colRef);
+    const candidatesCount = docsSnapshot.docs.length;
 
-    const deletePromises = docsSnapshot.docs.map((d) =>
-      deleteDoc(doc(db, colName, d.id))
-    );
-    await Promise.all(deletePromises);
+    // Option 1: Delete candidates (old behavior, dangerous!)
+    // Option 2: Keep candidates (new default, safe!)
+    const deleteCandidates = options?.deleteCandidates === true;
 
-    // Remove meta document entry
+    if (deleteCandidates) {
+      // WARNING: This will permanently delete all candidates!
+      const deletePromises = docsSnapshot.docs.map((d) =>
+        deleteDoc(doc(db, colName, d.id))
+      );
+      await Promise.all(deletePromises);
+      toast.success(
+        `Sammlung „${colName}" und ${candidatesCount} Kandidaten wurden gelöscht!`
+      );
+    } else {
+      // Safe mode: Keep candidates, only soft-delete meta document
+      if (candidatesCount > 0) {
+        toast.info(
+          `Sammlung „${colName}" wurde deaktiviert. ${candidatesCount} Kandidaten bleiben erhalten.`,
+          { duration: 5000 }
+        );
+      } else {
+        toast.success(`Sammlung „${colName}" wurde gelöscht!`);
+      }
+    }
+
+    // Soft delete: mark meta document as deleted instead of removing it
+    // This preserves historical stats (totals.directions never decreases)
     const metaDocRef = doc(db, "meta", metaId);
-    await deleteDoc(metaDocRef);
-
-    toast.success(`Sammlung „${colName}“ wurde gelöscht!`);
+    await setDoc(
+      metaDocRef,
+      {
+        isDeleted: true,
+        deletedAt: Date.now(),
+        candidatesCountAtDeletion: candidatesCount,
+      },
+      { merge: true }
+    );
   } catch (error) {
     toast.error(`Fehler: ${error.message}`);
   }
