@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { FiUsers, FiArchive, FiTrash2 } from "react-icons/fi";
+import { FiUsers, FiArchive, FiTrash2, FiFolderMinus } from "react-icons/fi";
 import useUserRole from "../../hooks/useUserRole";
 
 function menuItemClass({ isActive }) {
@@ -75,6 +75,19 @@ export default function CandidatesLayout() {
                       aria-hidden="true"
                     />
                     <span className="flex-1">Gelöschte Benutzer</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="archived-directions"
+                    className={menuItemClass}
+                    end
+                  >
+                    <FiFolderMinus
+                      className="h-[18px] w-[18px] opacity-90"
+                      aria-hidden="true"
+                    />
+                    <span className="flex-1">Arxivlangan Yo'nalishlar</span>
                   </NavLink>
                 </li>
               </ul>

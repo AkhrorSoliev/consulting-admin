@@ -892,11 +892,17 @@ export async function rebuildStatsDocsFromExistingData(
   try {
     if (toastProgress) toast("Statistika qayta hisoblanmoqda...");
 
-    // Directions: count meta docs
+    // Directions: count meta docs (exclude soft-deleted)
     const metaSnap = await getDocs(query(collection(db, "meta")));
-    const majors = metaSnap.docs
-      .map((d) => String(d.data()?.name || d.id || "").trim())
-      .filter(Boolean);
+    const allMajors = metaSnap.docs
+      .map((d) => ({
+        name: String(d.data()?.name || d.id || "").trim(),
+        isDeleted: Boolean(d.data()?.isDeleted),
+      }))
+      .filter((m) => m.name);
+
+    // For stats: only count active (non-deleted) directions
+    const majors = allMajors.filter((m) => !m.isDeleted).map((m) => m.name);
 
     const { stats } = computeStatsSnapshotFromExistingData();
     stats.totals.directions = majors.length;
