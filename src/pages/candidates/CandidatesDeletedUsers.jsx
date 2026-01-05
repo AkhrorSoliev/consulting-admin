@@ -101,6 +101,50 @@ export default function CandidatesDeletedUsers() {
   const [majorModalKey, setMajorModalKey] = useState("");
   const [pendingRecord, setPendingRecord] = useState(null);
 
+  // Multi-select state (localStorage persistent)
+  const SELECTED_KEYS_STORAGE = "deletedUsersSelectedKeys";
+  const [selectedKeys, setSelectedKeys] = useState(() => {
+    try {
+      const raw = localStorage.getItem(SELECTED_KEYS_STORAGE);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  function toggleSelect(key) {
+    setSelectedKeys((prev) => {
+      const next = prev.includes(key)
+        ? prev.filter((k) => k !== key)
+        : [...prev, key];
+      try {
+        localStorage.setItem(SELECTED_KEYS_STORAGE, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedKeys([]);
+    try {
+      localStorage.removeItem(SELECTED_KEYS_STORAGE);
+    } catch {}
+  }
+
+  function handleBulkDelete() {
+    if (!isPrivileged || selectedKeys.length === 0) return;
+    setConfirmState({
+      kind: "bulk_delete",
+      keys: [...selectedKeys],
+      title: `Ausgewählte Kandidaten löschen?`,
+      message: `${selectedKeys.length} Kandidaten werden endgültig gelöscht. Diese Aktion kann nicht rückgängig gemacht werden!`,
+      confirmLabel: `Löschen (${selectedKeys.length})`,
+      cancelLabel: "Abbrechen",
+      confirmVariant: "btn-error",
+      seconds: 0,
+    });
+  }
+
   async function load() {
     if (!isPrivileged) return;
     try {
@@ -352,6 +396,52 @@ export default function CandidatesDeletedUsers() {
       return;
     }
 
+    if (c.kind === "bulk_delete") {
+      // Bulk delete selected users
+      const keys = Array.isArray(c.keys) ? c.keys : [];
+      if (keys.length === 0) return;
+      setDeletingKey("bulk");
+      let errorCount = 0;
+      for (const key of keys) {
+        const record = items.find((r) => String(r.id) === String(key));
+        if (record) {
+          try {
+            const urls = extractConsultingUploadUrlsFromSnapshot(record);
+            if (Array.isArray(urls) && urls.length > 0) {
+              try {
+                await deleteConsultingUploadUrlsStrict(urls);
+              } catch (err) {
+                // ignore error, continue to delete from Firestore
+              }
+            }
+            const email = extractEmailFromSnapshot(record);
+            if (email) {
+              await deleteEmailAndPassIdByEmail(
+                String(email).trim().toLowerCase()
+              );
+            }
+            await deleteDoc(doc(db, "deleted_users", key));
+          } catch (e) {
+            errorCount++;
+          }
+        }
+      }
+      const successCount = keys.length - errorCount;
+      if (successCount > 0 && errorCount === 0) {
+        toast.success(`${successCount} Kandidat(en) erfolgreich gelöscht.`);
+      } else if (successCount > 0 && errorCount > 0) {
+        toast.success(
+          `${successCount} Kandidat(en) gelöscht, ${errorCount} Fehler.`
+        );
+      } else {
+        toast.error(`Fehler beim Löschen.`);
+      }
+      setConfirmState(null);
+      setDeletingKey("");
+      clearSelection();
+      await load();
+      return;
+    }
     if (c.kind === "hard_delete") {
       const docId = String(record?.id || "").trim();
       const key = docId || "x";
@@ -359,9 +449,14 @@ export default function CandidatesDeletedUsers() {
         setDeletingKey(key);
 
         const urls = extractConsultingUploadUrlsFromSnapshot(record);
-        // STRICT: if even one remote upload delete fails, do not delete the Firestore snapshot.
-        // This prevents orphaned files in json-api.uz storage.
-        await deleteConsultingUploadUrlsStrict(urls);
+        // Faqat document bo'lsa json-api.uz ga request jo'natamiz
+        if (Array.isArray(urls) && urls.length > 0) {
+          try {
+            await deleteConsultingUploadUrlsStrict(urls);
+          } catch (err) {
+            // ignore error, continue to delete from Firestore
+          }
+        }
 
         const email = extractEmailFromSnapshot(record);
         if (email) {
@@ -369,7 +464,7 @@ export default function CandidatesDeletedUsers() {
         }
 
         await deleteDoc(doc(db, "deleted_users", docId));
-        toast.success("Endgültig gelöscht (deleted_users + Dateien).");
+        toast.success("Kandidat erfolgreich gelöscht.");
         setConfirmState(null);
         await load();
       } catch (e) {
@@ -399,7 +494,8 @@ export default function CandidatesDeletedUsers() {
         message={confirmState?.message}
         confirmLabel={confirmState?.confirmLabel}
         confirmVariant={confirmState?.confirmVariant}
-        seconds={confirmState?.seconds || 0}
+        cancelLabel={confirmState?.cancelLabel}
+        seconds={0}
         busy={Boolean(restoringKey) || Boolean(deletingKey)}
       />
       <SelectMajorModal
@@ -420,7 +516,27 @@ export default function CandidatesDeletedUsers() {
             Quelle: Firestore (deleted_users)
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {selectedKeys.length > 0 && (
+            <>
+              <button
+                type="button"
+                className="btn btn-error"
+                onClick={handleBulkDelete}
+                disabled={loading || Boolean(deletingKey)}
+              >
+                Ausgewählte löschen ({selectedKeys.length})
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={clearSelection}
+                disabled={loading || Boolean(deletingKey)}
+              >
+                Abbrechen
+              </button>
+            </>
+          )}
           <input
             type="search"
             className="input input-bordered w-full sm:w-72"
@@ -467,106 +583,124 @@ export default function CandidatesDeletedUsers() {
               restoringKey && String(restoringKey) === String(key);
             const deleting = deletingKey && String(deletingKey) === String(key);
             const disabled = Boolean(restoringKey) || Boolean(deletingKey);
+            const checked = selectedKeys.includes(key);
             return (
-              <RemoteUserCard
-                key={String(r?.id || idx)}
-                name={full}
-                photo={photo}
-                email={email === "—" ? "" : email}
-                major={major === "—" ? "" : major}
-                firebaseId={String(r?.sourceDocId || "").trim() || ""}
-                tone="error"
-                onClick={() => {
-                  const majorParam = major && major !== "—" ? major : "unknown";
-                  const idParam =
-                    String(r?.sourceDocId || "").trim() || "deleted";
-                  navigate(
-                    `/generate/${majorParam}/${idParam}?remote=1&kind=deleted&deletedDocId=${encodeURIComponent(
-                      String(r?.id || "")
-                    )}`,
-                    { state: { remoteRecord: r } }
-                  );
-                }}
-                footer={
-                  <div className="flex flex-col sm:flex-row justify-end gap-1 sm:gap-2">
-                    <button
-                      type="button"
-                      className="btn btn-xs sm:btn-sm btn-primary"
-                      onClick={() => restoreToOriginal(r)}
-                      disabled={disabled}
-                      title="In ursprünglichen Bereich wiederherstellen"
-                    >
-                      {restoring ? (
-                        <>
-                          <span className="loading loading-spinner loading-xs sm:loading-sm" />
-                          <span className="hidden xs:inline">Original...</span>
-                          <span className="xs:hidden">...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="hidden xs:inline">Original</span>
-                          <MdOutlineRestorePage
-                            size={16}
-                            className="xs:hidden"
-                          />
-                          <MdOutlineRestorePage
-                            size={18}
-                            className="hidden xs:inline"
-                          />
-                        </>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-xs sm:btn-sm btn-outline"
-                      onClick={() => restore(r)}
-                      disabled={disabled}
-                      title="Berufsfeld auswählen"
-                    >
-                      {restoring ? (
-                        <>
-                          <span className="loading loading-spinner loading-xs sm:loading-sm" />
-                          <span className="hidden xs:inline">Auswählen...</span>
-                          <span className="xs:hidden">...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="hidden xs:inline">Auswählen</span>
-                          <MdOutlineRestorePage
-                            size={16}
-                            className="xs:hidden"
-                          />
-                          <MdOutlineRestorePage
-                            size={18}
-                            className="hidden xs:inline"
-                          />
-                        </>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-xs sm:btn-sm btn-error btn-outline"
-                      onClick={() => deleteForever(r)}
-                      disabled={disabled}
-                      title="Endgültig löschen (nicht wiederherstellbar)"
-                    >
-                      {deleting ? (
-                        <>
-                          <span className="loading loading-spinner loading-xs sm:loading-sm" />
-                          <span className="hidden xs:inline">Deleting...</span>
-                          <span className="xs:hidden">...</span>
-                        </>
-                      ) : (
-                        <>
-                          <span className="hidden xs:inline">Delete</span>
-                          <FiTrash2 size={14} className="xs:hidden" />
-                          <FiTrash2 size={16} className="hidden xs:inline" />
-                        </>
-                      )}
-                    </button>
-                  </div>
-                }
-              />
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  className="absolute top-2 left-2 z-10 scale-125"
+                  checked={checked}
+                  onChange={() => toggleSelect(key)}
+                  disabled={disabled}
+                  title="Tanlash"
+                />
+                <RemoteUserCard
+                  key={String(r?.id || idx)}
+                  name={full}
+                  photo={photo}
+                  email={email === "—" ? "" : email}
+                  major={major === "—" ? "" : major}
+                  firebaseId={String(r?.sourceDocId || "").trim() || ""}
+                  tone="error"
+                  onClick={() => {
+                    const majorParam =
+                      major && major !== "—" ? major : "unknown";
+                    const idParam =
+                      String(r?.sourceDocId || "").trim() || "deleted";
+                    navigate(
+                      `/generate/${majorParam}/${idParam}?remote=1&kind=deleted&deletedDocId=${encodeURIComponent(
+                        String(r?.id || "")
+                      )}`,
+                      { state: { remoteRecord: r } }
+                    );
+                  }}
+                  footer={
+                    <div className="flex flex-col sm:flex-row justify-end gap-1 sm:gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-xs sm:btn-sm btn-primary"
+                        onClick={() => restoreToOriginal(r)}
+                        disabled={disabled}
+                        title="In ursprünglichen Bereich wiederherstellen"
+                      >
+                        {restoring ? (
+                          <>
+                            <span className="loading loading-spinner loading-xs sm:loading-sm" />
+                            <span className="hidden xs:inline">
+                              Original...
+                            </span>
+                            <span className="xs:hidden">...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="hidden xs:inline">Original</span>
+                            <MdOutlineRestorePage
+                              size={16}
+                              className="xs:hidden"
+                            />
+                            <MdOutlineRestorePage
+                              size={18}
+                              className="hidden xs:inline"
+                            />
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-xs sm:btn-sm btn-outline"
+                        onClick={() => restore(r)}
+                        disabled={disabled}
+                        title="Berufsfeld auswählen"
+                      >
+                        {restoring ? (
+                          <>
+                            <span className="loading loading-spinner loading-xs sm:loading-sm" />
+                            <span className="hidden xs:inline">
+                              Auswählen...
+                            </span>
+                            <span className="xs:hidden">...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="hidden xs:inline">Auswählen</span>
+                            <MdOutlineRestorePage
+                              size={16}
+                              className="xs:hidden"
+                            />
+                            <MdOutlineRestorePage
+                              size={18}
+                              className="hidden xs:inline"
+                            />
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-xs sm:btn-sm btn-error btn-outline"
+                        onClick={() => deleteForever(r)}
+                        disabled={disabled}
+                        title="Endgültig löschen (nicht wiederherstellbar)"
+                      >
+                        {deleting ? (
+                          <>
+                            <span className="loading loading-spinner loading-xs sm:loading-sm" />
+                            <span className="hidden xs:inline">
+                              Deleting...
+                            </span>
+                            <span className="xs:hidden">...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="hidden xs:inline">Delete</span>
+                            <FiTrash2 size={14} className="xs:hidden" />
+                            <FiTrash2 size={16} className="hidden xs:inline" />
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  }
+                />
+              </div>
             );
           })}
         </div>
