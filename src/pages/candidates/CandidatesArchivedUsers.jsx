@@ -81,6 +81,49 @@ function stripArchivedUserMetaForRestore(record) {
 }
 
 export default function CandidatesArchivedUsers() {
+  // Multi-select state (localStorage persistent)
+  const SELECTED_KEYS_STORAGE = "archivedUsersSelectedKeys";
+  const [selectedKeys, setSelectedKeys] = useState(() => {
+    try {
+      const raw = localStorage.getItem(SELECTED_KEYS_STORAGE);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  function toggleSelect(key) {
+    setSelectedKeys((prev) => {
+      const next = prev.includes(key)
+        ? prev.filter((k) => k !== key)
+        : [...prev, key];
+      try {
+        localStorage.setItem(SELECTED_KEYS_STORAGE, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedKeys([]);
+    try {
+      localStorage.removeItem(SELECTED_KEYS_STORAGE);
+    } catch {}
+  }
+
+  function handleBulkDelete() {
+    if (!isPrivileged || selectedKeys.length === 0) return;
+    setConfirmState({
+      kind: "bulk_delete",
+      keys: [...selectedKeys],
+      title: `Ausgewählte Kandidaten löschen?`,
+      message: `${selectedKeys.length} Kandidaten werden endgültig gelöscht. Diese Aktion kann nicht rückgängig gemacht werden!`,
+      confirmLabel: `Löschen (${selectedKeys.length})`,
+      cancelLabel: "Abbrechen",
+      confirmVariant: "btn-error",
+      seconds: 0,
+    });
+  }
   const navigate = useNavigate();
   const { user } = useSelector((s) => s.auth);
   const { role, loadingRole } = useUserRole({ forceRefresh: true });
@@ -221,6 +264,61 @@ export default function CandidatesArchivedUsers() {
   }
 
   async function confirmModalAction() {
+    if (confirmState?.kind === "bulk_delete") {
+      const keys = Array.isArray(confirmState.keys) ? confirmState.keys : [];
+      if (keys.length === 0) return;
+      let errorCount = 0;
+      for (const key of keys) {
+        const record = items.find((r) => String(r.id) === String(key));
+        if (record) {
+          try {
+            // Save to deleted_users collection
+            const major = String(
+              record?.sourceMajor || record?.major || ""
+            ).trim();
+            const sourceDocId = String(
+              record?.sourceDocId || record?.firebaseId || ""
+            ).trim();
+            if (major && sourceDocId) {
+              await saveDeletedUserSnapshotFirestore({
+                major,
+                sourceDocId,
+                majorTitle:
+                  String(record?.sourceMajorTitle || "").trim() || major,
+                deletedBy: user?.email || user?.uid || "admin",
+                payload: {
+                  major,
+                  ...stripArchivedUserMetaForRestore(record),
+                },
+              });
+            }
+            const email = extractEmailFromSnapshot(record);
+            if (email) {
+              await deleteEmailAndPassIdByEmail(
+                String(email).trim().toLowerCase()
+              );
+            }
+            await deleteDoc(doc(db, "archived_users", key));
+          } catch (e) {
+            errorCount++;
+          }
+        }
+      }
+      const successCount = keys.length - errorCount;
+      if (successCount > 0 && errorCount === 0) {
+        toast.success(`${successCount} Kandidat(en) erfolgreich gelöscht.`);
+      } else if (successCount > 0 && errorCount > 0) {
+        toast.success(
+          `${successCount} Kandidat(en) gelöscht, ${errorCount} Fehler.`
+        );
+      } else {
+        toast.error(`Fehler beim Löschen.`);
+      }
+      setConfirmState(null);
+      clearSelection();
+      await load();
+      return;
+    }
     const c = confirmState;
     if (!c) return;
     const record = c.record;
@@ -374,7 +472,8 @@ export default function CandidatesArchivedUsers() {
         message={confirmState?.message}
         confirmLabel={confirmState?.confirmLabel}
         confirmVariant={confirmState?.confirmVariant}
-        seconds={confirmState?.seconds || 0}
+        cancelLabel={confirmState?.cancelLabel}
+        seconds={0}
         busy={Boolean(restoringKey) || Boolean(movingKey)}
       />
       <SelectMajorModal
@@ -395,7 +494,31 @@ export default function CandidatesArchivedUsers() {
             Quelle: Firestore (archived_users)
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {selectedKeys.length > 0 && (
+            <>
+              <button
+                type="button"
+                className="btn btn-error"
+                onClick={handleBulkDelete}
+                disabled={
+                  loading || Boolean(restoringKey) || Boolean(movingKey)
+                }
+              >
+                Ausgewählte löschen ({selectedKeys.length})
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline"
+                onClick={clearSelection}
+                disabled={
+                  loading || Boolean(restoringKey) || Boolean(movingKey)
+                }
+              >
+                Abbrechen
+              </button>
+            </>
+          )}
           <input
             type="search"
             className="input input-bordered w-full sm:w-72"
@@ -441,60 +564,74 @@ export default function CandidatesArchivedUsers() {
             const busy = restoringKey && String(restoringKey) === String(key);
             const moving = movingKey && String(movingKey) === String(key);
             const disabled = Boolean(restoringKey) || Boolean(movingKey);
+            const checked = selectedKeys.includes(key);
             return (
-              <RemoteUserCard
-                key={String(r?.id || idx)}
-                name={full}
-                photo={photo}
-                email={email === "—" ? "" : email}
-                major={major === "—" ? "" : major}
-                firebaseId={String(r?.sourceDocId || "").trim() || ""}
-                tone="warning"
-                onClick={() => {
-                  const majorParam = major && major !== "—" ? major : "unknown";
-                  const idParam =
-                    String(r?.sourceDocId || "").trim() || "archived";
-                  navigate(
-                    `/generate/${majorParam}/${idParam}?remote=1&kind=archived&archivedDocId=${encodeURIComponent(
-                      String(r?.id || "")
-                    )}`,
-                    { state: { remoteRecord: r } }
-                  );
-                }}
-                footer={
-                  <div className="flex flex-wrap justify-end gap-2">
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-primary whitespace-nowrap"
-                      onClick={() => restore(r)}
-                      disabled={disabled}
-                      title="Wiederherstellen"
-                    >
-                      <span className="hidden sm:inline">Wiederherstellen</span>
-                      <MdOutlineRestorePage size={18} />
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-error btn-outline whitespace-nowrap"
-                      onClick={() => moveToDeleted(r)}
-                      disabled={disabled}
-                      title="O‘chirish (deleted ga ko‘chadi)"
-                    >
-                      {moving ? (
-                        <>
-                          <span className="loading loading-spinner loading-sm" />
-                          {/* keep width stable */}
-                        </>
-                      ) : (
-                        <>
-                          <span className="hidden sm:inline">Löschen</span>
-                          <FiTrash2 size={16} />
-                        </>
-                      )}
-                    </button>
-                  </div>
-                }
-              />
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  className="absolute top-2 left-2 z-10 scale-125"
+                  checked={checked}
+                  onChange={() => toggleSelect(key)}
+                  disabled={disabled}
+                  title="Auswählen"
+                />
+                <RemoteUserCard
+                  key={String(r?.id || idx)}
+                  name={full}
+                  photo={photo}
+                  email={email === "—" ? "" : email}
+                  major={major === "—" ? "" : major}
+                  firebaseId={String(r?.sourceDocId || "").trim() || ""}
+                  tone="warning"
+                  onClick={() => {
+                    const majorParam =
+                      major && major !== "—" ? major : "unknown";
+                    const idParam =
+                      String(r?.sourceDocId || "").trim() || "archived";
+                    navigate(
+                      `/generate/${majorParam}/${idParam}?remote=1&kind=archived&archivedDocId=${encodeURIComponent(
+                        String(r?.id || "")
+                      )}`,
+                      { state: { remoteRecord: r } }
+                    );
+                  }}
+                  footer={
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary whitespace-nowrap"
+                        onClick={() => restore(r)}
+                        disabled={disabled}
+                        title="Wiederherstellen"
+                      >
+                        <span className="hidden sm:inline">
+                          Wiederherstellen
+                        </span>
+                        <MdOutlineRestorePage size={18} />
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-error btn-outline whitespace-nowrap"
+                        onClick={() => moveToDeleted(r)}
+                        disabled={disabled}
+                        title="O‘chirish (deleted ga ko‘chadi)"
+                      >
+                        {moving ? (
+                          <>
+                            <span className="loading loading-spinner loading-sm" />
+                            {/* keep width stable */}
+                          </>
+                        ) : (
+                          <>
+                            <span className="hidden sm:inline">Löschen</span>
+                            <FiTrash2 size={16} />
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  }
+                />
+              </div>
             );
           })}
         </div>
