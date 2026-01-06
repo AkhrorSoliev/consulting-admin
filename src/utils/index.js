@@ -547,14 +547,15 @@ export function generateSkills(cv, kind) {
   const contextSoft = [];
   const contextPc = [];
 
-  (cv?.experience || []).forEach((exp) => {
+  const experience = Array.isArray(cv?.experience) ? cv.experience : [];
+  experience.forEach((exp) => {
     if (lowerIncludes(exp.position, "admin")) {
       contextSoft.push("Organisationstalent");
       contextPc.push("Microsoft Excel");
     }
     if (
       lowerIncludes(exp.position, "teacher") ||
-      lowerIncludes(exp.position, "o‘qit")
+      lowerIncludes(exp.position, "o'qit")
     ) {
       contextSoft.push("Präsentationsfähigkeit");
       contextPc.push("PowerPoint");
@@ -575,7 +576,8 @@ export function generateSkills(cv, kind) {
     }
   });
 
-  (cv?.education || []).forEach((edu) => {
+  const education = Array.isArray(cv?.education) ? cv.education : [];
+  education.forEach((edu) => {
     if (
       lowerIncludes(edu.degree, "iqtisod") ||
       lowerIncludes(edu.degree, "wirtschaft")

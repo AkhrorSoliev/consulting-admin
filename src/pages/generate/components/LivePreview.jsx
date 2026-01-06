@@ -321,7 +321,37 @@ export default function LivePreview({
   }
 
   const sortedExperience = sortTimelineItemsDesc(formCv?.experience || []);
-  const sortedEducation = sortTimelineItemsDesc(formCv?.education || []);
+
+  // Convert new education structure to array for display
+  const educationArray = [];
+  if (
+    formCv?.education?.schule &&
+    (formCv.education.schule.startDate ||
+      formCv.education.schule.endDate ||
+      formCv.education.schule.institution ||
+      formCv.education.schule.degree)
+  ) {
+    educationArray.push(formCv.education.schule);
+  }
+  if (
+    formCv?.education?.kollej &&
+    (formCv.education.kollej.startDate ||
+      formCv.education.kollej.endDate ||
+      formCv.education.kollej.institution ||
+      formCv.education.kollej.degree)
+  ) {
+    educationArray.push(formCv.education.kollej);
+  }
+  if (
+    formCv?.education?.universitat &&
+    (formCv.education.universitat.startDate ||
+      formCv.education.universitat.endDate ||
+      formCv.education.universitat.institution ||
+      formCv.education.universitat.degree)
+  ) {
+    educationArray.push(formCv.education.universitat);
+  }
+  const sortedEducation = sortTimelineItemsDesc(educationArray);
   const firstName = String(formCv?.personalInfo?.name || "").trim();
   const lastName = String(formCv?.personalInfo?.lastName || "").trim();
   const fullName = [firstName, lastName].filter(Boolean).join(" ") || "—";
@@ -481,7 +511,7 @@ export default function LivePreview({
     }
 
     // Education
-    if (sortedEducation.length > 0) {
+    if (educationArray.length > 0) {
       blocks.push({
         id: "education-title",
         kind: "sectionTitle",
