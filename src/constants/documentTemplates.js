@@ -35,10 +35,12 @@ export const DOCUMENT_TEMPLATES = [
     to: "/settings/documents/vollmacht-arbeitgeber",
     kind: "pdf",
   },
+  {
+    id: "einwilligungserklaerung",
+    title: "Einwilligungserklärung",
+    description:
+      "Template: Einwilligungserklärung zur Nutzung von Foto- und Videoaufnahmen.",
+    to: "/settings/documents/einwilligungserklaerung",
+    kind: "pdf",
+  },
 ];
-
-
-
-
-
-
