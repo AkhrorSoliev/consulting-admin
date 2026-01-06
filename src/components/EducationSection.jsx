@@ -1,192 +1,341 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import FormInput from "./FormInput";
 import RequiredLabel from "./RequiredLabel";
 import CollapsibleSection from "./CollapsibleSection";
 import { toInputMonth, fromInputMonth } from "../utils";
-import { Trash2 } from "lucide-react";
 
 function EducationSection({
   education,
-  onAddEducation,
   onUpdateEducation,
-  onRemoveEducation,
   showRequiredWarning = false,
-  errors = [],
-  renderItemActions,
+  errors = {},
 }) {
   const fieldInput = "input input-bordered w-full";
 
-  const [openIndex, setOpenIndex] = useState(education.length - 1);
+  const schule = education?.schule || {};
+  const kollej = education?.kollej || {};
+  const universitat = education?.universitat || {};
 
-  // When a new education is added, open the last one
-  useEffect(() => {
-    setOpenIndex(education.length - 1);
-  }, [education.length]);
+  const [noKollej, setNoKollej] = useState(false);
+  const [noUniversitat, setNoUniversitat] = useState(false);
+  const [openSchule, setOpenSchule] = useState(true);
+  const [openKollej, setOpenKollej] = useState(false);
+  const [openUniversitat, setOpenUniversitat] = useState(false);
 
-  // Check if current education is filled
   const isEducationFilled = (edu) => {
     return edu.startDate && edu.endDate && edu.institution && edu.degree;
   };
 
-  // Check if education is completely empty
-  const isEducationEmpty = (edu) => {
-    return !edu.startDate && !edu.endDate && !edu.institution && !edu.degree;
-  };
-
-  // Check if education is partially filled (some fields filled, but not all)
-  const isEducationPartiallyFilled = (edu) => {
-    return !isEducationFilled(edu) && !isEducationEmpty(edu);
-  };
-
-  const canAddNew = () => {
-    if (education.length === 0) return true;
-    const lastEdu = education[education.length - 1];
-    return isEducationFilled(lastEdu);
-  };
-
-  const handleAddEducation = () => {
-    if (canAddNew()) {
-      onAddEducation();
-      // Set the next index to be open immediately
-      setTimeout(() => {
-        setOpenIndex(education.length);
-      }, 0);
-    }
-  };
-
-  const handleToggle = (idx, newOpen) => {
-    // If opening this item, set it as the open index
-    // If closing, set -1 (no item open)
-    if (newOpen) {
-      setOpenIndex(idx);
-    } else {
-      setOpenIndex(-1);
-    }
-  };
-
   return (
-    <div className="space-y-3">
-      {education.length === 0 && (
-        <div className="alert alert-info text-sm">
-          Bitte fügen Sie mindestens eine vollständige Ausbildungsstation hinzu
-          und füllen Sie alle Felder aus (z. B. Schule).
-        </div>
-      )}
-      {education.map((edu, idx) => {
-        return (
-          <CollapsibleSection
-            key={idx}
-            title={`Ausbildung #${idx + 1}`}
-            isOpen={idx === openIndex}
-            onToggle={(newOpen) => handleToggle(idx, newOpen)}
-            className="shadow-sm border-base-200"
-            contentClassName="space-y-3"
-          >
-            <div className="flex items-center justify-end gap-2 mb-3">
-              {typeof renderItemActions === "function"
-                ? renderItemActions(idx, edu)
-                : null}
-              <button
-                type="button"
-                className="btn btn-ghost btn-xs text-error hover:bg-error/10"
-                onClick={() => onRemoveEducation(idx)}
-                title="Entfernen"
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="label" htmlFor={`edu-${idx}-startDate`}>
-                  <RequiredLabel className="label-text">
-                    Startdatum
-                  </RequiredLabel>
-                </label>
-                <input
-                  id={`edu-${idx}-startDate`}
-                  type="month"
-                  placeholder="YYYY-MM"
-                  className={`${fieldInput} ${
-                    errors[idx]?.startDate ? "input-error" : ""
-                  }`}
-                  value={toInputMonth(edu.startDate)}
-                  onChange={(e) =>
-                    onUpdateEducation(
-                      idx,
-                      "startDate",
-                      fromInputMonth(e.target.value)
-                    )
-                  }
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor={`edu-${idx}-endDate`}>
-                  <RequiredLabel className="label-text">Enddatum</RequiredLabel>
-                </label>
-                <input
-                  id={`edu-${idx}-endDate`}
-                  type="month"
-                  placeholder="YYYY-MM"
-                  className={`${fieldInput} ${
-                    errors[idx]?.endDate ? "input-error" : ""
-                  }`}
-                  value={toInputMonth(edu.endDate)}
-                  onChange={(e) =>
-                    onUpdateEducation(
-                      idx,
-                      "endDate",
-                      fromInputMonth(e.target.value)
-                    )
-                  }
-                />
-              </div>
-              <FormInput
-                className="md:col-span-2"
-                label={<RequiredLabel>Bildungseinrichtung</RequiredLabel>}
-                placeholder="z.B. Tashkent State University"
-                helperText="Beispiel: Schule, Universität, College."
-                value={edu.institution}
-                inputClassName={errors[idx]?.institution ? "input-error" : ""}
-                onChange={(e) =>
-                  onUpdateEducation(idx, "institution", e.target.value)
-                }
-              />
-              <FormInput
-                className="md:col-span-2"
-                label={<RequiredLabel>Abschluss / Studiengang</RequiredLabel>}
-                placeholder="z.B. Bachelor Informatik"
-                helperText="Beispiel: Abitur, Bachelor, Master, Ausbildung."
-                value={edu.degree || ""}
-                inputClassName={errors[idx]?.degree ? "input-error" : ""}
-                onChange={(e) =>
-                  onUpdateEducation(idx, "degree", e.target.value)
-                }
-              />
-            </div>
-          </CollapsibleSection>
-        );
-      })}
-      <button
-        type="button"
-        className={`btn btn-outline btn-sm ${
-          showRequiredWarning ? "btn-error border-error/60 text-error" : ""
-        } ${!canAddNew() ? "btn-disabled opacity-50" : ""}`}
-        onClick={handleAddEducation}
-        disabled={!canAddNew()}
-      >
-        + Ausbildungsstation hinzufügen
-      </button>
-      {education.length > 0 &&
-        isEducationPartiallyFilled(education[education.length - 1]) && (
-          <div className="mt-2 alert alert-warning text-sm">
-            Bitte füllen Sie alle Felder der aktuellen Ausbildung aus, bevor Sie
-            eine neue hinzufügen.
+    <div className="space-y-6">
+      {/* Schule (Required) */}
+      <CollapsibleSection
+        title={
+          <div className="flex items-center gap-2">
+            <RequiredLabel>Schule</RequiredLabel>
+            <span className="text-xs text-base-content/60">
+              (Maktab - nemis tilida)
+            </span>
           </div>
-        )}
+        }
+        isOpen={openSchule}
+        onToggle={(newOpen) => setOpenSchule(newOpen)}
+        className="shadow-sm border-base-200"
+        contentClassName="space-y-3"
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="label" htmlFor="schule-startDate">
+              <RequiredLabel className="label-text">Startdatum</RequiredLabel>
+            </label>
+            <input
+              id="schule-startDate"
+              type="month"
+              placeholder="YYYY-MM"
+              className={`${fieldInput} ${
+                errors?.schule?.startDate ? "input-error" : ""
+              }`}
+              value={toInputMonth(schule.startDate)}
+              onChange={(e) =>
+                onUpdateEducation(
+                  "schule",
+                  "startDate",
+                  fromInputMonth(e.target.value)
+                )
+              }
+            />
+          </div>
+          <div>
+            <label className="label" htmlFor="schule-endDate">
+              <RequiredLabel className="label-text">Enddatum</RequiredLabel>
+            </label>
+            <input
+              id="schule-endDate"
+              type="month"
+              placeholder="YYYY-MM"
+              className={`${fieldInput} ${
+                errors?.schule?.endDate ? "input-error" : ""
+              }`}
+              value={toInputMonth(schule.endDate)}
+              onChange={(e) =>
+                onUpdateEducation(
+                  "schule",
+                  "endDate",
+                  fromInputMonth(e.target.value)
+                )
+              }
+            />
+          </div>
+          <FormInput
+            className="md:col-span-2"
+            label={
+              <RequiredLabel>Bildungseinrichtung (auf Deutsch)</RequiredLabel>
+            }
+            placeholder="z.B. Gymnasium Nr. 1"
+            helperText="Name der Schule auf Deutsch."
+            value={schule.institution || ""}
+            inputClassName={errors?.schule?.institution ? "input-error" : ""}
+            onChange={(e) =>
+              onUpdateEducation("schule", "institution", e.target.value)
+            }
+          />
+          <FormInput
+            className="md:col-span-2"
+            label={<RequiredLabel>Abschluss (auf Deutsch)</RequiredLabel>}
+            placeholder="z.B. Abitur"
+            helperText="Schulabschluss auf Deutsch."
+            value={schule.degree || ""}
+            inputClassName={errors?.schule?.degree ? "input-error" : ""}
+            onChange={(e) =>
+              onUpdateEducation("schule", "degree", e.target.value)
+            }
+          />
+        </div>
+      </CollapsibleSection>
+
+      {/* Kollej/Litsey (Optional) */}
+      <div>
+        <label className="cursor-pointer flex items-center gap-2 mb-2">
+          <input
+            type="checkbox"
+            className="checkbox checkbox-sm"
+            checked={noKollej}
+            onChange={(e) => {
+              const checked = Boolean(e.target.checked);
+              setNoKollej(checked);
+              if (checked) {
+                onUpdateEducation("kollej", "startDate", "");
+                onUpdateEducation("kollej", "endDate", "");
+                onUpdateEducation("kollej", "institution", "");
+                onUpdateEducation("kollej", "degree", "");
+              }
+            }}
+          />
+          <span className="text-sm font-medium">
+            Kein Kollej/Litsey besucht
+          </span>
+        </label>
+        <CollapsibleSection
+          title={
+            <div className="flex items-center gap-2">
+              <span>Kollej/Litsey (optional)</span>
+              <span className="text-xs text-base-content/60">
+                (Kollej/Litsey - nemis tilida)
+              </span>
+            </div>
+          }
+          isOpen={openKollej}
+          onToggle={(newOpen) => setOpenKollej(newOpen)}
+          className="shadow-sm border-base-200"
+          contentClassName="space-y-3"
+          disabled={noKollej}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="label" htmlFor="kollej-startDate">
+                <span className="label-text">Startdatum</span>
+              </label>
+              <input
+                id="kollej-startDate"
+                type="month"
+                placeholder="YYYY-MM"
+                className={`${fieldInput} ${
+                  errors?.kollej?.startDate ? "input-error" : ""
+                }`}
+                value={toInputMonth(kollej.startDate)}
+                disabled={noKollej}
+                onChange={(e) =>
+                  onUpdateEducation(
+                    "kollej",
+                    "startDate",
+                    fromInputMonth(e.target.value)
+                  )
+                }
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="kollej-endDate">
+                <span className="label-text">Enddatum</span>
+              </label>
+              <input
+                id="kollej-endDate"
+                type="month"
+                placeholder="YYYY-MM"
+                className={`${fieldInput} ${
+                  errors?.kollej?.endDate ? "input-error" : ""
+                }`}
+                value={toInputMonth(kollej.endDate)}
+                disabled={noKollej}
+                onChange={(e) =>
+                  onUpdateEducation(
+                    "kollej",
+                    "endDate",
+                    fromInputMonth(e.target.value)
+                  )
+                }
+              />
+            </div>
+            <FormInput
+              className="md:col-span-2"
+              label="Bildungseinrichtung (auf Deutsch)"
+              placeholder="z.B. Tashkent College"
+              helperText="Name des Kollegs/Litseys auf Deutsch."
+              value={kollej.institution || ""}
+              inputClassName={errors?.kollej?.institution ? "input-error" : ""}
+              disabled={noKollej}
+              onChange={(e) =>
+                onUpdateEducation("kollej", "institution", e.target.value)
+              }
+            />
+            <FormInput
+              className="md:col-span-2"
+              label="Abschluss (auf Deutsch)"
+              placeholder="z.B. Fachabitur"
+              helperText="Abschluss auf Deutsch."
+              value={kollej.degree || ""}
+              inputClassName={errors?.kollej?.degree ? "input-error" : ""}
+              disabled={noKollej}
+              onChange={(e) =>
+                onUpdateEducation("kollej", "degree", e.target.value)
+              }
+            />
+          </div>
+        </CollapsibleSection>
+      </div>
+
+      {/* Universität (Optional) */}
+      <div>
+        <label className="cursor-pointer flex items-center gap-2 mb-2">
+          <input
+            type="checkbox"
+            className="checkbox checkbox-sm"
+            checked={noUniversitat}
+            onChange={(e) => {
+              const checked = Boolean(e.target.checked);
+              setNoUniversitat(checked);
+              if (checked) {
+                onUpdateEducation("universitat", "startDate", "");
+                onUpdateEducation("universitat", "endDate", "");
+                onUpdateEducation("universitat", "institution", "");
+                onUpdateEducation("universitat", "degree", "");
+              }
+            }}
+          />
+          <span className="text-sm font-medium">Keine Universität besucht</span>
+        </label>
+        <CollapsibleSection
+          title={
+            <div className="flex items-center gap-2">
+              <span>Universität (optional)</span>
+              <span className="text-xs text-base-content/60">
+                (Universitet - nemis tilida)
+              </span>
+            </div>
+          }
+          isOpen={openUniversitat}
+          onToggle={(newOpen) => setOpenUniversitat(newOpen)}
+          className="shadow-sm border-base-200"
+          contentClassName="space-y-3"
+          disabled={noUniversitat}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="label" htmlFor="universitat-startDate">
+                <span className="label-text">Startdatum</span>
+              </label>
+              <input
+                id="universitat-startDate"
+                type="month"
+                placeholder="YYYY-MM"
+                className={`${fieldInput} ${
+                  errors?.universitat?.startDate ? "input-error" : ""
+                }`}
+                value={toInputMonth(universitat.startDate)}
+                disabled={noUniversitat}
+                onChange={(e) =>
+                  onUpdateEducation(
+                    "universitat",
+                    "startDate",
+                    fromInputMonth(e.target.value)
+                  )
+                }
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="universitat-endDate">
+                <span className="label-text">Enddatum</span>
+              </label>
+              <input
+                id="universitat-endDate"
+                type="month"
+                placeholder="YYYY-MM"
+                className={`${fieldInput} ${
+                  errors?.universitat?.endDate ? "input-error" : ""
+                }`}
+                value={toInputMonth(universitat.endDate)}
+                disabled={noUniversitat}
+                onChange={(e) =>
+                  onUpdateEducation(
+                    "universitat",
+                    "endDate",
+                    fromInputMonth(e.target.value)
+                  )
+                }
+              />
+            </div>
+            <FormInput
+              className="md:col-span-2"
+              label="Bildungseinrichtung (auf Deutsch)"
+              placeholder="z.B. Tashkent State University"
+              helperText="Name der Universität auf Deutsch."
+              value={universitat.institution || ""}
+              inputClassName={
+                errors?.universitat?.institution ? "input-error" : ""
+              }
+              disabled={noUniversitat}
+              onChange={(e) =>
+                onUpdateEducation("universitat", "institution", e.target.value)
+              }
+            />
+            <FormInput
+              className="md:col-span-2"
+              label="Abschluss / Studiengang (auf Deutsch)"
+              placeholder="z.B. Bachelor Informatik"
+              helperText="Beispiel: Bachelor, Master."
+              value={universitat.degree || ""}
+              inputClassName={errors?.universitat?.degree ? "input-error" : ""}
+              disabled={noUniversitat}
+              onChange={(e) =>
+                onUpdateEducation("universitat", "degree", e.target.value)
+              }
+            />
+          </div>
+        </CollapsibleSection>
+      </div>
+
       {showRequiredWarning ? (
         <div className="mt-2 alert alert-warning text-sm">
-          Bitte fügen Sie mindestens eine vollständige Ausbildungsstation hinzu
-          und füllen Sie alle Felder aus (z. B. Schule).
+          Bitte füllen Sie alle Pflichtfelder der Schule aus.
         </div>
       ) : null}
     </div>
