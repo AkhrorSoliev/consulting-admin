@@ -1,0 +1,15 @@
+export const REGION_POSTAL_CODES = {
+  "Andijan Region": "170100",
+  "Bukhara Region": "200100",
+  "Fergana Region": "150100",
+  "Jizzakh Region": "130100",
+  "Namangan Region": "160100",
+  "Navoi Region": "210100",
+  "Kashkadarya Region": "180100",
+  "Autonome Republik Karakalpakstan": "230100",
+  "Samarkand Region": "140100",
+  "Syrdarya Region": "120100",
+  "Surkhandarya Region": "190100",
+  "Tashkent Region": "100000",
+  "Khorezm Region": "220100",
+};

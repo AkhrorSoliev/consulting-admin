@@ -122,3 +122,225 @@ export async function correctCommentWithAI(htmlContent) {
     throw error;
   }
 }
+
+export async function correctExperienceWithAI(
+  experience,
+  aufgabenOnly = false
+) {
+  try {
+    const { position, company, location, responsibilities } = experience;
+
+    if (aufgabenOnly) {
+      if (!responsibilities || responsibilities.length === 0) {
+        throw new Error("Keine Aufgaben zum Korrigieren vorhanden.");
+      }
+
+      const context = `Position: ${position || ""}, Unternehmen: ${
+        company || ""
+      }, Ort: ${location || ""}`;
+
+      const response = await fetch(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [
+              {
+                role: "system",
+                content: `Du bist ein professioneller deutscher Lebenslauf-Experte. Deine Aufgabe ist es, Aufgaben (Tätigkeiten) für einen Lebenslauf zu erstellen oder zu verbessern.
+
+Kontext:
+${context}
+
+Anforderungen:
+1. Wenn der Text auf Usbekisch ist, übersetze ihn ins Deutsche
+2. Wenn der Text auf Deutsch ist:
+   - Wenn die Aufgaben bereits korrekt und professionell geschrieben sind, behalte sie UNVERÄNDERT
+   - Korrigiere nur, wenn es Fehler gibt oder der Text unprofessionell ist
+3. Erstelle GENAU 4 professionelle Aufgabenbeschreibungen
+4. Jede Aufgabe sollte aus 2 Teilen bestehen (mit Gedankenstrich getrennt)
+5. Verwende professionelle deutsche Lebenslauf-Sprache
+6. WICHTIG: Entferne ALLE Gedankenstriche (–), Bindestriche (-) und Punkte (•) am Anfang der Aufgaben
+7. Gib die Aufgaben OHNE Aufzählungszeichen zurück
+8. Verwende Verben im Infinitiv oder Partizip Perfekt
+9. Mache die Aufgaben spezifisch für die Position und das Unternehmen
+10. Gib NUR die 4 Aufgaben zurück, jede in einer neuen Zeile
+11. KEINE Erklärungen, KEINE Nummerierung, KEINE Aufzählungszeichen
+
+Beispiel-Format:
+Unterstützung bei täglichen Arbeitsabläufen – Sicherstellung eines reibungslosen Betriebsablaufs
+Mitarbeit im Team – Zusammenarbeit mit Kollegen zur Erreichung gemeinsamer Ziele
+Einhaltung von Arbeits- und Sicherheitsregeln – Gewährleistung eines sicheren Arbeitsumfelds
+Qualitätskontrolle der Produkte – Sicherstellung hoher Qualitätsstandards`,
+              },
+              {
+                role: "user",
+                content: responsibilities.join("\n"),
+              },
+            ],
+            temperature: 0.4,
+            max_tokens: 500,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          `OpenAI API error: ${errorData.error?.message || response.statusText}`
+        );
+      }
+
+      const data = await response.json();
+      const correctedText = data.choices[0]?.message?.content?.trim();
+
+      if (!correctedText) {
+        throw new Error("No response from OpenAI");
+      }
+
+      const newResponsibilities = correctedText
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+        .map((line) => line.replace(/^[–\-•]\s*/, ""));
+
+      return {
+        ...experience,
+        responsibilities: newResponsibilities,
+      };
+    } else {
+      const fieldsToCorrect = [];
+      if (position) fieldsToCorrect.push(`Position: ${position}`);
+      if (company) fieldsToCorrect.push(`Unternehmen: ${company}`);
+      if (location) fieldsToCorrect.push(`Ort: ${location}`);
+      if (responsibilities && responsibilities.length > 0) {
+        fieldsToCorrect.push(`Aufgaben:\n${responsibilities.join("\n")}`);
+      }
+
+      if (fieldsToCorrect.length === 0) {
+        throw new Error("Keine Daten zum Korrigieren vorhanden.");
+      }
+
+      const response = await fetch(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [
+              {
+                role: "system",
+                content: `Du bist ein professioneller deutscher Lebenslauf-Experte. Korrigiere und verbessere die folgenden Berufserfahrungs-Daten.
+
+Anforderungen:
+1. Wenn der Text auf Usbekisch ist, übersetze ihn ins Deutsche
+2. Wenn der Text auf Deutsch ist, korrigiere Grammatik und Rechtschreibung
+3. Mache die Texte professionell und prägnant
+
+4. POSITION:
+   - Wenn mehrere Positionen aufgelistet sind (z.B. "Verkäufer, Lagerist"), wähle NUR EINE Position aus, die am besten zum Unternehmen passt
+   - Behalte nur eine einzige, klare Berufsbezeichnung
+
+5. ORT (SEHR WICHTIG):
+   - Entferne ALLE Klammern aus dem Ort
+   - Format: "[Hauptstadt/Stadt], [Land]"
+   - Beispiel: "Asaka (Andijan, Usbekistan)" → "Andijan, Usbekistan"
+   - Beispiel: "Qarshi, Uzbekistan" → "Qarshi Region, Usbekistan"
+   - Für usbekische Städte: Verwende die Hauptstadt der Region + ", Usbekistan"
+   - Für deutsche Städte: "[Stadt], Deutschland"
+
+6. AUFGABEN:
+   - Wenn die Aufgaben bereits korrekt und professionell auf Deutsch geschrieben sind, behalte sie UNVERÄNDERT
+   - Erstelle GENAU 4 professionelle Aufgabenbeschreibungen, jede aus 2 Teilen bestehend
+   - WICHTIG: Gib die Aufgaben OHNE Gedankenstriche (–), Bindestriche (-) oder Punkte (•) am Anfang zurück
+   - Jede Aufgabe sollte direkt mit dem Text beginnen
+
+7. Gib die Daten im folgenden Format zurück:
+
+Position: [korrigierte Position]
+Unternehmen: [korrigiertes Unternehmen]
+Ort: [korrigierter Ort]
+Aufgaben:
+[Aufgabe 1]
+[Aufgabe 2]
+[Aufgabe 3]
+[Aufgabe 4]
+
+Gib NUR dieses Format zurück, KEINE zusätzlichen Erklärungen.`,
+              },
+              {
+                role: "user",
+                content: fieldsToCorrect.join("\n"),
+              },
+            ],
+            temperature: 0.4,
+            max_tokens: 600,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          `OpenAI API error: ${errorData.error?.message || response.statusText}`
+        );
+      }
+
+      const data = await response.json();
+      const correctedText = data.choices[0]?.message?.content?.trim();
+
+      if (!correctedText) {
+        throw new Error("No response from OpenAI");
+      }
+
+      const lines = correctedText.split("\n");
+      let newPosition = position;
+      let newCompany = company;
+      let newLocation = location;
+      const newResponsibilities = [];
+
+      let inAufgaben = false;
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("Position:")) {
+          newPosition = trimmed.replace("Position:", "").trim();
+        } else if (trimmed.startsWith("Unternehmen:")) {
+          newCompany = trimmed.replace("Unternehmen:", "").trim();
+        } else if (trimmed.startsWith("Ort:")) {
+          newLocation = trimmed.replace("Ort:", "").trim();
+        } else if (trimmed.startsWith("Aufgaben:")) {
+          inAufgaben = true;
+        } else if (inAufgaben && trimmed.length > 0) {
+          // Remove any leading dashes, bullets, or dots
+          const cleaned = trimmed.replace(/^[–\-•]\s*/, "");
+          if (cleaned.length > 0) {
+            newResponsibilities.push(cleaned);
+          }
+        }
+      }
+
+      return {
+        ...experience,
+        position: newPosition,
+        company: newCompany,
+        location: newLocation,
+        responsibilities:
+          newResponsibilities.length > 0
+            ? newResponsibilities
+            : responsibilities,
+      };
+    }
+  } catch (error) {
+    console.error("Error correcting experience with AI:", error);
+    throw error;
+  }
+}

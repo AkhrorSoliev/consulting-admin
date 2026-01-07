@@ -101,6 +101,7 @@ import LivePreview from "./generate/components/LivePreview";
 import SelectMajorModal from "../components/SelectMajorModal";
 import { restoreRemoteRecordToFirebase } from "./candidates/remoteUserUtils";
 import { UZBEK_REGIONS } from "../constants/uzbekRegions";
+import { REGION_POSTAL_CODES } from "../constants/regionPostalCodes";
 import { LANGUAGE_OPTIONS } from "../constants/languageOptions";
 import { DOCUMENT_TEMPLATES } from "../constants/documentTemplates";
 import BeratungsvertragPdfDocument from "./contract/pdf/BeratungsvertragPdfDocument";
@@ -127,7 +128,7 @@ import {
   buildProxyAssetUrl,
   fetchUrlAsImageDataUrlBestEffort,
 } from "./generate/utils";
-import { correctCommentWithAI } from "../utils/openai";
+import { correctCommentWithAI, correctExperienceWithAI } from "../utils/openai";
 import { usePdfGeneration } from "./generate/hooks";
 import { useDocumentManagement } from "./generate/hooks";
 import { useFormNormalization } from "./generate/hooks";
@@ -377,6 +378,11 @@ function Generate() {
     lastSentType: "",
   });
   const [isCorrectingComment, setIsCorrectingComment] = useState(false);
+  const [correctingExperienceIndex, setCorrectingExperienceIndex] =
+    useState(null);
+  const [aufgabenOnlyMode, setAufgabenOnlyMode] = useState({});
+  const [experienceHistory, setExperienceHistory] = useState({});
+  const [experienceHistoryIndex, setExperienceHistoryIndex] = useState({});
 
   // Document upload state
   const [selectedDocumentType, setSelectedDocumentType] = useState("");
@@ -1232,6 +1238,18 @@ function Generate() {
       personalInfo: { ...prev.personalInfo, address: formatted },
     }));
   }
+
+  useEffect(() => {
+    if (addressFields?.city && REGION_POSTAL_CODES[addressFields.city]) {
+      const postalCode = REGION_POSTAL_CODES[addressFields.city];
+      if (addressFields.postalCode !== postalCode) {
+        applyAddressFields({
+          ...addressFields,
+          postalCode: postalCode,
+        });
+      }
+    }
+  }, [addressFields?.city]);
 
   useEffect(() => {
     const key = String(major || "").trim();
@@ -4084,6 +4102,132 @@ function Generate() {
     }
   }
 
+  async function handleCorrectExperience(idx) {
+    const exp = formCv.experience[idx];
+    if (!exp) {
+      toast.error("Berufserfahrung nicht gefunden.");
+      return;
+    }
+
+    const aufgabenOnly = aufgabenOnlyMode[idx] || false;
+
+    // Save current state to history before making changes
+    saveExperienceToHistory(idx, exp);
+
+    setCorrectingExperienceIndex(idx);
+    try {
+      const correctedExp = await correctExperienceWithAI(exp, aufgabenOnly);
+
+      // Update the entire experience entry
+      setFormCv((prev) => {
+        const next = [...prev.experience];
+        next[idx] = correctedExp;
+        return { ...prev, experience: sortTimelineItemsDesc(next) };
+      });
+
+      // Save the corrected state to history
+      saveExperienceToHistory(idx, correctedExp);
+
+      toast.success(
+        aufgabenOnly
+          ? "Aufgaben wurden erfolgreich korrigiert!"
+          : "Berufserfahrung wurde erfolgreich korrigiert!"
+      );
+    } catch (error) {
+      console.error("Error correcting experience:", error);
+      toast.error(
+        "Fehler beim Korrigieren: " + (error.message || "Unbekannter Fehler")
+      );
+    } finally {
+      setCorrectingExperienceIndex(null);
+    }
+  }
+
+  function toggleAufgabenOnlyMode(idx) {
+    setAufgabenOnlyMode((prev) => ({
+      ...prev,
+      [idx]: !prev[idx],
+    }));
+  }
+
+  function saveExperienceToHistory(idx, experienceData) {
+    setExperienceHistoryIndex((prevIndex) => {
+      const currentIndex = prevIndex[idx] ?? -1;
+
+      setExperienceHistory((prevHistory) => {
+        const history = prevHistory[idx] || [];
+
+        // Remove any future history if we're not at the end
+        const newHistory = history.slice(0, currentIndex + 1);
+        newHistory.push(experienceData);
+
+        // Keep only last 20 states to avoid memory issues
+        const trimmedHistory = newHistory.slice(-20);
+
+        return {
+          ...prevHistory,
+          [idx]: trimmedHistory,
+        };
+      });
+
+      return {
+        ...prevIndex,
+        [idx]: currentIndex + 1,
+      };
+    });
+  }
+
+  function undoExperience(idx) {
+    const history = experienceHistory[idx] || [];
+    const currentIndex = experienceHistoryIndex[idx] ?? -1;
+
+    if (currentIndex > 0) {
+      const previousState = history[currentIndex - 1];
+
+      setFormCv((prev) => {
+        const next = [...prev.experience];
+        next[idx] = previousState;
+        return { ...prev, experience: sortTimelineItemsDesc(next) };
+      });
+
+      setExperienceHistoryIndex((prev) => ({
+        ...prev,
+        [idx]: currentIndex - 1,
+      }));
+    }
+  }
+
+  function redoExperience(idx) {
+    const history = experienceHistory[idx] || [];
+    const currentIndex = experienceHistoryIndex[idx] ?? -1;
+
+    if (currentIndex < history.length - 1) {
+      const nextState = history[currentIndex + 1];
+
+      setFormCv((prev) => {
+        const next = [...prev.experience];
+        next[idx] = nextState;
+        return { ...prev, experience: sortTimelineItemsDesc(next) };
+      });
+
+      setExperienceHistoryIndex((prev) => ({
+        ...prev,
+        [idx]: currentIndex + 1,
+      }));
+    }
+  }
+
+  function canUndoExperience(idx) {
+    const currentIndex = experienceHistoryIndex[idx] ?? -1;
+    return currentIndex > 0;
+  }
+
+  function canRedoExperience(idx) {
+    const history = experienceHistory[idx] || [];
+    const currentIndex = experienceHistoryIndex[idx] ?? -1;
+    return currentIndex < history.length - 1;
+  }
+
   function appendToComment(nextHtmlBlock) {
     const block = String(nextHtmlBlock || "").trim();
     if (!block) return;
@@ -4874,6 +5018,14 @@ function Generate() {
                         onRemoveExperience={removeExperience}
                         onAddResponsibility={addResponsibility}
                         onRemoveResponsibility={removeResponsibility}
+                        onCorrectExperience={handleCorrectExperience}
+                        correctingIndex={correctingExperienceIndex}
+                        aufgabenOnlyMode={aufgabenOnlyMode}
+                        onToggleAufgabenOnly={toggleAufgabenOnlyMode}
+                        onUndoExperience={undoExperience}
+                        onRedoExperience={redoExperience}
+                        canUndo={canUndoExperience}
+                        canRedo={canRedoExperience}
                       />
                     </CollapsibleSection>
 
