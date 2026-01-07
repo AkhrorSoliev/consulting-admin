@@ -13,6 +13,7 @@ import {
   getDoc,
   increment,
   onSnapshot,
+  updateDoc,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import {
@@ -25,6 +26,8 @@ import {
   FaEnvelope,
   FaTelegram,
   FaRobot,
+  FaThumbsUp,
+  FaThumbsDown,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import { pdf } from "@react-pdf/renderer";
@@ -180,6 +183,7 @@ function Generate() {
   const [notFound, setNotFound] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [reaction, setReaction] = useState(null);
   const [statusValue, setStatusValue] = useState(CANDIDATE_STATUS_DEFAULT);
   const [statusUpdatedAt, setStatusUpdatedAt] = useState(null);
   const [statusUpdatedBy, setStatusUpdatedBy] = useState("");
@@ -1443,6 +1447,7 @@ function Generate() {
           );
           setStatusUpdatedAt(status?.updatedAt || null);
           setStatusUpdatedBy(status?.updatedBy || "");
+          setReaction(data?.reaction || null);
           setDocCv(data);
 
           // Console'ga kandidat ma'lumotlarini chiqarish
@@ -4172,6 +4177,39 @@ function Generate() {
     }
   }
 
+  async function handleReaction(reactionType) {
+    if (!isSuperAdmin) {
+      toast.error("Faqat super_admin reaktsiya qo'ya oladi.");
+      return;
+    }
+
+    const col = String(resolvedMajor?.collectionName || "").trim();
+    const docId = String(id || "").trim();
+    if (!col || !docId) return;
+
+    try {
+      const candidateRef = doc(db, col, docId);
+      const newReaction = reaction === reactionType ? null : reactionType;
+
+      await updateDoc(candidateRef, {
+        reaction: newReaction,
+        reactionUpdatedAt: Date.now(),
+      });
+
+      setReaction(newReaction);
+
+      toast.success(
+        newReaction === "like"
+          ? "👍 Gefällt mir"
+          : newReaction === "dislike"
+          ? "👎 Gefällt mir nicht"
+          : "Reaktion entfernt"
+      );
+    } catch (err) {
+      toast.error("Fehler beim Speichern der Reaktion.");
+    }
+  }
+
   async function handleCorrectExperience(idx) {
     const exp = formCv.experience[idx];
     if (!exp) {
@@ -4444,6 +4482,46 @@ function Generate() {
           </div>
 
           <div className="flex items-center gap-2">
+            {!remoteMode && !loading && !notFound && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  className={[
+                    "btn btn-sm btn-circle",
+                    reaction === "like"
+                      ? "btn-success text-white"
+                      : "btn-ghost hover:btn-success hover:text-white",
+                    !isSuperAdmin ? "opacity-50 cursor-not-allowed" : "",
+                  ].join(" ")}
+                  onClick={() => handleReaction("like")}
+                  title={
+                    isSuperAdmin ? "Gefällt mir" : "Faqat super_admin uchun"
+                  }
+                  disabled={loading || notFound || !isSuperAdmin}
+                >
+                  <FaThumbsUp className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  className={[
+                    "btn btn-sm btn-circle",
+                    reaction === "dislike"
+                      ? "btn-error text-white"
+                      : "btn-ghost hover:btn-error hover:text-white",
+                    !isSuperAdmin ? "opacity-50 cursor-not-allowed" : "",
+                  ].join(" ")}
+                  onClick={() => handleReaction("dislike")}
+                  title={
+                    isSuperAdmin
+                      ? "Gefällt mir nicht"
+                      : "Faqat super_admin uchun"
+                  }
+                  disabled={loading || notFound || !isSuperAdmin}
+                >
+                  <FaThumbsDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
             {(!isLimitedAdmin || showLimitedAdminSaveButton) && !remoteMode && (
               <>
                 <button
