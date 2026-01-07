@@ -5,14 +5,32 @@ function digitsOnly(v) {
   return String(v || "").replace(/[^\d]/g, "");
 }
 
-function formatMaskedBody(raw) {
-  const d = digitsOnly(raw).slice(0, 9);
-  // Mask style: 00 000 00 00 (2-3-2-2)
+function formatMaskedBody(raw, countryPhone) {
+  const d = digitsOnly(raw);
+  const phone = String(countryPhone || "").trim();
+
+  // Russia: +7 XXX XXX-XX-XX (3-3-2-2, 10 digits)
+  if (phone === "+7") {
+    const limited = d.slice(0, 10);
+    const parts = [];
+    let i = 0;
+    const groups = [3, 3, 2, 2];
+    for (const g of groups) {
+      const chunk = limited.slice(i, i + g);
+      if (!chunk) break;
+      parts.push(chunk);
+      i += g;
+    }
+    return parts.join(" ");
+  }
+
+  // Default: 00 000 00 00 (2-3-2-2, 9 digits)
+  const limited = d.slice(0, 9);
   const parts = [];
   let i = 0;
   const groups = [2, 3, 2, 2];
   for (const g of groups) {
-    const chunk = d.slice(i, i + g);
+    const chunk = limited.slice(i, i + g);
     if (!chunk) break;
     parts.push(chunk);
     i += g;
@@ -116,11 +134,17 @@ export default function PhoneInputWithCountry({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [isMobile, setIsMobile] = useState(() => {
-    if (typeof window === 'undefined') return false;
+    if (typeof window === "undefined") return false;
     return window.innerWidth < 1024;
   });
-  const helpId = useMemo(() => `phone-help-${Math.random().toString(36).slice(2)}`, []);
-  const errorId = useMemo(() => `phone-error-${Math.random().toString(36).slice(2)}`, []);
+  const helpId = useMemo(
+    () => `phone-help-${Math.random().toString(36).slice(2)}`,
+    []
+  );
+  const errorId = useMemo(
+    () => `phone-error-${Math.random().toString(36).slice(2)}`,
+    []
+  );
 
   const inferredCountry = useMemo(
     () => findCountryByPhonePrefix(value) || getDefaultCountry(),
@@ -159,7 +183,7 @@ export default function PhoneInputWithCountry({
   const body = useMemo(() => {
     const phonePrefix = String(selected?.phone || "").trim();
     const rest = stripPhonePrefix(value, phonePrefix);
-    return formatMaskedBody(rest);
+    return formatMaskedBody(rest, phonePrefix);
   }, [value, selected]);
 
   return (
@@ -201,10 +225,14 @@ export default function PhoneInputWithCountry({
               value={String(selected?.phone || "")}
               onChange={(e) => {
                 const phone = e.target.value;
-                const country = filtered.find((c) => String(c?.phone || "").trim() === phone);
+                const country = filtered.find(
+                  (c) => String(c?.phone || "").trim() === phone
+                );
                 if (country) {
                   setSelected(country);
-                  const nextBody = body ? ` ${body}` : "";
+                  const nextBody = body
+                    ? ` ${formatMaskedBody(body, phone)}`
+                    : "";
                   onChange?.(`${phone}${nextBody}`.trim());
                 }
               }}
@@ -229,18 +257,19 @@ export default function PhoneInputWithCountry({
             className={`join-item input input-bordered w-full ${inputClassName} ${
               error ? "input-error" : ""
             }`}
-            placeholder="00 000 00 00"
+            placeholder={
+              String(selected?.phone || "").trim() === "+7"
+                ? "000 000 00 00"
+                : "00 000 00 00"
+            }
             aria-invalid={error ? "true" : "false"}
-            aria-describedby={[
-              error ? errorId : "",
-              helperText ? helpId : "",
-            ]
+            aria-describedby={[error ? errorId : "", helperText ? helpId : ""]
               .filter(Boolean)
               .join(" ")}
             value={body}
             onChange={(e) => {
-              const nextBody = formatMaskedBody(e.target.value);
               const prefix = String(selected?.phone || "").trim();
+              const nextBody = formatMaskedBody(e.target.value, prefix);
               const next = nextBody ? `${prefix} ${nextBody}` : prefix;
               onChange?.(next.trim());
             }}
@@ -287,7 +316,9 @@ export default function PhoneInputWithCountry({
                 placeholder="Qidirish..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                autoFocus={typeof window !== 'undefined' && window.innerWidth >= 1024}
+                autoFocus={
+                  typeof window !== "undefined" && window.innerWidth >= 1024
+                }
               />
             </div>
 
@@ -311,7 +342,9 @@ export default function PhoneInputWithCountry({
                         type="button"
                         onClick={() => {
                           setSelected(c);
-                          const nextBody = body ? ` ${body}` : "";
+                          const nextBody = body
+                            ? ` ${formatMaskedBody(body, phone)}`
+                            : "";
                           onChange?.(`${phone}${nextBody}`.trim());
                           setOpen(false);
                           setQuery("");
