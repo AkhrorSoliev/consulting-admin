@@ -50,6 +50,7 @@ import {
   candidateStatusMap,
 } from "../constants/candidateStatus";
 import { UZBEK_REGIONS } from "../constants/uzbekRegions";
+import { REGION_POSTAL_CODES } from "../constants/regionPostalCodes";
 import { LANGUAGE_OPTIONS } from "../constants/languageOptions";
 import DrivingLicenseMultiSelect from "../components/ui/driving-license-multiselect";
 import PrivacyModal from "./create/components/modals/PrivacyModal";
@@ -1069,6 +1070,16 @@ function Create() {
     const ok = Boolean(validateFn?.(normalized));
     return ok ? "input-success" : "input-warning";
   }
+
+  useEffect(() => {
+    if (watchBirthPlace && REGION_POSTAL_CODES[watchBirthPlace]) {
+      const postalCode = REGION_POSTAL_CODES[watchBirthPlace];
+      setValue("personalInfo.addressPostalCode", postalCode, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    }
+  }, [watchBirthPlace, setValue]);
 
   useEffect(() => {
     const formatted = formatGermanAddress({
@@ -3193,63 +3204,6 @@ function Create() {
                                   <div>
                                     <label
                                       className="label"
-                                      htmlFor="personalInfo-addressPostalCode"
-                                    >
-                                      <RequiredLabel
-                                        className={`label-text ${REQUIRED_STAR_CLASS}`}
-                                      >
-                                        PLZ (Postleitzahl)
-                                      </RequiredLabel>
-                                    </label>
-                                    <input
-                                      id="personalInfo-addressPostalCode"
-                                      type="text"
-                                      inputMode="numeric"
-                                      placeholder="z.B. 123456"
-                                      maxLength={6}
-                                      className={`input input-bordered w-full ${
-                                        errors?.personalInfo?.addressPostalCode
-                                          ? "input-error"
-                                          : getSuccessClass(
-                                              "personalInfo.addressPostalCode",
-                                              addressPostalCode,
-                                              "input"
-                                            )
-                                      }`}
-                                      aria-invalid={
-                                        errors?.personalInfo?.addressPostalCode
-                                          ? "true"
-                                          : "false"
-                                      }
-                                      {...register(
-                                        "personalInfo.addressPostalCode",
-                                        {
-                                          required:
-                                            "PLZ (Postleitzahl) ist erforderlich",
-                                          validate: (v) =>
-                                            /^\d{6}$/.test(
-                                              String(v || "").trim()
-                                            ) || "PLZ muss 6 Ziffern haben",
-                                          setValueAs: (v) =>
-                                            String(v || "")
-                                              .replace(/[^\d]/g, "")
-                                              .slice(0, 6),
-                                        }
-                                      )}
-                                    />
-                                    {errors?.personalInfo?.addressPostalCode ? (
-                                      <p className="text-error text-sm mt-1">
-                                        {
-                                          errors.personalInfo.addressPostalCode
-                                            .message
-                                        }
-                                      </p>
-                                    ) : null}
-                                  </div>
-
-                                  <div>
-                                    <label
-                                      className="label"
                                       htmlFor="personalInfo-addressCity"
                                     >
                                       <RequiredLabel
@@ -3358,7 +3312,7 @@ function Create() {
                                     )}
                                   </div>
 
-                                  <div className="md:col-span-2">
+                                  <div>
                                     <label
                                       className="label"
                                       htmlFor="personalInfo-addressCountry"

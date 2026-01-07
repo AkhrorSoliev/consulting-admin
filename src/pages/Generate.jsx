@@ -104,6 +104,7 @@ import LivePreview from "./generate/components/LivePreview";
 import SelectMajorModal from "../components/SelectMajorModal";
 import { restoreRemoteRecordToFirebase } from "./candidates/remoteUserUtils";
 import { UZBEK_REGIONS } from "../constants/uzbekRegions";
+import { REGION_POSTAL_CODES } from "../constants/regionPostalCodes";
 import { LANGUAGE_OPTIONS } from "../constants/languageOptions";
 import { DOCUMENT_TEMPLATES } from "../constants/documentTemplates";
 import BeratungsvertragPdfDocument from "./contract/pdf/BeratungsvertragPdfDocument";
@@ -130,7 +131,7 @@ import {
   buildProxyAssetUrl,
   fetchUrlAsImageDataUrlBestEffort,
 } from "./generate/utils";
-import { correctCommentWithAI } from "../utils/openai";
+import { correctCommentWithAI, correctExperienceWithAI } from "../utils/openai";
 import { usePdfGeneration } from "./generate/hooks";
 import { useDocumentManagement } from "./generate/hooks";
 import { useFormNormalization } from "./generate/hooks";
@@ -389,6 +390,11 @@ function Generate() {
     lastSentType: "",
   });
   const [isCorrectingComment, setIsCorrectingComment] = useState(false);
+  const [correctingExperienceIndex, setCorrectingExperienceIndex] =
+    useState(null);
+  const [aufgabenOnlyMode, setAufgabenOnlyMode] = useState({});
+  const [experienceHistory, setExperienceHistory] = useState({});
+  const [experienceHistoryIndex, setExperienceHistoryIndex] = useState({});
 
   // Document upload state
   const [selectedDocumentType, setSelectedDocumentType] = useState("");
@@ -1280,6 +1286,18 @@ function Generate() {
       personalInfo: { ...prev.personalInfo, address: formatted },
     }));
   }
+
+  useEffect(() => {
+    if (addressFields?.city && REGION_POSTAL_CODES[addressFields.city]) {
+      const postalCode = REGION_POSTAL_CODES[addressFields.city];
+      if (addressFields.postalCode !== postalCode) {
+        applyAddressFields({
+          ...addressFields,
+          postalCode: postalCode,
+        });
+      }
+    }
+  }, [addressFields?.city]);
 
   useEffect(() => {
     const key = String(major || "").trim();
@@ -5070,6 +5088,14 @@ function Generate() {
                         onRemoveExperience={removeExperience}
                         onAddResponsibility={addResponsibility}
                         onRemoveResponsibility={removeResponsibility}
+                        onCorrectExperience={handleCorrectExperience}
+                        correctingIndex={correctingExperienceIndex}
+                        aufgabenOnlyMode={aufgabenOnlyMode}
+                        onToggleAufgabenOnly={toggleAufgabenOnlyMode}
+                        onUndoExperience={undoExperience}
+                        onRedoExperience={redoExperience}
+                        canUndo={canUndoExperience}
+                        canRedo={canRedoExperience}
                       />
                     </CollapsibleSection>
 
