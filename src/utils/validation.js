@@ -26,6 +26,13 @@ export function getPhoneBodyDigits(full, expectedBodyDigits = 9) {
 export function isPhoneComplete(full, expectedBodyDigits = 9) {
   const raw = String(full || "").trim();
   if (!raw) return false;
+
+  // Russia (+7) requires 10 digits
+  if (raw.startsWith("+7 ") || raw.startsWith("+7")) {
+    const bodyDigits = getPhoneBodyDigits(raw, 10);
+    return bodyDigits.length === 10;
+  }
+
   const bodyDigits = getPhoneBodyDigits(raw, expectedBodyDigits);
   return bodyDigits.length === expectedBodyDigits;
 }
@@ -56,8 +63,3 @@ export function isPassportNumberValid(v) {
   if (!norm) return false;
   return /^[A-Z]{2}\s\d{7}$/.test(norm);
 }
-
-
-
-
-
