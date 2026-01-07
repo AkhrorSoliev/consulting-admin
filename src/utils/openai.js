@@ -24,7 +24,11 @@ async function correctTextWithAI(text) {
 
 WICHTIG: 
 - Entferne "---" und andere Trennzeichen komplett aus dem Text!
-- Entferne alle wiederholten Informationen - jede Information nur EINMAL!`,
+- Entferne alle wiederholten Informationen - jede Information nur EINMAL!
+- BEHALTE DIE GRAMMATIKALISCHE PERSON (erste, zweite oder dritte Person) GENAU SO WIE IM ORIGINAL!
+- Ändere NIEMALS die Person des Textes (z.B. von dritter Person zu erster Person oder umgekehrt)
+- Wenn der Text in der dritten Person geschrieben ist (er/sie/es), MUSS er in der dritten Person bleiben
+- Wenn der Text in der ersten Person geschrieben ist (ich/wir), MUSS er in der ersten Person bleiben`,
         },
         {
           role: "user",
@@ -77,11 +81,11 @@ export async function correctCommentWithAI(htmlContent) {
             const label = text.substring(0, colonIndex);
             const content = text.substring(colonIndex + 1).trim();
 
-            newContent += `<strong>${label}:</strong>`;
+            newContent += `<strong>${label}:</strong> `;
 
             if (content) {
               const corrected = await correctTextWithAI(content);
-              newContent += " " + corrected;
+              newContent += corrected;
             }
           } else if (text.trim()) {
             const corrected = await correctTextWithAI(text.trim());
@@ -98,11 +102,11 @@ export async function correctCommentWithAI(htmlContent) {
               const label = strongText.substring(0, colonIndex);
               const content = strongText.substring(colonIndex + 1).trim();
 
-              newContent += `<strong>${label}:</strong>`;
+              newContent += `<strong>${label}:</strong> `;
 
               if (content) {
                 const corrected = await correctTextWithAI(content);
-                newContent += " " + corrected;
+                newContent += corrected;
               }
             } else {
               newContent += `<strong>${strongText}</strong>`;

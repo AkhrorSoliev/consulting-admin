@@ -71,6 +71,7 @@ import {
   deleteUploadedFileRemote,
   toInputMonth,
   fromInputMonth,
+  getUserFromFirestore,
 } from "../utils";
 import CandidateStatusStepper from "../components/CandidateStatusStepper";
 import {
@@ -383,6 +384,8 @@ function Generate() {
   const [aufgabenOnlyMode, setAufgabenOnlyMode] = useState({});
   const [experienceHistory, setExperienceHistory] = useState({});
   const [experienceHistoryIndex, setExperienceHistoryIndex] = useState({});
+  const [commentHistory, setCommentHistory] = useState([]);
+  const [commentHistoryIndex, setCommentHistoryIndex] = useState(-1);
 
   // Document upload state
   const [selectedDocumentType, setSelectedDocumentType] = useState("");
@@ -2693,17 +2696,23 @@ function Generate() {
 
       // Best-effort: store email send counters for list view (CollectionCv)
       try {
-        console.log("User object:", user);
-        console.log("User photoURL:", user?.photoURL);
-        console.log("User displayName:", user?.displayName);
+        // Fetch user data from Firestore to get displayName and photoURL
+        let userData = null;
+        if (user?.uid) {
+          userData = await getUserFromFirestore(user.uid);
+        }
+
+        const displayName =
+          userData?.displayName || user?.displayName || user?.email || "Admin";
+        const photoURL = userData?.photoURL || user?.photoURL || "";
+
         const stageBase = `stageMeta.${stepValue}`;
         const updatePayload = {
           "emailMeta.count": increment(1),
           "emailMeta.lastSentAt": emailSentAt,
           "emailMeta.lastSentBy": user?.email || user?.uid || "admin",
-          "emailMeta.lastSentByName":
-            user?.displayName || user?.email || "Admin",
-          "emailMeta.lastSentByPhoto": user?.photoURL || "",
+          "emailMeta.lastSentByName": displayName,
+          "emailMeta.lastSentByPhoto": photoURL,
           "emailMeta.lastSentType": "status",
           "emailMeta.lastSentStage": stepValue,
           "emailMeta.lastSentDecision": normalizedDecision,
@@ -2725,8 +2734,8 @@ function Generate() {
           count: (emailMeta.count || 0) + 1,
           lastSentAt: emailSentAt,
           lastSentBy: user?.email || user?.uid || "admin",
-          lastSentByName: user?.displayName || user?.email || "Admin",
-          lastSentByPhoto: user?.photoURL || "",
+          lastSentByName: displayName,
+          lastSentByPhoto: photoURL,
           lastSentType: "status",
         });
       } catch (e) {}
@@ -3042,13 +3051,25 @@ function Generate() {
         const col = String(resolvedMajor?.collectionName || "").trim();
         const docId = String(id || "").trim();
         if (col && docId) {
+          // Fetch user data from Firestore to get displayName and photoURL
+          let userData = null;
+          if (user?.uid) {
+            userData = await getUserFromFirestore(user.uid);
+          }
+
+          const displayName =
+            userData?.displayName ||
+            user?.displayName ||
+            user?.email ||
+            "Admin";
+          const photoURL = userData?.photoURL || user?.photoURL || "";
+
           await updateDocument(col, docId, {
             "emailMeta.count": increment(1),
             "emailMeta.lastSentAt": emailSentAt,
             "emailMeta.lastSentBy": user?.email || user?.uid || "admin",
-            "emailMeta.lastSentByName":
-              user?.displayName || user?.email || "Admin",
-            "emailMeta.lastSentByPhoto": user?.photoURL || "",
+            "emailMeta.lastSentByName": displayName,
+            "emailMeta.lastSentByPhoto": photoURL,
             "emailMeta.lastSentType": "custom",
           });
 
@@ -3057,8 +3078,8 @@ function Generate() {
             count: (emailMeta.count || 0) + 1,
             lastSentAt: emailSentAt,
             lastSentBy: user?.email || user?.uid || "admin",
-            lastSentByName: user?.displayName || user?.email || "Admin",
-            lastSentByPhoto: user?.photoURL || "",
+            lastSentByName: displayName,
+            lastSentByPhoto: photoURL,
             lastSentType: "custom",
           });
         }
@@ -3568,18 +3589,29 @@ function Generate() {
     const isCommentUpdated =
       String(commentHtml || "") !== String(originalComment || "");
 
-    const nextCommentMeta = isCommentUpdated
-      ? {
-          updatedAt: Date.now(),
-          updatedByUid: user?.uid || "",
-          updatedByName:
-            user?.displayName ||
-            user?.email ||
-            user?.phoneNumber ||
-            "Unbekannt",
-          updatedByPhoto: user?.photoURL || "",
-        }
-      : null;
+    let nextCommentMeta = null;
+    if (isCommentUpdated) {
+      // Fetch user data from Firestore to get displayName and photoURL
+      let userData = null;
+      if (user?.uid) {
+        userData = await getUserFromFirestore(user.uid);
+      }
+
+      const displayName =
+        userData?.displayName ||
+        user?.displayName ||
+        user?.email ||
+        user?.phoneNumber ||
+        "Unbekannt";
+      const photoURL = userData?.photoURL || user?.photoURL || "";
+
+      nextCommentMeta = {
+        updatedAt: Date.now(),
+        updatedByUid: user?.uid || "",
+        updatedByName: displayName,
+        updatedByPhoto: photoURL,
+      };
+    }
 
     if (!isLimitedAdmin) {
       if (!formCv.personalInfo.name?.trim()) {
@@ -4080,16 +4112,54 @@ function Generate() {
     setIsCommentEditorOpen(false);
   }
 
+  function saveCommentToHistory(html) {
+    const currentHtml = String(html || "");
+    setCommentHistory((prev) => {
+      const currentIndex = commentHistoryIndex;
+      const newHistory = prev.slice(0, currentIndex + 1);
+      newHistory.push(currentHtml);
+      return newHistory;
+    });
+    setCommentHistoryIndex((prev) => prev + 1);
+  }
+
+  function undoComment() {
+    if (commentHistoryIndex > 0) {
+      const newIndex = commentHistoryIndex - 1;
+      setCommentHistoryIndex(newIndex);
+      setCommentHtml(commentHistory[newIndex]);
+    }
+  }
+
+  function redoComment() {
+    if (commentHistoryIndex < commentHistory.length - 1) {
+      const newIndex = commentHistoryIndex + 1;
+      setCommentHistoryIndex(newIndex);
+      setCommentHtml(commentHistory[newIndex]);
+    }
+  }
+
+  function canUndoComment() {
+    return commentHistoryIndex > 0;
+  }
+
+  function canRedoComment() {
+    return commentHistoryIndex < commentHistory.length - 1;
+  }
+
   async function handleCorrectComment() {
     if (!commentHtml || !commentHtml.trim()) {
       toast.error("Kein Kommentar zum Korrigieren vorhanden.");
       return;
     }
 
+    saveCommentToHistory(commentHtml);
+
     setIsCorrectingComment(true);
     try {
       const correctedHtml = await correctCommentWithAI(commentHtml);
       setCommentHtml(correctedHtml);
+      saveCommentToHistory(correctedHtml);
       toast.success("Kommentar wurde erfolgreich korrigiert!");
     } catch (error) {
       console.error("Error correcting comment:", error);
@@ -5837,17 +5907,68 @@ function Generate() {
                             placeholder='Allgemeine Notiz: "Der Kandidat passt sehr gut, nur das Foto sollte aktualisiert werden."'
                           />
                         )}
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {isCommentEditorOpen && hasComment && (
+                        {isCommentEditorOpen && (
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-end gap-2 mt-3">
+                            {(canUndoComment() || canRedoComment()) && (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  className="btn btn-xs btn-ghost"
+                                  onClick={undoComment}
+                                  disabled={
+                                    !canUndoComment() || isCorrectingComment
+                                  }
+                                  title="Rückgängig"
+                                >
+                                  <svg
+                                    className="w-4 h-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"
+                                    />
+                                  </svg>
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-xs btn-ghost"
+                                  onClick={redoComment}
+                                  disabled={
+                                    !canRedoComment() || isCorrectingComment
+                                  }
+                                  title="Wiederherstellen"
+                                >
+                                  <svg
+                                    className="w-4 h-4"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M21 10h-10a8 8 0 00-8 8v2m18-10l-6 6m6-6l-6-6"
+                                    />
+                                  </svg>
+                                </button>
+                              </div>
+                            )}
                             <button
                               type="button"
-                              className="btn btn-sm btn-outline btn-info"
+                              className="btn btn-sm btn-primary gap-2"
                               onClick={handleCorrectComment}
                               disabled={
                                 isSaving ||
                                 loading ||
                                 notFound ||
-                                isCorrectingComment
+                                isCorrectingComment ||
+                                !hasComment
                               }
                               title="Kommentar mit KI korrigieren"
                             >
@@ -5858,36 +5979,56 @@ function Generate() {
                                 </>
                               ) : (
                                 <>
-                                  <img
-                                    src="/ai-icon.svg"
-                                    alt="AI"
+                                  <svg
                                     className="w-4 h-4"
-                                  />
-                                  Korrigieren
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                                    />
+                                  </svg>
+                                  KI
                                 </>
                               )}
                             </button>
-                          )}
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline"
-                            onClick={handleCommentPrimaryAction}
-                            disabled={isSaving || loading || notFound}
-                          >
-                            {commentActionLabel}
-                          </button>
-                          {isSuperAdmin && (
                             <button
                               type="button"
-                              className="btn btn-sm btn-outline btn-error"
-                              onClick={handleClearComment}
+                              className="btn btn-sm btn-outline"
+                              onClick={handleCommentPrimaryAction}
                               disabled={isSaving || loading || notFound}
-                              title="Kommentar löschen (nur Super-Admin)"
                             >
-                              Löschen
+                              {commentActionLabel}
                             </button>
-                          )}
-                        </div>
+                            {isSuperAdmin && (
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline btn-error"
+                                onClick={handleClearComment}
+                                disabled={isSaving || loading || notFound}
+                                title="Kommentar löschen (nur Super-Admin)"
+                              >
+                                Löschen
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        {!isCommentEditorOpen && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline"
+                              onClick={handleCommentPrimaryAction}
+                              disabled={isSaving || loading || notFound}
+                            >
+                              {commentActionLabel}
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </>
                   )}
@@ -5962,32 +6103,6 @@ function Generate() {
                           >
                             {commentActionLabel}
                           </button>
-                        </div>
-                        <div className="pt-2">
-                          {showLimitedCommentSaveButton && (
-                            <div className="flex flex-col gap-2">
-                              <button
-                                type="button"
-                                className={`btn btn-primary w-full ${
-                                  !canSaveComment ? "btn-disabled" : ""
-                                }`}
-                                onClick={handleSave}
-                                disabled={!canSaveComment}
-                              >
-                                {isSaving ? (
-                                  <>
-                                    <span className="loading loading-spinner loading-sm" />
-                                    Wird gespeichert...
-                                  </>
-                                ) : (
-                                  <>
-                                    <FaSave />
-                                    <span>Speichern</span>
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          )}
                         </div>
                       </div>
                     </div>

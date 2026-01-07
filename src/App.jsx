@@ -41,6 +41,7 @@ import DataExchange from "./pages/DataExchange";
 import NotFound from "./pages/NotFound";
 import { useDesktopOnly } from "./hooks/useDesktopOnly";
 import DesktopOnlyBlockedPage from "./components/DesktopOnlyBlockedPage";
+import { RouterErrorBoundary } from "./components/ErrorBoundary";
 
 function DocumentsLegacyRedirect() {
   const { templateId } = useParams();
@@ -73,6 +74,7 @@ function App() {
   const routes = createBrowserRouter([
     {
       path: "/",
+      errorElement: <RouterErrorBoundary />,
       element: (
         <DesktopOnlyWrapper>
           <ProtectedRoutes user={user}>
