@@ -13,6 +13,7 @@ import {
   getDoc,
   increment,
   onSnapshot,
+  updateDoc,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import {
@@ -25,6 +26,8 @@ import {
   FaEnvelope,
   FaTelegram,
   FaRobot,
+  FaThumbsUp,
+  FaThumbsDown,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import { pdf } from "@react-pdf/renderer";
@@ -4141,6 +4144,43 @@ function Generate() {
     }
   }
 
+  async function handleReaction(reactionType) {
+    if (!isSuperAdmin) {
+      toast.error("Faqat super_admin reaktsiya qo'ya oladi.");
+      return;
+    }
+
+    if (remoteMode || !id) return;
+
+    try {
+      const candidateRef = doc(db, candidateCollection, id);
+      const currentReaction = formCv?.reaction;
+
+      const newReaction =
+        currentReaction === reactionType ? null : reactionType;
+
+      await updateDoc(candidateRef, {
+        reaction: newReaction,
+        reactionUpdatedAt: Date.now(),
+      });
+
+      setFormCv((prev) => ({
+        ...prev,
+        reaction: newReaction,
+      }));
+
+      toast.success(
+        newReaction === "like"
+          ? "👍 Gefällt mir"
+          : newReaction === "dislike"
+          ? "👎 Gefällt mir nicht"
+          : "Reaktion entfernt"
+      );
+    } catch (err) {
+      toast.error("Fehler beim Speichern der Reaktion.");
+    }
+  }
+
   function appendToComment(nextHtmlBlock) {
     const block = String(nextHtmlBlock || "").trim();
     if (!block) return;
@@ -4287,6 +4327,38 @@ function Generate() {
           </div>
 
           <div className="flex items-center gap-2">
+            {isSuperAdmin && !remoteMode && (
+              <>
+                <button
+                  type="button"
+                  className={[
+                    "btn btn-sm btn-circle",
+                    formCv?.reaction === "like"
+                      ? "btn-success text-white"
+                      : "btn-ghost hover:btn-success hover:text-white",
+                  ].join(" ")}
+                  onClick={() => handleReaction("like")}
+                  title="Gefällt mir"
+                  disabled={loading || notFound}
+                >
+                  <FaThumbsUp className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  className={[
+                    "btn btn-sm btn-circle",
+                    formCv?.reaction === "dislike"
+                      ? "btn-error text-white"
+                      : "btn-ghost hover:btn-error hover:text-white",
+                  ].join(" ")}
+                  onClick={() => handleReaction("dislike")}
+                  title="Gefällt mir nicht"
+                  disabled={loading || notFound}
+                >
+                  <FaThumbsDown className="w-3.5 h-3.5" />
+                </button>
+              </>
+            )}
             {(!isLimitedAdmin || showLimitedAdminSaveButton) && !remoteMode && (
               <>
                 <button
