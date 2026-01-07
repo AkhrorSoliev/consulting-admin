@@ -344,6 +344,8 @@ function CollectionCv() {
     { value: "stage_1:rejected", label: "Stufe 1: abgelehnt" },
     { value: "stage_2:accepted", label: "Stufe 2: angenommen" },
     { value: "stage_2:rejected", label: "Stufe 2: abgelehnt" },
+    { value: "stage_2_result:accepted", label: "Stufe 2 Ergebnis: angenommen" },
+    { value: "stage_2_result:rejected", label: "Stufe 2 Ergebnis: abgelehnt" },
     { value: "stage_3:accepted", label: "Stufe 3: angenommen" },
     { value: "stage_3:rejected", label: "Stufe 3: abgelehnt" },
     { value: "stage_4:accepted", label: "Arbeitgeber: angenommen" },
@@ -648,7 +650,13 @@ function CollectionCv() {
               ? data.stageMeta
               : {};
           const stageDecisions = {};
-          for (const k of ["stage_1", "stage_2", "stage_3", "stage_4"]) {
+          for (const k of [
+            "stage_1",
+            "stage_2",
+            "stage_2_result",
+            "stage_3",
+            "stage_4",
+          ]) {
             const raw = stageMeta?.[k]?.decision;
             if (raw === "accepted" || raw === "rejected") {
               stageDecisions[k] = raw;

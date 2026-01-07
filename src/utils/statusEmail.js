@@ -4,12 +4,12 @@ import {
 } from "../constants/candidateStatus";
 
 function escapeHtml(value) {
+  // Only escape characters that would break HTML structure
+  // Telegram supports UTF-8 directly, so curly quotes don't need escaping
   return String(value || "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+    .replace(/>/g, "&gt;");
 }
 
 function buildFullName(firstName, lastName) {
@@ -102,11 +102,11 @@ function pickStageCopy(stage, decision) {
   if (stage === "stage_2") {
     if (d === "accepted") {
       return {
-        subject: "✅ 2-bosqich: Rahbariyat bilan suhbatga taklif",
-        emailTitle: "Rahbariyat bilan suhbatga taklif",
-        statusLabel: "2-bosqich (rahbariyat bilan suhbat) — kutilmoqda",
+        subject: "✅ 2-bosqich: Ariza holati yangilandi",
+        emailTitle: "Ariza holati yangilandi",
+        statusLabel: "2-bosqich — hujjatlar ish beruvchiga yuborilmoqda",
         mainText:
-          "Tabriklaymiz! Siz 1-bosqich ichki suhbatdan muvaffaqiyatli o'tdingiz. Endi 2-bosqich — rahbariyat bilan suhbatga taklif qilinasiz.",
+          "Tabriklaymiz! Siz 1-bosqich ichki suhbatdan muvaffaqiyatli o'tdingiz.",
         nextStepNote:
           "Suhbatga oid barcha zarur ma'lumotlar (sana, vaqt va havola) quyida keltirilgan. Iltimos, belgilangan vaqtda ishtirok etishingizni tasdiqlang.",
         examples: [
@@ -114,14 +114,14 @@ function pickStageCopy(stage, decision) {
             id: "example1",
             title: "1-misol: Standart tabrik",
             content:
-              "Sizning bilim va tajribangiz yuqori baholandi. Ichki suhbatdan muvaffaqiyatli o'tganingiz bilan tabriklaymiz.",
+              "Sizning hujjatlaringiz to'liq holatda ish beruvchiga yuboriladi. Ish beruvchi hujjatlaringizni ko'rib chiqadi. Agar sizning hujjatlaringiz ish beruvchiga ma'qul kelsa, sizi suhbatga taklif etadi. Suhbat kuni, joyi va vaqti haqida tez orada elektron pochta orqali sizga xabar yuboramiz.",
           },
           {
             id: "example2",
             title: "2-misol: Yuqori rahbariyat bilan suhbat",
             content: `Siz ConsultingUz rahbari Orif Akhmadaliyev bilan ikkinchi bosqich ichki suhbatga taklif qilinasiz.
 
-Suhbatga oid barcha zarur ma'lumotlar (sana, vaqt va Google Meet havolasi) quyida keltirilgan. Iltimos, ko'rsatilgan Google Meet havolasi orqali qo'shiling.
+Suhbatga oid barcha zarur ma'lumotlar quyida keltirilgan. Iltimos, belgilangan vaqtda ishtirok etishingizni tasdiqlang.
 
 Keyingi bosqichlar bo'yicha batafsil ma'lumotlar Sizga qo'shimcha tarzda taqdim etiladi. Jarayon davomida qo'shimcha ma'lumot zarur bo'lsa, Siz bilan bevosita bog'lanamiz.`,
           },
@@ -137,6 +137,32 @@ Keyingi bosqichlar bo'yicha batafsil ma'lumotlar Sizga qo'shimcha tarzda taqdim 
         "Afsuski, tanlov jarayonining 2-bosqichida sizning nomzodingiz keyingi bosqichga o'tkazilmadi.",
       nextStepNote:
         "Qaror tanlov mezonlari asosida qabul qilindi. Qiziqishingiz va jarayonga ajratgan vaqtingiz uchun samimiy minnatdorchilik bildiramiz. Kelgusida boshqa imkoniyatlar paydo bo'lganda, qayta urinib ko'rishingizni tavsiya qilamiz.",
+      ...commonClosing,
+    };
+  }
+
+  if (stage === "stage_2_result") {
+    if (d === "accepted") {
+      return {
+        subject:
+          "✅ 2-bosqich natijasi: Yuqori rahbariyat bilan suhbatdan o'tdingiz",
+        emailTitle: "Yuqori rahbariyat bilan suhbat natijasi",
+        statusLabel: "2-bosqich natijasi — qabul qilindi",
+        mainText:
+          "Tabriklaymiz! Siz yuqori rahbariyat bilan suhbatdan muvaffaqiyatli o'tdingiz. Sizning bilim, tajriba va professional ko'nikmalaringiz yuqori baholandi.",
+        nextStepNote:
+          "Sizning hujjatlaringiz to'liq holatda ish beruvchiga yuboriladi. Ish beruvchi hujjatlaringizni ko'rib chiqadi. Agar sizning hujjatlaringiz ish beruvchiga ma'qul kelsa, sizi suhbatga taklif etadi. Suhbat kuni, joyi va vaqti haqida tez orada elektron pochta orqali sizga xabar yuboramiz.",
+        ...commonClosing,
+      };
+    }
+    return {
+      subject: "❌ 2-bosqich natijasi: Rad etildi",
+      emailTitle: "Ariza holati yangilandi",
+      statusLabel: "2-bosqich natijasi — rad etildi",
+      mainText:
+        "Afsuski, yuqori rahbariyat bilan suhbat natijalariga ko'ra, sizning nomzodingiz keyingi bosqichga o'tkazilmadi.",
+      nextStepNote:
+        "Qaror tanlov mezonlari va kompaniya talablari asosida qabul qilindi. Qiziqishingiz va jarayonga ajratgan vaqtingiz uchun samimiy minnatdorchilik bildiramiz. Kelgusida boshqa imkoniyatlar paydo bo'lganda, qayta urinib ko'rishingizni tavsiya qilamiz.",
       ...commonClosing,
     };
   }
@@ -589,34 +615,40 @@ export function buildTelegramStatusMessage({
   const parts = [];
 
   // Header with emoji
-  parts.push(`📧 <b>${emailTitle}</b>\n`);
+  parts.push(`📧 <b>${escapeHtml(emailTitle)}</b>`);
+  parts.push("");
 
   // Greeting
-  parts.push(`👤 <b>Hurmatli ${fullName},</b>\n`);
+  parts.push(`👤 <b>Hurmatli ${escapeHtml(fullName)},</b>`);
+  parts.push("");
 
   // Main intro
   parts.push(
-    `Sizning arizangiz holatini yangiladik. Quyida joriy holat va keyingi qadamlar bilan tanishishingiz mumkin.\n`
+    `Sizning arizangiz holatini yangiladik. Quyida joriy holat va keyingi qadamlar bilan tanishishingiz mumkin.`
   );
+  parts.push("");
 
   // Status
-  parts.push(`🟢 <b>Holat:</b>`);
-  parts.push(`<b>${statusLabelText}</b>\n`);
+  parts.push(`🟢 <b>Holat: ${escapeHtml(statusLabelText)}</b>`);
+  parts.push("");
 
   // Main text
   if (mainText) {
     parts.push(`📋 <b>Ma'lumot:</b>`);
-    parts.push(`${mainText}\n`);
+    parts.push(`${escapeHtml(mainText)}`);
+    parts.push("");
   }
 
   // Next step note
   if (nextStepNote) {
-    parts.push(`${nextStepNote}\n`);
+    parts.push(`${escapeHtml(nextStepNote)}`);
+    parts.push("");
   }
 
   // Decision note
   if (decisionNote) {
-    parts.push(`💬 <i>Qo'shimcha izoh:</i> ${decisionNote}\n`);
+    parts.push(`💬 <i>Qo'shimcha izoh:</i> ${escapeHtml(decisionNote)}`);
+    parts.push("");
   }
 
   // Additional info section
@@ -627,51 +659,57 @@ export function buildTelegramStatusMessage({
   const dataExchangeLinkTg = String(dataExchangeLink || "").trim();
 
   if (dt || link || locName || locUrl || dataExchangeLinkTg) {
-    parts.push(`━━━━━━━━━━━━━━━\n`);
-    parts.push(`📋 <b>Qo'shimcha ma'lumotlar:</b>\n`);
+    parts.push(`━━━━━━━━━━━━━━━`);
+    parts.push(`📋 <b>Qo'shimcha ma'lumotlar:</b>`);
+    parts.push("");
 
     if (dt) {
-      parts.push(`🗓 <b>Sana / Vaqt:</b>`);
-      parts.push(`<b>${formatInterviewDateTime(dt)}</b>\n`);
+      parts.push(
+        `🗓 <b>Sana / Vaqt: ${escapeHtml(formatInterviewDateTime(dt))}</b>`
+      );
     }
     if (link) {
       const linkType = String(additionalInfo?.linkType || "").toLowerCase();
       const linkLabel =
         linkType === "telegram"
-          ? "Suhbat uchun Telegram havolasi:"
-          : "Suhbat uchun havola:";
-      parts.push(`🔗 <b>${linkLabel}</b>`);
-      parts.push(`👉 <a href="${link}">Guruhga qo'shilish</a>\n`);
+          ? "Suhbat uchun Telegram havolasi"
+          : "Suhbat uchun havola";
+      parts.push(
+        `🔗 <b>${linkLabel}:</b> <a href="${link}">Guruhga qo'shilish</a>`
+      );
     }
     if (locName || locUrl) {
-      parts.push(`📍 <b>Lokatsiya:</b>`);
       if (locUrl) {
         parts.push(
-          `👉 <a href="${locUrl}">${locName || "Manzilni ko'rish"}</a>\n`
+          `📍 <b>Lokatsiya:</b> <a href="${locUrl}">${escapeHtml(
+            locName || "Manzilni ko'rish"
+          )}</a>`
         );
       } else {
-        parts.push(`${locName}\n`);
+        parts.push(`📍 <b>Lokatsiya:</b> ${escapeHtml(locName)}`);
       }
     }
     if (dataExchangeLinkTg) {
-      parts.push(`📄 <b>Hujjatlar yuklash havolasi:</b>`);
       parts.push(
-        `👉 <a href="${dataExchangeLinkTg}">Hujjatlarni yuklash</a>\n`
+        `📄 <b>Hujjatlar yuklash havolasi:</b> <a href="${dataExchangeLinkTg}">Hujjatlarni yuklash</a>`
       );
     }
+    parts.push("");
   }
 
   // Channels info with improved formatting
-  parts.push(`━━━━━━━━━━━━━━━\n`);
-  parts.push(`📢 <b>Foydali havolalar:</b>\n`);
-  parts.push(`📌 <b>ConsultingUz rasmiy kanali:</b>`);
-  parts.push(`👉 <a href="https://t.me/Consulting_UZB">Kanalga o'tish</a>\n`);
-  parts.push(`📍 <b>O'zbekiston bo'ylab nemis tili markazlarimiz:</b>`);
+  parts.push(`━━━━━━━━━━━━━━━`);
+  parts.push(`📢 <b>Foydali havolalar:</b>`);
+  parts.push("");
   parts.push(
-    `👉 <a href="https://t.me/dafsprachzentrum">Markazlar ro'yxati</a>\n`
+    `📌 <b>ConsultingUz rasmiy kanali:</b> <a href="https://t.me/Consulting_UZB">Kanalga o'tish</a>`
   );
-
-  parts.push(`━━━━━━━━━━━━━━━\n`);
+  parts.push(
+    `📍 <b>O'zbekiston bo'ylab nemis tili markazlarimiz:</b> <a href="https://t.me/dafsprachzentrum">Markazlar ro'yxati</a>`
+  );
+  parts.push("");
+  parts.push(`━━━━━━━━━━━━━━━`);
+  parts.push("");
 
   // Closing
   parts.push(`🤝 <b>Hurmat bilan,</b>`);
@@ -680,8 +718,26 @@ export function buildTelegramStatusMessage({
   // Build inline keyboard
   const keyboard = [];
 
-  // Add interview link button if available
-  if (link) {
+  // Helper function to check if URL is valid for Telegram (not localhost)
+  const isValidTelegramUrl = (url) => {
+    if (!url) return false;
+    const urlStr = String(url).trim().toLowerCase();
+    // Reject localhost, 127.0.0.1, and empty URLs
+    if (
+      urlStr.includes("localhost") ||
+      urlStr.includes("127.0.0.1") ||
+      urlStr.startsWith("http://192.168.") ||
+      urlStr.startsWith("http://10.") ||
+      urlStr.startsWith("http://172.")
+    ) {
+      console.warn("Skipping localhost/private URL for Telegram:", url);
+      return false;
+    }
+    return urlStr.startsWith("http://") || urlStr.startsWith("https://");
+  };
+
+  // Add interview link button if available and valid
+  if (link && isValidTelegramUrl(link)) {
     const linkType = String(additionalInfo?.linkType || "").toLowerCase();
     const buttonText =
       linkType === "telegram"
@@ -690,8 +746,8 @@ export function buildTelegramStatusMessage({
     keyboard.push([{ text: buttonText, url: link }]);
   }
 
-  // Add DataExchange link button for stage_4 accepted
-  if (dataExchangeLinkTg) {
+  // Add DataExchange link button for stage_4 accepted (only if valid)
+  if (dataExchangeLinkTg && isValidTelegramUrl(dataExchangeLinkTg)) {
     keyboard.push([
       { text: "📄 Hujjatlarni yuklash", url: dataExchangeLinkTg },
     ]);

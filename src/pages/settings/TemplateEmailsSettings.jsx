@@ -15,6 +15,7 @@ import {
 const STAGES = [
   { value: "stage_1", label: "Stufe 1" },
   { value: "stage_2", label: "Stufe 2" },
+  { value: "stage_2_result", label: "Stufe 2 Ergebnis" },
   { value: "stage_3", label: "Stufe 3" },
   { value: "stage_4", label: "Stufe 4" },
 ];
@@ -226,7 +227,7 @@ export default function TemplateEmailsSettings() {
   const preview = useMemo(() => {
     try {
       const additionalInfo =
-        stage === "stage_2"
+        stage === "stage_2" || stage === "stage_2_result"
           ? null
           : {
               dateTime: "2025-12-23T15:30",
