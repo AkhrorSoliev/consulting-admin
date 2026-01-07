@@ -13,7 +13,6 @@ import {
   getDoc,
   increment,
   onSnapshot,
-  updateDoc,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import {
@@ -26,8 +25,6 @@ import {
   FaEnvelope,
   FaTelegram,
   FaRobot,
-  FaThumbsUp,
-  FaThumbsDown,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
 import { pdf } from "@react-pdf/renderer";
@@ -340,16 +337,7 @@ function Generate() {
         photo: "",
       },
       experience: [],
-      education: {
-        schule: { startDate: "", endDate: "", institution: "", degree: "" },
-        kollej: { startDate: "", endDate: "", institution: "", degree: "" },
-        universitat: {
-          startDate: "",
-          endDate: "",
-          institution: "",
-          degree: "",
-        },
-      },
+      education: [],
       skills: { softSkills: [], pcSkills: [], languages: {} },
       documents: {
         diplomas: [],
@@ -464,50 +452,14 @@ function Generate() {
               : [],
           }))
         : [],
-      education:
-        safe?.education &&
-        typeof safe.education === "object" &&
-        !Array.isArray(safe.education)
-          ? {
-              schule: safe.education.schule || {
-                startDate: "",
-                endDate: "",
-                institution: "",
-                degree: "",
-              },
-              kollej: safe.education.kollej || {
-                startDate: "",
-                endDate: "",
-                institution: "",
-                degree: "",
-              },
-              universitat: safe.education.universitat || {
-                startDate: "",
-                endDate: "",
-                institution: "",
-                degree: "",
-              },
-            }
-          : {
-              schule: {
-                startDate: "",
-                endDate: "",
-                institution: "",
-                degree: "",
-              },
-              kollej: {
-                startDate: "",
-                endDate: "",
-                institution: "",
-                degree: "",
-              },
-              universitat: {
-                startDate: "",
-                endDate: "",
-                institution: "",
-                degree: "",
-              },
-            },
+      education: Array.isArray(safe?.education)
+        ? safe.education.map((edu) => ({
+            startDate: String(edu?.startDate || "").trim(),
+            endDate: String(edu?.endDate || "").trim(),
+            institution: String(edu?.institution || "").trim(),
+            degree: String(edu?.degree || "").trim(),
+          }))
+        : [],
       skills: {
         softSkills: Array.isArray(safe?.skills?.softSkills)
           ? safe.skills.softSkills.map((s) => String(s || "").trim())
@@ -1968,6 +1920,7 @@ function Generate() {
     const berufe = Array.isArray(data?.berufserfahrung)
       ? data.berufserfahrung
       : [];
+    const ausb = Array.isArray(data?.ausbildung) ? data.ausbildung : [];
 
     const normalizeMonth = (value) => {
       const raw = String(value || "").trim();
@@ -1976,48 +1929,6 @@ function Generate() {
       const from = fromInputMonth(raw);
       return from || raw;
     };
-
-    // Handle both old array format and new object format for education
-    const ausbildungData = data?.ausbildung;
-    let educationObj = {
-      schule: { startDate: "", endDate: "", institution: "", degree: "" },
-      kollej: { startDate: "", endDate: "", institution: "", degree: "" },
-      universitat: { startDate: "", endDate: "", institution: "", degree: "" },
-    };
-
-    if (
-      ausbildungData &&
-      typeof ausbildungData === "object" &&
-      !Array.isArray(ausbildungData)
-    ) {
-      // New format: object with schule, kollej, universitat
-      if (ausbildungData.schule) {
-        educationObj.schule = {
-          startDate: normalizeMonth(ausbildungData.schule.beginn),
-          endDate: normalizeMonth(ausbildungData.schule.ende),
-          institution: String(ausbildungData.schule.bildungseinrichtung || ""),
-          degree: String(ausbildungData.schule.abschluss || ""),
-        };
-      }
-      if (ausbildungData.kollej) {
-        educationObj.kollej = {
-          startDate: normalizeMonth(ausbildungData.kollej.beginn),
-          endDate: normalizeMonth(ausbildungData.kollej.ende),
-          institution: String(ausbildungData.kollej.bildungseinrichtung || ""),
-          degree: String(ausbildungData.kollej.abschluss || ""),
-        };
-      }
-      if (ausbildungData.universitat) {
-        educationObj.universitat = {
-          startDate: normalizeMonth(ausbildungData.universitat.beginn),
-          endDate: normalizeMonth(ausbildungData.universitat.ende),
-          institution: String(
-            ausbildungData.universitat.bildungseinrichtung || ""
-          ),
-          degree: String(ausbildungData.universitat.abschluss || ""),
-        };
-      }
-    }
 
     const f = data?.faehigkeiten || {};
     const docs = data?.documents || {};
@@ -2107,7 +2018,12 @@ function Generate() {
         location: String(b?.ort || ""),
         responsibilities: Array.isArray(b?.aufgaben) ? b.aufgaben : [],
       })),
-      education: educationObj,
+      education: ausb.map((a) => ({
+        startDate: normalizeMonth(a?.beginn),
+        endDate: normalizeMonth(a?.ende),
+        institution: String(a?.bildungseinrichtung || ""),
+        degree: String(a?.abschluss || ""),
+      })),
       skills: {
         softSkills: Array.isArray(f?.sozialkompetenzen)
           ? f.sozialkompetenzen
@@ -2169,40 +2085,14 @@ function Generate() {
               : [],
           }))
         : [],
-      ausbildung: {
-        schule: {
-          beginn: f.education?.schule?.startDate || "",
-          ende: f.education?.schule?.endDate || "",
-          bildungseinrichtung: f.education?.schule?.institution || "",
-          abschluss: f.education?.schule?.degree || "",
-        },
-        kollej:
-          f.education?.kollej &&
-          (f.education.kollej.startDate ||
-            f.education.kollej.endDate ||
-            f.education.kollej.institution ||
-            f.education.kollej.degree)
-            ? {
-                beginn: f.education.kollej.startDate || "",
-                ende: f.education.kollej.endDate || "",
-                bildungseinrichtung: f.education.kollej.institution || "",
-                abschluss: f.education.kollej.degree || "",
-              }
-            : null,
-        universitat:
-          f.education?.universitat &&
-          (f.education.universitat.startDate ||
-            f.education.universitat.endDate ||
-            f.education.universitat.institution ||
-            f.education.universitat.degree)
-            ? {
-                beginn: f.education.universitat.startDate || "",
-                ende: f.education.universitat.endDate || "",
-                bildungseinrichtung: f.education.universitat.institution || "",
-                abschluss: f.education.universitat.degree || "",
-              }
-            : null,
-      },
+      ausbildung: Array.isArray(f.education)
+        ? f.education.map((edu) => ({
+            beginn: edu.startDate,
+            ende: edu.endDate,
+            bildungseinrichtung: edu.institution,
+            abschluss: edu.degree || "",
+          }))
+        : [],
       faehigkeiten: {
         sozialkompetenzen: f.skills?.softSkills || [],
         pcKenntnisse: f.skills?.pcSkills || [],
@@ -2397,17 +2287,27 @@ function Generate() {
   }
 
   // Education handlers
-  function updateEducation(type, field, value) {
-    setFormCv((prev) => ({
-      ...prev,
-      education: {
-        ...prev.education,
-        [type]: {
-          ...prev.education[type],
-          [field]: value,
-        },
-      },
-    }));
+  function addEducation() {
+    setFormCv((prev) => {
+      const next = [
+        ...(Array.isArray(prev.education) ? prev.education : []),
+        { startDate: "", endDate: "", institution: "", degree: "" },
+      ];
+      return { ...prev, education: sortTimelineItemsDesc(next) };
+    });
+  }
+  function updateEducation(idx, field, value) {
+    setFormCv((prev) => {
+      const next = [...prev.education];
+      next[idx] = { ...next[idx], [field]: value };
+      return { ...prev, education: sortTimelineItemsDesc(next) };
+    });
+  }
+  function removeEducation(idx) {
+    setFormCv((prev) => {
+      const next = prev.education.filter((_, i) => i !== idx);
+      return { ...prev, education: sortTimelineItemsDesc(next) };
+    });
   }
 
   // Skills handlers
@@ -2483,36 +2383,9 @@ function Generate() {
   const experienceCount = Array.isArray(formCv.experience)
     ? formCv.experience.length
     : 0;
-
-  // Count filled education entries
-  let educationCount = 0;
-  if (
-    formCv.education?.schule &&
-    (formCv.education.schule.startDate ||
-      formCv.education.schule.endDate ||
-      formCv.education.schule.institution ||
-      formCv.education.schule.degree)
-  ) {
-    educationCount++;
-  }
-  if (
-    formCv.education?.kollej &&
-    (formCv.education.kollej.startDate ||
-      formCv.education.kollej.endDate ||
-      formCv.education.kollej.institution ||
-      formCv.education.kollej.degree)
-  ) {
-    educationCount++;
-  }
-  if (
-    formCv.education?.universitat &&
-    (formCv.education.universitat.startDate ||
-      formCv.education.universitat.endDate ||
-      formCv.education.universitat.institution ||
-      formCv.education.universitat.degree)
-  ) {
-    educationCount++;
-  }
+  const educationCount = Array.isArray(formCv.education)
+    ? formCv.education.length
+    : 0;
 
   const languagesCount = Array.isArray(languageRows) ? languageRows.length : 0;
   const documentsCount =
@@ -4299,41 +4172,130 @@ function Generate() {
     }
   }
 
-  async function handleReaction(reactionType) {
-    if (!isSuperAdmin) {
-      toast.error("Faqat super_admin reaktsiya qo'ya oladi.");
+  async function handleCorrectExperience(idx) {
+    const exp = formCv.experience[idx];
+    if (!exp) {
+      toast.error("Berufserfahrung nicht gefunden.");
       return;
     }
 
-    if (remoteMode || !id) return;
+    const aufgabenOnly = aufgabenOnlyMode[idx] || false;
 
+    // Save current state to history before making changes
+    saveExperienceToHistory(idx, exp);
+
+    setCorrectingExperienceIndex(idx);
     try {
-      const candidateRef = doc(db, candidateCollection, id);
-      const currentReaction = formCv?.reaction;
+      const correctedExp = await correctExperienceWithAI(exp, aufgabenOnly);
 
-      const newReaction =
-        currentReaction === reactionType ? null : reactionType;
-
-      await updateDoc(candidateRef, {
-        reaction: newReaction,
-        reactionUpdatedAt: Date.now(),
+      // Update the entire experience entry
+      setFormCv((prev) => {
+        const next = [...prev.experience];
+        next[idx] = correctedExp;
+        return { ...prev, experience: sortTimelineItemsDesc(next) };
       });
 
-      setFormCv((prev) => ({
-        ...prev,
-        reaction: newReaction,
-      }));
+      // Save the corrected state to history
+      saveExperienceToHistory(idx, correctedExp);
 
       toast.success(
-        newReaction === "like"
-          ? "👍 Gefällt mir"
-          : newReaction === "dislike"
-          ? "👎 Gefällt mir nicht"
-          : "Reaktion entfernt"
+        aufgabenOnly
+          ? "Aufgaben wurden erfolgreich korrigiert!"
+          : "Berufserfahrung wurde erfolgreich korrigiert!"
       );
-    } catch (err) {
-      toast.error("Fehler beim Speichern der Reaktion.");
+    } catch (error) {
+      console.error("Error correcting experience:", error);
+      toast.error(
+        "Fehler beim Korrigieren: " + (error.message || "Unbekannter Fehler")
+      );
+    } finally {
+      setCorrectingExperienceIndex(null);
     }
+  }
+
+  function toggleAufgabenOnlyMode(idx) {
+    setAufgabenOnlyMode((prev) => ({
+      ...prev,
+      [idx]: !prev[idx],
+    }));
+  }
+
+  function saveExperienceToHistory(idx, experienceData) {
+    setExperienceHistoryIndex((prevIndex) => {
+      const currentIndex = prevIndex[idx] ?? -1;
+
+      setExperienceHistory((prevHistory) => {
+        const history = prevHistory[idx] || [];
+
+        // Remove any future history if we're not at the end
+        const newHistory = history.slice(0, currentIndex + 1);
+        newHistory.push(experienceData);
+
+        // Keep only last 20 states to avoid memory issues
+        const trimmedHistory = newHistory.slice(-20);
+
+        return {
+          ...prevHistory,
+          [idx]: trimmedHistory,
+        };
+      });
+
+      return {
+        ...prevIndex,
+        [idx]: currentIndex + 1,
+      };
+    });
+  }
+
+  function undoExperience(idx) {
+    const history = experienceHistory[idx] || [];
+    const currentIndex = experienceHistoryIndex[idx] ?? -1;
+
+    if (currentIndex > 0) {
+      const previousState = history[currentIndex - 1];
+
+      setFormCv((prev) => {
+        const next = [...prev.experience];
+        next[idx] = previousState;
+        return { ...prev, experience: sortTimelineItemsDesc(next) };
+      });
+
+      setExperienceHistoryIndex((prev) => ({
+        ...prev,
+        [idx]: currentIndex - 1,
+      }));
+    }
+  }
+
+  function redoExperience(idx) {
+    const history = experienceHistory[idx] || [];
+    const currentIndex = experienceHistoryIndex[idx] ?? -1;
+
+    if (currentIndex < history.length - 1) {
+      const nextState = history[currentIndex + 1];
+
+      setFormCv((prev) => {
+        const next = [...prev.experience];
+        next[idx] = nextState;
+        return { ...prev, experience: sortTimelineItemsDesc(next) };
+      });
+
+      setExperienceHistoryIndex((prev) => ({
+        ...prev,
+        [idx]: currentIndex + 1,
+      }));
+    }
+  }
+
+  function canUndoExperience(idx) {
+    const currentIndex = experienceHistoryIndex[idx] ?? -1;
+    return currentIndex > 0;
+  }
+
+  function canRedoExperience(idx) {
+    const history = experienceHistory[idx] || [];
+    const currentIndex = experienceHistoryIndex[idx] ?? -1;
+    return currentIndex < history.length - 1;
   }
 
   function appendToComment(nextHtmlBlock) {
@@ -4482,38 +4444,6 @@ function Generate() {
           </div>
 
           <div className="flex items-center gap-2">
-            {isSuperAdmin && !remoteMode && (
-              <>
-                <button
-                  type="button"
-                  className={[
-                    "btn btn-sm btn-circle",
-                    formCv?.reaction === "like"
-                      ? "btn-success text-white"
-                      : "btn-ghost hover:btn-success hover:text-white",
-                  ].join(" ")}
-                  onClick={() => handleReaction("like")}
-                  title="Gefällt mir"
-                  disabled={loading || notFound}
-                >
-                  <FaThumbsUp className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  className={[
-                    "btn btn-sm btn-circle",
-                    formCv?.reaction === "dislike"
-                      ? "btn-error text-white"
-                      : "btn-ghost hover:btn-error hover:text-white",
-                  ].join(" ")}
-                  onClick={() => handleReaction("dislike")}
-                  title="Gefällt mir nicht"
-                  disabled={loading || notFound}
-                >
-                  <FaThumbsDown className="w-3.5 h-3.5" />
-                </button>
-              </>
-            )}
             {(!isLimitedAdmin || showLimitedAdminSaveButton) && !remoteMode && (
               <>
                 <button
@@ -5176,7 +5106,9 @@ function Generate() {
                     >
                       <EducationSection
                         education={formCv.education}
+                        onAddEducation={addEducation}
                         onUpdateEducation={updateEducation}
+                        onRemoveEducation={removeEducation}
                       />
                     </CollapsibleSection>
 
