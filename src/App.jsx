@@ -174,10 +174,9 @@ function App() {
         dispatch(login(user));
         // Sync user data to Firestore users collection
         try {
-          const result = await syncUserToFirestore(user);
-          console.log("[App] User sync result:", result);
+          await syncUserToFirestore(user);
         } catch (error) {
-          console.error("[App] Failed to sync user:", error);
+          // Silent error handling
         }
       }
       dispatch(setAuthReady());

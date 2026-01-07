@@ -15,11 +15,18 @@ function CandidateStatusStepper({
   resetStages,
   openCustomEmailModal,
   onResetStage,
+  hasLeadershipInterview = false,
 }) {
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [pendingResetStage, setPendingResetStage] = useState(null);
 
-  const steps = CANDIDATE_STATUS_OPTIONS;
+  // Filter out stage_2_result if no leadership interview was set
+  const steps = CANDIDATE_STATUS_OPTIONS.filter((step) => {
+    if (step.value === "stage_2_result" && !hasLeadershipInterview) {
+      return false;
+    }
+    return true;
+  });
   const currentIndex = Math.max(
     0,
     steps.findIndex((s) => s.value === currentValue)

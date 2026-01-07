@@ -2461,8 +2461,26 @@ function Generate() {
     await persistStatus(statusValue, { silent: false });
   }
 
-  function getNextStepValue(value) {
-    const steps = CANDIDATE_STATUS_OPTIONS;
+  function getNextStepValue(value, options = {}) {
+    const { withLeadership = false } = options;
+
+    // Special case: stage_2 with leadership interview goes to stage_2_result
+    if (value === "stage_2" && withLeadership) {
+      return "stage_2_result";
+    }
+
+    // Special case: stage_2_result always goes to stage_3
+    if (value === "stage_2_result") {
+      return "stage_3";
+    }
+
+    // For other stages, use normal progression (skip stage_2_result if no leadership)
+    const steps = CANDIDATE_STATUS_OPTIONS.filter((s) => {
+      if (s.value === "stage_2_result" && !withLeadership) {
+        return false;
+      }
+      return true;
+    });
     const idx = steps.findIndex((s) => s.value === value);
     if (idx === -1) return null;
     return steps[idx + 1]?.value || null;
@@ -2580,9 +2598,6 @@ function Generate() {
           finalCopyOverrides = {
             ...copyOverrides,
             mainText: selectedExampleData.content,
-            ...(selectedExampleData.id === "example2"
-              ? { nextStepNote: "" }
-              : {}),
           };
         }
       }
@@ -2629,8 +2644,10 @@ function Generate() {
           });
           toast.success("Nachricht auch per Telegram gesendet! 📱");
         } catch (telegramError) {
+          console.error("Telegram send error:", telegramError);
+          const errorMsg = telegramError?.message || String(telegramError);
           toast.error(
-            "E-Mail wurde gesendet, aber Telegram-Nachricht konnte nicht gesendet werden."
+            `E-Mail wurde gesendet, aber Telegram-Nachricht konnte nicht gesendet werden. Fehler: ${errorMsg}`
           );
         }
       }
@@ -2662,7 +2679,7 @@ function Generate() {
         console.log("User photoURL:", user?.photoURL);
         console.log("User displayName:", user?.displayName);
         const stageBase = `stageMeta.${stepValue}`;
-        await updateDocument(col, docId, {
+        const updatePayload = {
           "emailMeta.count": increment(1),
           "emailMeta.lastSentAt": emailSentAt,
           "emailMeta.lastSentBy": user?.email || user?.uid || "admin",
@@ -2676,7 +2693,14 @@ function Generate() {
           [`${stageBase}.decidedAt`]: emailSentAt,
           [`${stageBase}.decidedBy`]: user?.email || user?.uid || "admin",
           [`${stageBase}.decisionNote`]: String(decisionNote || "").trim(),
-        });
+        };
+
+        // Mark if stage_2 was sent with leadership interview (example2)
+        if (stepValue === "stage_2" && selectedExample === "example2") {
+          updatePayload[`${stageBase}.sentWithLeadership`] = true;
+        }
+
+        await updateDocument(col, docId, updatePayload);
 
         // Update local state
         setEmailMeta({
@@ -2690,7 +2714,10 @@ function Generate() {
       } catch (e) {}
 
       if (normalizedDecision === "accepted") {
-        const nextValue = getNextStepValue(stepValue) || stepValue;
+        const withLeadership =
+          stepValue === "stage_2" && selectedExample === "example2";
+        const nextValue =
+          getNextStepValue(stepValue, { withLeadership }) || stepValue;
         await persistStatus(nextValue, { silent: true });
         setStatusValue(nextValue);
       }
@@ -3093,17 +3120,56 @@ function Generate() {
     try {
       const now = Date.now();
       const statusMeta = getCandidateStatus(stageValue);
-      await updateDocument(col, docId, {
+
+      // Prepare update payload
+      const updatePayload = {
         status: {
           value: stageValue,
           label: statusMeta.label,
           updatedAt: now,
           updatedBy: user?.email || user?.uid || "admin",
         },
-      });
+      };
+
+      // Special case: If resetting to stage_2 or earlier, and leadership interview was used,
+      // we need to remove the sentWithLeadership flag so stage_2_result is no longer shown
+      const hasLeadershipInterview = Boolean(
+        docCv?.stageMeta?.stage_2?.sentWithLeadership
+      );
+
+      if (hasLeadershipInterview) {
+        // If resetting to stage_2 or stage_1, remove the leadership flag
+        if (stageValue === "stage_2" || stageValue === "stage_1") {
+          updatePayload["stageMeta.stage_2.sentWithLeadership"] = false;
+        }
+      }
+
+      await updateDocument(col, docId, updatePayload);
+
       setStatusValue(stageValue);
       setStatusUpdatedAt(now);
       setStatusUpdatedBy(user?.email || user?.uid || "admin");
+
+      // Update local docCv state to reflect the change
+      if (
+        hasLeadershipInterview &&
+        (stageValue === "stage_2" || stageValue === "stage_1")
+      ) {
+        setDocCv((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            stageMeta: {
+              ...prev.stageMeta,
+              stage_2: {
+                ...prev.stageMeta?.stage_2,
+                sentWithLeadership: false,
+              },
+            },
+          };
+        });
+      }
+
       toast.success(`Stufe "${statusMeta.label}" wurde zurückgesetzt.`);
     } catch (e) {
       toast.error("Fehler beim Zurücksetzen der Stufe.");
@@ -3132,6 +3198,10 @@ function Generate() {
       return normalizeInterview(
         metaInfo?.interviewLeadership || metaInfo?.interviewInternal
       );
+    }
+    if (v === "stage_2_result") {
+      // stage_2_result doesn't need interview info, just decision
+      return createEmptyStageInfo();
     }
     if (v === "stage_3") {
       return normalizeInterview(metaInfo?.interviewEmployer);
@@ -3307,9 +3377,6 @@ function Generate() {
           finalCopyOverrides = {
             ...copyOverrides,
             mainText: selectedExampleData.content,
-            ...(selectedExampleData.id === "example2"
-              ? { nextStepNote: "" }
-              : {}),
           };
         }
       }
@@ -5836,6 +5903,9 @@ function Generate() {
             resetStages={resetCandidateStages}
             openCustomEmailModal={openCustomEmailModal}
             onResetStage={resetSingleStage}
+            hasLeadershipInterview={Boolean(
+              docCv?.stageMeta?.stage_2?.sentWithLeadership
+            )}
           />
 
           {/* Outgoing documents to the candidate */}

@@ -93,6 +93,15 @@ export async function sendTelegramMessage(
     const token = await user.getIdToken();
     const url = `${getFunctionsBaseUrl()}/sendTelegramMessage`;
 
+    // Log the message being sent for debugging
+    console.log("Sending Telegram message:", {
+      telegramId,
+      messageLength: message?.length,
+      parseMode,
+      keyboardButtons: keyboard?.length || 0,
+      messagePreview: message?.substring(0, 200),
+    });
+
     const response = await fetch(url, {
       method: "POST",
       headers: {
@@ -109,6 +118,16 @@ export async function sendTelegramMessage(
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.error("Telegram API Error:", {
+        status: response.status,
+        errorData,
+        telegramId,
+        messageLength: message?.length,
+        parseMode,
+        hasKeyboard: !!keyboard,
+      });
+      console.error("Full error details:", JSON.stringify(errorData, null, 2));
+      console.error("Message preview:", message?.substring(0, 500));
       throw new Error(
         errorData.details || errorData.error || `HTTP ${response.status}`
       );

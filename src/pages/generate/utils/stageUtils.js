@@ -41,6 +41,7 @@ export function getTelegramGroupIdForStage(metaInfo, stageValue) {
   const stage = String(stageValue || "").trim();
   if (stage === "stage_1") return internal || "";
   if (stage === "stage_2") return leadership || internal || "";
+  if (stage === "stage_2_result") return ""; // No telegram group for stage_2_result
   if (stage === "stage_3" || stage === "stage_4")
     return employer || leadership || internal || "";
   return leadership || internal || employer || "";

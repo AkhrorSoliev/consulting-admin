@@ -8,16 +8,8 @@ import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
  */
 export async function syncUserToFirestore(user) {
   if (!user || !user.uid) {
-    console.warn("[userSync] No user or uid provided");
     return { synced: false, reason: "no_user" };
   }
-
-  console.log("[userSync] Starting sync for user:", {
-    uid: user.uid,
-    email: user.email,
-    displayName: user.displayName,
-    hasPhotoURL: Boolean(user.photoURL),
-  });
 
   try {
     const userRef = doc(db, "users", user.uid);
@@ -34,12 +26,10 @@ export async function syncUserToFirestore(user) {
 
     if (!userSnap.exists()) {
       // Create new user document
-      console.log("[userSync] Creating new user document for:", user.uid);
       await setDoc(userRef, {
         ...userData,
         createdAt: serverTimestamp(),
       });
-      console.log("[userSync] ✅ User document created successfully");
       return { synced: true, created: true };
     }
 
@@ -52,18 +42,11 @@ export async function syncUserToFirestore(user) {
 
     if (hasChanges) {
       // Update existing user document
-      console.log("[userSync] Updating user document with changes:", {
-        emailChanged: existingData.email !== userData.email,
-        displayNameChanged: existingData.displayName !== userData.displayName,
-        photoURLChanged: existingData.photoURL !== userData.photoURL,
-      });
       await setDoc(userRef, userData, { merge: true });
-      console.log("[userSync] ✅ User document updated successfully");
       return { synced: true, updated: true };
     }
 
     // No changes, just update lastLogin
-    console.log("[userSync] No changes detected, updating lastLogin only");
     await setDoc(
       userRef,
       {
@@ -71,16 +54,9 @@ export async function syncUserToFirestore(user) {
       },
       { merge: true }
     );
-    console.log("[userSync] ✅ LastLogin updated successfully");
 
     return { synced: true, updated: false };
   } catch (error) {
-    console.error("[userSync] ❌ Error syncing user to Firestore:", error);
-    console.error("[userSync] Error details:", {
-      code: error.code,
-      message: error.message,
-      stack: error.stack,
-    });
     return { synced: false, error: error.message };
   }
 }
@@ -103,7 +79,6 @@ export async function getUserFromFirestore(uid) {
 
     return null;
   } catch (error) {
-    console.error("Error getting user from Firestore:", error);
     return null;
   }
 }
@@ -138,21 +113,13 @@ export async function getUserByEmail(email) {
     const snapshot = await getDocs(q);
 
     if (snapshot.empty) {
-      console.log(`[userSync] No user found with email: ${email}`);
       return null;
     }
 
     // Return first matching user
     const userData = snapshot.docs[0].data();
-    console.log(`[userSync] Found user by email:`, {
-      email,
-      displayName: userData.displayName,
-      hasPhotoURL: Boolean(userData.photoURL),
-    });
-
     return userData;
   } catch (error) {
-    console.error("[userSync] Error getting user by email:", error);
     return null;
   }
 }
