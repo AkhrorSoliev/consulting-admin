@@ -2024,8 +2024,18 @@ function Generate() {
       // Old format: array of education objects
       ausb = data.ausbildung;
     } else if (data?.ausbildung && typeof data.ausbildung === "object") {
-      // New format: single object with schule, universitat, kollej fields
+      // New format: object with kollej, schule, universitat as separate keys
       const eduObj = data.ausbildung;
+
+      // Extract kollej if exists
+      if (eduObj.kollej && typeof eduObj.kollej === "object") {
+        ausb.push({
+          beginn: String(eduObj.kollej.beginn || ""),
+          ende: String(eduObj.kollej.ende || ""),
+          bildungseinrichtung: String(eduObj.kollej.bildungseinrichtung || ""),
+          abschluss: String(eduObj.kollej.abschluss || ""),
+        });
+      }
 
       // Extract schule if exists
       if (eduObj.schule && typeof eduObj.schule === "object") {
@@ -2038,36 +2048,29 @@ function Generate() {
       }
 
       // Extract universitat if exists
-      if (eduObj.universitat) {
+      if (eduObj.universitat && typeof eduObj.universitat === "object") {
         ausb.push({
-          beginn: String(eduObj.beginn || ""),
-          ende: String(eduObj.ende || ""),
-          bildungseinrichtung: String(eduObj.universitat),
-          abschluss: String(eduObj.abschluss || ""),
+          beginn: String(eduObj.universitat.beginn || ""),
+          ende: String(eduObj.universitat.ende || ""),
+          bildungseinrichtung: String(
+            eduObj.universitat.bildungseinrichtung || ""
+          ),
+          abschluss: String(eduObj.universitat.abschluss || ""),
         });
       }
 
-      // Extract kollej if exists
-      if (eduObj.kollej) {
-        ausb.push({
-          beginn: String(eduObj.beginn || ""),
-          ende: String(eduObj.ende || ""),
-          bildungseinrichtung: String(eduObj.kollej),
-          abschluss: String(eduObj.abschluss || ""),
-        });
-      }
-
-      // If none of the above, but has basic fields, add as single entry
+      // If none of the above, but has basic fields at root level, add as single entry
       if (
         ausb.length === 0 &&
-        (eduObj.abschluss || eduObj.beginn || eduObj.ende)
+        (eduObj.abschluss ||
+          eduObj.beginn ||
+          eduObj.ende ||
+          eduObj.bildungseinrichtung)
       ) {
         ausb.push({
           beginn: String(eduObj.beginn || ""),
           ende: String(eduObj.ende || ""),
-          bildungseinrichtung: String(
-            eduObj.universitat || eduObj.kollej || eduObj.schule || ""
-          ),
+          bildungseinrichtung: String(eduObj.bildungseinrichtung || ""),
           abschluss: String(eduObj.abschluss || ""),
         });
       }
@@ -3936,6 +3939,29 @@ function Generate() {
             "In Firebase gespeichert, aber Fehler beim Aktualisieren der externen E-Mail-Datenbank."
           );
         }
+
+        // Update email_and_pass_id collection
+        try {
+          // Delete old email entry
+          if (oldEmail) {
+            await deleteEmailAndPassIdByEmail(oldEmail);
+          }
+          // Add new email entry
+          if (newEmail) {
+            const passportId = normalizePassportNumber(
+              formCv.personalInfo.passportNumber || ""
+            );
+            await upsertEmailAndPassIdFirestore({
+              email: newEmail,
+              major: col,
+              passportId: passportId || "",
+            });
+          }
+        } catch (err) {
+          toast.error(
+            "E-Mail wurde in Firebase gespeichert, aber Fehler beim Aktualisieren der E-Mail-Registrierung."
+          );
+        }
       }
       if (shouldSyncEmail) {
         toast(
@@ -3976,11 +4002,6 @@ function Generate() {
             }
           }
 
-          // Update savedBaselineJson with the updated form state
-          setTimeout(() => {
-            setSavedBaselineJson(JSON.stringify(normalizeForm(updated)));
-          }, 0);
-
           return updated;
         });
 
@@ -3990,10 +4011,13 @@ function Generate() {
           diplomas: [],
           certificates: [],
         });
-      } else {
-        // If no documents were deleted, update baseline immediately
-        setSavedBaselineJson(JSON.stringify(normalizedCurrentForm));
       }
+
+      // Update baseline - must happen after all state updates complete
+      // Use setTimeout to ensure React has processed all state updates
+      setTimeout(() => {
+        setSavedBaselineJson(JSON.stringify(normalizedCurrentForm));
+      }, 0);
 
       if (nextCommentMeta) {
         setCommentMeta(nextCommentMeta);
@@ -5346,11 +5370,11 @@ function Generate() {
                     >
                       <div className="mb-4 rounded-box border border-base-300 bg-base-200/40 p-4">
                         <div className="form-control w-full">
-                          <label className="label" htmlFor="g-driving">
+                          <div className="label">
                             <span className="label-text font-semibold">
                               Führerschein
                             </span>
-                          </label>
+                          </div>
                           <label className="cursor-pointer flex items-center gap-2">
                             <input
                               id="g-driving"
@@ -5384,11 +5408,7 @@ function Generate() {
                             <div className="mt-3">
                               <div
                                 ref={drivingLicenseDropdownRef}
-                                className={`dropdown w-full ${
-                                  isDrivingLicenseDropdownOpen
-                                    ? "dropdown-open"
-                                    : ""
-                                }`}
+                                className="relative w-full"
                               >
                                 <label className="label">
                                   <span className="label-text">
@@ -5440,65 +5460,66 @@ function Generate() {
                                   })()}
                                 </button>
 
-                                <div className="dropdown-content w-full mt-1 max-h-72 rounded-box border border-base-300 bg-base-100 shadow z-[60] overflow-hidden flex flex-col">
-                                  <ul
-                                    className="menu p-2 overflow-auto w-full"
-                                    role="listbox"
-                                    aria-multiselectable="true"
-                                  >
-                                    {DRIVING_LICENSE_OPTIONS.map((opt) => {
-                                      const upper = String(opt || "")
-                                        .trim()
-                                        .toUpperCase();
-                                      const selected = String(
-                                        formCv.personalInfo
-                                          .drivingLicenseType || ""
-                                      )
-                                        .trim()
-                                        .toUpperCase()
-                                        .split(",")
-                                        .map((s) => s.trim())
-                                        .filter(Boolean);
-                                      const isSelected =
-                                        selected.includes(upper);
+                                {isDrivingLicenseDropdownOpen && (
+                                  <div className="absolute left-0 right-0 mt-1 max-h-72 rounded-box border border-base-300 bg-base-100 shadow-lg z-[9999] overflow-hidden flex flex-col">
+                                    <ul
+                                      className="menu p-2 overflow-auto w-full"
+                                      role="listbox"
+                                      aria-multiselectable="true"
+                                    >
+                                      {DRIVING_LICENSE_OPTIONS.map((opt) => {
+                                        const upper = String(opt || "")
+                                          .trim()
+                                          .toUpperCase();
+                                        const selected = String(
+                                          formCv.personalInfo
+                                            .drivingLicenseType || ""
+                                        )
+                                          .trim()
+                                          .toUpperCase()
+                                          .split(",")
+                                          .map((s) => s.trim())
+                                          .filter(Boolean);
+                                        const isSelected =
+                                          selected.includes(upper);
 
-                                      return (
-                                        <li key={opt}>
-                                          <button
-                                            type="button"
-                                            className="flex items-center gap-2"
-                                            onClick={() => {
-                                              const set = new Set(selected);
-                                              if (set.has(upper))
-                                                set.delete(upper);
-                                              else set.add(upper);
-                                              const next =
-                                                Array.from(set).join(", ");
-                                              setFormCv((prev) => ({
-                                                ...prev,
-                                                personalInfo: {
-                                                  ...prev.personalInfo,
-                                                  drivingLicenseType: next,
-                                                },
-                                              }));
-                                              // Close dropdown after selecting a value (user can reopen to add more)
-                                              setIsDrivingLicenseDropdownOpen(
-                                                false
-                                              );
-                                            }}
-                                          >
-                                            <span className="w-5 text-center">
-                                              {isSelected ? "✓" : ""}
-                                            </span>
-                                            <span className="font-medium">
-                                              {opt}
-                                            </span>
-                                          </button>
-                                        </li>
-                                      );
-                                    })}
-                                  </ul>
-                                </div>
+                                        return (
+                                          <li key={opt}>
+                                            <button
+                                              type="button"
+                                              className="flex items-center gap-2"
+                                              onClick={() => {
+                                                const set = new Set(selected);
+                                                if (set.has(upper))
+                                                  set.delete(upper);
+                                                else set.add(upper);
+                                                const next =
+                                                  Array.from(set).join(", ");
+                                                setFormCv((prev) => ({
+                                                  ...prev,
+                                                  personalInfo: {
+                                                    ...prev.personalInfo,
+                                                    drivingLicenseType: next,
+                                                  },
+                                                }));
+                                                setIsDrivingLicenseDropdownOpen(
+                                                  false
+                                                );
+                                              }}
+                                            >
+                                              <span className="w-5 text-center">
+                                                {isSelected ? "✓" : ""}
+                                              </span>
+                                              <span className="font-medium">
+                                                {opt}
+                                              </span>
+                                            </button>
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           ) : null}

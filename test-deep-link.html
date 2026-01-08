@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="uz">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Telegram Bot Deep Link Test</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 600px;
+        margin: 50px auto;
+        padding: 20px;
+      }
+      .link-box {
+        background: #f5f5f5;
+        padding: 20px;
+        border-radius: 8px;
+        margin: 20px 0;
+      }
+      a {
+        display: inline-block;
+        background: #0088cc;
+        color: white;
+        padding: 12px 24px;
+        text-decoration: none;
+        border-radius: 6px;
+        margin: 10px 0;
+      }
+      a:hover {
+        background: #006699;
+      }
+      code {
+        background: #e0e0e0;
+        padding: 2px 6px;
+        border-radius: 3px;
+        font-family: monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🤖 Telegram Bot Deep Link Test</h1>
+
+    <div class="link-box">
+      <h3>Test Link 1: straßenbau-ausbildung-2026</h3>
+      <p>Payload: <code>straßenbau-ausbildung-2026__lead__2020</code></p>
+      <a
+        href="https://t.me/consultinguz_admin_bot?start=straßenbau-ausbildung-2026__lead__2020"
+        target="_blank"
+      >
+        📱 Botni ochish (Telegram)
+      </a>
+      <br />
+      <a
+        href="tg://resolve?domain=consultinguz_admin_bot&start=straßenbau-ausbildung-2026__lead__2020"
+      >
+        📱 Botni ochish (tg:// protocol)
+      </a>
+    </div>
+
+    <div class="link-box">
+      <h3>Test Link 2: kfz-mechatroniker-lkw-ausbildung-2026</h3>
+      <p>
+        Payload: <code>kfz-mechatroniker-lkw-ausbildung-2026__lead__2020</code>
+      </p>
+      <a
+        href="https://t.me/consultinguz_admin_bot?start=kfz-mechatroniker-lkw-ausbildung-2026__lead__2020"
+        target="_blank"
+      >
+        📱 Botni ochish (Telegram)
+      </a>
+      <br />
+      <a
+        href="tg://resolve?domain=consultinguz_admin_bot&start=kfz-mechatroniker-lkw-ausbildung-2026__lead__2020"
+      >
+        📱 Botni ochish (tg:// protocol)
+      </a>
+    </div>
+
+    <div class="link-box">
+      <h3>📝 Ko'rsatmalar:</h3>
+      <ol>
+        <li>Avval bot chatini to'liq o'chiring (Delete Chat)</li>
+        <li>Yuqoridagi linkni bosing</li>
+        <li>Bot sizga link yuborishi kerak</li>
+        <li>Agar link kelmasa, Firebase logs'ni tekshiring</li>
+      </ol>
+    </div>
+
+    <div class="link-box">
+      <h3>🔍 Debugging:</h3>
+      <p>Agar muammo davom etsa:</p>
+      <ul>
+        <li>
+          Telegram Desktop yoki mobil ilovasidan foydalaning (web versiyasi
+          ishlamasligi mumkin)
+        </li>
+        <li>Bot chatini to'liq o'chirib, qayta oching</li>
+        <li>Firebase logs'da <code>messageText</code> ni tekshiring</li>
+      </ul>
+    </div>
+  </body>
+</html>

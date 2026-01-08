@@ -975,13 +975,18 @@ function MajorSettingsModal({
                           type="button"
                           className="btn btn-outline w-full justify-between gap-3"
                           onClick={() => {
-                            const telegramLink = `https://t.me/consultinguz_admin_bot?start=${
+                            const majorId =
                               major?.linkId ||
                               major?.uuid ||
                               major?.id ||
                               major?.collectionName ||
-                              major
-                            }`;
+                              major;
+                            // Replace ß with ss for Telegram deep link compatibility
+                            const sanitizedMajorId = String(majorId).replace(
+                              /ß/g,
+                              "ss"
+                            );
+                            const telegramLink = `https://t.me/consultinguz_admin_bot?start=${sanitizedMajorId}`;
                             navigator.clipboard
                               .writeText(telegramLink)
                               .then(() =>
@@ -1036,7 +1041,12 @@ function MajorSettingsModal({
                                 major?.id ||
                                 major?.collectionName ||
                                 major;
-                              const leadTelegramLink = `https://t.me/consultinguz_admin_bot?start=${majorId}__lead__${leadName}`;
+                              // Replace ß with ss for Telegram deep link compatibility
+                              const sanitizedMajorId = String(majorId).replace(
+                                /ß/g,
+                                "ss"
+                              );
+                              const leadTelegramLink = `https://t.me/consultinguz_admin_bot?start=${sanitizedMajorId}__lead__${leadName}`;
                               const canCopy =
                                 isLinkActive && leadLinksActive && leadActive;
                               return (

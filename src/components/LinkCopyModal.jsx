@@ -14,9 +14,13 @@ export default function LinkCopyModal({
   if (!open) return null;
   if (typeof document === "undefined") return null;
 
-  const telegramLink = majorCode
+  // Replace ß with ss for Telegram deep link compatibility
+  const sanitizedMajorCode = majorCode
+    ? String(majorCode).replace(/ß/g, "ss")
+    : "";
+  const telegramLink = sanitizedMajorCode
     ? `https://t.me/consultinguz_admin_bot?start=${encodeURIComponent(
-        majorCode
+        sanitizedMajorCode
       )}`
     : "";
 
