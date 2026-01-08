@@ -365,6 +365,8 @@ function Generate() {
   const [isGeneratingPc, setIsGeneratingPc] = useState(false);
   const [recentlyAdded, setRecentlyAdded] = useState({ soft: [], pc: [] });
   const [formInitialized, setFormInitialized] = useState(false);
+  const formInitializedRef = useRef(false);
+  const baselineInitializedRef = useRef(false);
   const passportToastShownRef = useRef(false);
   const [isCommentEditorOpen, setIsCommentEditorOpen] = useState(false);
   const [commentBaseline, setCommentBaseline] = useState("");
@@ -415,13 +417,15 @@ function Generate() {
   );
   const lastSyncedAddressRef = useRef("");
   const internalAddressUpdateRef = useRef(false);
+  const previousCityRef = useRef("");
+  const previousBirthPlaceRef = useRef("");
 
   function normalizeForm(form) {
     const safe = form || initialForm;
     const commentHtml = getCommentHtml(safe);
-    const langEntries = Object.entries(safe?.skills?.languages || {}).filter(
-      ([key]) => key !== undefined && key !== null
-    );
+    const langEntries = Object.entries(safe?.skills?.languages || {})
+      .filter(([key]) => key !== undefined && key !== null)
+      .sort(([a], [b]) => String(a).localeCompare(String(b)));
     return {
       personalInfo: {
         name: String(safe?.personalInfo?.name || "").trim(),
@@ -1140,10 +1144,6 @@ function Generate() {
   const normalizedCurrentForm = useMemo(() => normalizeForm(formCv), [formCv]);
 
   const [savedBaselineJson, setSavedBaselineJson] = useState("");
-  useEffect(() => {
-    if (!normalizedDocForm) return;
-    setSavedBaselineJson(JSON.stringify(normalizedDocForm));
-  }, [normalizedDocForm]);
 
   const currentFormJson = useMemo(
     () => JSON.stringify(normalizedCurrentForm),
@@ -1157,6 +1157,31 @@ function Generate() {
     const hasDocumentsMarkedForDeletion = Object.values(
       documentsMarkedForDeletion
     ).some((arr) => arr.length > 0);
+
+    // Debug logging
+    if (formChanged && savedBaselineJson && currentFormJson) {
+      console.log("=== FORM CHANGED DEBUG ===");
+      console.log("Baseline length:", savedBaselineJson.length);
+      console.log("Current length:", currentFormJson.length);
+
+      // Find first difference
+      const minLen = Math.min(savedBaselineJson.length, currentFormJson.length);
+      for (let i = 0; i < minLen; i++) {
+        if (savedBaselineJson[i] !== currentFormJson[i]) {
+          console.log("First difference at position", i);
+          console.log(
+            "Baseline:",
+            savedBaselineJson.substring(Math.max(0, i - 50), i + 50)
+          );
+          console.log(
+            "Current:",
+            currentFormJson.substring(Math.max(0, i - 50), i + 50)
+          );
+          break;
+        }
+      }
+    }
+
     return formChanged || hasDocumentsMarkedForDeletion;
   }, [
     savedBaselineJson,
@@ -1247,16 +1272,55 @@ function Generate() {
   }
 
   useEffect(() => {
-    if (addressFields?.city && REGION_POSTAL_CODES[addressFields.city]) {
-      const postalCode = REGION_POSTAL_CODES[addressFields.city];
-      if (addressFields.postalCode !== postalCode) {
-        applyAddressFields({
-          ...addressFields,
-          postalCode: postalCode,
-        });
+    // Only auto-update postal code after form is initialized and baseline is set
+    // This prevents unwanted changes during initial load
+    if (!formInitialized || !baselineInitializedRef.current) return;
+
+    const currentCity = addressFields?.city;
+
+    // Only update postal code if city was actually changed by user
+    // Don't update if city is being set for the first time from Firestore
+    if (previousCityRef.current && previousCityRef.current !== currentCity) {
+      if (currentCity && REGION_POSTAL_CODES[currentCity]) {
+        const postalCode = REGION_POSTAL_CODES[currentCity];
+        if (addressFields.postalCode !== postalCode) {
+          applyAddressFields({
+            ...addressFields,
+            postalCode: postalCode,
+          });
+        }
       }
     }
-  }, [addressFields?.city]);
+
+    // Update previous city reference
+    previousCityRef.current = currentCity;
+  }, [addressFields?.city, formInitialized]);
+
+  useEffect(() => {
+    // Auto-update postal code when birthPlace (Geburtsort) changes
+    if (!formInitialized || !baselineInitializedRef.current) return;
+
+    const currentBirthPlace = formCv?.personalInfo?.birthPlace;
+
+    // Only update postal code if birthPlace was actually changed by user
+    if (
+      previousBirthPlaceRef.current &&
+      previousBirthPlaceRef.current !== currentBirthPlace
+    ) {
+      if (currentBirthPlace && REGION_POSTAL_CODES[currentBirthPlace]) {
+        const postalCode = REGION_POSTAL_CODES[currentBirthPlace];
+        if (addressFields.postalCode !== postalCode) {
+          applyAddressFields({
+            ...addressFields,
+            postalCode: postalCode,
+          });
+        }
+      }
+    }
+
+    // Update previous birthPlace reference
+    previousBirthPlaceRef.current = currentBirthPlace;
+  }, [formCv?.personalInfo?.birthPlace, formInitialized]);
 
   useEffect(() => {
     const key = String(major || "").trim();
@@ -1413,6 +1477,12 @@ function Generate() {
     setLoading(true);
     setNotFound(false);
     setDocCv(null);
+    setFormInitialized(false);
+    formInitializedRef.current = false;
+    baselineInitializedRef.current = false;
+    previousCityRef.current = "";
+    previousBirthPlaceRef.current = "";
+    setSavedBaselineJson("");
 
     const ref = doc(db, col, docId);
     const unsub = onSnapshot(
@@ -1481,14 +1551,26 @@ function Generate() {
           });
           setNotFound(false);
 
-          // Always update form with new data when document changes
-          const mapped = mapDocToForm(data);
-          const normalized = normalizeForm(mapped);
-          setFormCv(normalized);
-          setFormInitialized(true);
-          // Don't show "success" validation colors on initial load.
-          setPhoneTouched(false);
-          setEmailTouched(false);
+          // Only update form on initial load, not on subsequent Firestore updates
+          // This prevents hasUnsavedChanges from being triggered incorrectly
+          if (!formInitializedRef.current) {
+            const mapped = mapDocToForm(data);
+            const normalized = normalizeForm(mapped);
+            setFormCv(normalized);
+            setFormInitialized(true);
+            formInitializedRef.current = true;
+
+            // Set baseline immediately after form is initialized
+            if (!baselineInitializedRef.current) {
+              const baseline = JSON.stringify(normalized);
+              setSavedBaselineJson(baseline);
+              baselineInitializedRef.current = true;
+            }
+
+            // Don't show "success" validation colors on initial load.
+            setPhoneTouched(false);
+            setEmailTouched(false);
+          }
         }
         setLoading(false);
       },
@@ -1516,8 +1598,18 @@ function Generate() {
     try {
       setDocCv(remoteRecord);
       const mapped = mapDocToForm(remoteRecord);
-      setFormCv(normalizeForm(mapped));
+      const normalized = normalizeForm(mapped);
+      setFormCv(normalized);
       setFormInitialized(true);
+      formInitializedRef.current = true;
+
+      // Set baseline for remote mode
+      if (!baselineInitializedRef.current) {
+        const baseline = JSON.stringify(normalized);
+        setSavedBaselineJson(baseline);
+        baselineInitializedRef.current = true;
+      }
+
       setNotFound(false);
       setLoading(false);
     } catch (e) {
@@ -1925,7 +2017,61 @@ function Generate() {
     const berufe = Array.isArray(data?.berufserfahrung)
       ? data.berufserfahrung
       : [];
-    const ausb = Array.isArray(data?.ausbildung) ? data.ausbildung : [];
+
+    // Handle both old format (array) and new format (object with schule, universitat, etc.)
+    let ausb = [];
+    if (Array.isArray(data?.ausbildung)) {
+      // Old format: array of education objects
+      ausb = data.ausbildung;
+    } else if (data?.ausbildung && typeof data.ausbildung === "object") {
+      // New format: single object with schule, universitat, kollej fields
+      const eduObj = data.ausbildung;
+
+      // Extract schule if exists
+      if (eduObj.schule && typeof eduObj.schule === "object") {
+        ausb.push({
+          beginn: String(eduObj.schule.beginn || ""),
+          ende: String(eduObj.schule.ende || ""),
+          bildungseinrichtung: String(eduObj.schule.bildungseinrichtung || ""),
+          abschluss: String(eduObj.schule.abschluss || ""),
+        });
+      }
+
+      // Extract universitat if exists
+      if (eduObj.universitat) {
+        ausb.push({
+          beginn: String(eduObj.beginn || ""),
+          ende: String(eduObj.ende || ""),
+          bildungseinrichtung: String(eduObj.universitat),
+          abschluss: String(eduObj.abschluss || ""),
+        });
+      }
+
+      // Extract kollej if exists
+      if (eduObj.kollej) {
+        ausb.push({
+          beginn: String(eduObj.beginn || ""),
+          ende: String(eduObj.ende || ""),
+          bildungseinrichtung: String(eduObj.kollej),
+          abschluss: String(eduObj.abschluss || ""),
+        });
+      }
+
+      // If none of the above, but has basic fields, add as single entry
+      if (
+        ausb.length === 0 &&
+        (eduObj.abschluss || eduObj.beginn || eduObj.ende)
+      ) {
+        ausb.push({
+          beginn: String(eduObj.beginn || ""),
+          ende: String(eduObj.ende || ""),
+          bildungseinrichtung: String(
+            eduObj.universitat || eduObj.kollej || eduObj.schule || ""
+          ),
+          abschluss: String(eduObj.abschluss || ""),
+        });
+      }
+    }
 
     const normalizeMonth = (value) => {
       const raw = String(value || "").trim();
@@ -3770,13 +3916,14 @@ function Generate() {
       }
 
       // Create/update metadata for DataExchange
+      // Silently ignore if metadata document doesn't exist
       try {
         await updateDocument("candidate_metadata", docId, {
           collectionName: col,
           updatedAt: Date.now(),
         });
       } catch (metaErr) {
-        console.error("Error updating candidate metadata:", metaErr);
+        // Ignore metadata update errors
       }
 
       // JSON API all_users sync removed as per requirements
