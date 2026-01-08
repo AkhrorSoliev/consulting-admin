@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Telegram bot generates registration links with major codes and Telegram IDs for candidates.
+The Telegram bot generates registration links with major codes and Telegram IDs for candidates..
 
 ## Flow
 
