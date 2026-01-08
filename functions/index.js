@@ -880,6 +880,16 @@ async function upsertRemoteAllUsers({ firebaseId, major, payload }) {
     syncedAt: Date.now(),
   };
 
+  const TIMEOUT_MS = 8000;
+  const fetchWithTimeout = (url, options) => {
+    return Promise.race([
+      fetch(url, options),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("fetch-timeout")), TIMEOUT_MS)
+      ),
+    ]);
+  };
+
   // Try update-by-id if record exists (json-api.uz pattern).
   try {
     const check = await fetchWithTimeout(
@@ -903,25 +913,17 @@ async function upsertRemoteAllUsers({ firebaseId, major, payload }) {
           null;
         if (id !== null && id !== undefined && String(id).trim() !== "") {
           const url = `${REMOTE_ALL_USERS}/${encodeURIComponent(String(id))}`;
-          const put = await fetchWithTimeout(
-            url,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(body),
-            },
-            6000
-          );
+          const put = await fetchWithTimeout(url, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
           if (put.ok) return safeJson(put);
-          const patch = await fetchWithTimeout(
-            url,
-            {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(body),
-            },
-            6000
-          );
+          const patch = await fetchWithTimeout(url, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
           if (patch.ok) return safeJson(patch);
         }
       }
@@ -930,15 +932,11 @@ async function upsertRemoteAllUsers({ firebaseId, major, payload }) {
     logger.warn("upsertRemoteAllUsers: check/update failed", e);
   }
 
-  const created = await fetchWithTimeout(
-    REMOTE_ALL_USERS,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    },
-    6000
-  );
+  const created = await fetchWithTimeout(REMOTE_ALL_USERS, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
   if (!created.ok) {
     throw new Error(`remote all_users POST failed: ${created.status}`);
   }
@@ -1163,7 +1161,7 @@ exports.syncEmailAndPassIdRegistry = onDocumentWritten(
 // POST /submitCandidate
 // Body: { major: string, payload: object, recaptchaToken?: string }
 exports.submitCandidate = onRequest(
-  { secrets: [RECAPTCHA_SECRET_KEY] },
+  { secrets: [RECAPTCHA_SECRET_KEY], timeoutSeconds: 120 },
   async (req, res) => {
     try {
       setCors(req, res);

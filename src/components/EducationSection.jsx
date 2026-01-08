@@ -1,3 +1,4 @@
+import { useState } from "react";
 import FormInput from "./FormInput";
 import RequiredLabel from "./RequiredLabel";
 import CollapsibleSection from "./CollapsibleSection";
@@ -8,10 +9,6 @@ function EducationSection({
   onUpdateEducation,
   showRequiredWarning = false,
   errors = {},
-  noCollege = false,
-  setNoCollege,
-  noUniversity = false,
-  setNoUniversity,
 }) {
   const fieldInput = "input input-bordered w-full";
   const REQUIRED_STAR_CLASS =
@@ -21,32 +18,44 @@ function EducationSection({
   const kollej = education?.kollej || {};
   const universitat = education?.universitat || {};
 
-  const schuleBisHeute = schule.endDate === "bis heute";
-  const kollejBisHeute = kollej.endDate === "bis heute";
-  const universitatBisHeute = universitat.endDate === "bis heute";
+  const [noKollej, setNoKollej] = useState(false);
+  const [noUniversitat, setNoUniversitat] = useState(false);
+  const [openSchule, setOpenSchule] = useState(true);
+  const [openKollej, setOpenKollej] = useState(false);
+  const [openUniversitat, setOpenUniversitat] = useState(false);
 
-  const schuleErrors = errors?.schule || {};
+  const isEducationFilled = (edu) => {
+    return edu.startDate && edu.endDate && edu.institution && edu.degree;
+  };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      {/* Schule (Required) */}
       <CollapsibleSection
         title={
-          <RequiredLabel className={REQUIRED_STAR_CLASS}>Schule</RequiredLabel>
+          <div className="flex items-center gap-2">
+            <RequiredLabel>Schule</RequiredLabel>
+            <span className="text-xs text-base-content/60">
+              (Maktab - nemis tilida)
+            </span>
+          </div>
         }
-        defaultOpen={true}
+        isOpen={openSchule}
+        onToggle={(newOpen) => setOpenSchule(newOpen)}
+        className="shadow-sm border-base-200"
         contentClassName="space-y-3"
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="label">
-              <RequiredLabel className={`label-text ${REQUIRED_STAR_CLASS}`}>
-                Startdatum
-              </RequiredLabel>
+            <label className="label" htmlFor="schule-startDate">
+              <RequiredLabel className="label-text">Startdatum</RequiredLabel>
             </label>
             <input
+              id="schule-startDate"
               type="month"
+              placeholder="YYYY-MM"
               className={`${fieldInput} ${
-                schuleErrors?.startDate ? "input-error" : ""
+                errors?.schule?.startDate ? "input-error" : ""
               }`}
               value={toInputMonth(schule.startDate)}
               onChange={(e) =>
@@ -59,15 +68,15 @@ function EducationSection({
             />
           </div>
           <div>
-            <label className="label">
-              <RequiredLabel className={`label-text ${REQUIRED_STAR_CLASS}`}>
-                Enddatum
-              </RequiredLabel>
+            <label className="label" htmlFor="schule-endDate">
+              <RequiredLabel className="label-text">Enddatum</RequiredLabel>
             </label>
             <input
+              id="schule-endDate"
               type="month"
+              placeholder="YYYY-MM"
               className={`${fieldInput} ${
-                schuleErrors?.endDate ? "input-error" : ""
+                errors?.schule?.endDate ? "input-error" : ""
               }`}
               value={toInputMonth(schule.endDate)}
               onChange={(e) =>
@@ -77,270 +86,256 @@ function EducationSection({
                   fromInputMonth(e.target.value)
                 )
               }
-              disabled={schuleBisHeute}
             />
-            <label className="cursor-pointer flex items-center gap-2 mt-2">
-              <input
-                type="checkbox"
-                className="checkbox checkbox-sm"
-                checked={schuleBisHeute}
-                onChange={(e) => {
-                  onUpdateEducation(
-                    "schule",
-                    "endDate",
-                    e.target.checked ? "bis heute" : ""
-                  );
-                }}
-              />
-              <span className="text-sm">bis heute (aktuell)</span>
-            </label>
           </div>
           <FormInput
             className="md:col-span-2"
             label={
-              <RequiredLabel className={REQUIRED_STAR_CLASS}>
-                Bildungseinrichtung (auf Deutsch)
-              </RequiredLabel>
+              <RequiredLabel>Bildungseinrichtung (auf Deutsch)</RequiredLabel>
             }
-            helperText="Name der Schule auf Deutsch."
             placeholder="z.B. Gymnasium Nr. 1"
+            helperText="Name der Schule auf Deutsch."
             value={schule.institution || ""}
-            inputClassName={schuleErrors?.institution ? "input-error" : ""}
+            inputClassName={errors?.schule?.institution ? "input-error" : ""}
             onChange={(e) =>
               onUpdateEducation("schule", "institution", e.target.value)
             }
-            name="edu-school-institution"
           />
           <FormInput
             className="md:col-span-2"
-            label={
-              <RequiredLabel className={REQUIRED_STAR_CLASS}>
-                Abschluss (auf Deutsch)
-              </RequiredLabel>
-            }
-            helperText="Schulabschluss auf Deutsch."
+            label={<RequiredLabel>Abschluss (auf Deutsch)</RequiredLabel>}
             placeholder="z.B. Abitur"
+            helperText="Schulabschluss auf Deutsch."
             value={schule.degree || ""}
-            inputClassName={schuleErrors?.degree ? "input-error" : ""}
+            inputClassName={errors?.schule?.degree ? "input-error" : ""}
             onChange={(e) =>
               onUpdateEducation("schule", "degree", e.target.value)
             }
-            name="edu-school-degree"
           />
         </div>
       </CollapsibleSection>
 
-      <label className="cursor-pointer flex items-center gap-2 mb-2">
-        <input
-          type="checkbox"
-          className="checkbox"
-          checked={noCollege}
-          onChange={(e) => {
-            const checked = e.target.checked;
-            setNoCollege(checked);
-            if (checked) {
-              // Clear kollej data when skipped
-              onUpdateEducation("kollej", "startDate", "");
-              onUpdateEducation("kollej", "endDate", "");
-              onUpdateEducation("kollej", "institution", "");
-              onUpdateEducation("kollej", "degree", "");
-            }
-          }}
-        />
-        <span className="text-sm">Kein Kollej/Litsey besucht</span>
-      </label>
-
-      <CollapsibleSection
-        title="Kollej/Litsey (optional)"
-        defaultOpen={false}
-        contentClassName="space-y-3"
-      >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="label">
-              <span className="label-text">Startdatum</span>
-            </label>
-            <input
-              type="month"
-              className={fieldInput}
-              value={toInputMonth(kollej.startDate)}
-              onChange={(e) =>
-                onUpdateEducation(
-                  "kollej",
-                  "startDate",
-                  fromInputMonth(e.target.value)
-                )
+      {/* Kollej/Litsey (Optional) */}
+      <div>
+        <label className="cursor-pointer flex items-center gap-2 mb-2">
+          <input
+            type="checkbox"
+            className="checkbox checkbox-sm"
+            checked={noKollej}
+            onChange={(e) => {
+              const checked = Boolean(e.target.checked);
+              setNoKollej(checked);
+              if (checked) {
+                onUpdateEducation("kollej", "startDate", "");
+                onUpdateEducation("kollej", "endDate", "");
+                onUpdateEducation("kollej", "institution", "");
+                onUpdateEducation("kollej", "degree", "");
               }
-              disabled={noCollege}
-            />
-          </div>
-          <div>
-            <label className="label">
-              <span className="label-text">Enddatum</span>
-            </label>
-            <input
-              type="month"
-              className={fieldInput}
-              value={toInputMonth(kollej.endDate)}
-              onChange={(e) =>
-                onUpdateEducation(
-                  "kollej",
-                  "endDate",
-                  fromInputMonth(e.target.value)
-                )
-              }
-              disabled={noCollege || kollejBisHeute}
-            />
-            <label className="cursor-pointer flex items-center gap-2 mt-2">
+            }}
+          />
+          <span className="text-sm font-medium">
+            Kein Kollej/Litsey besucht
+          </span>
+        </label>
+        <CollapsibleSection
+          title={
+            <div className="flex items-center gap-2">
+              <span>Kollej/Litsey (optional)</span>
+              <span className="text-xs text-base-content/60">
+                (Kollej/Litsey - nemis tilida)
+              </span>
+            </div>
+          }
+          isOpen={openKollej}
+          onToggle={(newOpen) => setOpenKollej(newOpen)}
+          className="shadow-sm border-base-200"
+          contentClassName="space-y-3"
+          disabled={noKollej}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="label" htmlFor="kollej-startDate">
+                <span className="label-text">Startdatum</span>
+              </label>
               <input
-                type="checkbox"
-                className="checkbox checkbox-sm"
-                checked={kollejBisHeute}
-                onChange={(e) => {
+                id="kollej-startDate"
+                type="month"
+                placeholder="YYYY-MM"
+                className={`${fieldInput} ${
+                  errors?.kollej?.startDate ? "input-error" : ""
+                }`}
+                value={toInputMonth(kollej.startDate)}
+                disabled={noKollej}
+                onChange={(e) =>
+                  onUpdateEducation(
+                    "kollej",
+                    "startDate",
+                    fromInputMonth(e.target.value)
+                  )
+                }
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="kollej-endDate">
+                <span className="label-text">Enddatum</span>
+              </label>
+              <input
+                id="kollej-endDate"
+                type="month"
+                placeholder="YYYY-MM"
+                className={`${fieldInput} ${
+                  errors?.kollej?.endDate ? "input-error" : ""
+                }`}
+                value={toInputMonth(kollej.endDate)}
+                disabled={noKollej}
+                onChange={(e) =>
                   onUpdateEducation(
                     "kollej",
                     "endDate",
-                    e.target.checked ? "bis heute" : ""
-                  );
-                }}
-                disabled={noCollege}
+                    fromInputMonth(e.target.value)
+                  )
+                }
               />
-              <span className="text-sm">bis heute (aktuell)</span>
-            </label>
-          </div>
-          <FormInput
-            className="md:col-span-2"
-            label="Bildungseinrichtung (auf Deutsch)"
-            helperText="Name der Schule auf Deutsch."
-            placeholder="z.B. Lyzeum Nr. 1"
-            value={kollej.institution || ""}
-            onChange={(e) =>
-              onUpdateEducation("kollej", "institution", e.target.value)
-            }
-            name="edu-college-institution"
-            disabled={noCollege}
-          />
-          <FormInput
-            className="md:col-span-2"
-            label="Abschluss (auf Deutsch)"
-            helperText="Schulabschluss auf Deutsch."
-            placeholder="z.B. Abitur"
-            value={kollej.degree || ""}
-            onChange={(e) =>
-              onUpdateEducation("kollej", "degree", e.target.value)
-            }
-            name="edu-college-degree"
-            disabled={noCollege}
-          />
-        </div>
-      </CollapsibleSection>
-
-      <label className="cursor-pointer flex items-center gap-2 mb-2">
-        <input
-          type="checkbox"
-          className="checkbox"
-          checked={noUniversity}
-          onChange={(e) => {
-            const checked = e.target.checked;
-            setNoUniversity(checked);
-            if (checked) {
-              // Clear universitat data when skipped
-              onUpdateEducation("universitat", "startDate", "");
-              onUpdateEducation("universitat", "endDate", "");
-              onUpdateEducation("universitat", "institution", "");
-              onUpdateEducation("universitat", "degree", "");
-            }
-          }}
-        />
-        <span className="text-sm">Keine Universität besucht</span>
-      </label>
-
-      <CollapsibleSection
-        title="Universität (optional)"
-        defaultOpen={false}
-        contentClassName="space-y-3"
-      >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="label">
-              <span className="label-text">Startdatum</span>
-            </label>
-            <input
-              type="month"
-              className={fieldInput}
-              value={toInputMonth(universitat.startDate)}
+            </div>
+            <FormInput
+              className="md:col-span-2"
+              label="Bildungseinrichtung (auf Deutsch)"
+              placeholder="z.B. Tashkent College"
+              helperText="Name des Kollegs/Litseys auf Deutsch."
+              value={kollej.institution || ""}
+              inputClassName={errors?.kollej?.institution ? "input-error" : ""}
+              disabled={noKollej}
               onChange={(e) =>
-                onUpdateEducation(
-                  "universitat",
-                  "startDate",
-                  fromInputMonth(e.target.value)
-                )
+                onUpdateEducation("kollej", "institution", e.target.value)
               }
-              disabled={noUniversity}
+            />
+            <FormInput
+              className="md:col-span-2"
+              label="Abschluss (auf Deutsch)"
+              placeholder="z.B. Fachabitur"
+              helperText="Abschluss auf Deutsch."
+              value={kollej.degree || ""}
+              inputClassName={errors?.kollej?.degree ? "input-error" : ""}
+              disabled={noKollej}
+              onChange={(e) =>
+                onUpdateEducation("kollej", "degree", e.target.value)
+              }
             />
           </div>
-          <div>
-            <label className="label">
-              <span className="label-text">Enddatum</span>
-            </label>
-            <input
-              type="month"
-              className={fieldInput}
-              value={toInputMonth(universitat.endDate)}
-              onChange={(e) =>
-                onUpdateEducation(
-                  "universitat",
-                  "endDate",
-                  fromInputMonth(e.target.value)
-                )
+        </CollapsibleSection>
+      </div>
+
+      {/* Universität (Optional) */}
+      <div>
+        <label className="cursor-pointer flex items-center gap-2 mb-2">
+          <input
+            type="checkbox"
+            className="checkbox checkbox-sm"
+            checked={noUniversitat}
+            onChange={(e) => {
+              const checked = Boolean(e.target.checked);
+              setNoUniversitat(checked);
+              if (checked) {
+                onUpdateEducation("universitat", "startDate", "");
+                onUpdateEducation("universitat", "endDate", "");
+                onUpdateEducation("universitat", "institution", "");
+                onUpdateEducation("universitat", "degree", "");
               }
-              disabled={noUniversity || universitatBisHeute}
-            />
-            <label className="cursor-pointer flex items-center gap-2 mt-2">
+            }}
+          />
+          <span className="text-sm font-medium">Keine Universität besucht</span>
+        </label>
+        <CollapsibleSection
+          title={
+            <div className="flex items-center gap-2">
+              <span>Universität (optional)</span>
+              <span className="text-xs text-base-content/60">
+                (Universitet - nemis tilida)
+              </span>
+            </div>
+          }
+          isOpen={openUniversitat}
+          onToggle={(newOpen) => setOpenUniversitat(newOpen)}
+          className="shadow-sm border-base-200"
+          contentClassName="space-y-3"
+          disabled={noUniversitat}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="label" htmlFor="universitat-startDate">
+                <span className="label-text">Startdatum</span>
+              </label>
               <input
-                type="checkbox"
-                className="checkbox checkbox-sm"
-                checked={universitatBisHeute}
-                onChange={(e) => {
+                id="universitat-startDate"
+                type="month"
+                placeholder="YYYY-MM"
+                className={`${fieldInput} ${
+                  errors?.universitat?.startDate ? "input-error" : ""
+                }`}
+                value={toInputMonth(universitat.startDate)}
+                disabled={noUniversitat}
+                onChange={(e) =>
+                  onUpdateEducation(
+                    "universitat",
+                    "startDate",
+                    fromInputMonth(e.target.value)
+                  )
+                }
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="universitat-endDate">
+                <span className="label-text">Enddatum</span>
+              </label>
+              <input
+                id="universitat-endDate"
+                type="month"
+                placeholder="YYYY-MM"
+                className={`${fieldInput} ${
+                  errors?.universitat?.endDate ? "input-error" : ""
+                }`}
+                value={toInputMonth(universitat.endDate)}
+                disabled={noUniversitat}
+                onChange={(e) =>
                   onUpdateEducation(
                     "universitat",
                     "endDate",
-                    e.target.checked ? "bis heute" : ""
-                  );
-                }}
-                disabled={noUniversity}
+                    fromInputMonth(e.target.value)
+                  )
+                }
               />
-              <span className="text-sm">bis heute (aktuell)</span>
-            </label>
+            </div>
+            <FormInput
+              className="md:col-span-2"
+              label="Bildungseinrichtung (auf Deutsch)"
+              placeholder="z.B. Tashkent State University"
+              helperText="Name der Universität auf Deutsch."
+              value={universitat.institution || ""}
+              inputClassName={
+                errors?.universitat?.institution ? "input-error" : ""
+              }
+              disabled={noUniversitat}
+              onChange={(e) =>
+                onUpdateEducation("universitat", "institution", e.target.value)
+              }
+            />
+            <FormInput
+              className="md:col-span-2"
+              label="Abschluss / Studiengang (auf Deutsch)"
+              placeholder="z.B. Bachelor Informatik"
+              helperText="Beispiel: Bachelor, Master."
+              value={universitat.degree || ""}
+              inputClassName={errors?.universitat?.degree ? "input-error" : ""}
+              disabled={noUniversitat}
+              onChange={(e) =>
+                onUpdateEducation("universitat", "degree", e.target.value)
+              }
+            />
           </div>
-          <FormInput
-            className="md:col-span-2"
-            label="Bildungseinrichtung (auf Deutsch)"
-            helperText="Name der Schule auf Deutsch."
-            placeholder="z.B. Universität"
-            value={universitat.institution || ""}
-            onChange={(e) =>
-              onUpdateEducation("universitat", "institution", e.target.value)
-            }
-            name="edu-uni-institution"
-            disabled={noUniversity}
-          />
-          <FormInput
-            className="md:col-span-2"
-            label="Abschluss (auf Deutsch)"
-            helperText="Schulabschluss auf Deutsch."
-            placeholder="z.B. Bachelor"
-            value={universitat.degree || ""}
-            onChange={(e) =>
-              onUpdateEducation("universitat", "degree", e.target.value)
-            }
-            name="edu-uni-degree"
-            disabled={noUniversity}
-          />
-        </div>
-      </CollapsibleSection>
+        </CollapsibleSection>
+      </div>
 
-      {showRequiredWarning && (
+      {showRequiredWarning ? (
         <div className="mt-2 alert alert-warning text-sm">
           Bitte füllen Sie alle Pflichtfelder der Schule aus.
         </div>

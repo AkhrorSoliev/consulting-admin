@@ -11,7 +11,7 @@ export default [
   },
   {
     deu: "Russland",
-    phone: "+73",
+    phone: "+7",
     flagSvg: "https://flagcdn.com/ru.svg",
   },
   {
