@@ -1112,7 +1112,7 @@ function Home() {
   return (
     <div className="">
       <div className="mb-8">
-        <div className="text-white flex items-start justify-between gap-3 flex-wrap">
+        <div className="text-primary flex items-start justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-3xl font-bold mb-2">Dashboard & Statistiken</h1>
             <p className="text-base opacity-70">

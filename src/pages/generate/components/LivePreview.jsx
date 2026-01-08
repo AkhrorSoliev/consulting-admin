@@ -322,35 +322,10 @@ export default function LivePreview({
 
   const sortedExperience = sortTimelineItemsDesc(formCv?.experience || []);
 
-  // Convert new education structure to array for display
-  const educationArray = [];
-  if (
-    formCv?.education?.schule &&
-    (formCv.education.schule.startDate ||
-      formCv.education.schule.endDate ||
-      formCv.education.schule.institution ||
-      formCv.education.schule.degree)
-  ) {
-    educationArray.push(formCv.education.schule);
-  }
-  if (
-    formCv?.education?.kollej &&
-    (formCv.education.kollej.startDate ||
-      formCv.education.kollej.endDate ||
-      formCv.education.kollej.institution ||
-      formCv.education.kollej.degree)
-  ) {
-    educationArray.push(formCv.education.kollej);
-  }
-  if (
-    formCv?.education?.universitat &&
-    (formCv.education.universitat.startDate ||
-      formCv.education.universitat.endDate ||
-      formCv.education.universitat.institution ||
-      formCv.education.universitat.degree)
-  ) {
-    educationArray.push(formCv.education.universitat);
-  }
+  // Education is already an array
+  const educationArray = Array.isArray(formCv?.education)
+    ? formCv.education
+    : [];
   const sortedEducation = sortTimelineItemsDesc(educationArray);
   const firstName = String(formCv?.personalInfo?.name || "").trim();
   const lastName = String(formCv?.personalInfo?.lastName || "").trim();
