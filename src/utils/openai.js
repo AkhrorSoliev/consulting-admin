@@ -25,10 +25,12 @@ async function correctTextWithAI(text) {
 WICHTIG: 
 - Entferne "---" und andere Trennzeichen komplett aus dem Text!
 - Entferne alle wiederholten Informationen - jede Information nur EINMAL!
-- BEHALTE DIE GRAMMATIKALISCHE PERSON (erste, zweite oder dritte Person) GENAU SO WIE IM ORIGINAL!
-- Ändere NIEMALS die Person des Textes (z.B. von dritter Person zu erster Person oder umgekehrt)
+- BEHALTE DIE GRAMMATIKALISCHE PERSON (erste, zweite oder dritte Person) ABSOLUT UNVERÄNDERT!
+- Ändere NIEMALS NIEMALS die Person des Textes (z.B. von "er ist" zu "ich bin" oder umgekehrt)
 - Wenn der Text in der dritten Person geschrieben ist (er/sie/es), MUSS er in der dritten Person bleiben
-- Wenn der Text in der ersten Person geschrieben ist (ich/wir), MUSS er in der ersten Person bleiben`,
+- Wenn der Text in der ersten Person geschrieben ist (ich/wir), MUSS er in der ersten Person bleiben
+- Wenn der Text in der zweiten Person geschrieben ist (du/Sie), MUSS er in der zweiten Person bleiben
+- Dies gilt für ALLE Korrekturen: Grammatik, Rechtschreibung, Übersetzungen - die Person DARF NICHT geändert werden!`,
         },
         {
           role: "user",
@@ -171,12 +173,18 @@ Anforderungen:
 5. Verwende professionelle deutsche Lebenslauf-Sprache
 6. WICHTIG: Entferne ALLE Gedankenstriche (–), Bindestriche (-) und Punkte (•) am Anfang der Aufgaben
 7. Gib die Aufgaben OHNE Aufzählungszeichen zurück
-8. Verwende Verben im Infinitiv oder Partizip Perfekt
+8. KRITISCH - LEBENSLAUF-FORMAT:
+   - Verwende NUR Substantivierungen (Nominalisierungen) mit Verben im INFINITIV oder PARTIZIP PERFEKT
+   - NIEMALS "Ich" oder andere Personalpronomen verwenden!
+   - NIEMALS konjugierte Verben in erster Person verwenden!
+   - Falsch: "Ich finde neue Ladungen" oder "Ich koordiniere die Einsätze"
+   - Richtig: "Suche nach neuen Ladungen" oder "Koordination der Fahrereinsätze"
+   - Dies ist STANDARD für deutsche Lebensläufe - KEINE Ausnahmen!
 9. Mache die Aufgaben spezifisch für die Position und das Unternehmen
 10. Gib NUR die 4 Aufgaben zurück, jede in einer neuen Zeile
 11. KEINE Erklärungen, KEINE Nummerierung, KEINE Aufzählungszeichen
 
-Beispiel-Format:
+Beispiel-Format (GENAU SO):
 Unterstützung bei täglichen Arbeitsabläufen – Sicherstellung eines reibungslosen Betriebsablaufs
 Mitarbeit im Team – Zusammenarbeit mit Kollegen zur Erreichung gemeinsamer Ziele
 Einhaltung von Arbeits- und Sicherheitsregeln – Gewährleistung eines sicheren Arbeitsumfelds
@@ -249,12 +257,13 @@ Anforderungen:
 1. Wenn der Text auf Usbekisch ist, übersetze ihn ins Deutsche
 2. Wenn der Text auf Deutsch ist, korrigiere Grammatik und Rechtschreibung
 3. Mache die Texte professionell und prägnant
+4. BEHALTE DIE GRAMMATIKALISCHE PERSON ABSOLUT UNVERÄNDERT - ändere NIEMALS von erster zu dritter Person oder umgekehrt!
 
-4. POSITION:
+5. POSITION:
    - Wenn mehrere Positionen aufgelistet sind (z.B. "Verkäufer, Lagerist"), wähle NUR EINE Position aus, die am besten zum Unternehmen passt
    - Behalte nur eine einzige, klare Berufsbezeichnung
 
-5. ORT (SEHR WICHTIG):
+6. ORT (SEHR WICHTIG):
    - Entferne ALLE Klammern aus dem Ort
    - Format: "[Hauptstadt/Stadt], [Land]"
    - Beispiel: "Asaka (Andijan, Usbekistan)" → "Andijan, Usbekistan"
@@ -262,13 +271,16 @@ Anforderungen:
    - Für usbekische Städte: Verwende die Hauptstadt der Region + ", Usbekistan"
    - Für deutsche Städte: "[Stadt], Deutschland"
 
-6. AUFGABEN:
+7. AUFGABEN (KRITISCH - LEBENSLAUF-FORMAT):
    - Wenn die Aufgaben bereits korrekt und professionell auf Deutsch geschrieben sind, behalte sie UNVERÄNDERT
    - Erstelle GENAU 4 professionelle Aufgabenbeschreibungen, jede aus 2 Teilen bestehend
    - WICHTIG: Gib die Aufgaben OHNE Gedankenstriche (–), Bindestriche (-) oder Punkte (•) am Anfang zurück
    - Jede Aufgabe sollte direkt mit dem Text beginnen
+   - NIEMALS "Ich" oder Personalpronomen verwenden - nur Substantivierungen!
+   - NIEMALS konjugierte Verben in erster Person ("Ich finde", "Ich koordiniere") verwenden!
+   - NUR Infinitiv oder Partizip Perfekt: "Suche nach...", "Koordination von...", "Überwachung des..."
 
-7. Gib die Daten im folgenden Format zurück:
+8. Gib die Daten im folgenden Format zurück:
 
 Position: [korrigierte Position]
 Unternehmen: [korrigiertes Unternehmen]
