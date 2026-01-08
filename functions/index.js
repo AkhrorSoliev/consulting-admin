@@ -6,6 +6,7 @@ const { defineSecret } = require("firebase-functions/params");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
+const nodemailer = require("nodemailer");
 const {
   createOneTimeChatInviteLink,
   getTelegramChatsFromUpdates,
@@ -28,6 +29,7 @@ const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
 // Store via: firebase functions:secrets:set RECAPTCHA_SECRET_KEY
 // Used to protect public endpoints (Create form) from abuse.
 const RECAPTCHA_SECRET_KEY = defineSecret("RECAPTCHA_SECRET_KEY");
+const SMTP_URL = defineSecret("SMTP_URL");
 
 const REMOTE_API_BASE = "https://json-api.uz/api/project/consultinguz";
 const REMOTE_ALL_USERS = `${REMOTE_API_BASE}/all_users`;
@@ -943,6 +945,94 @@ async function upsertRemoteAllUsers({ firebaseId, major, payload }) {
   return safeJson(created);
 }
 
+function buildCandidateSubmitConfirmationMessage(metaName) {
+  const n = String(metaName || "").trim() || "-";
+  return (
+    "🎉 Tabriklaymiz!\n\n" +
+    "✅ Sizning ma'lumotlaringiz qabul qilindi.\n" +
+    `📌 Ro'yxatdan o'tgan yo'nalishingiz: ${n}\n\n` +
+    "📋 Hujjatlaringiz ko'rib chiqilmoqda...\n" +
+    "📞 Tez orada siz bilan aloqaga chiqamiz.\n\n" +
+    "ℹ️ Eslatma:\n" +
+    "1) Ushbu yo'nalish bo‘yicha barcha bosqichlar yakunlanmaguncha boshqa yo‘nalishga topshira olmaysiz.\n" +
+    "   Barcha bosqichlar yakunlangandan so‘ng esa boshqa yo‘nalishga topshirishingiz mumkin bo‘ladi.\n" +
+    "2) Jarayon davomida bir vaqtning o‘zida bir nechta ariza (bir nechta yo‘nalish) topshirish mumkin emas.\n\n" +
+    "Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz."
+  );
+}
+
+async function sendTelegramMessage({ botToken, chatId, text }) {
+  const token = String(botToken || "").trim();
+  const cid = String(chatId || "").trim();
+  const t = String(text || "").trim();
+  if (!token || !cid || !t) {
+    const e = new Error("telegram-send-invalid-args");
+    e.code = "telegram-send-invalid-args";
+    throw e;
+  }
+
+  const url = `https://api.telegram.org/bot${token}/sendMessage`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: cid, text: t }),
+    signal: AbortSignal.timeout(15000),
+  });
+  const json = await safeJson(res);
+  if (!res.ok || json?.ok !== true) {
+    const e = new Error("telegram-send-failed");
+    e.code = "telegram-send-failed";
+    e.status = 502;
+    e.details = { httpStatus: res.status, telegram: json };
+    throw e;
+  }
+  return { ok: true };
+}
+
+function createMailTransport(smtpUrl) {
+  const url = String(smtpUrl || "").trim();
+  if (!url) {
+    const e = new Error("smtp-url-missing");
+    e.code = "smtp-url-missing";
+    e.status = 500;
+    throw e;
+  }
+  return nodemailer.createTransport(url);
+}
+
+async function sendCandidateEmail({ smtpUrl, from, to, subject, text }) {
+  const mailFrom = String(from || "").trim();
+  const mailTo = String(to || "").trim();
+  const mailSubject = String(subject || "").trim();
+  const mailText = String(text || "").trim();
+
+  if (!mailTo) {
+    const e = new Error("email-to-missing");
+    e.code = "email-to-missing";
+    e.status = 400;
+    throw e;
+  }
+  if (!mailSubject || !mailText) {
+    const e = new Error("email-content-missing");
+    e.code = "email-content-missing";
+    e.status = 500;
+    throw e;
+  }
+
+  const transport = createMailTransport(smtpUrl);
+  const mailOptions = {
+    to: mailTo,
+    subject: mailSubject,
+    text: mailText,
+  };
+  // Only set 'from' if explicitly provided; otherwise Brevo/SMTP uses default sender
+  if (mailFrom) {
+    mailOptions.from = mailFrom;
+  }
+  await transport.sendMail(mailOptions);
+  return { ok: true };
+}
+
 function normalizeEmailForRegistry(email) {
   return String(email || "")
     .trim()
@@ -1161,7 +1251,10 @@ exports.syncEmailAndPassIdRegistry = onDocumentWritten(
 // POST /submitCandidate
 // Body: { major: string, payload: object, recaptchaToken?: string }
 exports.submitCandidate = onRequest(
-  { secrets: [RECAPTCHA_SECRET_KEY], timeoutSeconds: 120 },
+  {
+    secrets: [RECAPTCHA_SECRET_KEY, TELEGRAM_BOT_TOKEN, SMTP_URL],
+    timeoutSeconds: 120,
+  },
   async (req, res) => {
     try {
       setCors(req, res);
@@ -1263,6 +1356,14 @@ exports.submitCandidate = onRequest(
       // 4) Kandidatni yozish (Admin SDK — rules cheklanmaydi)
       const targetCol =
         meta.collectionName || meta.slug || meta.name || safeMajor || "unknown";
+
+      const metaName =
+        String(meta?.title || "").trim() ||
+        String(meta?.name || "").trim() ||
+        String(meta?.collectionName || "").trim() ||
+        String(targetCol || "").trim() ||
+        String(safeMajor || "").trim() ||
+        "unknown";
 
       // 4.1) Duplicate checks against Firestore registry (server-side enforcement)
       const emailFromPayload =
@@ -1410,6 +1511,49 @@ exports.submitCandidate = onRequest(
       }
 
       // 5) Sync to remote user registry (best-effort; should not fail a successful submit)
+      const confirmationText =
+        buildCandidateSubmitConfirmationMessage(metaName);
+      const botToken = String(TELEGRAM_BOT_TOKEN.value() || "").trim();
+      const smtpUrl = String(SMTP_URL.value() || "").trim();
+
+      const notificationTasks = [];
+      if (safeTelegramId && botToken) {
+        notificationTasks.push(
+          sendTelegramMessage({
+            botToken,
+            chatId: safeTelegramId,
+            text: confirmationText,
+          })
+        );
+      }
+      // Send email if SMTP_URL is configured (Brevo uses default sender)
+      if (safeEmail && smtpUrl) {
+        notificationTasks.push(
+          sendCandidateEmail({
+            smtpUrl,
+            from: "", // empty: Brevo/SMTP uses default sender
+            to: safeEmail,
+            subject: "✅ Arizangiz qabul qilindi",
+            text: confirmationText,
+          })
+        );
+      }
+
+      if (notificationTasks.length) {
+        const settled = await Promise.allSettled(notificationTasks);
+        const failed = settled
+          .map((r, idx) => ({ r, idx }))
+          .filter((x) => x.r.status === "rejected")
+          .map((x) => String(x.r.reason?.message || x.r.reason || ""));
+        if (failed.length) {
+          logger.warn("submitCandidate notifications failed", {
+            id: candidateRef.id,
+            major: targetCol,
+            failed,
+          });
+        }
+      }
+
       return res.json({ ok: true, id: candidateRef.id });
     } catch (err) {
       logger.error("submitCandidate error", err);
