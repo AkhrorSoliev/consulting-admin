@@ -131,7 +131,16 @@ function Create() {
         photo: "",
       },
       experience: [],
-      education: [],
+      education: {
+        schule: { startDate: "", endDate: "", institution: "", degree: "" },
+        kollej: { startDate: "", endDate: "", institution: "", degree: "" },
+        universitat: {
+          startDate: "",
+          endDate: "",
+          institution: "",
+          degree: "",
+        },
+      },
       skills: {
         softSkills: [],
         languages: {},
@@ -186,6 +195,8 @@ function Create() {
   const [experienceErrors, setExperienceErrors] = useState([]);
   const [showLanguageWarning, setShowLanguageWarning] = useState(false);
   const [languageErrors, setLanguageErrors] = useState([]);
+  const [noCollege, setNoCollege] = useState(false);
+  const [noUniversity, setNoUniversity] = useState(false);
   const [isLinkBlocked, setIsLinkBlocked] = useState(false);
   const [blockedLinkTitle, setBlockedLinkTitle] = useState("");
   const [leadValue, setLeadValue] = useState("");
@@ -533,6 +544,10 @@ function Create() {
     return !hasStart && !hasEnd && !hasInstitution && !hasDegree;
   }
 
+  function isSchuleFilled() {
+    return isEducationEntryFilled(cv.education?.schule);
+  }
+
   function isExperienceEntryFilled(exp) {
     const hasStart = Boolean((exp?.startDate || "").trim());
     const hasEnd =
@@ -571,14 +586,19 @@ function Create() {
     );
   }
 
-  function getEducationErrors(entries) {
-    if (!Array.isArray(entries)) return [];
-    return entries.map((edu) => ({
-      startDate: !(edu?.startDate || "").trim(),
-      endDate: !(edu?.endDate === "bis heute" || (edu?.endDate || "").trim()),
-      institution: !(edu?.institution || "").trim(),
-      degree: !(edu?.degree || "").trim(),
-    }));
+  function getEducationErrors(education) {
+    if (!education) return {};
+    return {
+      schule: {
+        startDate: !(education.schule?.startDate || "").trim(),
+        endDate: !(
+          education.schule?.endDate === "bis heute" ||
+          (education.schule?.endDate || "").trim()
+        ),
+        institution: !(education.schule?.institution || "").trim(),
+        degree: !(education.schule?.degree || "").trim(),
+      },
+    };
   }
 
   function getExperienceErrors(entries) {
@@ -645,16 +665,11 @@ function Create() {
   }, [isPrivacyOpen, isGuideOpen, isPdfPreviewOpen]);
 
   useEffect(() => {
-    // Filter out empty education entries
-    const nonEmptyEducation = Array.isArray(cv.education)
-      ? cv.education.filter((edu) => !isEducationEntryEmpty(edu))
-      : [];
-    const hasCompleteEducation =
-      nonEmptyEducation.length > 0 &&
-      nonEmptyEducation.every((edu) => isEducationEntryFilled(edu));
-    if (hasCompleteEducation) {
+    // Check if Schule (required) is filled
+    const schuleFilled = isEducationEntryFilled(cv.education?.schule);
+    if (schuleFilled) {
       setShowEducationWarning(false);
-      setEducationErrors([]);
+      setEducationErrors({});
     }
   }, [cv.education]);
 
@@ -771,8 +786,60 @@ function Create() {
 
     const address = String(watchAddress || "").trim();
 
+    // Convert education object to array for LivePreview
+    const educationArray = [];
+    if (cv.education?.schule) {
+      const schule = cv.education.schule;
+      if (
+        schule.startDate ||
+        schule.endDate ||
+        schule.institution ||
+        schule.degree
+      ) {
+        educationArray.push({
+          startDate: schule.startDate || "",
+          endDate: schule.endDate || "",
+          institution: schule.institution || "",
+          degree: schule.degree || "",
+        });
+      }
+    }
+    if (cv.education?.kollej && !noCollege) {
+      const kollej = cv.education.kollej;
+      if (
+        kollej.startDate ||
+        kollej.endDate ||
+        kollej.institution ||
+        kollej.degree
+      ) {
+        educationArray.push({
+          startDate: kollej.startDate || "",
+          endDate: kollej.endDate || "",
+          institution: kollej.institution || "",
+          degree: kollej.degree || "",
+        });
+      }
+    }
+    if (cv.education?.universitat && !noUniversity) {
+      const universitat = cv.education.universitat;
+      if (
+        universitat.startDate ||
+        universitat.endDate ||
+        universitat.institution ||
+        universitat.degree
+      ) {
+        educationArray.push({
+          startDate: universitat.startDate || "",
+          endDate: universitat.endDate || "",
+          institution: universitat.institution || "",
+          degree: universitat.degree || "",
+        });
+      }
+    }
+
     return {
       ...cv,
+      education: educationArray,
       personalInfo: {
         ...(cv?.personalInfo || {}),
         name: String(watchName || "").trim(),
@@ -810,6 +877,8 @@ function Create() {
     watchEmail,
     watchPassportNumber,
     watchPhoto,
+    noCollege,
+    noUniversity,
     // NOTE: watch("...") calls inside are intentionally not listed (RHF subscription already triggers rerenders).
   ]);
 
@@ -1179,25 +1248,10 @@ function Create() {
     }
 
     if (currentStep === 2) {
-      // Filter out empty entries first
-      const nonEmptyEducation = Array.isArray(cv.education)
-        ? cv.education.filter((edu) => !isEducationEntryEmpty(edu))
-        : [];
+      // Check if Schule (required) is filled
+      const schuleFilled = isEducationEntryFilled(cv.education?.schule);
 
-      const hasEducation =
-        nonEmptyEducation.length > 0 &&
-        nonEmptyEducation.every((edu) => isEducationEntryFilled(edu));
-
-      if (nonEmptyEducation.length === 0) {
-        // No education entries at all (all were empty)
-        setShowEducationWarning(true);
-        setEducationErrors([]);
-        toast.error(`Fehlend: ${errorLabels.education}`);
-        return false;
-      }
-
-      if (!hasEducation) {
-        // Has some entries but they're incomplete
+      if (!schuleFilled) {
         setShowEducationWarning(true);
         setEducationErrors(getEducationErrors(cv.education));
         toast.error(`Fehlend: ${errorLabels.education}`);
@@ -1317,25 +1371,7 @@ function Create() {
       }
     }
 
-    // Clean up empty education entries before navigating forward
-    if (Array.isArray(cv.education) && cv.education.length > 0) {
-      const hasPartiallyFilled = cv.education.some(
-        (edu) => !isEducationEntryFilled(edu) && !isEducationEntryEmpty(edu)
-      );
-
-      // Only remove empty entries if there are no partially filled ones
-      if (!hasPartiallyFilled) {
-        const filteredEducation = cv.education.filter(
-          (edu) => !isEducationEntryEmpty(edu)
-        );
-        if (filteredEducation.length !== cv.education.length) {
-          setCv((prev) => ({
-            ...prev,
-            education: filteredEducation,
-          }));
-        }
-      }
-    }
+    // No cleanup needed for new education structure
 
     setCurrentStep((s) => Math.min(FINAL_STEP, s + 1));
     setMaxUnlockedStep((u) => Math.max(u, currentStep + 1));
@@ -1363,25 +1399,7 @@ function Create() {
       }
     }
 
-    // Clean up empty education entries before navigating
-    if (Array.isArray(cv.education) && cv.education.length > 0) {
-      const hasPartiallyFilled = cv.education.some(
-        (edu) => !isEducationEntryFilled(edu) && !isEducationEntryEmpty(edu)
-      );
-
-      // Only remove empty entries if there are no partially filled ones
-      if (!hasPartiallyFilled) {
-        const filteredEducation = cv.education.filter(
-          (edu) => !isEducationEntryEmpty(edu)
-        );
-        if (filteredEducation.length !== cv.education.length) {
-          setCv((prev) => ({
-            ...prev,
-            education: filteredEducation,
-          }));
-        }
-      }
-    }
+    // No cleanup needed for new education structure
 
     setCurrentStep((s) => Math.max(0, s - 1));
     scrollWizardToTop();
@@ -1545,32 +1563,19 @@ function Create() {
     });
   }
 
-  function addEducation() {
-    // If the user starts adding an education entry, hide the warning banner.
+  function updateEducation(type, field, value) {
     setShowEducationWarning(false);
-    setEducationErrors([]);
+    setEducationErrors({});
     setCv((prev) => ({
       ...prev,
-      education: sortTimelineItemsDesc([
+      education: {
         ...prev.education,
-        { startDate: "", endDate: "", institution: "", degree: "" },
-      ]),
+        [type]: {
+          ...prev.education[type],
+          [field]: value,
+        },
+      },
     }));
-  }
-
-  function updateEducation(idx, field, value) {
-    setCv((prev) => {
-      const next = [...prev.education];
-      next[idx] = { ...next[idx], [field]: value };
-      return { ...prev, education: sortTimelineItemsDesc(next) };
-    });
-  }
-
-  function removeEducation(idx) {
-    setCv((prev) => {
-      const next = prev.education.filter((_, i) => i !== idx);
-      return { ...prev, education: sortTimelineItemsDesc(next) };
-    });
   }
 
   function addTag(path, value) {
@@ -1728,14 +1733,9 @@ function Create() {
         blockingErrors.push("majorLoading");
       }
 
-      // Filter out empty education entries
-      const nonEmptyEducation = Array.isArray(cv.education)
-        ? cv.education.filter((edu) => !isEducationEntryEmpty(edu))
-        : [];
-      const hasEducation =
-        nonEmptyEducation.length > 0 &&
-        nonEmptyEducation.every((edu) => isEducationEntryFilled(edu));
-      if (!hasEducation) {
+      // Check if Schule (required) is filled
+      const schuleFilled = isEducationEntryFilled(cv.education?.schule);
+      if (!schuleFilled) {
         setShowEducationWarning(true);
         setEducationErrors(getEducationErrors(cv.education));
         blockingErrors.push("education");
@@ -1870,14 +1870,41 @@ function Create() {
                 : [],
             }))
           : [],
-        ausbildung: Array.isArray(final.education)
-          ? final.education.map((edu) => ({
-              beginn: edu.startDate,
-              ende: edu.endDate,
-              bildungseinrichtung: edu.institution,
-              abschluss: edu.degree || "",
-            }))
-          : [],
+        ausbildung: {
+          schule: {
+            beginn: final.education?.schule?.startDate || "",
+            ende: final.education?.schule?.endDate || "",
+            bildungseinrichtung: final.education?.schule?.institution || "",
+            abschluss: final.education?.schule?.degree || "",
+          },
+          kollej:
+            final.education?.kollej &&
+            (final.education.kollej.startDate ||
+              final.education.kollej.endDate ||
+              final.education.kollej.institution ||
+              final.education.kollej.degree)
+              ? {
+                  beginn: final.education.kollej.startDate || "",
+                  ende: final.education.kollej.endDate || "",
+                  bildungseinrichtung: final.education.kollej.institution || "",
+                  abschluss: final.education.kollej.degree || "",
+                }
+              : null,
+          universitat:
+            final.education?.universitat &&
+            (final.education.universitat.startDate ||
+              final.education.universitat.endDate ||
+              final.education.universitat.institution ||
+              final.education.universitat.degree)
+              ? {
+                  beginn: final.education.universitat.startDate || "",
+                  ende: final.education.universitat.endDate || "",
+                  bildungseinrichtung:
+                    final.education.universitat.institution || "",
+                  abschluss: final.education.universitat.degree || "",
+                }
+              : null,
+        },
         faehigkeiten: {
           sozialkompetenzen: final.skills?.softSkills || [],
           pcKenntnisse: final.skills?.pcSkills || [],
@@ -2587,7 +2614,7 @@ function Create() {
                                           {field.value || "Bitte auswählen"}
                                         </span>
                                         <svg
-                                          className="w-4 h-4 opacity-50 flex-shrink-0"
+                                          className="w-4 h-4 opacity-50 shrink-0"
                                           fill="none"
                                           stroke="currentColor"
                                           viewBox="0 0 24 24"
@@ -3532,11 +3559,13 @@ function Create() {
                           </div>
                           <EducationSection
                             education={cv.education}
-                            onAddEducation={addEducation}
                             onUpdateEducation={updateEducation}
-                            onRemoveEducation={removeEducation}
                             showRequiredWarning={showEducationWarning}
                             errors={educationErrors}
+                            noCollege={noCollege}
+                            setNoCollege={setNoCollege}
+                            noUniversity={noUniversity}
+                            setNoUniversity={setNoUniversity}
                           />
                         </>
                       ) : null}

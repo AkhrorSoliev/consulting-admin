@@ -9,6 +9,7 @@ import {
 } from "react-router-dom";
 import {
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   increment,
@@ -43,7 +44,6 @@ import {
 } from "../utils/validation";
 import CountryNameCombobox from "../components/CountryNameCombobox";
 import ExperienceSection from "../components/ExperienceSection";
-import EducationSection from "../components/EducationSection";
 import SkillsSection from "../components/SkillsSection";
 import LanguagesSection from "../components/LanguagesSection";
 import CollapsibleSection from "../components/CollapsibleSection";
@@ -1555,7 +1555,11 @@ function Generate() {
           // This prevents hasUnsavedChanges from being triggered incorrectly
           if (!formInitializedRef.current) {
             const mapped = mapDocToForm(data);
+            console.log("🔄 Mapped form data:", mapped);
+            console.log("🎓 Mapped education:", mapped.education);
             const normalized = normalizeForm(mapped);
+            console.log("✨ Normalized form data:", normalized);
+            console.log("🎓 Normalized education:", normalized.education);
             setFormCv(normalized);
             setFormInitialized(true);
             formInitializedRef.current = true;
@@ -2014,89 +2018,241 @@ function Generate() {
     )
       .trim()
       .toUpperCase();
-    const berufe = Array.isArray(data?.berufserfahrung)
+
+    const rawBerufe = Array.isArray(data?.berufserfahrung)
       ? data.berufserfahrung
       : [];
-
-    // Handle both old format (array) and new format (object with schule, universitat, etc.)
-    let ausb = [];
-
-    console.log("🔍 AUSBILDUNG DEBUG:", {
-      raw: data?.ausbildung,
-      isArray: Array.isArray(data?.ausbildung),
-      isObject: data?.ausbildung && typeof data.ausbildung === "object",
-      type: typeof data?.ausbildung,
-      keys: data?.ausbildung ? Object.keys(data.ausbildung) : [],
-    });
-
-    if (Array.isArray(data?.ausbildung)) {
-      // Old format: array of education objects
-      console.log("✅ Array format detected, count:", data.ausbildung.length);
-      ausb = data.ausbildung;
-    } else if (data?.ausbildung && typeof data.ausbildung === "object") {
-      // New format: object with kollej, schule, universitat as separate keys
-      const eduObj = data.ausbildung;
-      console.log("✅ Object format detected, keys:", Object.keys(eduObj));
-
-      // Extract kollej if exists
-      if (eduObj.kollej && typeof eduObj.kollej === "object") {
-        console.log("📚 Kollej found:", eduObj.kollej);
-        ausb.push({
-          beginn: String(eduObj.kollej.beginn || ""),
-          ende: String(eduObj.kollej.ende || ""),
-          bildungseinrichtung: String(eduObj.kollej.bildungseinrichtung || ""),
-          abschluss: String(eduObj.kollej.abschluss || ""),
-        });
-      }
-
-      // Extract schule if exists
-      if (eduObj.schule && typeof eduObj.schule === "object") {
-        console.log("🏫 Schule found:", eduObj.schule);
-        ausb.push({
-          beginn: String(eduObj.schule.beginn || ""),
-          ende: String(eduObj.schule.ende || ""),
-          bildungseinrichtung: String(eduObj.schule.bildungseinrichtung || ""),
-          abschluss: String(eduObj.schule.abschluss || ""),
-        });
-      }
-
-      // Extract universitat if exists
-      if (eduObj.universitat && typeof eduObj.universitat === "object") {
-        console.log("🎓 Universitat found:", eduObj.universitat);
-        ausb.push({
-          beginn: String(eduObj.universitat.beginn || ""),
-          ende: String(eduObj.universitat.ende || ""),
-          bildungseinrichtung: String(
-            eduObj.universitat.bildungseinrichtung || ""
-          ),
-          abschluss: String(eduObj.universitat.abschluss || ""),
-        });
-      }
-
-      // If none of the above, but has basic fields at root level, add as single entry
+    const normalizeWorkRecord = (rec) => {
+      const r = rec && typeof rec === "object" ? rec : {};
+      const beginn = pickFirstNonEmptyString([
+        r?.beginn,
+        r?.startDate,
+        r?.startdatum,
+        r?.startDatum,
+        r?.von,
+        r?.from,
+      ]);
+      const ende = pickFirstNonEmptyString([
+        r?.ende,
+        r?.endDate,
+        r?.enddatum,
+        r?.endDatum,
+        r?.bis,
+        r?.to,
+      ]);
+      const position = pickFirstNonEmptyString([r?.position, r?.role]);
+      const unternehmen = pickFirstNonEmptyString([r?.unternehmen, r?.company]);
+      const ort = pickFirstNonEmptyString([r?.ort, r?.location]);
+      const aufgaben = Array.isArray(r?.aufgaben)
+        ? r.aufgaben
+        : Array.isArray(r?.responsibilities)
+        ? r.responsibilities
+        : [];
       if (
-        ausb.length === 0 &&
-        (eduObj.abschluss ||
-          eduObj.beginn ||
-          eduObj.ende ||
-          eduObj.bildungseinrichtung)
-      ) {
-        console.log("📋 Root level education found:", eduObj);
-        ausb.push({
-          beginn: String(eduObj.beginn || ""),
-          ende: String(eduObj.ende || ""),
-          bildungseinrichtung: String(eduObj.bildungseinrichtung || ""),
-          abschluss: String(eduObj.abschluss || ""),
-        });
-      }
+        !beginn &&
+        !ende &&
+        !position &&
+        !unternehmen &&
+        !ort &&
+        aufgaben.length === 0
+      )
+        return null;
+      return {
+        beginn: String(beginn || ""),
+        ende: String(ende || ""),
+        position: String(position || ""),
+        unternehmen: String(unternehmen || ""),
+        ort: String(ort || ""),
+        aufgaben,
+      };
+    };
+    const berufe = rawBerufe.map(normalizeWorkRecord).filter(Boolean);
 
+    // Normalize Ausbildung to canonical array of {beginn, ende, bildungseinrichtung, abschluss}
+    let ausb = [];
+    const rawAusbildung =
+      data?.ausbildung ??
+      data?.education ??
+      data?.ausbildungen ??
+      data?.Ausbildung ??
+      data?.bildung ??
+      null;
+
+    const normalizeEduRecord = (rec) => {
+      const r = rec && typeof rec === "object" ? rec : {};
+      const beginn = pickFirstNonEmptyString([
+        r?.beginn,
+        r?.startDate,
+        r?.startdatum,
+        r?.startDatum,
+        r?.von,
+        r?.from,
+      ]);
+      const ende = pickFirstNonEmptyString([
+        r?.ende,
+        r?.endDate,
+        r?.enddatum,
+        r?.endDatum,
+        r?.bis,
+        r?.to,
+      ]);
+      const bildungseinrichtung = pickFirstNonEmptyString([
+        r?.bildungseinrichtung,
+        r?.bildungseinrichtungAufDeutsch,
+        r?.bildungseinrichtungDeutsch,
+        r?.bildungseinrichtung_de,
+        r?.bildungseinrichtungDE,
+        r?.institution,
+        r?.schule,
+        r?.university,
+        r?.college,
+      ]);
+      const abschluss = pickFirstNonEmptyString([
+        r?.abschluss,
+        r?.abschlussAufDeutsch,
+        r?.abschlussDeutsch,
+        r?.abschluss_de,
+        r?.abschlussDE,
+        r?.degree,
+        r?.studiengang,
+      ]);
+      if (!beginn && !ende && !bildungseinrichtung && !abschluss) return null;
+      return {
+        beginn: String(beginn || ""),
+        ende: String(ende || ""),
+        bildungseinrichtung: String(bildungseinrichtung || ""),
+        abschluss: String(abschluss || ""),
+      };
+    };
+
+    const pushEdu = (rec) => {
+      if (Array.isArray(rec)) {
+        rec.forEach(pushEdu);
+        return;
+      }
+      const normalized = normalizeEduRecord(rec);
+      if (normalized) ausb.push(normalized);
+    };
+
+    const normalizeKey = (k) => {
+      const base = String(k || "")
+        .trim()
+        .toLowerCase();
+      try {
+        // Avoid Unicode property escapes for broad browser compatibility.
+        return base
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]/g, "");
+      } catch {
+        return base.replace(/[^a-z0-9]/g, "");
+      }
+    };
+
+    if (DEBUG_GENERATE) {
+      console.log("🔍 AUSBILDUNG DEBUG:", {
+        raw: rawAusbildung,
+        isArray: Array.isArray(rawAusbildung),
+        isObject: rawAusbildung && typeof rawAusbildung === "object",
+        type: typeof rawAusbildung,
+        keys:
+          rawAusbildung && typeof rawAusbildung === "object"
+            ? Object.keys(rawAusbildung)
+            : [],
+      });
+    }
+
+    if (Array.isArray(rawAusbildung)) {
+      rawAusbildung.forEach(pushEdu);
+    } else if (rawAusbildung && typeof rawAusbildung === "object") {
+      const eduObj = rawAusbildung;
+      const entries = Object.entries(eduObj);
+      const findValueByAliases = (aliases) => {
+        const wanted = new Set(aliases.map(normalizeKey));
+        for (const [k, v] of entries) {
+          if (wanted.has(normalizeKey(k))) return v;
+        }
+        return undefined;
+      };
+
+      const schoolVal = findValueByAliases([
+        "schule",
+        "school",
+        "maktab",
+        "schulen",
+      ]);
+      const collegeVal = findValueByAliases([
+        "kollej",
+        "college",
+        "kollejlitsey",
+        "litsey",
+        "lyceum",
+        "lice",
+      ]);
+      const uniVal = findValueByAliases([
+        "universitat",
+        "universitaet",
+        "universitet",
+        "university",
+        "uni",
+      ]);
+
+      if (schoolVal !== undefined) pushEdu(schoolVal);
+      if (collegeVal !== undefined) pushEdu(collegeVal);
+      if (uniVal !== undefined) pushEdu(uniVal);
+
+      // Fallback: if object doesn't match known keys but contains a single record.
+      if (ausb.length === 0) {
+        const normalizedRoot = normalizeEduRecord(eduObj);
+        if (normalizedRoot) {
+          ausb.push(normalizedRoot);
+        } else {
+          // Last resort: try to parse each value as a record.
+          for (const [, v] of entries) pushEdu(v);
+        }
+      }
+    }
+
+    if (DEBUG_GENERATE) {
       console.log("📊 Total education entries extracted:", ausb.length, ausb);
-    } else {
-      console.log("⚠️ No ausbildung data found or invalid format");
     }
 
     const normalizeMonth = (value) => {
-      const raw = String(value || "").trim();
+      const toYyyyMm = (v) => {
+        if (v === null || v === undefined) return "";
+        if (typeof v === "string") return v.trim();
+        if (typeof v === "number") {
+          const d = new Date(v);
+          if (!Number.isNaN(d.getTime())) {
+            const yyyy = String(d.getFullYear());
+            const mm = String(d.getMonth() + 1).padStart(2, "0");
+            return `${yyyy}-${mm}`;
+          }
+          return String(v);
+        }
+        if (v instanceof Date) {
+          if (Number.isNaN(v.getTime())) return "";
+          const yyyy = String(v.getFullYear());
+          const mm = String(v.getMonth() + 1).padStart(2, "0");
+          return `${yyyy}-${mm}`;
+        }
+        if (typeof v === "object") {
+          // Firestore Timestamp-like
+          if (typeof v.toDate === "function") {
+            try {
+              return toYyyyMm(v.toDate());
+            } catch {
+              return "";
+            }
+          }
+          if (typeof v.seconds === "number") {
+            return toYyyyMm(new Date(v.seconds * 1000));
+          }
+        }
+        return String(v || "").trim();
+      };
+
+      const raw = toYyyyMm(value);
       if (!raw) return "";
       // Convert "yyyy-mm" back to "mm.yyyy" for our form state; keep other formats as-is.
       const from = fromInputMonth(raw);
@@ -2191,12 +2347,18 @@ function Generate() {
         location: String(b?.ort || ""),
         responsibilities: Array.isArray(b?.aufgaben) ? b.aufgaben : [],
       })),
-      education: ausb.map((a) => ({
-        startDate: normalizeMonth(a?.beginn),
-        endDate: normalizeMonth(a?.ende),
-        institution: String(a?.bildungseinrichtung || ""),
-        degree: String(a?.abschluss || ""),
-      })),
+      education: (() => {
+        const mappedEducation = ausb.map((a) => ({
+          startDate: normalizeMonth(a?.beginn),
+          endDate: normalizeMonth(a?.ende),
+          institution: String(a?.bildungseinrichtung || ""),
+          degree: String(a?.abschluss || ""),
+        }));
+        if (DEBUG_GENERATE) {
+          console.log("📚 Final education array:", mappedEducation);
+        }
+        return mappedEducation;
+      })(),
       skills: {
         softSkills: Array.isArray(f?.sozialkompetenzen)
           ? f.sozialkompetenzen
@@ -2223,6 +2385,14 @@ function Generate() {
     const passportNumber = normalizePassportNumber(
       f?.personalInfo?.passportNumber || ""
     );
+
+    // Check if languages object is empty
+    const languages =
+      f.skills?.languages && typeof f.skills.languages === "object"
+        ? f.skills.languages
+        : {};
+    const hasLanguages = Object.keys(languages).length > 0;
+
     return {
       persoenlicheDaten: {
         name: f.personalInfo.name,
@@ -2269,7 +2439,7 @@ function Generate() {
       faehigkeiten: {
         sozialkompetenzen: f.skills?.softSkills || [],
         pcKenntnisse: f.skills?.pcSkills || [],
-        sprachen: f.skills?.languages || {},
+        sprachen: hasLanguages ? languages : deleteField(),
       },
       documents: {
         diplomas: f.documents?.diplomas || [],
@@ -2603,9 +2773,16 @@ function Generate() {
       const entries = Object.entries(prev.skills.languages).filter(
         (_, i) => i !== rowIdx
       );
+      const newLanguages = Object.fromEntries(entries);
+      console.log("🗑️ Removing language row:", {
+        rowIdx,
+        oldLanguages: prev.skills.languages,
+        newLanguages,
+        isEmpty: Object.keys(newLanguages).length === 0,
+      });
       return {
         ...prev,
-        skills: { ...prev.skills, languages: Object.fromEntries(entries) },
+        skills: { ...prev.skills, languages: newLanguages },
       };
     });
   }
@@ -3748,6 +3925,7 @@ function Generate() {
   ]);
 
   async function handleSave() {
+    console.log("💾 handleSave called");
     if (remoteMode) {
       toast.error(
         "Stellen Sie den Kandidaten zuerst im passenden Bereich (Major) wieder her. Danach können E-Mails versendet werden."
@@ -3756,7 +3934,11 @@ function Generate() {
     }
     const col = String(resolvedMajor?.collectionName || "").trim();
     const docId = String(id || "").trim();
-    if (!col || !docId) return;
+    console.log("📋 Save params:", { col, docId, remoteMode });
+    if (!col || !docId) {
+      console.log("❌ Save aborted: missing col or docId");
+      return;
+    }
     const commentHasContent = hasRichTextContent(commentHtml);
     const originalComment = String(docCv?.commentar || "");
     const isCommentUpdated =
@@ -3824,13 +4006,51 @@ function Generate() {
       const payload = isLimitedAdmin
         ? {
             commentar: String(commentHtml || ""),
-            berufserfahrung: formCv.experience || [],
-            ausbildung: formCv.education || [],
+            berufserfahrung: Array.isArray(formCv.experience)
+              ? formCv.experience.map((exp) => ({
+                  beginn: exp?.startDate,
+                  ende: exp?.endDate,
+                  position: exp?.position,
+                  unternehmen: exp?.company,
+                  ort: exp?.location,
+                  aufgaben: Array.isArray(exp?.responsibilities)
+                    ? exp.responsibilities
+                    : [],
+                }))
+              : [],
+            ausbildung: Array.isArray(formCv.education)
+              ? formCv.education.map((edu) => ({
+                  beginn: edu?.startDate,
+                  ende: edu?.endDate,
+                  bildungseinrichtung: edu?.institution,
+                  abschluss: edu?.degree || "",
+                }))
+              : [],
           }
         : mapFormToDoc(formCv);
       if (nextCommentMeta) {
         payload.commentarMeta = nextCommentMeta;
       }
+
+      // Normalize languages for persistence (Firestore merge does not remove missing map keys).
+      const languageEntries = formCv.skills?.languages
+        ? Object.entries(formCv.skills.languages).filter(
+            ([key, val]) => key && key.trim() !== "" && val && val.trim() !== ""
+          )
+        : [];
+      const cleanedLanguages = Object.fromEntries(languageEntries);
+      const hasLanguages = languageEntries.length > 0;
+
+      console.log("🔍 Language deletion check:", {
+        isLimitedAdmin,
+        languages: formCv.skills?.languages,
+        languageKeys: formCv.skills?.languages
+          ? Object.keys(formCv.skills.languages)
+          : [],
+        languageEntries,
+        cleanedLanguages,
+        hasLanguages,
+      });
 
       // Email sync (Firestore + external API)
       const oldEmail = String(docCv?.persoenlicheDaten?.email || "").trim();
@@ -3934,6 +4154,24 @@ function Generate() {
           await updateCandidateWithDualStats(col, docId, updatedPayload, {
             majorLabel: col,
           });
+        }
+      }
+
+      // Ensure languages updates are authoritative (overwrite the map or delete it).
+      if (!isLimitedAdmin) {
+        try {
+          await updateDoc(doc(db, col, docId), {
+            "faehigkeiten.sprachen": hasLanguages
+              ? cleanedLanguages
+              : deleteField(),
+          });
+          console.log(
+            hasLanguages
+              ? "✅ Languages map overwritten in Firebase"
+              : "✅ Languages field deleted from Firebase"
+          );
+        } catch (langErr) {
+          console.error("❌ Error updating languages field:", langErr);
         }
       }
 
@@ -5372,12 +5610,162 @@ function Generate() {
                       count={educationCount}
                       defaultOpen={false}
                     >
-                      <EducationSection
-                        education={formCv.education}
-                        onAddEducation={addEducation}
-                        onUpdateEducation={updateEducation}
-                        onRemoveEducation={removeEducation}
-                      />
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm text-base-content/70">
+                            Ausbildungseinträge
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-sm"
+                            onClick={addEducation}
+                          >
+                            Hinzufügen
+                          </button>
+                        </div>
+
+                        {educationCount === 0 ? (
+                          <div className="text-sm text-base-content/60">
+                            Keine Einträge.
+                          </div>
+                        ) : null}
+
+                        <div className="space-y-3">
+                          {(Array.isArray(formCv.education)
+                            ? formCv.education
+                            : []
+                          ).map((edu, idx) => {
+                            const endIsBisHeute =
+                              String(edu?.endDate || "").trim() === "bis heute";
+                            return (
+                              <CollapsibleSection
+                                key={idx}
+                                title={`Ausbildung #${idx + 1}`}
+                                defaultOpen={false}
+                                contentClassName="p-4 pt-0 space-y-3"
+                                meta={
+                                  <button
+                                    type="button"
+                                    className="btn btn-ghost btn-xs relative z-10"
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      removeEducation(idx);
+                                    }}
+                                    aria-label={`Ausbildung #${
+                                      idx + 1
+                                    } löschen`}
+                                  >
+                                    <FaTrash />
+                                  </button>
+                                }
+                              >
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div>
+                                    <label className="label">
+                                      <span className="label-text">
+                                        Startdatum
+                                      </span>
+                                    </label>
+                                    <input
+                                      type="month"
+                                      className={inputBase}
+                                      value={toInputMonth(edu?.startDate)}
+                                      onChange={(e) =>
+                                        updateEducation(
+                                          idx,
+                                          "startDate",
+                                          fromInputMonth(e.target.value)
+                                        )
+                                      }
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <label className="label">
+                                      <span className="label-text">
+                                        Enddatum
+                                      </span>
+                                    </label>
+                                    <input
+                                      type="month"
+                                      className={inputBase}
+                                      value={toInputMonth(edu?.endDate)}
+                                      onChange={(e) =>
+                                        updateEducation(
+                                          idx,
+                                          "endDate",
+                                          fromInputMonth(e.target.value)
+                                        )
+                                      }
+                                      disabled={endIsBisHeute}
+                                    />
+                                    <label className="cursor-pointer flex items-center gap-2 mt-2">
+                                      <input
+                                        type="checkbox"
+                                        className="checkbox checkbox-sm"
+                                        checked={endIsBisHeute}
+                                        onChange={(e) => {
+                                          updateEducation(
+                                            idx,
+                                            "endDate",
+                                            e.target.checked ? "bis heute" : ""
+                                          );
+                                        }}
+                                      />
+                                      <span className="text-sm">
+                                        bis heute (aktuell)
+                                      </span>
+                                    </label>
+                                  </div>
+
+                                  <div className="md:col-span-2">
+                                    <label className="label">
+                                      <span className="label-text">
+                                        Bildungseinrichtung (auf Deutsch)
+                                      </span>
+                                    </label>
+                                    <input
+                                      type="text"
+                                      className={inputBase}
+                                      placeholder="z.B. Gymnasium Nr. 1"
+                                      value={String(edu?.institution || "")}
+                                      onChange={(e) =>
+                                        updateEducation(
+                                          idx,
+                                          "institution",
+                                          e.target.value
+                                        )
+                                      }
+                                    />
+                                  </div>
+
+                                  <div className="md:col-span-2">
+                                    <label className="label">
+                                      <span className="label-text">
+                                        Abschluss (auf Deutsch)
+                                      </span>
+                                    </label>
+                                    <input
+                                      type="text"
+                                      className={inputBase}
+                                      placeholder="z.B. Abitur"
+                                      value={String(edu?.degree || "")}
+                                      onChange={(e) =>
+                                        updateEducation(
+                                          idx,
+                                          "degree",
+                                          e.target.value
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                </div>
+                              </CollapsibleSection>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </CollapsibleSection>
 
                     <CollapsibleSection
