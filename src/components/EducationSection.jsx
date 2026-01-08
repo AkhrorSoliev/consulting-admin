@@ -335,7 +335,7 @@ function EducationSection({
         </CollapsibleSection>
       </div>
 
-      {showRequiredWarning ? (
+      {showRequiredWarning && (
         <div className="mt-2 alert alert-warning text-sm">
           Bitte füllen Sie alle Pflichtfelder der Schule aus.
         </div>
