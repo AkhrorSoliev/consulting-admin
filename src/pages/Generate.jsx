@@ -2020,15 +2020,27 @@ function Generate() {
 
     // Handle both old format (array) and new format (object with schule, universitat, etc.)
     let ausb = [];
+
+    console.log("🔍 AUSBILDUNG DEBUG:", {
+      raw: data?.ausbildung,
+      isArray: Array.isArray(data?.ausbildung),
+      isObject: data?.ausbildung && typeof data.ausbildung === "object",
+      type: typeof data?.ausbildung,
+      keys: data?.ausbildung ? Object.keys(data.ausbildung) : [],
+    });
+
     if (Array.isArray(data?.ausbildung)) {
       // Old format: array of education objects
+      console.log("✅ Array format detected, count:", data.ausbildung.length);
       ausb = data.ausbildung;
     } else if (data?.ausbildung && typeof data.ausbildung === "object") {
       // New format: object with kollej, schule, universitat as separate keys
       const eduObj = data.ausbildung;
+      console.log("✅ Object format detected, keys:", Object.keys(eduObj));
 
       // Extract kollej if exists
       if (eduObj.kollej && typeof eduObj.kollej === "object") {
+        console.log("📚 Kollej found:", eduObj.kollej);
         ausb.push({
           beginn: String(eduObj.kollej.beginn || ""),
           ende: String(eduObj.kollej.ende || ""),
@@ -2039,6 +2051,7 @@ function Generate() {
 
       // Extract schule if exists
       if (eduObj.schule && typeof eduObj.schule === "object") {
+        console.log("🏫 Schule found:", eduObj.schule);
         ausb.push({
           beginn: String(eduObj.schule.beginn || ""),
           ende: String(eduObj.schule.ende || ""),
@@ -2049,6 +2062,7 @@ function Generate() {
 
       // Extract universitat if exists
       if (eduObj.universitat && typeof eduObj.universitat === "object") {
+        console.log("🎓 Universitat found:", eduObj.universitat);
         ausb.push({
           beginn: String(eduObj.universitat.beginn || ""),
           ende: String(eduObj.universitat.ende || ""),
@@ -2067,6 +2081,7 @@ function Generate() {
           eduObj.ende ||
           eduObj.bildungseinrichtung)
       ) {
+        console.log("📋 Root level education found:", eduObj);
         ausb.push({
           beginn: String(eduObj.beginn || ""),
           ende: String(eduObj.ende || ""),
@@ -2074,6 +2089,10 @@ function Generate() {
           abschluss: String(eduObj.abschluss || ""),
         });
       }
+
+      console.log("📊 Total education entries extracted:", ausb.length, ausb);
+    } else {
+      console.log("⚠️ No ausbildung data found or invalid format");
     }
 
     const normalizeMonth = (value) => {
