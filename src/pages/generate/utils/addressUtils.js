@@ -55,10 +55,15 @@ export function parseGermanAddress(raw) {
 
   let street = streetLine;
   let houseNumber = "";
-  const mHouse = streetLine.match(/^(.*\D)\s+(\d+\w*)$/);
+  const cleanedStreetLine = streetLine.replace(/\.\s*$/, "").trim();
+  const mHouse = cleanedStreetLine.match(/^(.+?)\s+([\d]+[\w\-\/]*)$/);
   if (mHouse) {
-    street = String(mHouse[1] || "").trim();
+    street = String(mHouse[1] || "")
+      .trim()
+      .replace(/\.$/, "");
     houseNumber = String(mHouse[2] || "").trim();
+  } else {
+    street = cleanedStreetLine;
   }
 
   return { street, houseNumber, postalCode, city, country };
