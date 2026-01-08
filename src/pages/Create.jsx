@@ -195,6 +195,8 @@ function Create() {
   const [experienceErrors, setExperienceErrors] = useState([]);
   const [showLanguageWarning, setShowLanguageWarning] = useState(false);
   const [languageErrors, setLanguageErrors] = useState([]);
+  const [noCollege, setNoCollege] = useState(false);
+  const [noUniversity, setNoUniversity] = useState(false);
   const [isLinkBlocked, setIsLinkBlocked] = useState(false);
   const [blockedLinkTitle, setBlockedLinkTitle] = useState("");
   const [leadValue, setLeadValue] = useState("");
@@ -784,8 +786,60 @@ function Create() {
 
     const address = String(watchAddress || "").trim();
 
+    // Convert education object to array for LivePreview
+    const educationArray = [];
+    if (cv.education?.schule) {
+      const schule = cv.education.schule;
+      if (
+        schule.startDate ||
+        schule.endDate ||
+        schule.institution ||
+        schule.degree
+      ) {
+        educationArray.push({
+          startDate: schule.startDate || "",
+          endDate: schule.endDate || "",
+          institution: schule.institution || "",
+          degree: schule.degree || "",
+        });
+      }
+    }
+    if (cv.education?.kollej && !noCollege) {
+      const kollej = cv.education.kollej;
+      if (
+        kollej.startDate ||
+        kollej.endDate ||
+        kollej.institution ||
+        kollej.degree
+      ) {
+        educationArray.push({
+          startDate: kollej.startDate || "",
+          endDate: kollej.endDate || "",
+          institution: kollej.institution || "",
+          degree: kollej.degree || "",
+        });
+      }
+    }
+    if (cv.education?.universitat && !noUniversity) {
+      const universitat = cv.education.universitat;
+      if (
+        universitat.startDate ||
+        universitat.endDate ||
+        universitat.institution ||
+        universitat.degree
+      ) {
+        educationArray.push({
+          startDate: universitat.startDate || "",
+          endDate: universitat.endDate || "",
+          institution: universitat.institution || "",
+          degree: universitat.degree || "",
+        });
+      }
+    }
+
     return {
       ...cv,
+      education: educationArray,
       personalInfo: {
         ...(cv?.personalInfo || {}),
         name: String(watchName || "").trim(),
@@ -823,6 +877,8 @@ function Create() {
     watchEmail,
     watchPassportNumber,
     watchPhoto,
+    noCollege,
+    noUniversity,
     // NOTE: watch("...") calls inside are intentionally not listed (RHF subscription already triggers rerenders).
   ]);
 
@@ -3506,6 +3562,10 @@ function Create() {
                             onUpdateEducation={updateEducation}
                             showRequiredWarning={showEducationWarning}
                             errors={educationErrors}
+                            noCollege={noCollege}
+                            setNoCollege={setNoCollege}
+                            noUniversity={noUniversity}
+                            setNoUniversity={setNoUniversity}
                           />
                         </>
                       ) : null}

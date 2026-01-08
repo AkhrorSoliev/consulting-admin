@@ -11,6 +11,8 @@ function EducationSection({
   errors = {},
 }) {
   const fieldInput = "input input-bordered w-full";
+  const REQUIRED_STAR_CLASS =
+    "[&_[aria-hidden=true]]:text-[0.7em] [&_[aria-hidden=true]]:opacity-60";
 
   const schule = education?.schule || {};
   const kollej = education?.kollej || {};
@@ -337,7 +339,7 @@ function EducationSection({
         <div className="mt-2 alert alert-warning text-sm">
           Bitte füllen Sie alle Pflichtfelder der Schule aus.
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

@@ -33,6 +33,30 @@ const REMOTE_API_BASE = "https://json-api.uz/api/project/consultinguz";
 const REMOTE_ALL_USERS = `${REMOTE_API_BASE}/all_users`;
 const EMAIL_AND_PASSID_COLLECTION = "email_and_passId";
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), timeoutMs);
+  const upstreamSignal = options?.signal;
+  if (upstreamSignal) {
+    if (upstreamSignal.aborted) {
+      ac.abort();
+    } else {
+      try {
+        upstreamSignal.addEventListener("abort", () => ac.abort(), {
+          once: true,
+        });
+      } catch {
+        // ignore
+      }
+    }
+  }
+  try {
+    return await fetch(url, { ...options, signal: ac.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 exports.health = onRequest((req, res) => {
   logger.info("Health check called");
   res.json({
@@ -79,11 +103,15 @@ async function verifyRecaptchaV2({ token, secret }) {
   // In serverless/proxied environments (CDN, Firebase, etc.) it can be unreliable
   // and cause false negatives (e.g. invalid/unknown/mismatched IP).
 
-  const resp = await fetch("https://www.google.com/recaptcha/api/siteverify", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: params.toString(),
-  });
+  const resp = await fetchWithTimeout(
+    "https://www.google.com/recaptcha/api/siteverify",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params.toString(),
+    },
+    8000
+  );
   if (!resp.ok) return { ok: false, reason: "upstream-failed" };
   const json = await resp.json().catch(() => ({}));
   if (!json?.success) return { ok: false, reason: "invalid", details: json };
@@ -866,7 +894,8 @@ async function upsertRemoteAllUsers({ firebaseId, major, payload }) {
   try {
     const check = await fetchWithTimeout(
       `${REMOTE_ALL_USERS}?firebaseId=${encodeURIComponent(safeId)}`,
-      { method: "GET" }
+      { method: "GET" },
+      4000
     );
     if (check.ok) {
       const json = await safeJson(check);
@@ -1381,19 +1410,6 @@ exports.submitCandidate = onRequest(
       }
 
       // 5) Sync to remote user registry (best-effort; should not fail a successful submit)
-      try {
-        const snap = await candidateRef.get();
-        const data = snap.exists ? snap.data() : payload;
-        await upsertRemoteAllUsers({
-          firebaseId: candidateRef.id,
-          major: targetCol,
-          payload: data,
-        });
-      } catch (e) {
-        logger.error("remote all_users sync failed", e);
-        // do not block submit
-      }
-
       return res.json({ ok: true, id: candidateRef.id });
     } catch (err) {
       logger.error("submitCandidate error", err);
@@ -1401,6 +1417,35 @@ exports.submitCandidate = onRequest(
       return res
         .status(500)
         .json({ ok: false, error: "internal", details: err.message });
+    }
+  }
+);
+
+exports.syncRemoteAllUsers = onDocumentWritten(
+  "{collectionId}/{docId}",
+  async (event) => {
+    try {
+      const collectionId = String(event?.params?.collectionId || "").trim();
+      const docId = String(event?.params?.docId || "").trim();
+      if (!collectionId || !docId) return;
+      if (IGNORED_COLLECTIONS_FOR_REGISTRY.has(collectionId)) return;
+
+      const afterExists = Boolean(event?.data?.after?.exists);
+      if (!afterExists) return;
+
+      const afterData = event.data.after.data() || {};
+      const emailRaw = extractEmailFromAnyCandidateDoc(afterData);
+      const safeEmail = normalizeEmailForRegistry(emailRaw);
+      if (!safeEmail) return;
+
+      await upsertRemoteAllUsers({
+        firebaseId: docId,
+        major: collectionId,
+        payload: afterData,
+      });
+    } catch (e) {
+      logger.error("syncRemoteAllUsers failed", e);
+      // Never block Firestore writes; this is a background sync.
     }
   }
 );
