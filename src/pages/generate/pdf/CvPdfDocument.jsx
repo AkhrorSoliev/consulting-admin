@@ -308,36 +308,10 @@ export const CvPdfDocument = ({
     Array.isArray(form?.experience) ? form.experience : []
   );
 
-  // Convert new education structure to array for PDF display
-  const educationArray = [];
-  if (
-    form?.education?.schule &&
-    (form.education.schule.startDate ||
-      form.education.schule.endDate ||
-      form.education.schule.institution ||
-      form.education.schule.degree)
-  ) {
-    educationArray.push(form.education.schule);
-  }
-  if (
-    form?.education?.kollej &&
-    (form.education.kollej.startDate ||
-      form.education.kollej.endDate ||
-      form.education.kollej.institution ||
-      form.education.kollej.degree)
-  ) {
-    educationArray.push(form.education.kollej);
-  }
-  if (
-    form?.education?.universitat &&
-    (form.education.universitat.startDate ||
-      form.education.universitat.endDate ||
-      form.education.universitat.institution ||
-      form.education.universitat.degree)
-  ) {
-    educationArray.push(form.education.universitat);
-  }
-  const education = sortTimelineItemsDesc(educationArray);
+  // Education is already an array
+  const education = sortTimelineItemsDesc(
+    Array.isArray(form?.education) ? form.education : []
+  );
   const skills = form?.skills || {};
   const documents = form?.documents || {};
   const languagesEntries = Object.entries(skills.languages || {});
