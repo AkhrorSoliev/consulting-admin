@@ -30,6 +30,7 @@ import {
   FaThumbsUp,
   FaThumbsDown,
 } from "react-icons/fa";
+import { HiMiniDocumentCheck } from "react-icons/hi2";
 import toast from "react-hot-toast";
 import { pdf } from "@react-pdf/renderer";
 import CvPdfDocument from "./generate/pdf/CvPdfDocument";
@@ -4304,6 +4305,67 @@ function Generate() {
     }
   }
 
+  async function handleDocumentReady() {
+    if (remoteMode) {
+      toast.error("Document ready can only be set in edit mode.");
+      return;
+    }
+
+    const col = String(resolvedMajor?.collectionName || "").trim();
+    const docId = String(id || "").trim();
+
+    if (!col || !docId) {
+      toast.error("Candidate information not found.");
+      return;
+    }
+
+    const currentStatus = docCv?.documentReady || false;
+    const newStatus = !currentStatus;
+
+    try {
+      const candidateRef = doc(db, col, docId);
+
+      if (newStatus) {
+        // Setting to ready
+        await updateDoc(candidateRef, {
+          documentReady: true,
+          documentReadyAt: Date.now(),
+          documentReadyBy: user?.email || user?.uid || "admin",
+        });
+
+        // Update local state
+        setDocCv((prev) => ({
+          ...prev,
+          documentReady: true,
+          documentReadyAt: Date.now(),
+          documentReadyBy: user?.email || user?.uid || "admin",
+        }));
+
+        toast.success("Dokument als bereit markiert!");
+      } else {
+        // Setting to not ready
+        await updateDoc(candidateRef, {
+          documentReady: false,
+          documentReadyAt: null,
+          documentReadyBy: null,
+        });
+
+        // Update local state
+        setDocCv((prev) => ({
+          ...prev,
+          documentReady: false,
+          documentReadyAt: null,
+          documentReadyBy: null,
+        }));
+
+        toast.success("Dokument als nicht bereit markiert!");
+      }
+    } catch (err) {
+      toast.error("Error updating document ready status.");
+      console.error("Error updating document ready:", err);
+    }
+  }
+
   async function handleDownloadPdf() {
     if (remoteMode) {
       toast.error(
@@ -4978,6 +5040,24 @@ function Generate() {
                 >
                   <FaDownload />{" "}
                   {isDownloading ? "Wird geladen..." : "Herunterladen"}
+                </button>
+                <button
+                  className={[
+                    "btn btn-sm",
+                    docCv?.documentReady ? "btn-success" : "btn-outline",
+                  ].join(" ")}
+                  onClick={handleDocumentReady}
+                  disabled={loading || notFound || remoteMode}
+                  title={
+                    docCv?.documentReady
+                      ? "Dokument als nicht bereit markieren"
+                      : "Dokument als bereit markieren"
+                  }
+                >
+                  <HiMiniDocumentCheck />
+                  <span className="hidden sm:inline">
+                    {docCv?.documentReady ? "Bereit" : "Als Bereit Markieren"}
+                  </span>
                 </button>
               </>
             )}
