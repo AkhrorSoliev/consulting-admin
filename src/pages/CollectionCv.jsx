@@ -23,6 +23,7 @@ import {
   FaThumbsUp,
   FaThumbsDown,
 } from "react-icons/fa";
+import { HiMiniDocumentCheck } from "react-icons/hi2";
 import {
   deleteCandidateWithCurrentStats,
   getDocumentDataById,
@@ -699,6 +700,7 @@ function CollectionCv() {
             telegramId: data.telegramId || null,
             lead: data.lead || null,
             reaction,
+            documentReady: data.documentReady || false,
           };
         });
         setItems(list);
@@ -1387,6 +1389,14 @@ function CollectionCv() {
                               title={`Lead: ${item.lead}`}
                             >
                               {item.lead}
+                            </span>
+                          ) : null}
+                          {item.documentReady ? (
+                            <span
+                              className="inline-flex items-center gap-1 text-green-600"
+                              title="Document is ready"
+                            >
+                              <HiMiniDocumentCheck className="w-4 h-4" />
                             </span>
                           ) : null}
                         </>

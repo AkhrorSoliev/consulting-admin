@@ -64,9 +64,6 @@ export function convertEmailToTelegramFormat(htmlContent, subject) {
     text = `📧 <b>${subject}</b>\n\n${text}`;
   }
 
-  // Add branding footer
-  text += "\n\n━━━━━━━━━━━━━━━\n📱 ConsultingUZ";
-
   return text;
 }
 

@@ -6,7 +6,6 @@ const { defineSecret } = require("firebase-functions/params");
 const logger = require("firebase-functions/logger");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
-const nodemailer = require("nodemailer");
 const {
   createOneTimeChatInviteLink,
   getTelegramChatsFromUpdates,
@@ -29,10 +28,11 @@ const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
 // Store via: firebase functions:secrets:set RECAPTCHA_SECRET_KEY
 // Used to protect public endpoints (Create form) from abuse.
 const RECAPTCHA_SECRET_KEY = defineSecret("RECAPTCHA_SECRET_KEY");
-const SMTP_URL = defineSecret("SMTP_URL");
 
 const REMOTE_API_BASE = "https://json-api.uz/api/project/consultinguz";
 const REMOTE_ALL_USERS = `${REMOTE_API_BASE}/all_users`;
+const BREVO_EMAIL_URL =
+  "https://brevo-project-production.up.railway.app/send-email";
 const EMAIL_AND_PASSID_COLLECTION = "email_and_passId";
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
@@ -989,19 +989,7 @@ async function sendTelegramMessage({ botToken, chatId, text }) {
   return { ok: true };
 }
 
-function createMailTransport(smtpUrl) {
-  const url = String(smtpUrl || "").trim();
-  if (!url) {
-    const e = new Error("smtp-url-missing");
-    e.code = "smtp-url-missing";
-    e.status = 500;
-    throw e;
-  }
-  return nodemailer.createTransport(url);
-}
-
-async function sendCandidateEmail({ smtpUrl, from, to, subject, text }) {
-  const mailFrom = String(from || "").trim();
+async function sendCandidateEmail({ to, subject, text }) {
   const mailTo = String(to || "").trim();
   const mailSubject = String(subject || "").trim();
   const mailText = String(text || "").trim();
@@ -1019,17 +1007,26 @@ async function sendCandidateEmail({ smtpUrl, from, to, subject, text }) {
     throw e;
   }
 
-  const transport = createMailTransport(smtpUrl);
-  const mailOptions = {
-    to: mailTo,
-    subject: mailSubject,
-    text: mailText,
-  };
-  // Only set 'from' if explicitly provided; otherwise Brevo/SMTP uses default sender
-  if (mailFrom) {
-    mailOptions.from = mailFrom;
+  const response = await fetch(BREVO_EMAIL_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      email: mailTo,
+      subject: mailSubject,
+      message: mailText,
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    const e = new Error(
+      `Brevo email sending failed (${response.status}): ${text || "no detail"}`
+    );
+    e.code = "brevo-send-failed";
+    e.status = response.status;
+    throw e;
   }
-  await transport.sendMail(mailOptions);
+
   return { ok: true };
 }
 
@@ -1252,7 +1249,7 @@ exports.syncEmailAndPassIdRegistry = onDocumentWritten(
 // Body: { major: string, payload: object, recaptchaToken?: string }
 exports.submitCandidate = onRequest(
   {
-    secrets: [RECAPTCHA_SECRET_KEY, TELEGRAM_BOT_TOKEN, SMTP_URL],
+    secrets: [RECAPTCHA_SECRET_KEY, TELEGRAM_BOT_TOKEN],
     timeoutSeconds: 120,
   },
   async (req, res) => {
@@ -1514,7 +1511,6 @@ exports.submitCandidate = onRequest(
       const confirmationText =
         buildCandidateSubmitConfirmationMessage(metaName);
       const botToken = String(TELEGRAM_BOT_TOKEN.value() || "").trim();
-      const smtpUrl = String(SMTP_URL.value() || "").trim();
 
       const notificationTasks = [];
       if (safeTelegramId && botToken) {
@@ -1526,12 +1522,10 @@ exports.submitCandidate = onRequest(
           })
         );
       }
-      // Send email if SMTP_URL is configured (Brevo uses default sender)
-      if (safeEmail && smtpUrl) {
+      // Send email via Brevo Railway service
+      if (safeEmail) {
         notificationTasks.push(
           sendCandidateEmail({
-            smtpUrl,
-            from: "", // empty: Brevo/SMTP uses default sender
             to: safeEmail,
             subject: "✅ Arizangiz qabul qilindi",
             text: confirmationText,
