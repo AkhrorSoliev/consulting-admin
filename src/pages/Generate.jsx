@@ -29,6 +29,7 @@ import {
   FaRobot,
   FaThumbsUp,
   FaThumbsDown,
+  FaPaperPlane,
 } from "react-icons/fa";
 import { HiMiniDocumentCheck } from "react-icons/hi2";
 import toast from "react-hot-toast";
@@ -102,6 +103,7 @@ import UnsavedChangesModal from "../components/UnsavedChangesModal";
 import PhotoModal from "./generate/components/modals/PhotoModal";
 import StageEmailModal from "./generate/components/modals/StageEmailModal";
 import CustomEmailModal from "./generate/components/modals/CustomEmailModal";
+import SendDocumentLinkModal from "./generate/components/modals/SendDocumentLinkModal";
 import LivePreview from "./generate/components/LivePreview";
 import SelectMajorModal from "../components/SelectMajorModal";
 import { restoreRemoteRecordToFirebase } from "./candidates/remoteUserUtils";
@@ -283,6 +285,9 @@ function Generate() {
   const [missingPassportModalOpen, setMissingPassportModalOpen] =
     useState(false);
   const missingPassportResolverRef = useRef(null);
+
+  const [isSendDocLinkModalOpen, setIsSendDocLinkModalOpen] = useState(false);
+  const [isSendingDocLink, setIsSendingDocLink] = useState(false);
 
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -3696,6 +3701,124 @@ function Generate() {
     await sendCustomEmail(customEmailForm);
   }
 
+  function openSendDocLinkModal() {
+    setIsSendDocLinkModalOpen(true);
+  }
+
+  function closeSendDocLinkModal() {
+    setIsSendDocLinkModalOpen(false);
+  }
+
+  async function handleSendDocLinkSubmit(e) {
+    e?.preventDefault();
+    if (!candidateDocId) {
+      toast.error("Keine Dokument-ID vorhanden.");
+      return;
+    }
+
+    const dataExchangeUrl = `${window.location.origin}/dataExchange/${candidateDocId}`;
+    const candidateEmail = String(formCv.personalInfo.email || "").trim();
+    const candidateTelegramId = docCv?.telegramId;
+
+    if (!candidateEmail && !candidateTelegramId) {
+      toast.error("Kandidat hat weder E-Mail noch Telegram.");
+      return;
+    }
+
+    setIsSendingDocLink(true);
+
+    try {
+      let emailSent = false;
+      let telegramSent = false;
+
+      if (candidateEmail) {
+        try {
+          const emailSubject = "Dokument-Upload-Link";
+          const emailMessage = `Hallo ${formCv.personalInfo.name} ${formCv.personalInfo.lastName},\n\nBitte verwenden Sie den folgenden Link, um Ihre Dokumente hochzuladen:\n\n${dataExchangeUrl}\n\nMit freundlichen Grüßen,\nIhr ConsultingUZ Team`;
+          const emailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #333;">Dokument-Upload</h2>
+              <p>Hallo ${formCv.personalInfo.name} ${formCv.personalInfo.lastName},</p>
+              <p>Bitte verwenden Sie den folgenden Link, um Ihre Dokumente hochzuladen:</p>
+              <p style="margin: 20px 0;">
+                <a href="${dataExchangeUrl}" 
+                   style="background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
+                  Dokumente hochladen
+                </a>
+              </p>
+              <p style="color: #666; font-size: 14px;">Oder kopieren Sie diesen Link: ${dataExchangeUrl}</p>
+              <p>Mit freundlichen Grüßen,<br>Ihr ConsultingUZ Team</p>
+            </div>
+          `;
+
+          const result = await sendBrevoEmail({
+            to: candidateEmail,
+            subject: emailSubject,
+            message: emailMessage,
+            htmlContent: emailHtml,
+          });
+
+          if (result.success) {
+            emailSent = true;
+          } else {
+            throw new Error("E-Mail wurde nicht gesendet.");
+          }
+        } catch (error) {
+          console.error("Fehler beim Senden der E-Mail:", error);
+          toast.error("Fehler beim Senden der E-Mail.");
+        }
+      }
+
+      if (candidateTelegramId) {
+        try {
+          const candidateFullName =
+            `${formCv.personalInfo.name} ${formCv.personalInfo.lastName}`.trim();
+          const telegramMessage = `
+
+Assalomu alaykum, ${candidateFullName},
+
+Iltimos, quyidagi havola orqali kerakli hujjatlaringizni yuklang:
+🔗: ${dataExchangeUrl}
+
+━━━━━━━━━━━━━━━
+❗ Agar biror muammo bo'lsa,
+👉 @sh_yodgorov bilan bog'laning.
+
+━━━━━━━━━━━━━━━
+Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
+
+          await sendEmailViaTelegram({
+            telegramId: candidateTelegramId,
+            subject: "Hujjat yuklash havolasi",
+            htmlContent: telegramMessage,
+          });
+
+          telegramSent = true;
+        } catch (error) {
+          console.error("Fehler beim Senden über Telegram:", error);
+          toast.error("Fehler beim Senden über Telegram.");
+        }
+      }
+
+      if (emailSent || telegramSent) {
+        const messages = [];
+        if (emailSent) messages.push("E-Mail");
+        if (telegramSent) messages.push("Telegram");
+        toast.success(
+          `Link erfolgreich gesendet via ${messages.join(" und ")}.`
+        );
+        closeSendDocLinkModal();
+      } else {
+        toast.error("Link konnte nicht gesendet werden.");
+      }
+    } catch (error) {
+      console.error("Fehler beim Senden des Links:", error);
+      toast.error("Fehler beim Senden des Links.");
+    } finally {
+      setIsSendingDocLink(false);
+    }
+  }
+
   async function handleStageEmailSubmit(e) {
     e?.preventDefault();
     if (!pendingStageStep) {
@@ -7079,6 +7202,16 @@ function Generate() {
                   <div className="flex gap-2">
                     <button
                       type="button"
+                      className="btn btn-sm btn-success gap-2"
+                      onClick={openSendDocLinkModal}
+                      disabled={!candidateDocId}
+                      title="Link an Kandidat senden (E-Mail und/oder Telegram)"
+                    >
+                      <FaPaperPlane className="text-xs" />
+                      Link senden
+                    </button>
+                    <button
+                      type="button"
                       className="btn btn-sm btn-primary gap-2"
                       onClick={async () => {
                         const dataExchangeUrl = `${window.location.origin}/dataExchange/${candidateDocId}`;
@@ -7382,6 +7515,16 @@ function Generate() {
         setForm={setCustomEmailForm}
         emailPreview={customEmailPreview}
         placeholders={customEmailDefaults}
+      />
+
+      <SendDocumentLinkModal
+        open={isSendDocLinkModalOpen}
+        onClose={closeSendDocLinkModal}
+        onSubmit={handleSendDocLinkSubmit}
+        isSending={isSendingDocLink}
+        candidateEmail={String(formCv.personalInfo.email || "").trim()}
+        hasTelegramId={Boolean(docCv?.telegramId)}
+        documentLink={`${window.location.origin}/dataExchange/${candidateDocId}`}
       />
 
       {isMobile && showBirthPlacePicker && (
