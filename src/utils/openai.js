@@ -22,15 +22,21 @@ async function correctTextWithAI(text) {
 6. Gib NUR den korrigierten/übersetzten Text zurück, ohne Erklärungen
 7. Behalte die natürliche Struktur bei, aber entferne überflüssige Zeichen und Wiederholungen
 
+KRITISCH - GRAMMATIK-REGELN FÜR KOMMENTARE:
+- Verwende NIEMALS das Wort "Ich" oder andere erste Person Pronomen (mich, mir, mein, etc.)
+- Schreibe Sätze OHNE Subjekt (unpersönlich/subjektlos)
+- Verwende Infinitivkonstruktionen oder unpersönliche Formulierungen
+- Beispiel FALSCH: "Ich habe die Aufgabe erledigt"
+- Beispiel RICHTIG: "Aufgabe erledigt" oder "Hat die Aufgabe erledigt"
+- Wenn "er" oder "sie" im Text vorkommt, füge entsprechende Personalsuffixe hinzu (-t, -te, etc.)
+- Beispiel: "er arbeitet", "sie hat gearbeitet", "er ist gekommen"
+- Der Text sollte wie eine objektive Notiz oder Beobachtung klingen, nicht wie eine persönliche Aussage
+
 WICHTIG: 
 - Entferne "---" und andere Trennzeichen komplett aus dem Text!
 - Entferne alle wiederholten Informationen - jede Information nur EINMAL!
-- BEHALTE DIE GRAMMATIKALISCHE PERSON (erste, zweite oder dritte Person) ABSOLUT UNVERÄNDERT!
-- Ändere NIEMALS NIEMALS die Person des Textes (z.B. von "er ist" zu "ich bin" oder umgekehrt)
-- Wenn der Text in der dritten Person geschrieben ist (er/sie/es), MUSS er in der dritten Person bleiben
-- Wenn der Text in der ersten Person geschrieben ist (ich/wir), MUSS er in der ersten Person bleiben
-- Wenn der Text in der zweiten Person geschrieben ist (du/Sie), MUSS er in der zweiten Person bleiben
-- Dies gilt für ALLE Korrekturen: Grammatik, Rechtschreibung, Übersetzungen - die Person DARF NICHT geändert werden!`,
+- NIEMALS "Ich" verwenden - dies ist absolut verboten!
+- Sätze sollten subjektlos sein, es sei denn "er" oder "sie" wird verwendet`,
         },
         {
           role: "user",
