@@ -25,6 +25,7 @@ import {
 } from "firebase/firestore";
 import { FiTrash2 } from "react-icons/fi";
 import { MdOutlineRestorePage } from "react-icons/md";
+import { FaTelegram } from "react-icons/fa";
 
 function pickFirstNonEmptyString(values) {
   for (const v of values) {
@@ -192,6 +193,24 @@ export default function CandidatesArchivedUsers() {
       );
     });
   }, [items, query]);
+
+  const leadStats = useMemo(() => {
+    const byLead = {};
+    let telegramCount = 0;
+    items.forEach((r) => {
+      const lead = String(r?.lead || "").trim();
+      if (lead) {
+        byLead[lead] = (byLead[lead] || 0) + 1;
+      }
+      if (r?.telegramId) {
+        telegramCount++;
+      }
+    });
+    const leadList = Object.entries(byLead)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
+    return { leadList, telegramCount, total: items.length };
+  }, [items]);
 
   function openMajorModal(record) {
     setPendingRecord(record || null);
@@ -537,6 +556,36 @@ export default function CandidatesArchivedUsers() {
         </div>
       </div>
 
+      {/* Lead & Telegram Statistics */}
+      {!loading && items.length > 0 && (
+        <div className="mb-6 p-4 rounded-box border border-base-300 bg-base-100 shadow-sm">
+          <div className="flex flex-wrap gap-4 items-start">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
+              <span className="font-semibold text-primary">{leadStats.total}</span>
+              <span className="text-sm text-base-content/70">Gesamt</span>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#0088cc]/10 border border-[#0088cc]/20">
+              <FaTelegram className="w-5 h-5 text-[#0088cc]" />
+              <span className="font-semibold text-[#0088cc]">{leadStats.telegramCount}</span>
+              <span className="text-sm text-base-content/70">Telegram</span>
+            </div>
+            {leadStats.leadList.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {leadStats.leadList.map((item) => (
+                  <div
+                    key={item.name}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-500/10 border border-purple-500/20"
+                  >
+                    <span className="font-semibold text-purple-600 dark:text-purple-400">{item.count}</span>
+                    <span className="text-sm text-purple-600 dark:text-purple-400">{item.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className="grid place-items-center py-10">
           <span className="loading loading-spinner loading-lg text-primary" />
@@ -560,6 +609,8 @@ export default function CandidatesArchivedUsers() {
               ).trim() || "";
             const major =
               String(r?.sourceMajor || r?.major || "").trim() || "—";
+            const telegramId = String(r?.telegramId || "").trim() || "";
+            const lead = String(r?.lead || "").trim() || "";
             const key = String(r?.id || idx);
             const busy = restoringKey && String(restoringKey) === String(key);
             const moving = movingKey && String(movingKey) === String(key);
@@ -582,6 +633,8 @@ export default function CandidatesArchivedUsers() {
                   email={email === "—" ? "" : email}
                   major={major === "—" ? "" : major}
                   firebaseId={String(r?.sourceDocId || "").trim() || ""}
+                  telegramId={telegramId}
+                  lead={lead}
                   tone="warning"
                   onClick={() => {
                     const majorParam =
