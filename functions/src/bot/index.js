@@ -53,10 +53,17 @@ module.exports = (db, token) => {
     const firstName = ctx.from.first_name || "";
     const username = ctx.from.username || "";
 
-    // Normalize payload: convert ss back to ß for database lookup
-    // This allows both straßenbau and strassenbau to work
+    // Normalize payload: convert German character replacements back to original
+    // This allows both straßenbau/strassenbau, für/fuer, etc. to work
+    // Frontend sends: ß→ss, ü→ue, ö→oe, ä→ae
+    // We convert back for database lookup
+    // Note: These replacements are safe for major codes which use German words
     const normalizedPayload = startPayload
-      ? String(startPayload).replace(/strassenbau/g, "straßenbau")
+      ? String(startPayload)
+          .replace(/ss/g, "ß")
+          .replace(/ue/g, "ü")
+          .replace(/oe/g, "ö")
+          .replace(/ae/g, "ä")
       : startPayload;
 
     logger.info("Processing registration", {

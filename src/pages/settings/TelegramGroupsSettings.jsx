@@ -258,6 +258,11 @@ export default function TelegramGroupsSettings() {
                 >
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold truncate">{name || "—"}</div>
+                    {hasChat && (
+                      <div className="text-xs font-mono opacity-50 select-all">
+                        chat_id: {row.chat_id}
+                      </div>
+                    )}
                     {isNew ? (
                       <div className="text-xs opacity-70">Neu</div>
                     ) : showStats ? (

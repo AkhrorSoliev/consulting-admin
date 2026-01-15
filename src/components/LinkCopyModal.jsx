@@ -14,9 +14,14 @@ export default function LinkCopyModal({
   if (!open) return null;
   if (typeof document === "undefined") return null;
 
-  // Replace ß with ss for Telegram deep link compatibility
+  // Replace German special characters for Telegram deep link compatibility
+  // ß→ss, ü→ue, ö→oe, ä→ae (Telegram doesn't handle these in start parameters)
   const sanitizedMajorCode = majorCode
-    ? String(majorCode).replace(/ß/g, "ss")
+    ? String(majorCode)
+        .replace(/ß/g, "ss")
+        .replace(/ü/g, "ue")
+        .replace(/ö/g, "oe")
+        .replace(/ä/g, "ae")
     : "";
   const telegramLink = sanitizedMajorCode
     ? `https://t.me/consultinguz_admin_bot?start=${encodeURIComponent(

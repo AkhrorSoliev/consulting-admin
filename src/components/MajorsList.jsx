@@ -981,11 +981,12 @@ function MajorSettingsModal({
                               major?.id ||
                               major?.collectionName ||
                               major;
-                            // Replace ß with ss for Telegram deep link compatibility
-                            const sanitizedMajorId = String(majorId).replace(
-                              /ß/g,
-                              "ss"
-                            );
+                            // Replace German special characters for Telegram deep link compatibility
+                            const sanitizedMajorId = String(majorId)
+                              .replace(/ß/g, "ss")
+                              .replace(/ü/g, "ue")
+                              .replace(/ö/g, "oe")
+                              .replace(/ä/g, "ae");
                             const telegramLink = `https://t.me/consultinguz_admin_bot?start=${sanitizedMajorId}`;
                             navigator.clipboard
                               .writeText(telegramLink)
@@ -1041,11 +1042,12 @@ function MajorSettingsModal({
                                 major?.id ||
                                 major?.collectionName ||
                                 major;
-                              // Replace ß with ss for Telegram deep link compatibility
-                              const sanitizedMajorId = String(majorId).replace(
-                                /ß/g,
-                                "ss"
-                              );
+                              // Replace German special characters for Telegram deep link compatibility
+                              const sanitizedMajorId = String(majorId)
+                                .replace(/ß/g, "ss")
+                                .replace(/ü/g, "ue")
+                                .replace(/ö/g, "oe")
+                                .replace(/ä/g, "ae");
                               const leadTelegramLink = `https://t.me/consultinguz_admin_bot?start=${sanitizedMajorId}__lead__${leadName}`;
                               const canCopy =
                                 isLinkActive && leadLinksActive && leadActive;
