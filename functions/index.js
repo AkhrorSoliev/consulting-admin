@@ -521,10 +521,19 @@ exports.generateInvite = onRequest(
       setCors(req, res);
       const status = Number(err?.status) || 500;
       const code = String(err?.code || "internal");
-      const details =
-        status >= 500
-          ? String(err?.message || err)
-          : String(err?.details || err?.message || "");
+      // Include Telegram API error details for debugging
+      let details;
+      if (err?.details && typeof err.details === "object") {
+        // Telegram API errors have details.telegram with error_code and description
+        const tg = err.details.telegram;
+        if (tg?.description) {
+          details = `${tg.description} (error_code: ${tg.error_code || "unknown"})`;
+        } else {
+          details = JSON.stringify(err.details);
+        }
+      } else {
+        details = String(err?.message || err);
+      }
       return res
         .status(status)
         .json({ ok: false, error: code, details: details || undefined });
@@ -818,7 +827,17 @@ exports.removeUserFromTelegramGroups = onRequest(
         return res.status(500).json({ ok: false, error: "bot-token-missing" });
       }
 
-      logger.info("Removing user from all Telegram groups", { telegramId });
+      // Log who is calling this function
+      const callerEmail = decoded?.email || decoded?.uid || "unknown";
+      const callerIp = req.headers["x-forwarded-for"] || req.ip || "unknown";
+      const userAgent = req.headers["user-agent"] || "unknown";
+      
+      logger.info("Removing user from all Telegram groups", { 
+        telegramId,
+        callerEmail,
+        callerIp,
+        userAgent,
+      });
 
       const result = await removeUserFromAllGroups({
         botToken,
@@ -831,6 +850,7 @@ exports.removeUserFromTelegramGroups = onRequest(
         total: result.total,
         removed: result.removed,
         failed: result.failed,
+        results: result.results,
       });
 
       return res.status(200).json({
@@ -1956,5 +1976,77 @@ exports.debugMajors = onRequest(async (req, res) => {
     res.json({ count: majors.length, majors });
   } catch (e) {
     res.status(500).json({ error: e.message });
+  }
+});
+
+// Count state_1 candidates in each direction
+exports.countState1Candidates = onRequest(async (req, res) => {
+  try {
+    setCors(req, res);
+    if (req.method === "OPTIONS") return res.status(204).send("");
+    
+    // Get all directions from meta collection
+    const metaSnap = await db.collection("meta").get();
+    
+    if (metaSnap.empty) {
+      return res.json({ ok: false, error: "No directions found in meta" });
+    }
+    
+    const results = [];
+    let totalState1 = 0;
+    
+    for (const metaDoc of metaSnap.docs) {
+      const metaData = metaDoc.data();
+      const collectionName = metaData.collectionName || metaData.slug || metaDoc.id;
+      const title = metaData.title || collectionName;
+      const isDeleted = metaData.isDeleted === true;
+      
+      if (!collectionName) continue;
+      
+      try {
+        // Count candidates with stepValue = "stage_1"
+        const state1Snap = await db.collection(collectionName)
+          .where("stepValue", "==", "stage_1")
+          .get();
+        
+        const state1Count = state1Snap.size;
+        
+        // Also get total count
+        const totalSnap = await db.collection(collectionName).get();
+        const totalCount = totalSnap.size;
+        
+        results.push({
+          collectionName,
+          title,
+          isDeleted,
+          state1Count,
+          totalCount,
+        });
+        
+        totalState1 += state1Count;
+        
+        logger.info(`${collectionName}: state_1=${state1Count}, total=${totalCount}`);
+      } catch (err) {
+        results.push({
+          collectionName,
+          title,
+          isDeleted,
+          error: err.message,
+        });
+      }
+    }
+    
+    // Sort by state_1 count descending
+    results.sort((a, b) => (b.state1Count || 0) - (a.state1Count || 0));
+    
+    return res.json({
+      ok: true,
+      totalDirections: metaSnap.size,
+      totalState1Candidates: totalState1,
+      results,
+    });
+  } catch (err) {
+    logger.error("Error counting state_1 candidates", err);
+    return res.status(500).json({ ok: false, error: err.message });
   }
 });
