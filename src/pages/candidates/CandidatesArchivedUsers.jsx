@@ -25,7 +25,8 @@ import {
 } from "firebase/firestore";
 import { FiTrash2 } from "react-icons/fi";
 import { MdOutlineRestorePage } from "react-icons/md";
-import { FaTelegram } from "react-icons/fa";
+import { FaTelegram, FaFileExcel } from "react-icons/fa";
+import { exportFullCandidatesToExcel } from "../../utils/excelExport";
 
 function pickFirstNonEmptyString(values) {
   for (const v of values) {
@@ -137,11 +138,29 @@ export default function CandidatesArchivedUsers() {
   const [confirmState, setConfirmState] = useState(null);
   const [items, setItems] = useState([]);
   const [query, setQuery] = useState("");
+  const [exporting, setExporting] = useState(false);
 
   const [majors, setMajors] = useState([]);
   const [majorModalOpen, setMajorModalOpen] = useState(false);
   const [majorModalKey, setMajorModalKey] = useState("");
   const [pendingRecord, setPendingRecord] = useState(null);
+
+  function handleExportExcel() {
+    if (exporting || items.length === 0) return;
+    setExporting(true);
+    try {
+      const docsWithMajor = items.map((item) => ({
+        ...item,
+        major: item.sourceMajor || item.major || "Archiviert",
+      }));
+      exportFullCandidatesToExcel(docsWithMajor, "Archivierte_Benutzer");
+      toast.success(`${items.length} archivierte Kandidaten exportiert.`);
+    } catch (err) {
+      toast.error(err.message || "Fehler beim Exportieren.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   async function load() {
     if (!isPrivileged) return;
@@ -552,6 +571,20 @@ export default function CandidatesArchivedUsers() {
             disabled={loading}
           >
             Aktualisieren
+          </button>
+          <button
+            type="button"
+            className="btn btn-success gap-2"
+            onClick={handleExportExcel}
+            disabled={exporting || loading || items.length === 0}
+            title="Archivierte Kandidaten als Excel exportieren"
+          >
+            {exporting ? (
+              <span className="loading loading-spinner loading-sm" />
+            ) : (
+              <FaFileExcel className="w-4 h-4" />
+            )}
+            <span className="hidden sm:inline">Excel</span>
           </button>
         </div>
       </div>

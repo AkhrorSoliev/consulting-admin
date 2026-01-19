@@ -6,8 +6,11 @@ import {
 } from "../utils";
 import { useUserRole } from "../hooks/useUserRole";
 import { db } from "../firebase/config";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, getDocs, query, orderBy } from "firebase/firestore";
 import { Bar, Pie, Doughnut } from "react-chartjs-2";
+import { FaFileExcel, FaUsers } from "react-icons/fa";
+import toast from "react-hot-toast";
+import { exportFullCandidatesToExcel } from "../utils/excelExport";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -167,6 +170,39 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
       bucket,
       count: Number(map?.[bucket]) || 0,
     }));
+  }, [statsDoc]);
+
+  const regionCounts = useMemo(() => {
+    const map = statsDoc?.regions?.byRegion || {};
+    const excludedRegions = ["Andijon", "Namangan", "Samarkand", "Tashkent", "Bukhara", 'Samarkanf', 'Taschkent'];
+    return Object.entries(map)
+      .map(([region, count]) => ({ region, count: Number(count) || 0 }))
+      .filter((x) => x.count > 0)
+      .filter((x) => {
+        const hasRegionOrRepublik = /Region|Republik/i.test(x.region);
+        if (hasRegionOrRepublik) return true;
+        return !excludedRegions.some((exc) => x.region.toLowerCase().includes(exc.toLowerCase()));
+      })
+      .sort((a, b) => (b.count || 0) - (a.count || 0));
+  }, [statsDoc]);
+
+  const regionCertCounts = useMemo(() => {
+    const map = statsDoc?.regions?.byRegionCert || {};
+    const excludedRegions = ["Andijon", "Namangan", "Samarkand", "Tashkent", "Bukhara", 'Samarkanf', 'Taschkent'];
+    return Object.entries(map)
+      .map(([region, data]) => ({
+        region,
+        hasCert: Number(data?.hasCert) || 0,
+        noCert: Number(data?.noCert) || 0,
+        total: (Number(data?.hasCert) || 0) + (Number(data?.noCert) || 0),
+      }))
+      .filter((x) => x.total > 0)
+      .filter((x) => {
+        const hasRegionOrRepublik = /Region|Republik/i.test(x.region);
+        if (hasRegionOrRepublik) return true;
+        return !excludedRegions.some((exc) => x.region.toLowerCase().includes(exc.toLowerCase()));
+      })
+      .sort((a, b) => (b.total || 0) - (a.total || 0));
   }, [statsDoc]);
 
   const COLORS = [
@@ -364,6 +400,42 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
     [experienceBuckets]
   );
 
+  const regionBarData = useMemo(
+    () => ({
+      labels: regionCounts.map((r) => r.region),
+      datasets: [
+        {
+          label: "Kandidatlar",
+          data: regionCounts.map((r) => r.count),
+          backgroundColor: "#8B5CF6",
+          borderRadius: 6,
+        },
+      ],
+    }),
+    [regionCounts]
+  );
+
+  const regionCertStackedData = useMemo(
+    () => ({
+      labels: regionCertCounts.map((r) => r.region),
+      datasets: [
+        {
+          label: "Sertifikat bor",
+          data: regionCertCounts.map((r) => r.hasCert),
+          backgroundColor: "#10B981",
+          borderRadius: 4,
+        },
+        {
+          label: "Sertifikat yo'q",
+          data: regionCertCounts.map((r) => r.noCert),
+          backgroundColor: "#EF4444",
+          borderRadius: 4,
+        },
+      ],
+    }),
+    [regionCertCounts]
+  );
+
   const defaultBarOptions = {
     responsive: true,
     maintainAspectRatio: false,
@@ -402,6 +474,57 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
     responsive: true,
     maintainAspectRatio: false,
     plugins: { legend: { position: "bottom" } },
+  };
+
+  const stackedBarOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { position: "top" } },
+    scales: {
+      x: { stacked: true },
+      y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } },
+    },
+  };
+
+  const horizontalBarOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    indexAxis: "y",
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { beginAtZero: true, ticks: { precision: 0 } },
+      y: {
+        ticks: {
+          autoSkip: false,
+          callback: function (val) {
+            const label = this.getLabelForValue(val);
+            const s = String(label || "");
+            return s.length > 20 ? `${s.slice(0, 20)}…` : s;
+          },
+        },
+      },
+    },
+  };
+
+  const horizontalStackedBarOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    indexAxis: "y",
+    plugins: { legend: { position: "top" } },
+    scales: {
+      x: { stacked: true, beginAtZero: true, ticks: { precision: 0 } },
+      y: {
+        stacked: true,
+        ticks: {
+          autoSkip: false,
+          callback: function (val) {
+            const label = this.getLabelForValue(val);
+            const s = String(label || "");
+            return s.length > 20 ? `${s.slice(0, 20)}…` : s;
+          },
+        },
+      },
+    },
   };
 
   return (
@@ -685,6 +808,136 @@ function StatsSection({ title, subtitle, statsDoc, collectionNames, kind }) {
               </div>
             </div>
           </div>
+
+          {/* Row 5 - Viloyatlar bo'yicha statistika */}
+          <div className="card bg-base-100 shadow border border-base-200">
+            <div className="card-body">
+              <h2 className="card-title text-xl mb-4">
+                📍 Viloyatlar bo'yicha statistika
+              </h2>
+              {regionCounts.length === 0 ? (
+                <div className="text-center py-10 opacity-70">
+                  <p>Viloyat ma'lumotlari mavjud emas.</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* KPI cards for regions */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="stat bg-base-200/30 rounded-box border border-base-200">
+                      <div className="stat-title">Jami viloyatlar</div>
+                      <div className="stat-value text-primary text-2xl">
+                        {regionCounts.length}
+                      </div>
+                    </div>
+                    <div className="stat bg-base-200/30 rounded-box border border-base-200">
+                      <div className="stat-title">Eng ko'p kandidat</div>
+                      <div className="stat-value text-secondary text-2xl">
+                        {regionCounts[0]?.count || 0}
+                      </div>
+                      <div className="stat-desc">
+                        {regionCounts[0]?.region || "-"}
+                      </div>
+                    </div>
+                    <div className="stat bg-base-200/30 rounded-box border border-base-200">
+                      <div className="stat-title">Sertifikatli kandidatlar</div>
+                      <div className="stat-value text-success text-2xl">
+                        {regionCertCounts.reduce((sum, r) => sum + r.hasCert, 0)}
+                      </div>
+                      <div className="stat-desc">
+                        Barcha viloyatlardan
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Viloyatlar bo'yicha kandidatlar soni */}
+                    <div className="rounded-box border border-base-200 p-4">
+                      <div className="font-medium mb-3">
+                        Viloyatlar bo'yicha kandidatlar soni
+                      </div>
+                      <div style={{ height: Math.max(300, regionCounts.length * 28) }}>
+                        <Bar data={regionBarData} options={horizontalBarOptions} />
+                      </div>
+                    </div>
+
+                    {/* Viloyatlar bo'yicha sertifikat holati */}
+                    <div className="rounded-box border border-base-200 p-4">
+                      <div className="font-medium mb-3">
+                        Viloyatlar bo'yicha sertifikat holati
+                      </div>
+                      <div style={{ height: Math.max(300, regionCertCounts.length * 28) }}>
+                        <Bar
+                          data={regionCertStackedData}
+                          options={horizontalStackedBarOptions}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Jadval ko'rinishida */}
+                  <div className="overflow-x-auto">
+                    <table className="table table-zebra w-full">
+                      <thead>
+                        <tr>
+                          <th>Viloyat</th>
+                          <th className="text-right">Jami</th>
+                          <th className="text-right">Sertifikat bor</th>
+                          <th className="text-right">Sertifikat yo'q</th>
+                          <th className="text-right">Sertifikat %</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {regionCertCounts.map((r) => (
+                          <tr key={r.region}>
+                            <td className="font-medium">{r.region}</td>
+                            <td className="text-right">{r.total}</td>
+                            <td className="text-right text-success">{r.hasCert}</td>
+                            <td className="text-right text-error">{r.noCert}</td>
+                            <td className="text-right">
+                              {r.total > 0
+                                ? ((r.hasCert / r.total) * 100).toFixed(1)
+                                : 0}
+                              %
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="font-bold">
+                          <td>Jami</td>
+                          <td className="text-right">
+                            {regionCertCounts.reduce((sum, r) => sum + r.total, 0)}
+                          </td>
+                          <td className="text-right text-success">
+                            {regionCertCounts.reduce((sum, r) => sum + r.hasCert, 0)}
+                          </td>
+                          <td className="text-right text-error">
+                            {regionCertCounts.reduce((sum, r) => sum + r.noCert, 0)}
+                          </td>
+                          <td className="text-right">
+                            {(() => {
+                              const total = regionCertCounts.reduce(
+                                (sum, r) => sum + r.total,
+                                0
+                              );
+                              const hasCert = regionCertCounts.reduce(
+                                (sum, r) => sum + r.hasCert,
+                                0
+                              );
+                              return total > 0
+                                ? ((hasCert / total) * 100).toFixed(1)
+                                : 0;
+                            })()}
+                            %
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </section>
@@ -703,6 +956,96 @@ function Home() {
   const canInitAllTime = role === "admin" || role === "super_admin";
   const ensureTimerRef = useRef(null);
   const ensureInFlightRef = useRef(false);
+  const [exportingAllCandidates, setExportingAllCandidates] = useState(false);
+
+  async function handleExportAllCandidates() {
+    if (exportingAllCandidates) return;
+    
+    const names = (Array.isArray(collectionNames) ? collectionNames : [])
+      .map((c) =>
+        typeof c === "string"
+          ? c
+          : c.collectionName || c.slug || c.name || c.id || c.uuid || ""
+      )
+      .filter(Boolean);
+    
+    if (names.length === 0) {
+      toast.error("Keine Berufsfelder gefunden.");
+      return;
+    }
+
+    setExportingAllCandidates(true);
+    toast("Alle Kandidaten werden geladen (aktiv + arxiv + gelöscht)...", { duration: 4000 });
+
+    try {
+      const allCandidates = [];
+      
+      // 1. Aktiv kandidatlar (barcha yo'nalishlardan)
+      for (const colName of names) {
+        try {
+          const q = query(collection(db, colName), orderBy("createdAt", "desc"));
+          const snap = await getDocs(q);
+          snap.docs.forEach((d) => {
+            allCandidates.push({
+              id: d.id,
+              major: colName,
+              candidateType: "Aktiv",
+              ...d.data(),
+            });
+          });
+        } catch (err) {
+          console.error(`Error loading ${colName}:`, err);
+        }
+      }
+
+      // 2. Arxivlangan kandidatlar
+      try {
+        const archivedQuery = query(collection(db, "archived_users"), orderBy("archivedAt", "desc"));
+        const archivedSnap = await getDocs(archivedQuery);
+        archivedSnap.docs.forEach((d) => {
+          const data = d.data();
+          allCandidates.push({
+            id: d.id,
+            major: data.sourceMajor || data.major || "Archiviert",
+            candidateType: "Archiviert",
+            ...data,
+          });
+        });
+      } catch (err) {
+        console.error("Error loading archived_users:", err);
+      }
+
+      // 3. O'chirilgan kandidatlar
+      try {
+        const deletedQuery = query(collection(db, "deleted_users"), orderBy("deletedAt", "desc"));
+        const deletedSnap = await getDocs(deletedQuery);
+        deletedSnap.docs.forEach((d) => {
+          const data = d.data();
+          allCandidates.push({
+            id: d.id,
+            major: data.sourceMajor || data.major || "Gelöscht",
+            candidateType: "Gelöscht",
+            ...data,
+          });
+        });
+      } catch (err) {
+        console.error("Error loading deleted_users:", err);
+      }
+
+      if (allCandidates.length === 0) {
+        toast.error("Keine Kandidaten gefunden.");
+        return;
+      }
+
+      exportFullCandidatesToExcel(allCandidates, "Barcha_Kandidatlar");
+      toast.success(`${allCandidates.length} kandidat eksport qilindi (aktiv + arxiv + o'chirilgan).`);
+    } catch (err) {
+      console.error("Export error:", err);
+      toast.error(err.message || "Fehler beim Exportieren.");
+    } finally {
+      setExportingAllCandidates(false);
+    }
+  }
 
   useEffect(() => {
     const unsub = subscribeToCollections((names) => {
@@ -973,8 +1316,118 @@ function Home() {
             UNKNOWN: 0,
           },
         },
+        regions: {
+          byRegion: {},
+          byRegionCert: {},
+        },
       };
 
+      // Helper function to process a single document
+      const processDoc = (d, majorName) => {
+        const safeKey = (input) =>
+          String(input ?? "")
+            .trim()
+            .replace(/[./[\]#?$\\]/g, "_")
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 80);
+
+        const leadRaw =
+          d?.lead ?? d?.tracking?.lead ?? d?.meta?.lead ?? d?.source?.lead;
+        const leadName = String(leadRaw || "").trim();
+        if (leadName) {
+          const lk = safeKey(leadName);
+          if (lk) {
+            stats.totals.byLead[lk] = (stats.totals.byLead[lk] || 0) + 1;
+            if (majorName) {
+              stats.totals.byMajorLead[majorName] =
+                stats.totals.byMajorLead[majorName] || {};
+              stats.totals.byMajorLead[majorName][lk] =
+                (stats.totals.byMajorLead[majorName][lk] || 0) + 1;
+            }
+          }
+        }
+
+        const gender = normalizeGender(d?.persoenlicheDaten?.geschlecht);
+        stats.demographics.gender[gender] += 1;
+
+        const age = toAge(d?.persoenlicheDaten?.geburtsdatum);
+        if (typeof age === "number") {
+          const b = ageBucket(age);
+          if (b) stats.demographics.ageBuckets[b] += 1;
+          stats.demographics.age.count += 1;
+          stats.demographics.age.sum += age;
+        } else {
+          stats.demographics.age.unknown += 1;
+        }
+
+        const m = normalizeMarital(d?.persoenlicheDaten?.familienstand);
+        stats.demographics.marital[m] += 1;
+
+        const eb = expBucket(d);
+        stats.career.experienceBuckets[eb] += 1;
+
+        const diplomas = extractDiplomas(d);
+        if (diplomas.length > 0)
+          stats.attachments.diplomas.candidates.has += 1;
+        else stats.attachments.diplomas.candidates.none += 1;
+
+        const certs = extractCerts(d);
+        const hasCert = !noLangCertFlag(d) && certs.length > 0;
+        if (hasCert)
+          stats.attachments.languageCertificates.candidates.has += 1;
+        else stats.attachments.languageCertificates.candidates.none += 1;
+
+        if (hasCert) {
+          const detailed = extractCertDetails(d);
+          if (Array.isArray(detailed) && detailed.length > 0) {
+            detailed.forEach((row) => {
+              const url = String(row?.url || "").trim();
+              const type = String(row?.type || "").trim();
+              if (!url || !type) return;
+              const k = safeKey(type);
+              stats.attachments.languageCertificates.byType[k] =
+                (stats.attachments.languageCertificates.byType[k] || 0) + 1;
+            });
+          }
+        }
+
+        const sprachen = d?.faehigkeiten?.sprachen || {};
+        if (sprachen && typeof sprachen === "object") {
+          Object.entries(sprachen).forEach(([langName, level]) => {
+            const ln = safeKey(langName);
+            if (ln) {
+              stats.skills.languages.counts[ln] =
+                (stats.skills.languages.counts[ln] || 0) + 1;
+            }
+            const lv = normalizeLevel(level);
+            stats.skills.languageLevels[lv] += 1;
+          });
+        }
+
+        const regionRaw = d?.persoenlicheDaten?.geburtsort || "";
+        const regionName = String(regionRaw).trim();
+        if (regionName) {
+          const rk = safeKey(regionName);
+          if (rk) {
+            if (!stats.regions.byRegion[rk]) {
+              stats.regions.byRegion[rk] = 0;
+            }
+            stats.regions.byRegion[rk] += 1;
+
+            if (!stats.regions.byRegionCert[rk]) {
+              stats.regions.byRegionCert[rk] = { hasCert: 0, noCert: 0 };
+            }
+            if (hasCert) {
+              stats.regions.byRegionCert[rk].hasCert += 1;
+            } else {
+              stats.regions.byRegionCert[rk].noCert += 1;
+            }
+          }
+        }
+      };
+
+      // Process active major collections
       names.forEach((name) => {
         const safeName = String(name || "").trim();
         const docs = Array.isArray(docsByCollection?.[safeName])
@@ -985,92 +1438,28 @@ function Home() {
         stats.totals.byMajorLead[safeName] =
           stats.totals.byMajorLead[safeName] || {};
 
-        docs.forEach((d) => {
-          const safeKey = (input) =>
-            String(input ?? "")
-              .trim()
-              .replace(/[./[\]#?$\\]/g, "_")
-              .replace(/\s+/g, " ")
-              .trim()
-              .slice(0, 80);
-
-          const leadRaw =
-            d?.lead ?? d?.tracking?.lead ?? d?.meta?.lead ?? d?.source?.lead;
-          const leadName = String(leadRaw || "").trim();
-          if (leadName) {
-            const lk = safeKey(leadName);
-            if (lk) {
-              stats.totals.byLead[lk] = (stats.totals.byLead[lk] || 0) + 1;
-              stats.totals.byMajorLead[safeName][lk] =
-                (stats.totals.byMajorLead[safeName][lk] || 0) + 1;
-            }
-          }
-
-          const gender = normalizeGender(d?.persoenlicheDaten?.geschlecht);
-          stats.demographics.gender[gender] += 1;
-
-          const age = toAge(d?.persoenlicheDaten?.geburtsdatum);
-          if (typeof age === "number") {
-            const b = ageBucket(age);
-            if (b) stats.demographics.ageBuckets[b] += 1;
-            stats.demographics.age.count += 1;
-            stats.demographics.age.sum += age;
-          } else {
-            stats.demographics.age.unknown += 1;
-          }
-
-          const m = normalizeMarital(d?.persoenlicheDaten?.familienstand);
-          stats.demographics.marital[m] += 1;
-
-          const eb = expBucket(d);
-          stats.career.experienceBuckets[eb] += 1;
-
-          const diplomas = extractDiplomas(d);
-          if (diplomas.length > 0)
-            stats.attachments.diplomas.candidates.has += 1;
-          else stats.attachments.diplomas.candidates.none += 1;
-
-          const certs = extractCerts(d);
-          const hasCert = !noLangCertFlag(d) && certs.length > 0;
-          if (hasCert)
-            stats.attachments.languageCertificates.candidates.has += 1;
-          else stats.attachments.languageCertificates.candidates.none += 1;
-
-          if (hasCert) {
-            const detailed = extractCertDetails(d);
-            if (Array.isArray(detailed) && detailed.length > 0) {
-              detailed.forEach((row) => {
-                const url = String(row?.url || "").trim();
-                const type = String(row?.type || "").trim();
-                if (!url || !type) return;
-                const k = safeKey(type);
-                stats.attachments.languageCertificates.byType[k] =
-                  (stats.attachments.languageCertificates.byType[k] || 0) + 1;
-              });
-            }
-          }
-
-          const sprachen = d?.faehigkeiten?.sprachen || {};
-          if (sprachen && typeof sprachen === "object") {
-            Object.entries(sprachen).forEach(([langName, level]) => {
-              const ln = safeKey(langName);
-              if (ln) {
-                stats.skills.languages.counts[ln] =
-                  (stats.skills.languages.counts[ln] || 0) + 1;
-              }
-              const lv = normalizeLevel(level);
-              stats.skills.languageLevels[lv] += 1;
-            });
-          }
-        });
+        docs.forEach((d) => processDoc(d, safeName));
       });
+
+      // Process archived_users (include in region stats but not in totals.candidates)
+      const archivedDocs = Array.isArray(docsByCollection?.["__archived_users__"])
+        ? docsByCollection["__archived_users__"]
+        : [];
+      archivedDocs.forEach((d) => processDoc(d, null));
+
+      // Process deleted_users (include in region stats but not in totals.candidates)
+      const deletedDocs = Array.isArray(docsByCollection?.["__deleted_users__"])
+        ? docsByCollection["__deleted_users__"]
+        : [];
+      deletedDocs.forEach((d) => processDoc(d, null));
 
       return stats;
     };
 
     const docsByCollectionRef = { current: {} };
     const seen = new Set();
-    let pending = names.length;
+    // +2 for archived_users and deleted_users
+    let pending = names.length + 2;
 
     const onAnyUpdate = () => {
       if (cancelled) return;
@@ -1101,11 +1490,61 @@ function Home() {
       );
     });
 
+    // Subscribe to archived_users
+    const unsubArchived = onSnapshot(
+      collection(db, "archived_users"),
+      (snap) => {
+        docsByCollectionRef.current["__archived_users__"] = snap.docs.map(
+          (d) => d.data() || {}
+        );
+        if (!seen.has("__archived_users__")) {
+          seen.add("__archived_users__");
+          pending -= 1;
+        }
+        onAnyUpdate();
+      },
+      (err) => {
+        if (cancelled) return;
+        // Don't fail completely if archived_users fails
+        if (!seen.has("__archived_users__")) {
+          seen.add("__archived_users__");
+          pending -= 1;
+        }
+        onAnyUpdate();
+      }
+    );
+
+    // Subscribe to deleted_users
+    const unsubDeleted = onSnapshot(
+      collection(db, "deleted_users"),
+      (snap) => {
+        docsByCollectionRef.current["__deleted_users__"] = snap.docs.map(
+          (d) => d.data() || {}
+        );
+        if (!seen.has("__deleted_users__")) {
+          seen.add("__deleted_users__");
+          pending -= 1;
+        }
+        onAnyUpdate();
+      },
+      (err) => {
+        if (cancelled) return;
+        // Don't fail completely if deleted_users fails
+        if (!seen.has("__deleted_users__")) {
+          seen.add("__deleted_users__");
+          pending -= 1;
+        }
+        onAnyUpdate();
+      }
+    );
+
     return () => {
       cancelled = true;
       unsubs.forEach((u) => {
         if (typeof u === "function") u();
       });
+      if (typeof unsubArchived === "function") unsubArchived();
+      if (typeof unsubDeleted === "function") unsubDeleted();
     };
   }, [collectionNames]);
 
@@ -1118,6 +1557,22 @@ function Home() {
             <p className="text-base opacity-70">
               Live (aktuell) und Gesamt (historisch) Statistiken.
             </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="btn btn-success gap-2"
+              onClick={handleExportAllCandidates}
+              disabled={exportingAllCandidates || loading || collectionNames.length === 0}
+              title="Alle Kandidaten im Excel-Format herunterladen"
+            >
+              {exportingAllCandidates ? (
+                <span className="loading loading-spinner loading-sm" />
+              ) : (
+                <FaFileExcel className="w-4 h-4" />
+              )}
+              <span>Alle Kandidaten (Excel)</span>
+            </button>
           </div>
         </div>
       </div>
