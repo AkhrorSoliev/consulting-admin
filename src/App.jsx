@@ -27,6 +27,7 @@ import TemplateEmailsSettings from "./pages/settings/TemplateEmailsSettings";
 import DocumentsSettings from "./pages/settings/DocumentsSettings";
 import SettingsIndexRedirect from "./pages/settings/SettingsIndexRedirect";
 import TelegramGroupsSettings from "./pages/settings/TelegramGroupsSettings";
+import TelegramChannelsSettings from "./pages/settings/TelegramChannelsSettings";
 import DirectionsSettings from "./pages/settings/DirectionsSettings";
 import CandidatesLayout from "./pages/candidates/CandidatesLayout";
 import CandidatesIndexRedirect from "./pages/candidates/CandidatesIndexRedirect";
@@ -103,6 +104,7 @@ function App() {
             { index: true, element: <SettingsIndexRedirect /> },
             { path: "admins", element: <AdminsSettings /> },
             { path: "telegram-groups", element: <TelegramGroupsSettings /> },
+            { path: "telegram-channels", element: <TelegramChannelsSettings /> },
             { path: "directions", element: <DirectionsSettings /> },
             { path: "template-emails", element: <TemplateEmailsSettings /> },
             {

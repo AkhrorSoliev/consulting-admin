@@ -91,6 +91,7 @@ import {
 } from "../utils/statusEmail";
 import {
   generateTelegramInviteLink,
+  generateTelegramChannelInviteLink,
   trackTelegramInviteSent,
 } from "../utils/telegramInvites";
 import { sendBrevoEmail } from "../utils/brevo";
@@ -2984,6 +2985,30 @@ function Generate() {
           ? `https://admin.consultinguz.de/dataExchange/${docId}`
           : "";
 
+      // Generate channel invite link for stage_1 accepted candidates
+      let channelInviteLink = "";
+      if (stepValue === "stage_1" && normalizedDecision === "accepted") {
+        try {
+          // Get first active channel from Firestore
+          const { getDocs, query, collection, where, limit } = await import("firebase/firestore");
+          const channelsQuery = query(
+            collection(db, "telegram_channels"),
+            where("active", "==", true),
+            limit(1)
+          );
+          const channelsSnap = await getDocs(channelsQuery);
+          if (!channelsSnap.empty) {
+            const channelDoc = channelsSnap.docs[0];
+            const channelId = channelDoc.id;
+            const { invite_link } = await generateTelegramChannelInviteLink({ channelId });
+            channelInviteLink = invite_link;
+          }
+        } catch (channelErr) {
+          console.warn("Channel invite link generation failed:", channelErr);
+          // Don't fail the email - channel link is optional
+        }
+      }
+
       const { subject, message, htmlContent } = buildStatusEmailTemplate({
         statusValue: stepValue,
         firstName: formCv.personalInfo.name,
@@ -2993,6 +3018,7 @@ function Generate() {
         additionalInfo: info,
         copyOverrides: finalCopyOverrides,
         dataExchangeLink,
+        channelInviteLink,
       });
       const res = await sendBrevoEmail({
         to: recipientEmail,
@@ -3018,6 +3044,7 @@ function Generate() {
             additionalInfo: info,
             copyOverrides: finalCopyOverrides,
             dataExchangeLink,
+            channelInviteLink,
           });
           toast.success("Nachricht auch per Telegram gesendet! 📱");
         } catch (telegramError) {

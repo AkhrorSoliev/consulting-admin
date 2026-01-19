@@ -261,6 +261,7 @@ export function buildStatusEmailTemplate({
   additionalInfo,
   copyOverrides,
   dataExchangeLink,
+  channelInviteLink,
 }) {
   const normalizedStatusValue = statusValue || CANDIDATE_STATUS_DEFAULT;
   const status = getCandidateStatus(normalizedStatusValue);
@@ -289,6 +290,8 @@ export function buildStatusEmailTemplate({
   const locationUrl = String(additionalInfo?.locationUrl || "").trim();
   const hasLocation = Boolean(locationName || locationUrl);
 
+  const safeChannelLink = String(channelInviteLink || "").trim();
+
   const extraRows = [
     dateTime
       ? { label: "Sana / vaqt", value: formatInterviewDateTime(dateTime) }
@@ -306,6 +309,9 @@ export function buildStatusEmailTemplate({
     decision === "accepted" &&
     dataExchangeLink
       ? { label: "Hujjatlar yuklash havolasi", value: dataExchangeLink }
+      : null,
+    safeChannelLink
+      ? { label: "Yangiliklar kanaliga a'zo bo'lish", value: safeChannelLink }
       : null,
   ].filter(Boolean);
 
@@ -338,6 +344,8 @@ export function buildStatusEmailTemplate({
 
   const message = parts.join("\n");
 
+  const safeChannelInviteLink = String(channelInviteLink || "").trim();
+
   const htmlContent = buildHtmlEmail({
     fullName,
     statusLabel: statusLabelText,
@@ -349,6 +357,7 @@ export function buildStatusEmailTemplate({
       link ||
       locationName ||
       locationUrl ||
+      safeChannelInviteLink ||
       (normalizedStatusValue === "stage_4" &&
         decision === "accepted" &&
         dataExchangeLink)
@@ -361,6 +370,7 @@ export function buildStatusEmailTemplate({
               normalizedStatusValue === "stage_4" && decision === "accepted"
                 ? dataExchangeLink || ""
                 : "",
+            channelInviteLink: safeChannelInviteLink,
           }
         : null,
     decisionNote: decisionNote || "",
@@ -520,6 +530,9 @@ function buildDetailRows({ additionalInfo, decisionNote, channelsText }) {
     const dataExchangeLink = String(
       additionalInfo.dataExchangeLink || ""
     ).trim();
+    const channelInviteLink = String(
+      additionalInfo.channelInviteLink || ""
+    ).trim();
     if (dt) {
       rows.push({
         label: "📅 Sana / Vaqt",
@@ -544,6 +557,12 @@ function buildDetailRows({ additionalInfo, decisionNote, channelsText }) {
       rows.push({
         label: "📄 Hujjatlar yuklash havolasi",
         value: dataExchangeLink,
+      });
+    }
+    if (channelInviteLink) {
+      rows.push({
+        label: "📢 Yangiliklar kanaliga a'zo bo'lish",
+        value: channelInviteLink,
       });
     }
   }
@@ -588,6 +607,7 @@ export function buildTelegramStatusMessage({
   additionalInfo,
   copyOverrides,
   dataExchangeLink,
+  channelInviteLink,
 }) {
   const normalizedStatusValue = statusValue || CANDIDATE_STATUS_DEFAULT;
   const status = getCandidateStatus(normalizedStatusValue);
@@ -657,8 +677,9 @@ export function buildTelegramStatusMessage({
   const locName = String(additionalInfo?.locationName || "").trim();
   const locUrl = String(additionalInfo?.locationUrl || "").trim();
   const dataExchangeLinkTg = String(dataExchangeLink || "").trim();
+  const channelInviteLinkTg = String(channelInviteLink || "").trim();
 
-  if (dt || link || locName || locUrl || dataExchangeLinkTg) {
+  if (dt || link || locName || locUrl || dataExchangeLinkTg || channelInviteLinkTg) {
     parts.push(`━━━━━━━━━━━━━━━`);
     parts.push(`📋 <b>Qo'shimcha ma'lumotlar:</b>`);
     parts.push("");
@@ -692,6 +713,11 @@ export function buildTelegramStatusMessage({
     if (dataExchangeLinkTg) {
       parts.push(
         `📄 <b>Hujjatlar yuklash havolasi:</b> <a href="${dataExchangeLinkTg}">Hujjatlarni yuklash</a>`
+      );
+    }
+    if (channelInviteLinkTg) {
+      parts.push(
+        `📢 <b>Yangiliklar kanaliga a'zo bo'lish:</b> <a href="${channelInviteLinkTg}">Kanalga qo'shilish</a>`
       );
     }
     parts.push("");
@@ -750,6 +776,13 @@ export function buildTelegramStatusMessage({
   if (dataExchangeLinkTg && isValidTelegramUrl(dataExchangeLinkTg)) {
     keyboard.push([
       { text: "📄 Hujjatlarni yuklash", url: dataExchangeLinkTg },
+    ]);
+  }
+
+  // Add channel invite link button if available and valid
+  if (channelInviteLinkTg && isValidTelegramUrl(channelInviteLinkTg)) {
+    keyboard.push([
+      { text: "📢 Yangiliklar kanaliga qo'shilish", url: channelInviteLinkTg },
     ]);
   }
 
