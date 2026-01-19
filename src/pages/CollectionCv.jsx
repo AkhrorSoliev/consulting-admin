@@ -22,6 +22,7 @@ import {
   FaTelegram,
   FaThumbsUp,
   FaThumbsDown,
+  FaFileExcel,
 } from "react-icons/fa";
 import { HiMiniDocumentCheck } from "react-icons/hi2";
 import {
@@ -44,6 +45,8 @@ import {
   normalizeCandidateStatusValue,
 } from "../constants/candidateStatus";
 import { hasRichTextContent } from "../utils/commentar";
+import { exportCandidatesToExcel, exportFullCandidatesToExcel } from "../utils/excelExport";
+import { getDocs } from "firebase/firestore";
 
 function CollectionCv() {
   const { major } = useParams();
@@ -77,6 +80,46 @@ function CollectionCv() {
   const fetchedEmailsRef = useRef(new Set());
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 24;
+  const [exporting, setExporting] = useState(false);
+  const [exportingFull, setExportingFull] = useState(false);
+
+  function handleExportExcel() {
+    if (exporting || filteredItems.length === 0) return;
+    setExporting(true);
+    try {
+      exportCandidatesToExcel(filteredItems, title);
+      toast.success(`${filteredItems.length} Kandidaten exportiert.`);
+    } catch (err) {
+      toast.error(err.message || "Fehler beim Exportieren.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleExportFullExcel() {
+    if (exportingFull || items.length === 0) return;
+    const colName = String(resolvedMajor?.collectionName || "").trim();
+    if (!colName) {
+      toast.error("Berufsfeld nicht gefunden.");
+      return;
+    }
+    setExportingFull(true);
+    try {
+      toast("To'liq ma'lumotlar yuklanmoqda...", { duration: 2000 });
+      const q = query(collection(db, colName), orderBy("createdAt", "desc"));
+      const snap = await getDocs(q);
+      const fullDocs = snap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }));
+      exportFullCandidatesToExcel(fullDocs, title);
+      toast.success(`${fullDocs.length} kandidat to'liq ma'lumotlari eksport qilindi.`);
+    } catch (err) {
+      toast.error(err.message || "Fehler beim Exportieren.");
+    } finally {
+      setExportingFull(false);
+    }
+  }
 
   function calculateAgeFromDDMMYYYY(value) {
     try {
@@ -977,17 +1020,47 @@ function CollectionCv() {
           </div>
 
           <div className="mt-3 flex flex-col gap-2 w-full md:w-auto">
-            <input
-              type="search"
-              id="search"
-              name="search"
-              autoComplete="off"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="input input-bordered w-full lg:w-64"
-              placeholder="Nach Name suchen..."
-              aria-label="Nach Name suchen"
-            />
+            <div className="flex gap-2 flex-wrap">
+              <input
+                type="search"
+                id="search"
+                name="search"
+                autoComplete="off"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="input input-bordered w-full lg:w-64"
+                placeholder="Nach Name suchen..."
+                aria-label="Nach Name suchen"
+              />
+              <button
+                type="button"
+                className="btn btn-success btn-sm gap-2"
+                onClick={handleExportExcel}
+                disabled={exporting || loading || filteredItems.length === 0}
+                title="Qisqa Excel eksport"
+              >
+                {exporting ? (
+                  <span className="loading loading-spinner loading-sm" />
+                ) : (
+                  <FaFileExcel className="w-4 h-4" />
+                )}
+                <span className="hidden sm:inline">Excel</span>
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline btn-success btn-sm gap-2"
+                onClick={handleExportFullExcel}
+                disabled={exportingFull || loading || items.length === 0}
+                title="To'liq ma'lumotlar bilan Excel eksport"
+              >
+                {exportingFull ? (
+                  <span className="loading loading-spinner loading-sm" />
+                ) : (
+                  <FaFileExcel className="w-4 h-4" />
+                )}
+                <span className="hidden sm:inline">To'liq Excel</span>
+              </button>
+            </div>
           </div>
         </div>
 

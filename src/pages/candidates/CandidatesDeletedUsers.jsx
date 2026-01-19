@@ -5,7 +5,8 @@ import { useNavigate } from "react-router-dom";
 import useUserRole from "../../hooks/useUserRole";
 import { FiTrash2 } from "react-icons/fi";
 import { MdOutlineRestorePage } from "react-icons/md";
-import { FaTelegram } from "react-icons/fa";
+import { FaTelegram, FaFileExcel } from "react-icons/fa";
+import { exportFullCandidatesToExcel } from "../../utils/excelExport";
 import {
   addCandidateWithDualStats,
   deleteConsultingUploadUrlsStrict,
@@ -96,11 +97,29 @@ export default function CandidatesDeletedUsers() {
   const [confirmState, setConfirmState] = useState(null);
   const [items, setItems] = useState([]);
   const [query, setQuery] = useState("");
+  const [exporting, setExporting] = useState(false);
 
   const [majors, setMajors] = useState([]);
   const [majorModalOpen, setMajorModalOpen] = useState(false);
   const [majorModalKey, setMajorModalKey] = useState("");
   const [pendingRecord, setPendingRecord] = useState(null);
+
+  function handleExportExcel() {
+    if (exporting || items.length === 0) return;
+    setExporting(true);
+    try {
+      const docsWithMajor = items.map((item) => ({
+        ...item,
+        major: item.sourceMajor || item.major || "Gelöscht",
+      }));
+      exportFullCandidatesToExcel(docsWithMajor, "Geloeschte_Benutzer");
+      toast.success(`${items.length} gelöschte Kandidaten exportiert.`);
+    } catch (err) {
+      toast.error(err.message || "Fehler beim Exportieren.");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   // Multi-select state (localStorage persistent)
   const SELECTED_KEYS_STORAGE = "deletedUsersSelectedKeys";
@@ -570,6 +589,20 @@ export default function CandidatesDeletedUsers() {
             disabled={loading}
           >
             Aktualisieren
+          </button>
+          <button
+            type="button"
+            className="btn btn-success gap-2"
+            onClick={handleExportExcel}
+            disabled={exporting || loading || items.length === 0}
+            title="Gelöschte Kandidaten als Excel exportieren"
+          >
+            {exporting ? (
+              <span className="loading loading-spinner loading-sm" />
+            ) : (
+              <FaFileExcel className="w-4 h-4" />
+            )}
+            <span className="hidden sm:inline">Excel</span>
           </button>
         </div>
       </div>
