@@ -62,6 +62,17 @@ export default function SettingsLayout() {
                   </NavLink>
                 </li>
               )}
+              {showTelegramGroups && (
+                <li>
+                  <NavLink to="telegram-channels" className={menuItemClass} end>
+                    <FaTelegramPlane
+                      className="h-[18px] w-[18px] opacity-90"
+                      aria-hidden="true"
+                    />
+                    <span className="flex-1">Telegram Channels</span>
+                  </NavLink>
+                </li>
+              )}
               {showAdmins && (
                 <li>
                   <NavLink to="directions" className={menuItemClass} end>

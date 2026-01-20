@@ -161,6 +161,7 @@ export async function sendStatusViaTelegram({
   additionalInfo,
   copyOverrides,
   dataExchangeLink,
+  channelInviteLink,
 }) {
   const { message, keyboard } = buildTelegramStatusMessage({
     statusValue,
@@ -171,6 +172,7 @@ export async function sendStatusViaTelegram({
     additionalInfo,
     copyOverrides,
     dataExchangeLink,
+    channelInviteLink,
   });
   return sendTelegramMessage(telegramId, message, "HTML", keyboard);
 }

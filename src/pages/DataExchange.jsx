@@ -16,7 +16,7 @@ import {
   FaExternalLinkAlt,
 } from "react-icons/fa";
 import toast from "react-hot-toast";
-import { uploadFileToConsulting, deleteUploadedFileRemote } from "../utils";
+import { uploadFileToFirebase, deleteUploadedFile } from "../utils";
 
 function DataExchange() {
   const { id } = useParams();
@@ -179,7 +179,7 @@ function DataExchange() {
       const fileName = `${docTitle} - ${name}.pdf`;
 
       const renamedFile = new File([file], fileName, { type: file.type });
-      const url = await uploadFileToConsulting(renamedFile);
+      const url = await uploadFileToFirebase(renamedFile, "incoming");
 
       const updatedIncoming = {
         ...incomingDocs,
@@ -211,7 +211,7 @@ function DataExchange() {
     setDeletingDocs((prev) => ({ ...prev, [docId]: true }));
 
     try {
-      await deleteUploadedFileRemote(incomingDoc.url);
+      await deleteUploadedFile(incomingDoc.url);
 
       const updatedIncoming = { ...incomingDocs };
       delete updatedIncoming[docId];

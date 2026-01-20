@@ -143,6 +143,32 @@ export async function fetchTelegramGroupsFromUpdates({ limit = 100 } = {}) {
   }));
 }
 
+export async function generateTelegramChannelInviteLink({ channelId }) {
+  const safeChannelId = String(channelId || "").trim();
+  if (!safeChannelId) throw new Error("channelId required");
+
+  const user = auth.currentUser;
+  if (!user) throw new Error("Not authenticated");
+
+  const token = await user.getIdToken();
+  const { json } = await fetchJsonWithBaseFallback(
+    (base) => `${String(base).replace(/\/+$/, "")}/generateChannelInvite`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ channelId: safeChannelId }),
+    }
+  );
+
+  return {
+    invite_link: String(json.invite_link || ""),
+    expire_date: Number(json.expire_date) || null,
+  };
+}
+
 export async function trackTelegramInviteSent({ groupId, count = 1 }) {
   const safeGroupId = String(groupId || "").trim();
   if (!safeGroupId) throw new Error("groupId required");

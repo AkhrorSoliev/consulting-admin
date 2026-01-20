@@ -39,9 +39,9 @@ import {
   fromInputDate,
   generateSkills,
   sortTimelineItemsDesc,
-  uploadFilesToConsulting,
-  deleteUploadedFileRemote,
-  deleteUploadedFilesRemote,
+  uploadFilesToFirebase,
+  deleteUploadedFile,
+  deleteUploadedFiles,
   getMetaByName,
 } from "../utils";
 import { triggerBigCelebration } from "../utils/celebration";
@@ -1928,8 +1928,9 @@ function Create() {
         if (passportFilesToUpload.length === 0) {
           throw new Error("Reisepass/ID fehlt. Bitte laden Sie ein PDF hoch.");
         }
-        const passportUrls = await uploadFilesToConsulting(
-          passportFilesToUpload
+        const passportUrls = await uploadFilesToFirebase(
+          passportFilesToUpload,
+          "passports"
         );
 
         // 2. Diplomas yuklash
@@ -1941,7 +1942,7 @@ function Create() {
             "Diplome fehlen. Bitte laden Sie mindestens ein PDF hoch."
           );
         }
-        const diplomaUrls = await uploadFilesToConsulting(diplomaFilesToUpload);
+        const diplomaUrls = await uploadFilesToFirebase(diplomaFilesToUpload, "diplomas");
 
         // 3. Language certificates yuklash (optional)
         let langCertUrls = [];
@@ -1950,7 +1951,7 @@ function Create() {
           : [];
         if (langCertFilesToUpload.length > 0) {
           const files = langCertFilesToUpload.map((item) => item?.file || item);
-          langCertUrls = await uploadFilesToConsulting(files);
+          langCertUrls = await uploadFilesToFirebase(files, "certificates");
         }
 
         toast.success("Dokumente erfolgreich hochgeladen!", {

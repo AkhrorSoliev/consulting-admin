@@ -61,7 +61,6 @@ import {
   saveArchivedUserSnapshotFirestore,
   saveDeletedUserSnapshotFirestore,
   imageFileToBase64,
-  uploadFileToConsulting,
   toInputDate,
   fromInputDate,
   generateSkills,
@@ -73,7 +72,8 @@ import {
   hasRichTextContent,
   commentHtmlToPlainText,
   DEFAULT_COMMENT_TEMPLATE_HTML,
-  deleteUploadedFileRemote,
+  deleteUploadedFile,
+  uploadFileToFirebase,
   toInputMonth,
   fromInputMonth,
   getUserFromFirestore,
@@ -91,6 +91,7 @@ import {
 } from "../utils/statusEmail";
 import {
   generateTelegramInviteLink,
+  generateTelegramChannelInviteLink,
   trackTelegramInviteSent,
 } from "../utils/telegramInvites";
 import { sendBrevoEmail } from "../utils/brevo";
@@ -402,6 +403,13 @@ function Generate() {
   // Document upload state
   const [selectedDocumentType, setSelectedDocumentType] = useState("");
 
+  // Pending files to upload on save (File objects, not yet uploaded to Firebase)
+  const [pendingDocumentFiles, setPendingDocumentFiles] = useState({
+    passport: [],
+    diplomas: [],
+    certificates: [],
+  });
+
   // Track documents marked for deletion (soft delete)
   const [documentsMarkedForDeletion, setDocumentsMarkedForDeletion] = useState({
     passport: [],
@@ -626,7 +634,7 @@ function Generate() {
     let remoteMissing = false;
     if (url) {
       try {
-        await deleteUploadedFileRemote(url);
+        await deleteUploadedFile(url);
       } catch (err) {
         if (Number(err?.status) === 404) {
           remoteMissing = true;
@@ -761,7 +769,7 @@ function Generate() {
     const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
       type: "application/pdf",
     });
-    const url = await uploadFileToConsulting(file);
+    const url = await uploadFileToFirebase(file, "outgoing");
     return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
   }
 
@@ -831,7 +839,7 @@ function Generate() {
     const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
       type: "application/pdf",
     });
-    const url = await uploadFileToConsulting(file);
+    const url = await uploadFileToFirebase(file, "outgoing");
     return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
   }
 
@@ -874,7 +882,7 @@ function Generate() {
     const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
       type: "application/pdf",
     });
-    const url = await uploadFileToConsulting(file);
+    const url = await uploadFileToFirebase(file, "outgoing");
     return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
   }
 
@@ -931,7 +939,7 @@ function Generate() {
     const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
       type: "application/pdf",
     });
-    const url = await uploadFileToConsulting(file);
+    const url = await uploadFileToFirebase(file, "outgoing");
     return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
   }
 
@@ -2487,102 +2495,82 @@ function Generate() {
     } catch (err) {}
   }
 
-  async function handleDocumentFileChange(e) {
+  function handleDocumentFileChange(e) {
     if (isLimitedAdmin) return;
     const file = e.target.files?.[0];
     if (!file || !selectedDocumentType) return;
 
-    try {
-      // Reset the file input
-      e.target.value = "";
+    // Reset the file input
+    e.target.value = "";
 
-      // Upload file to Firebase
-      const url = await uploadFileToConsulting(file);
+    // Get German name for toast message
+    const typeNames = {
+      passport: "Reisepass",
+      diplomas: "Diplome",
+      certificates: "Zertifikate",
+    };
+    const typeName = typeNames[selectedDocumentType] || selectedDocumentType;
 
-      // Get German name for toast message
-      const typeNames = {
-        passport: "Reisepass",
-        diplomas: "Diplome",
-        certificates: "Zertifikate",
-      };
-      const typeName = typeNames[selectedDocumentType] || selectedDocumentType;
+    // Create a temporary blob URL for preview
+    const tempUrl = URL.createObjectURL(file);
 
-      // Update form state and get the updated state
-      let updatedForm;
-      setFormCv((prev) => {
-        const updatedDocs = { ...prev.documents };
-        if (!updatedDocs[selectedDocumentType]) {
-          updatedDocs[selectedDocumentType] = [];
-        }
+    // Add file to pending uploads (will be uploaded on save)
+    setPendingDocumentFiles((prev) => ({
+      ...prev,
+      [selectedDocumentType]: [
+        ...(prev[selectedDocumentType] || []),
+        { file, tempUrl },
+      ],
+    }));
 
-        // For certificates, also update certificatesDetailed if type is selected
-        if (selectedDocumentType === "certificates") {
-          // Add to regular certificates array
-          updatedDocs[selectedDocumentType] = [
-            ...updatedDocs[selectedDocumentType],
-            url,
-          ];
-
-          // Also add to certificatesDetailed with empty type (user will set type later)
-          const updatedDetailed = Array.isArray(
-            prev.documents?.certificatesDetailed
-          )
-            ? [...prev.documents.certificatesDetailed, { url, type: "" }]
-            : [{ url, type: "" }];
-
-          updatedDocs.certificatesDetailed = updatedDetailed;
-
-          updatedForm = {
-            ...prev,
-            documents: updatedDocs,
-          };
-        } else {
-          // For passport and diplomas, just add to regular arrays
-          updatedDocs[selectedDocumentType] = [
-            ...updatedDocs[selectedDocumentType],
-            url,
-          ];
-
-          updatedForm = {
-            ...prev,
-            documents: updatedDocs,
-          };
-        }
-
-        return updatedForm;
-      });
-
-      // Reset the selected document type
-      setSelectedDocumentType("");
-
-      // Auto-save to Firebase immediately
-      try {
-        const candidateDocId = String(id || "").trim();
-        const collectionName = String(
-          resolvedMajor?.collectionName || ""
-        ).trim();
-
-        if (candidateDocId && collectionName && updatedForm) {
-          const docData = mapFormToDoc(updatedForm);
-
-          await updateDocument(collectionName, candidateDocId, {
-            documents: docData.documents,
-          });
-
-          toast.success(
-            `Dokument erfolgreich zu ${typeName} hochgeladen und gespeichert`
-          );
-        } else {
-          toast.success(`Dokument erfolgreich zu ${typeName} hochgeladen`);
-        }
-      } catch (saveErr) {
-        toast.success(
-          `Dokument erfolgreich zu ${typeName} hochgeladen (Speichern fehlgeschlagen)`
-        );
+    // Update form state with temporary URL for preview
+    setFormCv((prev) => {
+      const updatedDocs = { ...prev.documents };
+      if (!updatedDocs[selectedDocumentType]) {
+        updatedDocs[selectedDocumentType] = [];
       }
-    } catch (err) {
-      toast.error("Fehler beim Hochladen des Dokuments");
-    }
+
+      // For certificates, also update certificatesDetailed if type is selected
+      if (selectedDocumentType === "certificates") {
+        // Add to regular certificates array
+        updatedDocs[selectedDocumentType] = [
+          ...updatedDocs[selectedDocumentType],
+          tempUrl,
+        ];
+
+        // Also add to certificatesDetailed with empty type (user will set type later)
+        const updatedDetailed = Array.isArray(
+          prev.documents?.certificatesDetailed
+        )
+          ? [...prev.documents.certificatesDetailed, { url: tempUrl, type: "" }]
+          : [{ url: tempUrl, type: "" }];
+
+        updatedDocs.certificatesDetailed = updatedDetailed;
+
+        return {
+          ...prev,
+          documents: updatedDocs,
+        };
+      } else {
+        // For passport and diplomas, just add to regular arrays
+        updatedDocs[selectedDocumentType] = [
+          ...updatedDocs[selectedDocumentType],
+          tempUrl,
+        ];
+
+        return {
+          ...prev,
+          documents: updatedDocs,
+        };
+      }
+    });
+
+    // Reset the selected document type
+    setSelectedDocumentType("");
+
+    toast.success(
+      `${typeName} hinzugefügt. Klicken Sie auf "Speichern", um hochzuladen.`
+    );
   }
 
   // Experience handlers
@@ -2984,6 +2972,30 @@ function Generate() {
           ? `https://admin.consultinguz.de/dataExchange/${docId}`
           : "";
 
+      // Generate channel invite link for stage_1 accepted candidates
+      let channelInviteLink = "";
+      if (stepValue === "stage_1" && normalizedDecision === "accepted") {
+        try {
+          // Get first active channel from Firestore
+          const { getDocs, query, collection, where, limit } = await import("firebase/firestore");
+          const channelsQuery = query(
+            collection(db, "telegram_channels"),
+            where("active", "==", true),
+            limit(1)
+          );
+          const channelsSnap = await getDocs(channelsQuery);
+          if (!channelsSnap.empty) {
+            const channelDoc = channelsSnap.docs[0];
+            const channelId = channelDoc.id;
+            const { invite_link } = await generateTelegramChannelInviteLink({ channelId });
+            channelInviteLink = invite_link;
+          }
+        } catch (channelErr) {
+          console.warn("Channel invite link generation failed:", channelErr);
+          // Don't fail the email - channel link is optional
+        }
+      }
+
       const { subject, message, htmlContent } = buildStatusEmailTemplate({
         statusValue: stepValue,
         firstName: formCv.personalInfo.name,
@@ -2993,6 +3005,7 @@ function Generate() {
         additionalInfo: info,
         copyOverrides: finalCopyOverrides,
         dataExchangeLink,
+        channelInviteLink,
       });
       const res = await sendBrevoEmail({
         to: recipientEmail,
@@ -3018,6 +3031,7 @@ function Generate() {
             additionalInfo: info,
             copyOverrides: finalCopyOverrides,
             dataExchangeLink,
+            channelInviteLink,
           });
           toast.success("Nachricht auch per Telegram gesendet! 📱");
         } catch (telegramError) {
@@ -3181,6 +3195,31 @@ function Generate() {
       // 0) Load full candidate doc so we can snapshot it into deleted_users
       const full = await getDocumentDataById(colName, itemId);
       const remotePayload = full && typeof full === "object" ? full : {};
+
+      // 0.5) Delete all document files from Storage (Firebase + json-api)
+      const docs = full?.documents || {};
+      const allFileUrls = [
+        ...(Array.isArray(docs.passport) ? docs.passport : []),
+        ...(Array.isArray(docs.diplomas) ? docs.diplomas : []),
+        ...(Array.isArray(docs.certificates) ? docs.certificates : []),
+        ...(Array.isArray(docs.certificatesDetailed)
+          ? docs.certificatesDetailed.map((c) => c?.url).filter(Boolean)
+          : []),
+      ].filter((url) => typeof url === "string" && url.trim());
+
+      // Also collect outgoing documents
+      const outgoing = full?.outgoingDocuments || {};
+      const outgoingUrls = Object.values(outgoing)
+        .map((doc) => doc?.url)
+        .filter((url) => typeof url === "string" && url.trim());
+
+      const allUrls = [...new Set([...allFileUrls, ...outgoingUrls])];
+
+      if (allUrls.length > 0) {
+        await Promise.all(
+          allUrls.map((url) => deleteUploadedFile(url).catch(() => {}))
+        );
+      }
 
       // 1) Remove from Firestore email registry (`email_and_passId`)
       const emailFromDoc = String(full?.persoenlicheDaten?.email || "").trim();
@@ -4127,6 +4166,77 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
 
     try {
       setIsSaving(true);
+
+      // Upload pending document files to Firebase Storage and build URL mapping
+      const hasPendingFiles =
+        pendingDocumentFiles.passport.length > 0 ||
+        pendingDocumentFiles.diplomas.length > 0 ||
+        pendingDocumentFiles.certificates.length > 0;
+
+      // Map of tempUrl -> realUrl for replacing in formCv
+      const urlReplacements = {};
+
+      if (hasPendingFiles && !isLimitedAdmin) {
+        const folderMap = {
+          passport: "passports",
+          diplomas: "diplomas",
+          certificates: "certificates",
+        };
+
+        // Upload all pending files
+        for (const docType of ["passport", "diplomas", "certificates"]) {
+          const pendingFiles = pendingDocumentFiles[docType] || [];
+          if (pendingFiles.length === 0) continue;
+
+          for (const { file, tempUrl } of pendingFiles) {
+            // Upload file to Firebase
+            const realUrl = await uploadFileToFirebase(file, folderMap[docType]);
+            urlReplacements[tempUrl] = realUrl;
+
+            // Revoke the blob URL to free memory
+            URL.revokeObjectURL(tempUrl);
+          }
+        }
+
+        // Clear pending files
+        setPendingDocumentFiles({
+          passport: [],
+          diplomas: [],
+          certificates: [],
+        });
+      }
+
+      // Helper function to replace temp URLs with real URLs
+      const replaceUrl = (url) => urlReplacements[url] || url;
+
+      // Create a copy of formCv with replaced URLs for payload
+      const formCvWithRealUrls = {
+        ...formCv,
+        documents: {
+          ...formCv.documents,
+          passport: Array.isArray(formCv.documents?.passport)
+            ? formCv.documents.passport.map(replaceUrl)
+            : [],
+          diplomas: Array.isArray(formCv.documents?.diplomas)
+            ? formCv.documents.diplomas.map(replaceUrl)
+            : [],
+          certificates: Array.isArray(formCv.documents?.certificates)
+            ? formCv.documents.certificates.map(replaceUrl)
+            : [],
+          certificatesDetailed: Array.isArray(formCv.documents?.certificatesDetailed)
+            ? formCv.documents.certificatesDetailed.map((cert) => ({
+                ...cert,
+                url: replaceUrl(cert.url),
+              }))
+            : [],
+        },
+      };
+
+      // Update formCv state with real URLs
+      if (Object.keys(urlReplacements).length > 0) {
+        setFormCv(formCvWithRealUrls);
+      }
+
       const payload = isLimitedAdmin
         ? {
             commentar: String(commentHtml || ""),
@@ -4151,7 +4261,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                 }))
               : [],
           }
-        : mapFormToDoc(formCv);
+        : mapFormToDoc(formCvWithRealUrls);
       if (nextCommentMeta) {
         payload.commentarMeta = nextCommentMeta;
       }
@@ -4213,7 +4323,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
           // Delete from JSON API first
           for (const { url } of markedForDeletion) {
             try {
-              await deleteUploadedFileRemote(url);
+              await deleteUploadedFile(url);
             } catch (err) {
               if (Number(err?.status) === 404) {
               } else {

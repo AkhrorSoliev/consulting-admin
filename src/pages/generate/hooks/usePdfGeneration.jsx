@@ -1,5 +1,5 @@
 import { pdf } from "@react-pdf/renderer";
-import { getDocumentDataById, uploadFileToConsulting } from "../../../utils";
+import { getDocumentDataById, uploadFileToFirebase } from "../../../utils";
 import { todayDdMmYyyy } from "../utils/dateUtils";
 import { parseGermanAddress } from "../utils/addressUtils";
 import { fetchUrlAsImageDataUrlBestEffort } from "../utils/fetchImageUtils";
@@ -110,7 +110,7 @@ export function usePdfGeneration(formCv, addressFields) {
     const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
       type: "application/pdf",
     });
-    const url = await uploadFileToConsulting(file);
+    const url = await uploadFileToFirebase(file, "outgoing");
     return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
   };
 
@@ -179,7 +179,7 @@ export function usePdfGeneration(formCv, addressFields) {
     const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
       type: "application/pdf",
     });
-    const url = await uploadFileToConsulting(file);
+    const url = await uploadFileToFirebase(file, "outgoing");
     return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
   };
 
@@ -220,7 +220,7 @@ export function usePdfGeneration(formCv, addressFields) {
     const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
       type: "application/pdf",
     });
-    const url = await uploadFileToConsulting(file);
+    const url = await uploadFileToFirebase(file, "outgoing");
     return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
   };
 
@@ -275,7 +275,7 @@ export function usePdfGeneration(formCv, addressFields) {
     const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
       type: "application/pdf",
     });
-    const url = await uploadFileToConsulting(file);
+    const url = await uploadFileToFirebase(file, "outgoing");
     return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
   };
 

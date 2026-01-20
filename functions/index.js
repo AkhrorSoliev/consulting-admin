@@ -541,6 +541,110 @@ exports.generateInvite = onRequest(
   }
 );
 
+// POST /generateChannelInvite
+// Body: { channelId: string }
+// Returns: { ok: true, invite_link: string }
+//
+// Security:
+// - Requires Firebase Auth ID token (Authorization: Bearer <token>)
+// - Requires role=admin or role=super_admin
+// - Frontend never sees chat_id or bot token
+exports.generateChannelInvite = onRequest(
+  { secrets: [TELEGRAM_BOT_TOKEN] },
+  async (req, res) => {
+    try {
+      setCors(req, res);
+      if (req.method === "OPTIONS") return res.status(204).send("");
+      if (req.method !== "POST") {
+        return res.status(405).json({ ok: false, error: "method-not-allowed" });
+      }
+
+      // Auth (admin-only)
+      const decoded = await verifyFirebaseIdToken(req);
+      assertAdminLikeClaims(decoded);
+
+      const channelId = String(req.body?.channelId || "").trim();
+      if (!channelId) {
+        return res.status(400).json({ ok: false, error: "missing-channelId" });
+      }
+
+      const snap = await db.collection("telegram_channels").doc(channelId).get();
+      if (!snap.exists) {
+        return res.status(404).json({ ok: false, error: "channel-not-found" });
+      }
+      const data = snap.data() || {};
+      if (data.active === false) {
+        return res.status(403).json({ ok: false, error: "channel-inactive" });
+      }
+      const chatId = String(data.chat_id || "").trim();
+      if (!chatId) {
+        return res
+          .status(500)
+          .json({ ok: false, error: "channel-missing-chat_id" });
+      }
+
+      const botToken = String(TELEGRAM_BOT_TOKEN.value() || "").trim();
+      if (!botToken) {
+        return res.status(500).json({ ok: false, error: "bot-token-missing" });
+      }
+
+      // No time limit; only 1 join.
+      const { invite_link } = await createOneTimeChatInviteLink({
+        botToken,
+        chatId,
+        expireSeconds: null,
+        memberLimit: 1,
+      });
+
+      // Counter: track how many invite links were generated for this channel.
+      try {
+        await db
+          .collection("telegram_channels")
+          .doc(channelId)
+          .set(
+            {
+              linksSentCount: admin.firestore.FieldValue.increment(1),
+              linksSentLastAt: admin.firestore.FieldValue.serverTimestamp(),
+              linksGeneratedCount: admin.firestore.FieldValue.increment(1),
+              linksGeneratedLastAt:
+                admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true }
+          );
+      } catch (e) {
+        logger.warn("generateChannelInvite stats update failed", {
+          channelId,
+          err: String(e?.message || e),
+        });
+      }
+
+      return res.status(200).json({
+        ok: true,
+        invite_link,
+      });
+    } catch (err) {
+      logger.error("generateChannelInvite error", err);
+      setCors(req, res);
+      const status = Number(err?.status) || 500;
+      const code = String(err?.code || "internal");
+      let details;
+      if (err?.details && typeof err.details === "object") {
+        const tg = err.details.telegram;
+        if (tg?.description) {
+          details = `${tg.description} (error_code: ${tg.error_code || "unknown"})`;
+        } else {
+          details = JSON.stringify(err.details);
+        }
+      } else {
+        details = String(err?.message || err);
+      }
+      return res
+        .status(status)
+        .json({ ok: false, error: code, details: details || undefined });
+    }
+  }
+);
+
 // POST /trackInviteSent
 // Body: { groupId: string, count?: number }
 //

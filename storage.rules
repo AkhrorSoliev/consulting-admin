@@ -1,0 +1,66 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Passport fayllari
+    match /passports/{fileName} {
+      allow read: if true;
+      allow create: if request.resource.size < 2 * 1024 * 1024
+                    && request.resource.contentType.matches('application/pdf');
+      allow update, delete: if request.auth != null;
+    }
+    
+    // Diploma fayllari
+    match /diplomas/{fileName} {
+      allow read: if true;
+      allow create: if request.resource.size < 2 * 1024 * 1024
+                    && request.resource.contentType.matches('application/pdf');
+      allow update, delete: if request.auth != null;
+    }
+    
+    // Til sertifikatlari
+    match /certificates/{fileName} {
+      allow read: if true;
+      allow create: if request.resource.size < 2 * 1024 * 1024
+                    && request.resource.contentType.matches('application/pdf');
+      allow update, delete: if request.auth != null;
+    }
+    
+    // Outgoing hujjatlar (PDF generatsiya)
+    match /outgoing/{fileName} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null
+                    && request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType.matches('application/pdf');
+    }
+    
+    // Incoming hujjatlar (DataExchange)
+    match /incoming/{fileName} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null
+                    && request.resource.size < 5 * 1024 * 1024
+                    && request.resource.contentType.matches('application/pdf');
+    }
+    
+    // Foydalanuvchi avatarlari
+    match /avatars/{fileName} {
+      allow read: if true;
+      allow create, update, delete: if request.auth != null
+                    && request.resource.size < 500 * 1024
+                    && request.resource.contentType.matches('image/.*');
+    }
+    
+    // Foto rasmlar
+    match /photos/{fileName} {
+      allow read: if true;
+      allow create: if request.resource.size < 250 * 1024
+                    && request.resource.contentType.matches('image/.*');
+      allow update, delete: if request.auth != null;
+    }
+    
+    // DEFAULT: Boshqa barcha yo'llar bloklangan
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
