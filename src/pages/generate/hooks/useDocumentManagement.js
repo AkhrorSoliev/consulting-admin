@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from "react";
 import toast from "react-hot-toast";
-import { updateDocument, deleteUploadedFileRemote } from "../../../utils";
+import { updateDocument, deleteUploadedFile } from "../../../utils";
 
 export function useDocumentManagement(
   candidateCollection,
@@ -109,7 +109,7 @@ export function useDocumentManagement(
       let remoteMissing = false;
       if (url) {
         try {
-          await deleteUploadedFileRemote(url);
+          await deleteUploadedFile(url);
         } catch (err) {
           if (Number(err?.status) === 404) {
             remoteMissing = true;

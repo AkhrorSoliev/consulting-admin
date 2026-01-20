@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { updateProfile } from "firebase/auth";
 import { useSelector, useDispatch } from "react-redux";
 import { auth } from "../firebase/config";
-import { uploadFileToConsulting } from "../utils";
+import { uploadFileToFirebase } from "../utils";
 import { useNavigate } from "react-router-dom";
 import { FaArrowLeft } from "react-icons/fa";
 import { login } from "../features/authSlice";
@@ -74,7 +74,7 @@ function Profile() {
         updates.displayName = formData.displayName;
       }
       if (selectedFile) {
-        const uploadedUrl = await uploadFileToConsulting(selectedFile);
+        const uploadedUrl = await uploadFileToFirebase(selectedFile, "avatars");
         updates.photoURL = uploadedUrl;
       }
       if (Object.keys(updates).length > 0) {

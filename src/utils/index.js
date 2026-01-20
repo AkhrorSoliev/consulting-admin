@@ -1,5 +1,5 @@
 import toast from "react-hot-toast";
-import { db } from "../firebase/config";
+import { db, storage } from "../firebase/config";
 import {
   collection,
   doc,
@@ -14,6 +14,12 @@ import {
   where,
   limit,
 } from "firebase/firestore";
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject,
+} from "firebase/storage";
 import { incrementDirectionsTotal } from "./stats";
 
 function generateUuid() {
@@ -693,6 +699,98 @@ export async function uploadFilesToConsulting(files) {
   return results;
 }
 
+// ---- Firebase Storage upload/delete helpers ----
+
+// Upload a single File to Firebase Storage and return a download URL
+export async function uploadFileToFirebase(file, folder = "documents") {
+  if (!(file instanceof File)) {
+    throw new Error("uploadFileToFirebase: file must be a File");
+  }
+
+  // Create unique file path with timestamp
+  const timestamp = Date.now();
+  const safeName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+  const filePath = `${folder}/${timestamp}_${safeName}`;
+
+  const storageRef = ref(storage, filePath);
+  const snapshot = await uploadBytes(storageRef, file);
+  const downloadURL = await getDownloadURL(snapshot.ref);
+
+  return downloadURL;
+}
+
+// Upload multiple files to Firebase Storage and return an array of URL strings
+export async function uploadFilesToFirebase(files, folder = "documents") {
+  if (!files) return [];
+  const arr = Array.from(files).filter((f) => f instanceof File);
+  if (arr.length === 0) return [];
+
+  const results = [];
+  for (const f of arr) {
+    // eslint-disable-next-line no-await-in-loop
+    const url = await uploadFileToFirebase(f, folder);
+    results.push(url);
+  }
+  return results;
+}
+
+// Delete a file from Firebase Storage by its download URL
+export async function deleteFileFromFirebase(fileUrl) {
+  const safeUrl = String(fileUrl || "").trim();
+  if (!safeUrl) return;
+
+  try {
+    // Extract file path from Firebase Storage URL
+    // URL format: https://firebasestorage.googleapis.com/v0/b/PROJECT.appspot.com/o/PATH?alt=media&token=...
+    const url = new URL(safeUrl);
+    const pathMatch = url.pathname.match(/\/o\/(.+?)(\?|$)/);
+    if (!pathMatch) {
+      throw new Error("Invalid Firebase Storage URL format");
+    }
+
+    const filePath = decodeURIComponent(pathMatch[1]);
+    const fileRef = ref(storage, filePath);
+    await deleteObject(fileRef);
+  } catch (err) {
+    // If file doesn't exist, treat as success (already deleted)
+    if (err?.code === "storage/object-not-found") {
+      return;
+    }
+    throw err;
+  }
+}
+
+// Hybrid delete function - works with both Firebase Storage and json-api URLs
+export async function deleteUploadedFile(fileUrl) {
+  const safeUrl = String(fileUrl || "").trim();
+  if (!safeUrl) return;
+
+  if (safeUrl.includes("firebasestorage.googleapis.com")) {
+    // Firebase Storage URL
+    return deleteFileFromFirebase(safeUrl);
+  } else if (safeUrl.includes("json-api.uz")) {
+    // Legacy json-api URL
+    return deleteUploadedFileRemote(safeUrl);
+  }
+
+  // Unknown URL format - log warning but don't throw
+  console.warn("deleteUploadedFile: Unknown URL format:", safeUrl);
+}
+
+// Delete multiple files (hybrid - works with both Firebase and json-api)
+export async function deleteUploadedFiles(urls) {
+  const list = Array.isArray(urls) ? urls : [];
+  const unique = Array.from(
+    new Set(
+      list
+        .map((u) => String(u || "").trim())
+        .filter((u) => /^https?:\/\//.test(u))
+    )
+  );
+  if (unique.length === 0) return [];
+  return Promise.all(unique.map((u) => deleteUploadedFile(u)));
+}
+
 // Firestore document helpers
 // Add a document to a collection. If id is provided, it will be used, otherwise a random id is generated.
 export async function addDocument(collectionName, data, id) {
@@ -1188,10 +1286,16 @@ export function extractConsultingUploadUrlsFromSnapshot(snapshot) {
   const urls = Array.from(collectHttpUrlsDeep(snapshot, new Set()));
   // Filter to our known host/project to avoid deleting unrelated external links.
   // NOTE: Real-world file URLs can vary; keep this permissive enough to catch all consultinguz files.
+  // Also include Firebase Storage URLs.
   return urls.filter((u) => {
     const s = String(u || "").trim();
     const lower = s.toLowerCase();
     if (!/^https?:\/\//.test(s)) return false;
+
+    // Accept Firebase Storage URLs
+    if (lower.includes("firebasestorage.googleapis.com")) return true;
+
+    // Accept json-api.uz URLs
     if (!lower.includes("json-api.uz")) return false;
 
     // Parse to make path checks reliable (ignore query/hash).

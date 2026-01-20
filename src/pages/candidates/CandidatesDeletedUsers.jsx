@@ -9,12 +9,12 @@ import { FaTelegram, FaFileExcel } from "react-icons/fa";
 import { exportFullCandidatesToExcel } from "../../utils/excelExport";
 import {
   addCandidateWithDualStats,
-  deleteConsultingUploadUrlsStrict,
   deleteEmailAndPassIdByEmail,
   extractConsultingUploadUrlsFromSnapshot,
   getMetaByName,
   subscribeToCollections,
   upsertEmailAndPassIdFirestore,
+  deleteUploadedFile,
 } from "../../utils";
 import RemoteUserCard from "../../components/RemoteUserCard";
 import SelectMajorModal from "../../components/SelectMajorModal";
@@ -486,14 +486,12 @@ export default function CandidatesDeletedUsers() {
       try {
         setDeletingKey(key);
 
+        // Delete all document files from Storage (Firebase + json-api hybrid)
         const urls = extractConsultingUploadUrlsFromSnapshot(record);
-        // Faqat document bo'lsa json-api.uz ga request jo'natamiz
         if (Array.isArray(urls) && urls.length > 0) {
-          try {
-            await deleteConsultingUploadUrlsStrict(urls);
-          } catch (err) {
-            // ignore error, continue to delete from Firestore
-          }
+          await Promise.all(
+            urls.map((url) => deleteUploadedFile(url).catch(() => {}))
+          );
         }
 
         const email = extractEmailFromSnapshot(record);

@@ -1,8 +1,8 @@
 import { useCallback } from "react";
 import toast from "react-hot-toast";
 import {
-  uploadFileToConsulting,
-  deleteUploadedFileRemote,
+  uploadFileToFirebase,
+  deleteUploadedFile,
 } from "../../../utils";
 
 export function useDocumentOperations(
@@ -18,7 +18,7 @@ export function useDocumentOperations(
       if (!file) return;
 
       try {
-        const url = await uploadFileToConsulting(file);
+        const url = await uploadFileToFirebase(file, "photos");
         setFormCv((prev) => ({
           ...prev,
           personalInfo: { ...prev.personalInfo, photo: url },
@@ -37,8 +37,15 @@ export function useDocumentOperations(
       if (!files || files.length === 0) return;
 
       try {
+        // Map document types to correct folder names
+        const folderMap = {
+          passport: "passports",
+          diplomas: "diplomas",
+          certificates: "certificates",
+        };
+        const folder = folderMap[documentType] || "documents";
         const uploadPromises = Array.from(files).map((file) =>
-          uploadFileToConsulting(file)
+          uploadFileToFirebase(file, folder)
         );
         const urls = await Promise.all(uploadPromises);
 
@@ -93,7 +100,7 @@ export function useDocumentOperations(
       for (const { url } of items) {
         if (url) {
           deletionPromises.push(
-            deleteUploadedFileRemote(url).catch((err) => {})
+            deleteUploadedFile(url).catch((err) => {})
           );
         }
       }
@@ -116,7 +123,7 @@ export function useDocumentOperations(
 
       try {
         const uploadPromises = Array.from(files).map((file) =>
-          uploadFileToConsulting(file)
+          uploadFileToFirebase(file, "certificates")
         );
         const urls = await Promise.all(uploadPromises);
 
