@@ -33,6 +33,7 @@ import {
   saveArchivedUserSnapshotFirestore,
   saveDeletedUserSnapshotFirestore,
   getUserByEmail,
+  getUserFromFirestore,
 } from "../utils";
 import { useUserRole } from "../hooks/useUserRole";
 import DeleteCandidateModal from "../components/DeleteCandidateModal";
@@ -707,6 +708,9 @@ function CollectionCv() {
           const commentMeta = data?.commentarMeta || {};
           const commentUpdatedByName = commentMeta?.updatedByName || "";
           const commentUpdatedByPhoto = commentMeta?.updatedByPhoto || "";
+          const commentUpdatedByUid = commentMeta?.updatedByUid || "";
+          const emailLastSentByUid = emailMeta?.lastSentByUid || "";
+          const statusUpdatedByUid = data?.status?.updatedByUid || "";
           const stageMeta =
             data?.stageMeta && typeof data.stageMeta === "object"
               ? data.stageMeta
@@ -727,7 +731,7 @@ function CollectionCv() {
           const reaction = data?.reaction || null;
           const statusUpdatedBy = data?.status?.updatedBy || "";
           const emailLastSentBy = emailMeta?.lastSentBy || "";
-          const commentUpdatedBy = commentMeta?.updatedByName || "";
+          const commentUpdatedBy = commentMeta?.updatedBy || "";
 
           return {
             id: d.id,
@@ -757,6 +761,9 @@ function CollectionCv() {
             commentUpdatedBy,
             commentUpdatedByName,
             commentUpdatedByPhoto,
+            commentUpdatedByUid,
+            emailLastSentByUid,
+            statusUpdatedByUid,
             stageDecisions,
             telegramId: data.telegramId || null,
             lead: data.lead || null,
@@ -775,64 +782,83 @@ function CollectionCv() {
     return () => unsub();
   }, [resolvedMajor.collectionName, metaLoading, resolvingMajor]);
 
-  // Fetch user photos from users collection based on status.updatedBy and commentMeta
+  // Fetch user photos from users collection based on UID
   useEffect(() => {
     if (!items || items.length === 0) return;
 
     const fetchUserPhotos = async () => {
+      const uidsToFetch = new Set();
       const emailsToFetch = new Set();
 
-      // Collect all unique emails/names that need photo lookup
+      // Collect all unique UIDs and emails that need photo lookup
       items.forEach((item) => {
-        // From status.updatedBy (email)
-        const statusUpdatedBy = item.statusUpdatedBy || "";
-        if (
-          statusUpdatedBy &&
-          statusUpdatedBy.includes("@") &&
-          !fetchedEmailsRef.current.has(statusUpdatedBy)
-        ) {
-          emailsToFetch.add(statusUpdatedBy);
+        // From commentMeta.updatedByUid
+        const commentUid = item.commentUpdatedByUid || "";
+        if (commentUid && !fetchedEmailsRef.current.has(commentUid)) {
+          uidsToFetch.add(commentUid);
         }
 
-        // From emailMeta (already has photo, but we can refresh from users collection)
+        // From emailMeta.lastSentByUid
+        const emailUid = item.emailLastSentByUid || "";
+        if (emailUid && !fetchedEmailsRef.current.has(emailUid)) {
+          uidsToFetch.add(emailUid);
+        }
+
+        // From status.updatedByUid
+        const statusUid = item.statusUpdatedByUid || "";
+        if (statusUid && !fetchedEmailsRef.current.has(statusUid)) {
+          uidsToFetch.add(statusUid);
+        }
+
+        // Fallback: fetch by email if UID is not available
         const emailLastSentBy = item.emailLastSentBy || "";
         if (
           emailLastSentBy &&
           emailLastSentBy.includes("@") &&
-          !item.emailLastSentByPhoto &&
+          !item.emailLastSentByUid &&
           !fetchedEmailsRef.current.has(emailLastSentBy)
         ) {
           emailsToFetch.add(emailLastSentBy);
         }
 
-        // From commentMeta (check if we need to fetch by name/email)
-        // Note: commentUpdatedByName might be email or display name
         const commentUpdatedBy = item.commentUpdatedBy || "";
         if (
           commentUpdatedBy &&
           commentUpdatedBy.includes("@") &&
-          !item.commentUpdatedByPhoto &&
+          !item.commentUpdatedByUid &&
           !fetchedEmailsRef.current.has(commentUpdatedBy)
         ) {
           emailsToFetch.add(commentUpdatedBy);
         }
       });
 
-      if (emailsToFetch.size === 0) return;
+      if (uidsToFetch.size === 0 && emailsToFetch.size === 0) return;
 
-      // Fetch user data from users collection
       const newPhotos = {};
-      for (const email of emailsToFetch) {
-        // Mark as fetched
-        fetchedEmailsRef.current.add(email);
 
+      // Fetch by UID
+      for (const uid of uidsToFetch) {
+        fetchedEmailsRef.current.add(uid);
         try {
-          const userData = await getUserByEmail(email);
-          if (userData && userData.photoURL) {
-            newPhotos[email] = userData.photoURL;
+          const userData = await getUserFromFirestore(uid);
+          if (userData && (userData.avatar || userData.photoURL)) {
+            newPhotos[uid] = userData.avatar || userData.photoURL;
           }
         } catch (error) {
-          console.error(`Failed to fetch user photo for ${email}:`, error);
+          console.error(`Failed to fetch user photo for UID ${uid}:`, error);
+        }
+      }
+
+      // Fallback: fetch by email for old data without UID
+      for (const email of emailsToFetch) {
+        fetchedEmailsRef.current.add(email);
+        try {
+          const userData = await getUserByEmail(email);
+          if (userData && (userData.avatar || userData.photoURL)) {
+            newPhotos[email] = userData.avatar || userData.photoURL;
+          }
+        } catch (error) {
+          console.error(`Failed to fetch user photo for email ${email}:`, error);
         }
       }
 
@@ -1585,9 +1611,11 @@ function CollectionCv() {
                               }
                             >
                               {(() => {
-                                // Priority: 1) userPhotosCache, 2) emailLastSentByPhoto, 3) initials
+                                // Priority: 1) userPhotosCache by UID, 2) userPhotosCache by email, 3) emailLastSentByPhoto, 4) initials
                                 const photoFromCache =
-                                  userPhotosCache[item.emailLastSentBy] || null;
+                                  userPhotosCache[item.emailLastSentByUid] ||
+                                  userPhotosCache[item.emailLastSentBy] ||
+                                  null;
                                 const photoUrl =
                                   photoFromCache ||
                                   item.emailLastSentByPhoto ||
@@ -1654,8 +1682,9 @@ function CollectionCv() {
                                 }
                               >
                                 {(() => {
-                                  // Priority: 1) userPhotosCache, 2) commentUpdatedByPhoto, 3) initials
+                                  // Priority: 1) userPhotosCache by UID, 2) userPhotosCache by email, 3) commentUpdatedByPhoto, 4) initials
                                   const photoFromCache =
+                                    userPhotosCache[item.commentUpdatedByUid] ||
                                     userPhotosCache[item.commentUpdatedBy] ||
                                     null;
                                   const photoUrl =
