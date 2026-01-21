@@ -15,11 +15,16 @@ export async function syncUserToFirestore(user) {
     const userRef = doc(db, "users", user.uid);
     const userSnap = await getDoc(userRef);
 
+    const displayName = user.displayName || "";
+    const defaultAvatar = `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(displayName || user.email || "User")}`;
+    const avatarUrl = user.photoURL || defaultAvatar;
+
     const userData = {
       uid: user.uid,
       email: user.email || "",
-      displayName: user.displayName || "",
+      displayName: displayName,
       photoURL: user.photoURL || "",
+      avatar: avatarUrl,
       lastLogin: serverTimestamp(),
       updatedAt: serverTimestamp(),
     };
@@ -38,7 +43,8 @@ export async function syncUserToFirestore(user) {
     const hasChanges =
       existingData.email !== userData.email ||
       existingData.displayName !== userData.displayName ||
-      existingData.photoURL !== userData.photoURL;
+      existingData.photoURL !== userData.photoURL ||
+      existingData.avatar !== userData.avatar;
 
     if (hasChanges) {
       // Update existing user document

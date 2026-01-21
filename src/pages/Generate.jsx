@@ -387,6 +387,7 @@ function Generate() {
     count: 0,
     lastSentAt: null,
     lastSentBy: "",
+    lastSentByUid: "",
     lastSentByName: "",
     lastSentByPhoto: "",
     lastSentType: "",
@@ -399,6 +400,7 @@ function Generate() {
   const [experienceHistoryIndex, setExperienceHistoryIndex] = useState({});
   const [commentHistory, setCommentHistory] = useState([]);
   const [commentHistoryIndex, setCommentHistoryIndex] = useState(-1);
+  const [emailMetaAvatarFromUsers, setEmailMetaAvatarFromUsers] = useState("");
 
   // Document upload state
   const [selectedDocumentType, setSelectedDocumentType] = useState("");
@@ -1559,10 +1561,23 @@ function Generate() {
             count: eMeta?.count || 0,
             lastSentAt: eMeta?.lastSentAt || null,
             lastSentBy: eMeta?.lastSentBy || "",
+            lastSentByUid: eMeta?.lastSentByUid || "",
             lastSentByName: eMeta?.lastSentByName || "",
             lastSentByPhoto: eMeta?.lastSentByPhoto || "",
             lastSentType: eMeta?.lastSentType || "",
           });
+
+          // Fetch avatar from users collection by UID if photo is missing
+          if (eMeta?.lastSentByUid && !eMeta?.lastSentByPhoto) {
+            getUserFromFirestore(eMeta.lastSentByUid).then((userData) => {
+              if (userData && (userData.avatar || userData.photoURL)) {
+                setEmailMetaAvatarFromUsers(userData.avatar || userData.photoURL);
+              }
+            }).catch(() => {});
+          } else {
+            setEmailMetaAvatarFromUsers("");
+          }
+
           setNotFound(false);
 
           // Only update form on initial load, not on subsequent Firestore updates
@@ -3074,13 +3089,14 @@ function Generate() {
 
         const displayName =
           userData?.displayName || user?.displayName || user?.email || "Admin";
-        const photoURL = userData?.photoURL || user?.photoURL || "";
+        const photoURL = userData?.avatar || userData?.photoURL || user?.photoURL || "";
 
         const stageBase = `stageMeta.${stepValue}`;
         const updatePayload = {
           "emailMeta.count": increment(1),
           "emailMeta.lastSentAt": emailSentAt,
           "emailMeta.lastSentBy": user?.email || user?.uid || "admin",
+          "emailMeta.lastSentByUid": user?.uid || "",
           "emailMeta.lastSentByName": displayName,
           "emailMeta.lastSentByPhoto": photoURL,
           "emailMeta.lastSentType": "status",
@@ -3104,6 +3120,7 @@ function Generate() {
           count: (emailMeta.count || 0) + 1,
           lastSentAt: emailSentAt,
           lastSentBy: user?.email || user?.uid || "admin",
+          lastSentByUid: user?.uid || "",
           lastSentByName: displayName,
           lastSentByPhoto: photoURL,
           lastSentType: "status",
@@ -3457,12 +3474,13 @@ function Generate() {
             user?.displayName ||
             user?.email ||
             "Admin";
-          const photoURL = userData?.photoURL || user?.photoURL || "";
+          const photoURL = userData?.avatar || userData?.photoURL || user?.photoURL || "";
 
           await updateDocument(col, docId, {
             "emailMeta.count": increment(1),
             "emailMeta.lastSentAt": emailSentAt,
             "emailMeta.lastSentBy": user?.email || user?.uid || "admin",
+            "emailMeta.lastSentByUid": user?.uid || "",
             "emailMeta.lastSentByName": displayName,
             "emailMeta.lastSentByPhoto": photoURL,
             "emailMeta.lastSentType": "custom",
@@ -3473,6 +3491,7 @@ function Generate() {
             count: (emailMeta.count || 0) + 1,
             lastSentAt: emailSentAt,
             lastSentBy: user?.email || user?.uid || "admin",
+            lastSentByUid: user?.uid || "",
             lastSentByName: displayName,
             lastSentByPhoto: photoURL,
             lastSentType: "custom",
@@ -4121,11 +4140,12 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
         user?.email ||
         user?.phoneNumber ||
         "Unbekannt";
-      const photoURL = userData?.photoURL || user?.photoURL || "";
+      const photoURL = userData?.avatar || userData?.photoURL || user?.photoURL || "";
 
       nextCommentMeta = {
         updatedAt: Date.now(),
         updatedByUid: user?.uid || "",
+        updatedBy: user?.email || user?.uid || "",
         updatedByName: displayName,
         updatedByPhoto: photoURL,
       };
@@ -7100,9 +7120,9 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
             <div className="mb-4 flex items-center gap-3 p-3 bg-base-200 rounded-lg border border-base-300">
               <div className="avatar">
                 <div className="w-10 h-10 rounded-full">
-                  {emailMeta.lastSentByPhoto ? (
+                  {(emailMeta.lastSentByPhoto || emailMetaAvatarFromUsers) ? (
                     <img
-                      src={emailMeta.lastSentByPhoto}
+                      src={emailMeta.lastSentByPhoto || emailMetaAvatarFromUsers}
                       alt={emailMeta.lastSentByName || "User"}
                     />
                   ) : (
