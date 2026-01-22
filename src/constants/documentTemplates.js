@@ -37,10 +37,18 @@ export const DOCUMENT_TEMPLATES = [
   },
   {
     id: "rozilik_xati",
-    title: "Rozilik xati",
+    title: "Rozilik xati (ota-ona)",
     description:
       "Template: Germaniyaga borishga va ta'til vaqtida yordamchi ishlarda ishlashga rozilik xati.",
     to: "/settings/documents/rozilik-xati",
+    kind: "pdf",
+  },
+  {
+    id: "nomzod_rozilik_xati",
+    title: "Nomzod rozilik xati",
+    description:
+      "Template: Nomzodning o'zi yozadigan rozilik xati - ish beruvchi va ConsultingUz ga.",
+    to: "/settings/documents/nomzod-rozilik-xati",
     kind: "pdf",
   },
 ];
