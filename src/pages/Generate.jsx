@@ -7430,9 +7430,6 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                 <div className="font-semibold truncate">
                                   {title}
                                 </div>
-                                <div className="text-xs text-base-content/60 mt-1 break-all">
-                                  {url}
-                                </div>
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
                                 <a
