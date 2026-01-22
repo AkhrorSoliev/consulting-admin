@@ -51,6 +51,14 @@ export const DOCUMENT_TEMPLATES = [
     to: "/settings/documents/nomzod-rozilik-xati",
     kind: "pdf",
   },
+  {
+    id: "mitarbeiterwohnung",
+    title: "Mitarbeiterwohnung Bestätigung",
+    description:
+      "Template: Bestätigung über die Bereitstellung einer Mitarbeiterwohnung.",
+    to: "/settings/documents/mitarbeiterwohnung",
+    kind: "pdf",
+  },
 ];
 
 
