@@ -40,6 +40,7 @@ import Vollmacht from "./pages/Vollmacht";
 import VollmachtArbeitgeber from "./pages/VollmachtArbeitgeber";
 import RozilikXati from "./pages/RozilikXati";
 import NomzodRozilikXati from "./pages/NomzodRozilikXati";
+import Mitarbeiterwohnung from "./pages/Mitarbeiterwohnung";
 import DataExchange from "./pages/DataExchange";
 import NotFound from "./pages/NotFound";
 import { useDesktopOnly } from "./hooks/useDesktopOnly";
@@ -131,6 +132,10 @@ function App() {
                 {
                   path: "nomzod-rozilik-xati",
                   element: <NomzodRozilikXati />,
+                },
+                {
+                  path: "mitarbeiterwohnung",
+                  element: <Mitarbeiterwohnung />,
                 },
               ],
             },

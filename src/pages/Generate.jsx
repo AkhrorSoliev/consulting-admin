@@ -118,6 +118,7 @@ import VollmachtPdfDocument from "./contract/pdf/VollmachtPdfDocument";
 import VollmachtArbeitgeberPdfDocument from "./contract/pdf/VollmachtArbeitgeberPdfDocument";
 import RozilikXatiPdfDocument from "./contract/pdf/RozilikXatiPdfDocument";
 import NomzodRozilikXatiPdfDocument from "./contract/pdf/NomzodRozilikXatiPdfDocument";
+import MitarbeiterwohnungPdfDocument from "./contract/pdf/MitarbeiterwohnungPdfDocument";
 import {
   makeEmailTemplateId,
   subscribeToEmailTemplates,
@@ -1067,6 +1068,47 @@ function Generate() {
     return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
   }
 
+  async function generateAndUploadMitarbeiterwohnung() {
+    // Load template defaults from Firestore
+    const templateDoc = await getDocumentDataById(
+      "template_documents",
+      "mitarbeiterwohnung"
+    );
+    const savedForm =
+      templateDoc && typeof templateDoc.form === "object"
+        ? templateDoc.form
+        : {};
+
+    // Merge with current candidate data
+    const firstName = String(formCv?.personalInfo?.name || "").trim();
+    const lastName = String(formCv?.personalInfo?.lastName || "").trim();
+    const kandidatName = [lastName, firstName].filter(Boolean).join(" ");
+
+    const date = todayDdMmYyyy();
+
+    const merged = {
+      ...savedForm,
+      datum: date,
+      kandidatName: kandidatName,
+    };
+
+    const fileBase = kandidatName
+      ? `Mitarbeiterwohnung ${kandidatName}`
+      : "Mitarbeiterwohnung";
+    const safeFileName =
+      fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Mitarbeiterwohnung";
+
+    const blob = await pdf(
+      <MitarbeiterwohnungPdfDocument form={merged} />
+    ).toBlob();
+
+    const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
+      type: "application/pdf",
+    });
+    const url = await uploadFileToFirebase(file, "outgoing");
+    return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
+  }
+
   async function handleToggleOutgoingDoc(template, nextEnabled, options = {}) {
     const tpl = template || {};
     const templateId = String(tpl.id || "").trim();
@@ -1143,6 +1185,8 @@ function Generate() {
         generated = await generateAndUploadRozilikXati();
       } else if (templateId === "nomzod_rozilik_xati") {
         generated = await generateAndUploadNomzodRozilikXati();
+      } else if (templateId === "mitarbeiterwohnung") {
+        generated = await generateAndUploadMitarbeiterwohnung();
       } else {
         throw new Error(`Unknown document template: ${templateId}`);
       }
