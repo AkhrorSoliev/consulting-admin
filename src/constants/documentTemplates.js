@@ -35,6 +35,14 @@ export const DOCUMENT_TEMPLATES = [
     to: "/settings/documents/vollmacht-arbeitgeber",
     kind: "pdf",
   },
+  {
+    id: "rozilik_xati",
+    title: "Rozilik xati",
+    description:
+      "Template: Germaniyaga borishga va ta'til vaqtida yordamchi ishlarda ishlashga rozilik xati.",
+    to: "/settings/documents/rozilik-xati",
+    kind: "pdf",
+  },
 ];
 
 

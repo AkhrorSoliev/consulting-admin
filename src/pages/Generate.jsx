@@ -116,6 +116,7 @@ import BeratungsvertragPdfDocument from "./contract/pdf/BeratungsvertragPdfDocum
 import VermittlungsvertragPdfDocument from "./contract/pdf/VermittlungsvertragPdfDocument";
 import VollmachtPdfDocument from "./contract/pdf/VollmachtPdfDocument";
 import VollmachtArbeitgeberPdfDocument from "./contract/pdf/VollmachtArbeitgeberPdfDocument";
+import RozilikXatiPdfDocument from "./contract/pdf/RozilikXatiPdfDocument";
 import {
   makeEmailTemplateId,
   subscribeToEmailTemplates,
@@ -638,7 +639,11 @@ function Generate() {
       try {
         await deleteUploadedFile(url);
       } catch (err) {
-        if (Number(err?.status) === 404) {
+        // Handle both HTTP 404 status and Firebase storage/object-not-found error
+        if (
+          Number(err?.status) === 404 ||
+          err?.code === "storage/object-not-found"
+        ) {
           remoteMissing = true;
         } else {
           throw err;
@@ -945,6 +950,81 @@ function Generate() {
     return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
   }
 
+  async function generateAndUploadRozilikXati() {
+    // Load template defaults from Firestore
+    const templateDoc = await getDocumentDataById(
+      "template_documents",
+      "rozilik_xati"
+    );
+    const savedForm =
+      templateDoc && typeof templateDoc.form === "object"
+        ? templateDoc.form
+        : {};
+
+    // Merge with current candidate data
+    const firstName = String(formCv?.personalInfo?.name || "").trim();
+    const lastName = String(formCv?.personalInfo?.lastName || "").trim();
+    const gender = String(formCv?.personalInfo?.gender || "").trim();
+    const birthDate = String(formCv?.personalInfo?.birthDate || "").trim();
+    const birthPlace = String(formCv?.personalInfo?.birthPlace || "").trim();
+    const phone = String(formCv?.personalInfo?.phone || "").trim();
+    const address = String(formCv?.personalInfo?.address || "").trim();
+
+    // Get last education (ausbildung or last education entry)
+    let oqishJoyi = "";
+    const educationList = Array.isArray(formCv?.education)
+      ? formCv.education
+      : [];
+    if (educationList.length > 0) {
+      const sorted = sortTimelineItemsDesc([...educationList]);
+      const last = sorted[0];
+      oqishJoyi = String(last?.school || last?.institution || "").trim();
+    }
+
+    // Map gender to Uzbek
+    let jinsi = "";
+    if (gender) {
+      const g = gender.toLowerCase();
+      if (g === "male" || g === "männlich" || g === "erkak") {
+        jinsi = "Erkak";
+      } else if (g === "female" || g === "weiblich" || g === "ayol") {
+        jinsi = "Ayol";
+      } else {
+        jinsi = gender;
+      }
+    }
+
+    const date = todayDdMmYyyy();
+
+    const merged = {
+      ...savedForm,
+      nomzodIsm: firstName,
+      nomzodFamilya: lastName,
+      nomzodJinsi: jinsi,
+      nomzodTugilganSana: birthDate,
+      nomzodManzil: address,
+      nomzodOqishJoyi: oqishJoyi,
+      nomzodTelefon: phone,
+      joy: birthPlace,
+      sana: date,
+    };
+
+    const fileBase =
+      firstName || lastName
+        ? `Rozilik xati ${[firstName, lastName].filter(Boolean).join(" ")}`
+        : "Rozilik xati";
+    const safeFileName =
+      fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Rozilik xati";
+
+    const blob = await pdf(<RozilikXatiPdfDocument form={merged} />).toBlob();
+
+    const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
+      type: "application/pdf",
+    });
+    const url = await uploadFileToFirebase(file, "outgoing");
+    return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
+  }
+
   async function handleToggleOutgoingDoc(template, nextEnabled, options = {}) {
     const tpl = template || {};
     const templateId = String(tpl.id || "").trim();
@@ -956,17 +1036,21 @@ function Generate() {
     const prev = getOutgoingDocState(templateId);
     const nextMap = { ...(outgoingDocs || {}) };
 
-    // If turning OFF: just mark disabled (do not delete previously uploaded file).
+    // If turning OFF: delete the document completely (both remote file and state)
     if (!nextEnabled) {
-      await persistOutgoingDocs((current) => {
-        const next = { ...current };
-        next[templateId] = {
-          ...(current?.[templateId] || {}),
-          enabled: false,
-          updatedAt: Date.now(),
-        };
-        return next;
-      });
+      try {
+        setOutgoingBusyById((p) => ({ ...(p || {}), [templateId]: true }));
+        const { ok } = await deleteOutgoingDocRemoteFirst(templateId, {
+          current: prev,
+        });
+        if (!ok) {
+          toast.error("Hujjatni o'chirishda xatolik.");
+        }
+      } catch (e) {
+        toast.error("Hujjatni o'chirishda xatolik.");
+      } finally {
+        setOutgoingBusyById((p) => ({ ...(p || {}), [templateId]: false }));
+      }
       return;
     }
 
@@ -1013,6 +1097,8 @@ function Generate() {
         generated = await generateAndUploadVollmacht();
       } else if (templateId === "vollmacht_arbeitgeber") {
         generated = await generateAndUploadVollmachtArbeitgeber();
+      } else if (templateId === "rozilik_xati") {
+        generated = await generateAndUploadRozilikXati();
       } else {
         throw new Error(`Unknown document template: ${templateId}`);
       }

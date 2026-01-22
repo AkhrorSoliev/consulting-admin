@@ -38,6 +38,7 @@ import CandidatesArchivedDirections from "./pages/candidates/CandidatesArchivedD
 import Vermittlungsvertrag from "./pages/Vermittlungsvertrag";
 import Vollmacht from "./pages/Vollmacht";
 import VollmachtArbeitgeber from "./pages/VollmachtArbeitgeber";
+import RozilikXati from "./pages/RozilikXati";
 import DataExchange from "./pages/DataExchange";
 import NotFound from "./pages/NotFound";
 import { useDesktopOnly } from "./hooks/useDesktopOnly";
@@ -121,6 +122,10 @@ function App() {
                 {
                   path: "vollmacht-arbeitgeber",
                   element: <VollmachtArbeitgeber />,
+                },
+                {
+                  path: "rozilik-xati",
+                  element: <RozilikXati />,
                 },
               ],
             },

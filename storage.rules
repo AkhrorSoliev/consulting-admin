@@ -29,9 +29,10 @@ service firebase.storage {
     // Outgoing hujjatlar (PDF generatsiya)
     match /outgoing/{fileName} {
       allow read: if true;
-      allow create, update, delete: if request.auth != null
+      allow create, update: if request.auth != null
                     && request.resource.size < 5 * 1024 * 1024
                     && request.resource.contentType.matches('application/pdf');
+      allow delete: if request.auth != null;
     }
     
     // Incoming hujjatlar (DataExchange) - public access for candidates
