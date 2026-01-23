@@ -75,6 +75,14 @@ export const DOCUMENT_TEMPLATES = [
     to: "/settings/documents/einwilligungserklaerung",
     kind: "pdf",
   },
+  {
+    id: "foto_video_rozilik",
+    title: "Foto/Video Rozilik",
+    description:
+      "Template: Foto va video tasvirlardan foydalanishga rozilik arizasi (Nemis va O'zbek tilida).",
+    to: "/settings/documents/foto-video-rozilik",
+    kind: "pdf",
+  },
 ];
 
 
