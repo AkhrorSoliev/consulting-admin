@@ -121,6 +121,7 @@ import NomzodRozilikXatiPdfDocument from "./contract/pdf/NomzodRozilikXatiPdfDoc
 import MitarbeiterwohnungPdfDocument from "./contract/pdf/MitarbeiterwohnungPdfDocument";
 import SprachsbestaetigungPdfDocument from "./contract/pdf/SprachsbestaetigungPdfDocument";
 import EinwilligungserklaerungPdfDocument from "./contract/pdf/EinwilligungserklaerungPdfDocument";
+import FotoVideoRozilikPdfDocument from "./contract/pdf/FotoVideoRozilikPdfDocument";
 import {
   makeEmailTemplateId,
   subscribeToEmailTemplates,
@@ -1199,6 +1200,53 @@ function Generate() {
     return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
   }
 
+  async function generateAndUploadFotoVideoRozilik() {
+    // Load template defaults from Firestore
+    const templateDoc = await getDocumentDataById(
+      "template_documents",
+      "foto_video_rozilik"
+    );
+    const savedForm =
+      templateDoc && typeof templateDoc.form === "object"
+        ? templateDoc.form
+        : {};
+
+    // Merge with current candidate data
+    const vorname = String(formCv?.personalInfo?.name || "").trim();
+    const nachname = String(formCv?.personalInfo?.lastName || "").trim();
+    const fullName = [nachname, vorname].filter(Boolean).join(" ");
+    const birthDate = String(formCv?.personalInfo?.birthDate || "").trim();
+    const birthPlace = String(formCv?.personalInfo?.birthPlace || "").trim();
+    const address = String(formCv?.personalInfo?.address || "").trim();
+
+    const date = todayDdMmYyyy();
+
+    const merged = {
+      ...savedForm,
+      fullName: fullName,
+      geburtsdatum: birthDate,
+      adresse: address,
+      geburtsort: birthPlace,
+      datum: date,
+    };
+
+    const fileBase = fullName
+      ? `Foto-Video-Rozilik ${fullName}`
+      : "Foto-Video-Rozilik";
+    const safeFileName =
+      fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Foto-Video-Rozilik";
+
+    const blob = await pdf(
+      <FotoVideoRozilikPdfDocument form={merged} />
+    ).toBlob();
+
+    const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
+      type: "application/pdf",
+    });
+    const url = await uploadFileToFirebase(file, "outgoing");
+    return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
+  }
+
   async function handleToggleOutgoingDoc(template, nextEnabled, options = {}) {
     const tpl = template || {};
     const templateId = String(tpl.id || "").trim();
@@ -1281,6 +1329,8 @@ function Generate() {
         generated = await generateAndUploadSprachsbestaetigung();
       } else if (templateId === "einwilligungserklaerung") {
         generated = await generateAndUploadEinwilligungserklaerung();
+      } else if (templateId === "foto_video_rozilik") {
+        generated = await generateAndUploadFotoVideoRozilik();
       } else {
         throw new Error(`Unknown document template: ${templateId}`);
       }
