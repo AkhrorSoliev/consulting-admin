@@ -59,6 +59,14 @@ export const DOCUMENT_TEMPLATES = [
     to: "/settings/documents/mitarbeiterwohnung",
     kind: "pdf",
   },
+  {
+    id: "sprachsbestaetigung",
+    title: "Sprachsbestätigung (Deutschkenntnisse)",
+    description:
+      "Template: Bestätigung der Deutschkenntnisse nach Online-Vorstellungsgespräch.",
+    to: "/settings/documents/sprachsbestaetigung",
+    kind: "pdf",
+  },
 ];
 
 
