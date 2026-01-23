@@ -67,6 +67,14 @@ export const DOCUMENT_TEMPLATES = [
     to: "/settings/documents/sprachsbestaetigung",
     kind: "pdf",
   },
+  {
+    id: "einwilligungserklaerung",
+    title: "Einwilligungserklärung DSGVO",
+    description:
+      "Template: Einwilligungserklärung gemäß DSGVO in die Verarbeitung von Daten.",
+    to: "/settings/documents/einwilligungserklaerung",
+    kind: "pdf",
+  },
 ];
 
 

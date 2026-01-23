@@ -120,6 +120,7 @@ import RozilikXatiPdfDocument from "./contract/pdf/RozilikXatiPdfDocument";
 import NomzodRozilikXatiPdfDocument from "./contract/pdf/NomzodRozilikXatiPdfDocument";
 import MitarbeiterwohnungPdfDocument from "./contract/pdf/MitarbeiterwohnungPdfDocument";
 import SprachsbestaetigungPdfDocument from "./contract/pdf/SprachsbestaetigungPdfDocument";
+import EinwilligungserklaerungPdfDocument from "./contract/pdf/EinwilligungserklaerungPdfDocument";
 import {
   makeEmailTemplateId,
   subscribeToEmailTemplates,
@@ -1151,6 +1152,53 @@ function Generate() {
     return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
   }
 
+  async function generateAndUploadEinwilligungserklaerung() {
+    // Load template defaults from Firestore
+    const templateDoc = await getDocumentDataById(
+      "template_documents",
+      "einwilligungserklaerung"
+    );
+    const savedForm =
+      templateDoc && typeof templateDoc.form === "object"
+        ? templateDoc.form
+        : {};
+
+    // Merge with current candidate data
+    const vorname = String(formCv?.personalInfo?.name || "").trim();
+    const nachname = String(formCv?.personalInfo?.lastName || "").trim();
+    const geburtsort = String(formCv?.personalInfo?.birthPlace || "").trim();
+    const gender = String(formCv?.personalInfo?.gender || "").trim().toLowerCase();
+    const anpirede = gender === "male" ? "Herr" : "Frau";
+
+    const date = todayDdMmYyyy();
+
+    const merged = {
+      ...savedForm,
+      datum: date,
+      vorname: vorname,
+      nachname: nachname,
+      geburtsort: geburtsort,
+      anpirede: anpirede,
+    };
+
+    const fullName = [nachname, vorname].filter(Boolean).join(" ");
+    const fileBase = fullName
+      ? `Einwilligungserklaerung ${fullName}`
+      : "Einwilligungserklaerung";
+    const safeFileName =
+      fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Einwilligungserklaerung";
+
+    const blob = await pdf(
+      <EinwilligungserklaerungPdfDocument form={merged} />
+    ).toBlob();
+
+    const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
+      type: "application/pdf",
+    });
+    const url = await uploadFileToFirebase(file, "outgoing");
+    return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
+  }
+
   async function handleToggleOutgoingDoc(template, nextEnabled, options = {}) {
     const tpl = template || {};
     const templateId = String(tpl.id || "").trim();
@@ -1231,6 +1279,8 @@ function Generate() {
         generated = await generateAndUploadMitarbeiterwohnung();
       } else if (templateId === "sprachsbestaetigung") {
         generated = await generateAndUploadSprachsbestaetigung();
+      } else if (templateId === "einwilligungserklaerung") {
+        generated = await generateAndUploadEinwilligungserklaerung();
       } else {
         throw new Error(`Unknown document template: ${templateId}`);
       }
