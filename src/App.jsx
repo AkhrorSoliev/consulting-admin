@@ -44,6 +44,7 @@ import Mitarbeiterwohnung from "./pages/Mitarbeiterwohnung";
 import Sprachsbestaetigung from "./pages/Sprachsbestaetigung";
 import Einwilligungserklaerung from "./pages/Einwilligungserklaerung";
 import FotoVideoRozilik from "./pages/FotoVideoRozilik";
+import Personalfragebogen from "./pages/Personalfragebogen";
 import DataExchange from "./pages/DataExchange";
 import NotFound from "./pages/NotFound";
 import { useDesktopOnly } from "./hooks/useDesktopOnly";
@@ -151,6 +152,10 @@ function App() {
                 {
                   path: "foto-video-rozilik",
                   element: <FotoVideoRozilik />,
+                },
+                {
+                  path: "personalfragebogen",
+                  element: <Personalfragebogen />,
                 },
               ],
             },

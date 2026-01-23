@@ -83,6 +83,14 @@ export const DOCUMENT_TEMPLATES = [
     to: "/settings/documents/foto-video-rozilik",
     kind: "pdf",
   },
+  {
+    id: "personalfragebogen",
+    title: "Personalfragebogen",
+    description:
+      "Template: Ishchi haqidagi ma'lumotnoma - shaxsiy ma'lumotlar, soliq, bank, viza.",
+    to: "/settings/documents/personalfragebogen",
+    kind: "pdf",
+  },
 ];
 
 
