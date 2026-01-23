@@ -62,7 +62,7 @@ const s = StyleSheet.create({
   page: {
     padding: 72,
     fontFamily: "Inter",
-    fontSize: 10,
+    fontSize: 11,
     color: "#0f172a",
     lineHeight: 1.5,
     backgroundColor: "#ffffff",
@@ -73,15 +73,15 @@ const s = StyleSheet.create({
     marginLeft: "auto",
   },
   headerCompany: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: 700,
   },
   headerText: {
-    fontSize: 10,
+    fontSize: 11,
     marginTop: 2,
   },
   headerLink: {
-    fontSize: 10,
+    fontSize: 11,
     color: "#2563eb",
     textDecoration: "none",
   },
@@ -92,7 +92,7 @@ const s = StyleSheet.create({
     marginBottom: 30,
   },
   title: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: 700,
     marginBottom: 30,
   },

@@ -41,6 +41,8 @@ import VollmachtArbeitgeber from "./pages/VollmachtArbeitgeber";
 import RozilikXati from "./pages/RozilikXati";
 import NomzodRozilikXati from "./pages/NomzodRozilikXati";
 import Mitarbeiterwohnung from "./pages/Mitarbeiterwohnung";
+import Sprachsbestaetigung from "./pages/Sprachsbestaetigung";
+import Einwilligungserklaerung from "./pages/Einwilligungserklaerung";
 import DataExchange from "./pages/DataExchange";
 import NotFound from "./pages/NotFound";
 import { useDesktopOnly } from "./hooks/useDesktopOnly";
@@ -136,6 +138,14 @@ function App() {
                 {
                   path: "mitarbeiterwohnung",
                   element: <Mitarbeiterwohnung />,
+                },
+                {
+                  path: "sprachsbestaetigung",
+                  element: <Sprachsbestaetigung />,
+                },
+                {
+                  path: "einwilligungserklaerung",
+                  element: <Einwilligungserklaerung />,
                 },
               ],
             },
