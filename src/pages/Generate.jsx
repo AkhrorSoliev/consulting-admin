@@ -122,6 +122,7 @@ import MitarbeiterwohnungPdfDocument from "./contract/pdf/MitarbeiterwohnungPdfD
 import SprachsbestaetigungPdfDocument from "./contract/pdf/SprachsbestaetigungPdfDocument";
 import EinwilligungserklaerungPdfDocument from "./contract/pdf/EinwilligungserklaerungPdfDocument";
 import FotoVideoRozilikPdfDocument from "./contract/pdf/FotoVideoRozilikPdfDocument";
+import PersonalfragebogenPdfDocument from "./contract/pdf/PersonalfragebogenPdfDocument";
 import {
   makeEmailTemplateId,
   subscribeToEmailTemplates,
@@ -1247,6 +1248,63 @@ function Generate() {
     return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
   }
 
+  async function generateAndUploadPersonalfragebogen() {
+    // Load template defaults from Firestore
+    const templateDoc = await getDocumentDataById(
+      "template_documents",
+      "personalfragebogen"
+    );
+    const savedForm =
+      templateDoc && typeof templateDoc.form === "object"
+        ? templateDoc.form
+        : {};
+
+    // Merge with current candidate data
+    const vorname = String(formCv?.personalInfo?.name || "").trim();
+    const nachname = String(formCv?.personalInfo?.lastName || "").trim();
+    const birthDate = String(formCv?.personalInfo?.birthDate || "").trim();
+    const birthPlace = String(formCv?.personalInfo?.birthPlace || "").trim();
+    const address = String(formCv?.personalInfo?.address || "").trim();
+    const geschlecht = String(docCv?.persoenlicheDaten?.geschlecht || "").trim();
+
+    // Extract country from berufserfahrung[0].ort (e.g. "Navoiy , Usbekistan" -> "Usbekistan")
+    const firstJobOrt = String(docCv?.berufserfahrung?.[0]?.ort || "").trim();
+    const ortParts = firstJobOrt.split(",");
+    const countryFromOrt = ortParts.length > 1 ? ortParts[ortParts.length - 1].trim() : "";
+    const staatsangehoerigkeit = countryFromOrt || "usbekisch";
+
+    const date = todayDdMmYyyy();
+
+    const merged = {
+      ...savedForm,
+      nachname: nachname,
+      vorname: vorname,
+      wohnadresseUsbekistan: address,
+      geburtsdatum: birthDate,
+      geburtsort: birthPlace,
+      geschlecht: geschlecht,
+      staatsangehoerigkeit: staatsangehoerigkeit,
+      datum: date,
+    };
+
+    const fullName = [nachname, vorname].filter(Boolean).join(" ");
+    const fileBase = fullName
+      ? `Personalfragebogen ${fullName}`
+      : "Personalfragebogen";
+    const safeFileName =
+      fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Personalfragebogen";
+
+    const blob = await pdf(
+      <PersonalfragebogenPdfDocument form={merged} />
+    ).toBlob();
+
+    const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
+      type: "application/pdf",
+    });
+    const url = await uploadFileToFirebase(file, "outgoing");
+    return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
+  }
+
   async function handleToggleOutgoingDoc(template, nextEnabled, options = {}) {
     const tpl = template || {};
     const templateId = String(tpl.id || "").trim();
@@ -1331,6 +1389,8 @@ function Generate() {
         generated = await generateAndUploadEinwilligungserklaerung();
       } else if (templateId === "foto_video_rozilik") {
         generated = await generateAndUploadFotoVideoRozilik();
+      } else if (templateId === "personalfragebogen") {
+        generated = await generateAndUploadPersonalfragebogen();
       } else {
         throw new Error(`Unknown document template: ${templateId}`);
       }
