@@ -91,6 +91,46 @@ export const DOCUMENT_TEMPLATES = [
     to: "/settings/documents/personalfragebogen",
     kind: "pdf",
   },
+  {
+    id: "erklaerung_beschaeftigung",
+    title: "Erklärung zum Beschäftigungsverhältnis",
+    description:
+      "Template: Fillable PDF - Germaniya mehnat agentligi uchun ish beruvchi deklaratsiyasi.",
+    to: "/settings/documents/erklaerung-beschaeftigung",
+    kind: "fillable-pdf",
+  },
+  {
+    id: "zusatzblatt_a",
+    title: "Zusatzblatt A - Anerkennungsverfahren",
+    description:
+      "Template: Fillable PDF - Beschäftigung im Rahmen des Anerkennungsverfahrens.",
+    to: "/settings/documents/zusatzblatt-a",
+    kind: "fillable-pdf",
+  },
+  {
+    id: "zusatzblatt_b",
+    title: "Zusatzblatt B - ICT / Personalaustausch",
+    description:
+      "Template: Fillable PDF - Unternehmensintern transferierte Arbeitnehmer (ICT).",
+    to: "/settings/documents/zusatzblatt-b",
+    kind: "fillable-pdf",
+  },
+  {
+    id: "zusatzblatt_c",
+    title: "Zusatzblatt C - Berufskraftfahrer",
+    description:
+      "Template: Fillable PDF - Beschäftigung als Berufskraftfahrer/in.",
+    to: "/settings/documents/zusatzblatt-c",
+    kind: "fillable-pdf",
+  },
+  {
+    id: "zusatzblatt_d",
+    title: "Zusatzblatt D - Kurzfristige Beschäftigung",
+    description:
+      "Template: Fillable PDF - Kurzfristige Beschäftigung (90 Tage / 8 Monate).",
+    to: "/settings/documents/zusatzblatt-d",
+    kind: "fillable-pdf",
+  },
 ];
 
 

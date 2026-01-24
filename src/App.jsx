@@ -45,6 +45,11 @@ import Sprachsbestaetigung from "./pages/Sprachsbestaetigung";
 import Einwilligungserklaerung from "./pages/Einwilligungserklaerung";
 import FotoVideoRozilik from "./pages/FotoVideoRozilik";
 import Personalfragebogen from "./pages/Personalfragebogen";
+import ErklaerungBeschaeftigung from "./pages/ErklaerungBeschaeftigung";
+import ZusatzblattA from "./pages/ZusatzblattA";
+import ZusatzblattB from "./pages/ZusatzblattB";
+import ZusatzblattC from "./pages/ZusatzblattC";
+import ZusatzblattD from "./pages/ZusatzblattD";
 import DataExchange from "./pages/DataExchange";
 import NotFound from "./pages/NotFound";
 import { useDesktopOnly } from "./hooks/useDesktopOnly";
@@ -156,6 +161,26 @@ function App() {
                 {
                   path: "personalfragebogen",
                   element: <Personalfragebogen />,
+                },
+                {
+                  path: "erklaerung-beschaeftigung",
+                  element: <ErklaerungBeschaeftigung />,
+                },
+                {
+                  path: "zusatzblatt-a",
+                  element: <ZusatzblattA />,
+                },
+                {
+                  path: "zusatzblatt-b",
+                  element: <ZusatzblattB />,
+                },
+                {
+                  path: "zusatzblatt-c",
+                  element: <ZusatzblattC />,
+                },
+                {
+                  path: "zusatzblatt-d",
+                  element: <ZusatzblattD />,
                 },
               ],
             },
