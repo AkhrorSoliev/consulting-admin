@@ -186,37 +186,34 @@ export default function ZusatzblattA() {
             <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <FormInput
-                  label="1. Vorname(n)"
+                  label="1 Vorname"
                   value={form.txtf_1_Vorname}
                   onChange={(e) => setForm((p) => ({ ...p, txtf_1_Vorname: e.target.value }))}
                 />
                 <FormInput
-                  label="2. Nachname"
+                  label="2 Nachname"
                   value={form.txtf_2_Nachname}
                   onChange={(e) => setForm((p) => ({ ...p, txtf_2_Nachname: e.target.value }))}
                 />
               </div>
               <FormInput
-                label="3. Derzeitiger Wohnsitz"
+                label="3 derzeitiger Wohnsitz oder gewöhnlicher Aufenthaltsort"
                 value={form.txtf_3_Wohnsitz}
                 onChange={(e) => setForm((p) => ({ ...p, txtf_3_Wohnsitz: e.target.value }))}
               />
             </div>
 
             {/* Section B - Art der Beschäftigung */}
-            <div className="divider divider-start font-bold text-base-content/80">
-              B. Art der Beschäftigung
-            </div>
             <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">Art der Beschäftigung</span>
+                  <span className="label-text font-medium whitespace-normal">B. Um welche Art der Beschäftigung beziehungsweise Qualifizierung handelt es sich im Formular „Erklärung zum Beschäftigungsverhältnis"?</span>
                 </label>
                 <div className="space-y-2">
                   {[
-                    { value: "Betriebliche Qualifizierung, die im Rahmen des Anerkennungsverfahrens erforderlich ist \n(bitte die Abschnitte C, D, G und H ausfuellen)", label: "Betriebliche Qualifizierung im Rahmen des Anerkennungsverfahrens" },
-                    { value: "Beschaeftigung, die neben einer Qualifizierung im Rahmen des Anerkennungsverfahrens ausgeuebt wird \n(bitte die Abschnitte C, E, G und H ausfuellen)", label: "Beschäftigung neben einer Qualifizierung" },
-                    { value: "Beschaeftigung waehrend der Anerkennungspartnerschaft (bitte die Abschnitte F, G und H ausfuellen)", label: "Beschäftigung während der Anerkennungspartnerschaft" },
+                    { value: "Betriebliche Qualifizierung, die im Rahmen des Anerkennungsverfahrens erforderlich ist \n(bitte die Abschnitte C, D, G und H ausfuellen)", label: "Betriebliche Qualifizierung, die im Rahmen des Anerkennungsverfahrens erforderlich ist (bitte die Abschnitte C, D, G und H ausfüllen)" },
+                    { value: "Beschaeftigung, die neben einer Qualifizierung im Rahmen des Anerkennungsverfahrens ausgeuebt wird \n(bitte die Abschnitte C, E, G und H ausfuellen)", label: "Beschäftigung, die neben einer Qualifizierung im Rahmen des Anerkennungsverfahrens ausgeübt wird (bitte die Abschnitte C, E, G und H ausfüllen)" },
+                    { value: "Beschaeftigung waehrend der Anerkennungspartnerschaft (bitte die Abschnitte F, G und H ausfuellen)", label: "Beschäftigung während der Anerkennungspartnerschaft (bitte die Abschnitte F, G und H ausfüllen)" },
                   ].map((opt) => (
                     <label key={opt.value} className="label cursor-pointer justify-start gap-3">
                       <input
@@ -226,7 +223,7 @@ export default function ZusatzblattA() {
                         checked={form.rbtn_B_ArtBeschaeftigung === opt.value}
                         onChange={() => setForm((p) => ({ ...p, rbtn_B_ArtBeschaeftigung: opt.value }))}
                       />
-                      <span className="label-text">{opt.label}</span>
+                      <span className="label-text whitespace-normal">{opt.label}</span>
                     </label>
                   ))}
                 </div>
@@ -235,53 +232,47 @@ export default function ZusatzblattA() {
 
             {/* Section C - Anerkennungsbehörde */}
             <div className="divider divider-start font-bold text-base-content/80">
-              C. Angaben zur Anerkennungsbehörde
+              C. Angaben zum Anerkennungsverfahren
             </div>
             <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
               <FormInput
-                label="4. Name der Anerkennungsbehörde"
+                label="4 Name der zuständigen Anerkennungsbehörde"
                 value={form.txtf_4_Anerkennungsbehoerde}
                 onChange={(e) => setForm((p) => ({ ...p, txtf_4_Anerkennungsbehoerde: e.target.value }))}
               />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <FormInput
-                  label="5. Straße"
+                  label="5 Straße"
                   value={form.txtf_5_Strasse}
                   onChange={(e) => setForm((p) => ({ ...p, txtf_5_Strasse: e.target.value }))}
                 />
                 <FormInput
-                  label="6. Hausnummer"
+                  label="6 Hausnummer"
                   value={form.txtf_6_Hausnummer}
                   onChange={(e) => setForm((p) => ({ ...p, txtf_6_Hausnummer: e.target.value }))}
                 />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <FormInput
-                  label="7. PLZ"
+                  label="7 Postleitzahl"
                   value={form.txtf_7_PLZ}
                   onChange={(e) => setForm((p) => ({ ...p, txtf_7_PLZ: e.target.value }))}
                 />
                 <FormInput
-                  label="8. Ort"
+                  label="8 Ort"
                   value={form.txtf_8_Ort}
                   onChange={(e) => setForm((p) => ({ ...p, txtf_8_Ort: e.target.value }))}
                 />
               </div>
-            </div>
 
-            {/* Section D - Antrag */}
-            <div className="divider divider-start font-bold text-base-content/80">
-              D. Angaben zum Antrag
-            </div>
-            <div className="bg-base-200/50 rounded-lg p-4 space-y-4">
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">9. Art des Antrags</span>
+                  <span className="label-text font-medium whitespace-normal">9 Welcher Antrag wurde bei der zuständigen Anerkennungsbehörde gestellt?</span>
                 </label>
                 <div className="space-y-2">
                   {[
-                    { value: "Antrag auf Feststellung der Gleichwertigkeit der auslaendischen Berufsqualifikation mit einer inlaendischen Berufsqualifikation (weiter mit 10)", label: "Antrag auf Feststellung der Gleichwertigkeit" },
-                    { value: "Antrag auf Erteilung einer Berufsausuebungserlaubnis – bei reglementierten Berufen (weiter mit 11)", label: "Antrag auf Berufsausübungserlaubnis" },
+                    { value: "Antrag auf Feststellung der Gleichwertigkeit der auslaendischen Berufsqualifikation mit einer inlaendischen Berufsqualifikation (weiter mit 10)", label: "Antrag auf Feststellung der Gleichwertigkeit der ausländischen Berufsqualifikation mit einer inländischen Berufsqualifikation (weiter mit 10)" },
+                    { value: "Antrag auf Erteilung einer Berufsausuebungserlaubnis – bei reglementierten Berufen (weiter mit 11)", label: "Antrag auf Erteilung einer Berufsausübungserlaubnis – bei reglementierten Berufen (weiter mit 11)" },
                   ].map((opt) => (
                     <label key={opt.value} className="label cursor-pointer justify-start gap-3">
                       <input
@@ -291,7 +282,7 @@ export default function ZusatzblattA() {
                         checked={form.rbtn_9_AntragAnerkennungsbehoerde === opt.value}
                         onChange={() => setForm((p) => ({ ...p, rbtn_9_AntragAnerkennungsbehoerde: opt.value }))}
                       />
-                      <span className="label-text">{opt.label}</span>
+                      <span className="label-text whitespace-normal">{opt.label}</span>
                     </label>
                   ))}
                 </div>
@@ -299,7 +290,7 @@ export default function ZusatzblattA() {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">10. Wurden Unterschiede in der Berufsqualifikation festgestellt?</span>
+                  <span className="label-text font-medium whitespace-normal">10 Hat die zuständige Behörde festgestellt, dass wesentliche Unterschiede im Vergleich zu einer inländischen Berufsqualifikation bestehen?</span>
                 </label>
                 <div className="flex gap-4">
                   {["ja", "nein"].map((opt) => (
@@ -311,7 +302,7 @@ export default function ZusatzblattA() {
                         checked={form.rbtn_10_UnterschiedeBerufsqualifikation === opt}
                         onChange={() => setForm((p) => ({ ...p, rbtn_10_UnterschiedeBerufsqualifikation: opt }))}
                       />
-                      <span className="label-text">{opt}</span>
+                      <span className="label-text whitespace-normal">{opt}</span>
                     </label>
                   ))}
                 </div>
@@ -319,7 +310,7 @@ export default function ZusatzblattA() {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">11. Sind Sprachkenntnisse erforderlich?</span>
+                  <span className="label-text font-medium whitespace-normal">11 Hat die zuständige Anerkennungsstelle festgestellt, dass Ausgleichsmaßnahmen oder weitere Qualifikationen (zum Beispiel Sprachkenntnisse) erforderlich sind? Bitte fügen Sie den Bescheid der zuständigen Anerkennungsbehörde bei.</span>
                 </label>
                 <div className="flex gap-4">
                   {["ja", "nein"].map((opt) => (
@@ -331,7 +322,7 @@ export default function ZusatzblattA() {
                         checked={form.rbtn_11_Sprachkenntnisse === opt}
                         onChange={() => setForm((p) => ({ ...p, rbtn_11_Sprachkenntnisse: opt }))}
                       />
-                      <span className="label-text">{opt}</span>
+                      <span className="label-text whitespace-normal">{opt}</span>
                     </label>
                   ))}
                 </div>
@@ -339,7 +330,7 @@ export default function ZusatzblattA() {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">12. Ist eine vollständige Anerkennung möglich?</span>
+                  <span className="label-text font-medium whitespace-normal">12 Falls bekannt: Kann nach Einschätzung der Anerkennungsbehörde die vollständige Anerkennung nach erfolgreichem Abschluss der vorgesehenen Qualifizierungsmaßnahme/n erlangt werden? Bitte fügen Sie eine entsprechende Erklärung der zuständigen Stelle bei, falls diese vorliegt.</span>
                 </label>
                 <div className="flex gap-4">
                   {["ja", "nein"].map((opt) => (
@@ -351,15 +342,21 @@ export default function ZusatzblattA() {
                         checked={form.rbtn_12_vollstaendigeAnerkennung === opt}
                         onChange={() => setForm((p) => ({ ...p, rbtn_12_vollstaendigeAnerkennung: opt }))}
                       />
-                      <span className="label-text">{opt}</span>
+                      <span className="label-text whitespace-normal">{opt}</span>
                     </label>
                   ))}
                 </div>
               </div>
+            </div>
 
+            {/* Section D - Betriebliche Qualifizierungsmaßnahme */}
+            <div className="divider divider-start font-bold text-base-content/80">
+              D. Betriebliche Qualifizierungsmaßnahme
+            </div>
+            <div className="bg-base-200/50 rounded-lg p-4 space-y-4">
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">13. Ist eine betriebliche Qualifizierung erforderlich?</span>
+                  <span className="label-text font-medium whitespace-normal">13 Handelt es sich um eine überwiegend betriebliche Qualifizierung im Rahmen des Anerkennungsverfahrens (mehr als die Hälfte der Qualifizierungsmaßnahme erfolgt im Rahmen einer Beschäftigung in einem Betrieb)? Bitte fügen Sie einen Weiterbildungsplan für die Qualifizierungsmaßnahme bei. Aus dem Weiterbildungsplan muss hervorgehen, in welcher Form, auf welche Art und Weise und/oder mit welchen Methoden die im Bescheid der zuständigen Stelle aufgelisteten Unterschiede ausgeglichen werden sollen.</span>
                 </label>
                 <div className="flex gap-4">
                   {["ja", "nein"].map((opt) => (
@@ -371,7 +368,7 @@ export default function ZusatzblattA() {
                         checked={form.rbtn_13_betrieblicheQualifizierung === opt}
                         onChange={() => setForm((p) => ({ ...p, rbtn_13_betrieblicheQualifizierung: opt }))}
                       />
-                      <span className="label-text">{opt}</span>
+                      <span className="label-text whitespace-normal">{opt}</span>
                     </label>
                   ))}
                 </div>
@@ -380,17 +377,17 @@ export default function ZusatzblattA() {
 
             {/* Section E - Beschäftigung während Anerkennung */}
             <div className="divider divider-start font-bold text-base-content/80">
-              E. Beschäftigung während des Anerkennungsverfahrens
+              E. Beschäftigung, die zusätzlich zu einer Qualifizierungsmaßnahme ausgeübt wird
             </div>
             <div className="bg-base-200/50 rounded-lg p-4 space-y-4">
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">14. Dauer der Beschäftigung</span>
+                  <span className="label-text font-medium whitespace-normal">14 Bitte machen Sie Angaben zur Beschäftigungsdauer.</span>
                 </label>
                 <div className="space-y-2">
                   {[
-                    { value: "Die Beschaeftigung dauert bis zu 20 Stunden pro Woche (weiter mit Abschnitt G)", label: "Bis zu 20 Stunden pro Woche" },
-                    { value: "Die Beschaeftigung dauert mehr als 20 Stunden pro Woche und zwischen der Beschaeftigung waehrend des Anerkennungsverfahrens und der spaeteren Beschaeftigung nach Erlangung der vollstaendigen Anerkennung besteht ein berufsfachlicher Zusammenhang", label: "Mehr als 20 Stunden pro Woche mit berufsfachlichem Zusammenhang" },
+                    { value: "Die Beschaeftigung dauert bis zu 20 Stunden pro Woche (weiter mit Abschnitt G)", label: "Die Beschäftigung dauert bis zu 20 Stunden pro Woche (weiter mit Abschnitt G)." },
+                    { value: "Die Beschaeftigung dauert mehr als 20 Stunden pro Woche und zwischen der Beschaeftigung waehrend des Anerkennungsverfahrens und der spaeteren Beschaeftigung nach Erlangung der vollstaendigen Anerkennung besteht ein berufsfachlicher Zusammenhang", label: "Die Beschäftigung dauert mehr als 20 Stunden pro Woche und zwischen der Beschäftigung während des Anerkennungsverfahrens und der späteren Beschäftigung nach Erlangung der vollständigen Anerkennung besteht ein berufsfachlicher Zusammenhang." },
                   ].map((opt) => (
                     <label key={opt.value} className="label cursor-pointer justify-start gap-3">
                       <input
@@ -400,7 +397,7 @@ export default function ZusatzblattA() {
                         checked={form.rbtn_14_Betriebsdauer === opt.value}
                         onChange={() => setForm((p) => ({ ...p, rbtn_14_Betriebsdauer: opt.value }))}
                       />
-                      <span className="label-text">{opt.label}</span>
+                      <span className="label-text whitespace-normal">{opt.label}</span>
                     </label>
                   ))}
                 </div>
@@ -408,7 +405,7 @@ export default function ZusatzblattA() {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">Gründe für berufsfachlichen Zusammenhang</span>
+                  <span className="label-text font-medium whitespace-normal">Bitte geben Sie die Gründe des berufsfachlichen Zusammenhangs an:</span>
                 </label>
                 <textarea
                   className="textarea textarea-bordered w-full h-24"
@@ -416,46 +413,113 @@ export default function ZusatzblattA() {
                   onChange={(e) => setForm((p) => ({ ...p, txtf_14_Gruende_beruflicherZusammenhang: e.target.value }))}
                 />
               </div>
-
-              <FormInput
-                label="15. Geplanter Zielberuf"
-                value={form.txtf_15_geplanterZielberuf}
-                onChange={(e) => setForm((p) => ({ ...p, txtf_15_geplanterZielberuf: e.target.value }))}
-              />
-
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-medium">Zielberuf Kategorien</span>
-                </label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {["a", "b", "c", "d", "e", "f", "g", "h"].map((letter) => (
-                    <label key={letter} className="label cursor-pointer justify-start gap-2">
-                      <input
-                        type="checkbox"
-                        className="checkbox checkbox-primary checkbox-sm"
-                        checked={form[`chbx_15${letter}_Zielberuf`]}
-                        onChange={(e) => setForm((p) => ({ ...p, [`chbx_15${letter}_Zielberuf`]: e.target.checked }))}
-                      />
-                      <span className="label-text">{letter.toUpperCase()}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
             </div>
 
             {/* Section F - Anerkennungspartnerschaft */}
             <div className="divider divider-start font-bold text-base-content/80">
-              F. Anerkennungspartnerschaft
+              F. Beschäftigung während der Anerkennungspartnerschaft
             </div>
             <div className="bg-base-200/50 rounded-lg p-4 space-y-4">
+              <div className="space-y-2">
+                <label className="label cursor-pointer justify-start gap-2 items-start">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-primary checkbox-sm mt-1"
+                    checked={form.chbx_15g_Zielberuf}
+                    onChange={(e) => setForm((p) => ({ ...p, chbx_15g_Zielberuf: e.target.checked }))}
+                  />
+                  <span className="label-text text-sm whitespace-normal">Während der Anerkennungspartnerschaft soll eine qualifizierte Beschäftigung ausgeübt werden (weiter mit Abschnitt G).</span>
+                </label>
+                <label className="label cursor-pointer justify-start gap-2 items-start">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-primary checkbox-sm mt-1"
+                    checked={form.chbx_15h_Zielberuf}
+                    onChange={(e) => setForm((p) => ({ ...p, chbx_15h_Zielberuf: e.target.checked }))}
+                  />
+                  <span className="label-text text-sm whitespace-normal">Während der Anerkennungspartnerschaft kann nur eine nicht qualifizierte Beschäftigung ausgeübt werden, da zur Ausübung der qualifizierten Beschäftigung eine Berufsausübungserlaubnis erforderlich wäre.</span>
+                </label>
+              </div>
+
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">16. Liegt ein Anerkennungsbescheid vor?</span>
+                  <span className="label-text font-medium whitespace-normal">15 Bitte wählen Sie Zutreffendes aus und machen Sie Angaben zum Zielberuf:</span>
+                </label>
+                <div className="space-y-2">
+                  <label className="label cursor-pointer justify-start gap-2 items-start">
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-primary checkbox-sm mt-1"
+                      checked={form.chbx_15a_Zielberuf}
+                      onChange={(e) => setForm((p) => ({ ...p, chbx_15a_Zielberuf: e.target.checked }))}
+                    />
+                    <span className="label-text text-sm whitespace-normal">Die Arbeitnehmerin/Der Arbeitnehmer hat sich in einer Vereinbarung mit mir als Arbeitgeber verpflichtet, spätestens unverzüglich nach der Einreise die Anerkennung ihrer/seiner im Ausland erworbenen Berufsqualifikation bei der zuständigen Anerkennungsstelle zu beantragen (bitte Nachweis beifügen).</span>
+                  </label>
+                  <label className="label cursor-pointer justify-start gap-2 items-start">
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-primary checkbox-sm mt-1"
+                      checked={form.chbx_15b_Zielberuf}
+                      onChange={(e) => setForm((p) => ({ ...p, chbx_15b_Zielberuf: e.target.checked }))}
+                    />
+                    <span className="label-text text-sm whitespace-normal">Ich als Arbeitgeber habe mich in einer Vereinbarung mit der Arbeitnehmerin/dem Arbeitnehmer verpflichtet, der Arbeitnehmerin/dem Arbeitnehmer die von der zuständigen Anerkennungsstelle gegebenenfalls geforderten Qualifizierungsmaßnahmen im Rahmen des Arbeitsverhältnisses zu ermöglichen (bitte Nachweis beifügen).</span>
+                  </label>
+                  <label className="label cursor-pointer justify-start gap-2 items-start">
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-primary checkbox-sm mt-1"
+                      checked={form.chbx_15c_Zielberuf}
+                      onChange={(e) => setForm((p) => ({ ...p, chbx_15c_Zielberuf: e.target.checked }))}
+                    />
+                    <span className="label-text text-sm whitespace-normal">Mir ist bekannt, dass die Arbeitnehmerin/der Arbeitnehmer das Anerkennungsverfahren so verfolgen sollte, dass der (Teil-)Anerkennungsbescheid der zuständigen Anerkennungsbehörde spätestens 12 Monate nach Einreise vorliegt.</span>
+                  </label>
+                </div>
+              </div>
+
+              <FormInput
+                label="Der geplante Zielberuf nach erfolgreicher Anerkennung der Berufsqualifikation der Arbeitnehmerin/des Arbeitnehmers lautet:"
+                value={form.txtf_15_geplanterZielberuf}
+                onChange={(e) => setForm((p) => ({ ...p, txtf_15_geplanterZielberuf: e.target.value }))}
+              />
+
+              <div className="space-y-2">
+                <label className="label cursor-pointer justify-start gap-2 items-start">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-primary checkbox-sm mt-1"
+                    checked={form.chbx_15d_Zielberuf}
+                    onChange={(e) => setForm((p) => ({ ...p, chbx_15d_Zielberuf: e.target.checked }))}
+                  />
+                  <span className="label-text text-sm whitespace-normal">Ich als Arbeitgeber bin für eine Ausbildung oder Nachqualifizierung im geplanten Zielberuf geeignet (bitte Nachweise wie zum Beispiel Ausbildungsberechtigung, Meisterbetrieb, letzte in der Lehrlingsrolle eingetragene Ausbildungen des Betriebs oder bereits erfolgreiche Nachqualifizierungen im Rahmen eines Anerkennungsverfahrens beifügen).</span>
+                </label>
+                <label className="label cursor-pointer justify-start gap-2 items-start">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-primary checkbox-sm mt-1"
+                    checked={form.chbx_15e_Zielberuf}
+                    onChange={(e) => setForm((p) => ({ ...p, chbx_15e_Zielberuf: e.target.checked }))}
+                  />
+                  <span className="label-text text-sm whitespace-normal">Ich als Arbeitgeber bin eine Pflegeeinrichtung im Sinne des § 72 Sozialgesetzbuch XI (bitte Nachweis beifügen) (weiter mit Abschnitt G).</span>
+                </label>
+                <label className="label cursor-pointer justify-start gap-2 items-start">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-primary checkbox-sm mt-1"
+                    checked={form.chbx_15f_Zielberuf}
+                    onChange={(e) => setForm((p) => ({ ...p, chbx_15f_Zielberuf: e.target.checked }))}
+                  />
+                  <span className="label-text text-sm whitespace-normal">Ich als Arbeitgeber und die angebotenen Beschäftigungsbedingungen unterliegen kirchlichem Recht (bitte Nachweis beifügen).</span>
+                </label>
+              </div>
+
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text font-medium whitespace-normal">16 Liegt bereits ein (Teil-)Anerkennungsbescheid vor?</span>
                 </label>
                 <div className="space-y-2">
                   {[
-                    { value: "ja - (bitte Nachweis beifuegen und auch Abschnitt C. ausfuellen)", label: "Ja (Nachweis beifügen)" },
-                    { value: "nein (weiter mit Abschnitt G.)", label: "Nein" },
+                    { value: "ja - (bitte Nachweis beifuegen und auch Abschnitt C. ausfuellen)", label: "Ja (bitte Nachweis beifügen und auch Abschnitt C ausfüllen)" },
+                    { value: "nein (weiter mit Abschnitt G.)", label: "Nein (weiter mit Abschnitt G)" },
                   ].map((opt) => (
                     <label key={opt.value} className="label cursor-pointer justify-start gap-3">
                       <input
@@ -465,7 +529,7 @@ export default function ZusatzblattA() {
                         checked={form.rbtn_16_Anerkennungsbescheid === opt.value}
                         onChange={() => setForm((p) => ({ ...p, rbtn_16_Anerkennungsbescheid: opt.value }))}
                       />
-                      <span className="label-text">{opt.label}</span>
+                      <span className="label-text whitespace-normal">{opt.label}</span>
                     </label>
                   ))}
                 </div>
@@ -473,13 +537,13 @@ export default function ZusatzblattA() {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">17. Art der Nachqualifizierung</span>
+                  <span className="label-text font-medium whitespace-normal">17 Bitte wählen Sie Zutreffendes zur Nachqualifizierung aus:</span>
                 </label>
                 <div className="space-y-2">
                   {[
-                    { value: "Die durch die zustaendige Anerkennungsstelle als erforderlich festgestellten Nachqualifizierungen koennen nicht weitgehend betriebsintern angeboten werden (bitte Weiterbildungsplan beifuegen)", label: "Nachqualifizierung nicht betriebsintern möglich" },
-                    { value: "es ist neben der betrieblichen Nachqualifizierung auch eine theoretische Nachqualifizierung notwendig (bitte Weiterbildungsplan beifuegen)", label: "Theoretische Nachqualifizierung notwendig" },
-                    { value: "die durch die zustaendige Anerkennungsstelle als erforderlich festgestellten Nachqualifizierungen koennen weitgehend \nbetriebsintern angeboten werden und die Nachqualifizierung wird voraussichtlich folgenden Zeitraum in Anspruch nehmen", label: "Betriebsinterne Nachqualifizierung möglich" },
+                    { value: "Die durch die zustaendige Anerkennungsstelle als erforderlich festgestellten Nachqualifizierungen koennen nicht weitgehend betriebsintern angeboten werden (bitte Weiterbildungsplan beifuegen)", label: "Die durch die zuständige Anerkennungsstelle als erforderlich festgestellten Nachqualifizierungen können nicht weitgehend betriebsintern angeboten werden (bitte Weiterbildungsplan beifügen) oder" },
+                    { value: "es ist neben der betrieblichen Nachqualifizierung auch eine theoretische Nachqualifizierung notwendig (bitte Weiterbildungsplan beifuegen)", label: "es ist neben der betrieblichen Nachqualifizierung auch eine theoretische Nachqualifizierung notwendig (bitte Weiterbildungsplan beifügen) oder" },
+                    { value: "die durch die zustaendige Anerkennungsstelle als erforderlich festgestellten Nachqualifizierungen koennen weitgehend \nbetriebsintern angeboten werden und die Nachqualifizierung wird voraussichtlich folgenden Zeitraum in Anspruch nehmen", label: "die durch die zuständige Anerkennungsstelle als erforderlich festgestellten Nachqualifizierungen können weitgehend betriebsintern angeboten werden und die Nachqualifizierung wird voraussichtlich folgenden Zeitraum in Anspruch nehmen:" },
                   ].map((opt) => (
                     <label key={opt.value} className="label cursor-pointer justify-start gap-3">
                       <input
@@ -489,7 +553,7 @@ export default function ZusatzblattA() {
                         checked={form.rbtn_17_Nachqualifizierung === opt.value}
                         onChange={() => setForm((p) => ({ ...p, rbtn_17_Nachqualifizierung: opt.value }))}
                       />
-                      <span className="label-text text-sm">{opt.label}</span>
+                      <span className="label-text whitespace-normal text-sm">{opt.label}</span>
                     </label>
                   ))}
                 </div>
@@ -497,13 +561,13 @@ export default function ZusatzblattA() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <FormInput
-                  label="Zeitraum von"
+                  label="von (TT.MM.JJJJ)"
                   type="date"
                   value={toInputDate(form.txtf_17_von)}
                   onChange={(e) => setForm((p) => ({ ...p, txtf_17_von: fromInputDate(e.target.value) }))}
                 />
                 <FormInput
-                  label="Zeitraum bis"
+                  label="bis (TT.MM.JJJJ)"
                   type="date"
                   value={toInputDate(form.txtf_17_bis)}
                   onChange={(e) => setForm((p) => ({ ...p, txtf_17_bis: fromInputDate(e.target.value) }))}
@@ -518,7 +582,51 @@ export default function ZusatzblattA() {
             <div className="bg-base-200/50 rounded-lg p-4 space-y-4">
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">18. Sprachkenntnisse</span>
+                  <span className="label-text font-medium whitespace-normal">18 Bitte machen Sie Angaben zu den Sprachkenntnissen der Arbeitnehmerin/des Arbeitnehmers.</span>
+                </label>
+                <div className="space-y-2">
+                  <label className="label cursor-pointer justify-start gap-2 items-start">
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-primary checkbox-sm mt-1"
+                      checked={form.chbx_18_a}
+                      onChange={(e) => setForm((p) => ({ ...p, chbx_18_a: e.target.checked }))}
+                    />
+                    <span className="label-text text-sm whitespace-normal">Die Arbeitnehmerin/Der Arbeitnehmer verfügt über zertifizierte deutsche Sprachkenntnisse des Gemeinsamen Europäischen Referenzrahmens.</span>
+                  </label>
+                  <label className="label cursor-pointer justify-start gap-2 items-start">
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-primary checkbox-sm mt-1"
+                      checked={form.chbx_18_b}
+                      onChange={(e) => setForm((p) => ({ ...p, chbx_18_b: e.target.checked }))}
+                    />
+                    <span className="label-text text-sm whitespace-normal">Das Niveau ist nicht bekannt beziehungsweise es liegt kein Sprachzertifikat zu Deutschkenntnissen vor (weiter mit Abschnitt H).</span>
+                  </label>
+                  <label className="label cursor-pointer justify-start gap-2 items-start">
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-primary checkbox-sm mt-1"
+                      checked={form.chbx_18_c}
+                      onChange={(e) => setForm((p) => ({ ...p, chbx_18_c: e.target.checked }))}
+                    />
+                    <span className="label-text text-sm whitespace-normal">Die Arbeitnehmerin/Der Arbeitnehmer wird begleitend zu der Beschäftigung weitere deutsche Sprachkenntnisse erwerben.</span>
+                  </label>
+                  <label className="label cursor-pointer justify-start gap-2 items-start">
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-primary checkbox-sm mt-1"
+                      checked={form.chbx_18_d}
+                      onChange={(e) => setForm((p) => ({ ...p, chbx_18_d: e.target.checked }))}
+                    />
+                    <span className="label-text text-sm whitespace-normal">Die Qualifizierungsmaßnahme oder Tätigkeit kann mit den nachweislich vorhandenen deutschen Sprachkenntnissen ausgeübt werden.</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text font-medium whitespace-normal">Bitte erläutern Sie die Gründe (gegebenenfalls werden weitere Nachweise zur Glaubhaftmachung verlangt):</span>
                 </label>
                 <textarea
                   className="textarea textarea-bordered w-full h-20"
@@ -529,26 +637,7 @@ export default function ZusatzblattA() {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">Nachweis</span>
-                </label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {["a", "b", "c", "d"].map((letter) => (
-                    <label key={letter} className="label cursor-pointer justify-start gap-2">
-                      <input
-                        type="checkbox"
-                        className="checkbox checkbox-primary checkbox-sm"
-                        checked={form[`chbx_18_${letter}`]}
-                        onChange={(e) => setForm((p) => ({ ...p, [`chbx_18_${letter}`]: e.target.checked }))}
-                      />
-                      <span className="label-text">{letter.toUpperCase()}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-medium">19. Sprachniveau</span>
+                  <span className="label-text font-medium whitespace-normal">19 Bitte geben Sie das deutsche Sprachniveau an und fügen Sie einen entsprechenden Nachweis bei, falls vorhanden.</span>
                 </label>
                 <div className="flex flex-wrap gap-3">
                   {["A1", "A2", "B1", "B2", "C1", "C2"].map((level) => (
@@ -560,7 +649,7 @@ export default function ZusatzblattA() {
                         checked={form.rbtn_19_Sprachniveau === level}
                         onChange={() => setForm((p) => ({ ...p, rbtn_19_Sprachniveau: level }))}
                       />
-                      <span className="label-text">{level}</span>
+                      <span className="label-text whitespace-normal">{level}</span>
                     </label>
                   ))}
                 </div>
@@ -569,17 +658,17 @@ export default function ZusatzblattA() {
 
             {/* Section H - Unterschrift */}
             <div className="divider divider-start font-bold text-base-content/80">
-              H. Ort und Datum
+              H. Erklärung und Unterschrift
             </div>
             <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <FormInput
-                  label="20. Ort"
+                  label="20 Ort"
                   value={form.txtf_20_Ort}
                   onChange={(e) => setForm((p) => ({ ...p, txtf_20_Ort: e.target.value }))}
                 />
                 <FormInput
-                  label="21. Datum"
+                  label="21 Datum"
                   type="date"
                   value={toInputDate(form.txtf_21_Datum)}
                   onChange={(e) => setForm((p) => ({ ...p, txtf_21_Datum: fromInputDate(e.target.value) }))}
