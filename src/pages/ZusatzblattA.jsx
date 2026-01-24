@@ -1,9 +1,15 @@
-import { useState } from "react";
-import { FaDownload } from "react-icons/fa";
+import { useState, useEffect } from "react";
+import { FaDownload, FaSave, FaTrash } from "react-icons/fa";
 import toast from "react-hot-toast";
 import { Link } from "react-router-dom";
 import { FaArrowLeft } from "react-icons/fa";
 import FormInput from "../components/FormInput";
+import {
+  getFillablePdfDefaults,
+  saveFillablePdfDefaults,
+  clearFillablePdfDefaults,
+} from "../utils/fillablePdfDefaults";
+import useUserRole from "../hooks/useUserRole";
 
 const PDF_BACKEND_URL = import.meta.env.VITE_PDF_BACKEND_URL || "http://localhost:3001";
 
@@ -33,6 +39,11 @@ function fromInputDate(yyyyMmDd) {
 
 export default function ZusatzblattA() {
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isSavingDefaults, setIsSavingDefaults] = useState(false);
+  const [isClearingDefaults, setIsClearingDefaults] = useState(false);
+  const [hasDefaults, setHasDefaults] = useState(false);
+  const { role } = useUserRole();
+  const canManageDefaults = role === "super_admin" || role === "admin";
 
   const [form, setForm] = useState({
     // Section A - Angaben zur Person
@@ -88,6 +99,66 @@ export default function ZusatzblattA() {
     txtf_20_Ort: "",
     txtf_21_Datum: todayDdMmYyyy(),
   });
+
+  useEffect(() => {
+    getFillablePdfDefaults("zusatzblatt_a")
+      .then((defaults) => {
+        if (defaults && typeof defaults === "object") {
+          setHasDefaults(Object.keys(defaults).some((k) => k !== "updatedAt" && defaults[k]));
+          setForm((prev) => {
+            const merged = { ...prev };
+            Object.keys(defaults).forEach((key) => {
+              if (key in merged && key !== "updatedAt") {
+                merged[key] = defaults[key];
+              }
+            });
+            return merged;
+          });
+        }
+      })
+      .catch((err) => console.error("Failed to load defaults:", err));
+  }, []);
+
+  async function handleSaveAsDefaults() {
+    setIsSavingDefaults(true);
+    try {
+      await saveFillablePdfDefaults("zusatzblatt_a", form);
+      setHasDefaults(true);
+      toast.success("Standardwerte gespeichert");
+    } catch (err) {
+      toast.error(err.message || "Fehler beim Speichern");
+    } finally {
+      setIsSavingDefaults(false);
+    }
+  }
+
+  async function handleClearDefaults() {
+    if (!window.confirm("Möchten Sie alle Standardwerte für dieses Template löschen?")) return;
+    setIsClearingDefaults(true);
+    try {
+      await clearFillablePdfDefaults("zusatzblatt_a");
+      setHasDefaults(false);
+      // Reset form to initial empty values
+      setForm((prev) => {
+        const reset = {};
+        Object.keys(prev).forEach((key) => {
+          if (key.startsWith("chbx_")) {
+            reset[key] = false;
+          } else if (key === "txtf_21_Datum") {
+            reset[key] = todayDdMmYyyy();
+          } else {
+            reset[key] = "";
+          }
+        });
+        return reset;
+      });
+      toast.success("Standardwerte gelöscht");
+    } catch (err) {
+      toast.error(err.message || "Fehler beim Löschen");
+    } finally {
+      setIsClearingDefaults(false);
+    }
+  }
 
   async function handleDownloadPdf() {
     try {
@@ -155,15 +226,41 @@ export default function ZusatzblattA() {
               <li className="opacity-70">Zusatzblatt A</li>
             </ul>
           </div>
-          <button
-            type="button"
-            className="btn btn-sm btn-primary"
-            onClick={handleDownloadPdf}
-            disabled={isDownloading}
-          >
-            <FaDownload />
-            {isDownloading ? "Wird erstellt..." : "PDF Herunterladen"}
-          </button>
+          <div className="flex items-center gap-2">
+            {canManageDefaults && (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline btn-secondary"
+                  onClick={handleSaveAsDefaults}
+                  disabled={isSavingDefaults}
+                >
+                  <FaSave className="w-3 h-3" />
+                  {isSavingDefaults ? "Speichern..." : "Als Standard speichern"}
+                </button>
+                {hasDefaults && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline btn-error"
+                    onClick={handleClearDefaults}
+                    disabled={isClearingDefaults}
+                  >
+                    <FaTrash className="w-3 h-3" />
+                    {isClearingDefaults ? "Löschen..." : "Standard löschen"}
+                  </button>
+                )}
+              </>
+            )}
+            <button
+              type="button"
+              className="btn btn-sm btn-primary"
+              onClick={handleDownloadPdf}
+              disabled={isDownloading}
+            >
+              <FaDownload />
+              {isDownloading ? "Wird erstellt..." : "PDF Herunterladen"}
+            </button>
+          </div>
         </div>
       </div>
 
