@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { FaDownload } from "react-icons/fa";
 import toast from "react-hot-toast";
 import FormInput from "../../../../components/FormInput";
+import { getFillablePdfDefaults } from "../../../../utils/fillablePdfDefaults";
 
 const PDF_BACKEND_URL = import.meta.env.VITE_PDF_BACKEND_URL || "http://localhost:3001";
 
@@ -54,10 +55,29 @@ export default function ZusatzblattDModal({ open, onClose, candidateData }) {
   });
 
   const [form, setForm] = useState(getInitialForm);
+  const [loadingDefaults, setLoadingDefaults] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setForm(getInitialForm());
+      const baseForm = getInitialForm();
+      setForm(baseForm);
+      setLoadingDefaults(true);
+      getFillablePdfDefaults("zusatzblatt_d")
+        .then((defaults) => {
+          if (defaults && typeof defaults === "object") {
+            setForm((prev) => {
+              const merged = { ...prev };
+              Object.keys(defaults).forEach((key) => {
+                if (key in merged && key !== "updatedAt" && !prev[key]) {
+                  merged[key] = defaults[key];
+                }
+              });
+              return merged;
+            });
+          }
+        })
+        .catch((err) => console.error("Failed to load defaults:", err))
+        .finally(() => setLoadingDefaults(false));
     }
   }, [open, candidateData]);
 

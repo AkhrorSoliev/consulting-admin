@@ -3,6 +3,7 @@ import useUserRole from "../../hooks/useUserRole";
 import { MdSettings, MdEmail, MdDescription } from "react-icons/md";
 import { FiUsers } from "react-icons/fi";
 import { FaTelegramPlane, FaFolderOpen } from "react-icons/fa";
+import { HiDocumentText } from "react-icons/hi2";
 
 function menuItemClass({ isActive }) {
   const base =
@@ -93,6 +94,17 @@ export default function SettingsLayout() {
                   <span className="flex-1">Template E-Mails</span>
                 </NavLink>
               </li>
+              {showTelegramGroups && (
+                <li>
+                  <NavLink to="fillable-pdf-defaults" className={menuItemClass} end>
+                    <HiDocumentText
+                      className="h-[18px] w-[18px] opacity-90"
+                      aria-hidden="true"
+                    />
+                    <span className="flex-1">PDF Standardwerte</span>
+                  </NavLink>
+                </li>
+              )}
               <li>
                 <NavLink to="documents" className={menuItemClass} end>
                   <MdDescription

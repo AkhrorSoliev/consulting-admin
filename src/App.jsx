@@ -29,6 +29,7 @@ import SettingsIndexRedirect from "./pages/settings/SettingsIndexRedirect";
 import TelegramGroupsSettings from "./pages/settings/TelegramGroupsSettings";
 import TelegramChannelsSettings from "./pages/settings/TelegramChannelsSettings";
 import DirectionsSettings from "./pages/settings/DirectionsSettings";
+import FillablePdfDefaultsSettings from "./pages/settings/FillablePdfDefaultsSettings";
 import CandidatesLayout from "./pages/candidates/CandidatesLayout";
 import CandidatesIndexRedirect from "./pages/candidates/CandidatesIndexRedirect";
 import CandidatesAllUsers from "./pages/candidates/CandidatesAllUsers";
@@ -119,6 +120,7 @@ function App() {
             { path: "telegram-channels", element: <TelegramChannelsSettings /> },
             { path: "directions", element: <DirectionsSettings /> },
             { path: "template-emails", element: <TemplateEmailsSettings /> },
+            { path: "fillable-pdf-defaults", element: <FillablePdfDefaultsSettings /> },
             {
               path: "documents",
               element: <Outlet />,
