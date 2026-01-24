@@ -105,6 +105,11 @@ import PhotoModal from "./generate/components/modals/PhotoModal";
 import StageEmailModal from "./generate/components/modals/StageEmailModal";
 import CustomEmailModal from "./generate/components/modals/CustomEmailModal";
 import SendDocumentLinkModal from "./generate/components/modals/SendDocumentLinkModal";
+import ErklaerungBeschaeftigungModal from "./generate/components/modals/ErklaerungBeschaeftigungModal";
+import ZusatzblattAModal from "./generate/components/modals/ZusatzblattAModal";
+import ZusatzblattBModal from "./generate/components/modals/ZusatzblattBModal";
+import ZusatzblattCModal from "./generate/components/modals/ZusatzblattCModal";
+import ZusatzblattDModal from "./generate/components/modals/ZusatzblattDModal";
 import LivePreview from "./generate/components/LivePreview";
 import SelectMajorModal from "../components/SelectMajorModal";
 import { restoreRemoteRecordToFirebase } from "./candidates/remoteUserUtils";
@@ -296,6 +301,12 @@ function Generate() {
 
   const [isSendDocLinkModalOpen, setIsSendDocLinkModalOpen] = useState(false);
   const [isSendingDocLink, setIsSendingDocLink] = useState(false);
+
+  const [isErklaerungModalOpen, setIsErklaerungModalOpen] = useState(false);
+  const [isZusatzblattAModalOpen, setIsZusatzblattAModalOpen] = useState(false);
+  const [isZusatzblattBModalOpen, setIsZusatzblattBModalOpen] = useState(false);
+  const [isZusatzblattCModalOpen, setIsZusatzblattCModalOpen] = useState(false);
+  const [isZusatzblattDModalOpen, setIsZusatzblattDModalOpen] = useState(false);
 
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -7576,7 +7587,16 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                 </div>
 
                 <div className="space-y-2">
-                  {DOCUMENT_TEMPLATES.map((tpl) => {
+                  {DOCUMENT_TEMPLATES.filter(
+                    (tpl) =>
+                      ![
+                        "erklaerung_beschaeftigung",
+                        "zusatzblatt_a",
+                        "zusatzblatt_b",
+                        "zusatzblatt_c",
+                        "zusatzblatt_d",
+                      ].includes(tpl.id)
+                  ).map((tpl) => {
                     const st = getOutgoingDocState(tpl.id);
                     const checked = Boolean(st?.enabled);
                     const busy = Boolean(outgoingBusyById?.[tpl.id]);
@@ -7694,6 +7714,95 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                       Derzeit keine Vorlagen verfügbar.
                     </div>
                   ) : null}
+                </div>
+
+                {/* Erklärung zum Beschäftigungsverhältnis - separate section with Öffnen buttons */}
+                <div className="divider text-sm font-medium opacity-70 mt-6">
+                  Erklärung zum Beschäftigungsverhältnis
+                </div>
+                <p className="text-xs text-base-content/60 mb-3">
+                  Klicken Sie auf "Öffnen", um das Formular mit Kandidatendaten zu öffnen und PDF herunterzuladen.
+                </p>
+                <div className="space-y-2">
+                  <div className="rounded-xl border border-base-300 bg-base-100 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-semibold">Erklärung zum Beschäftigungsverhältnis</div>
+                        <p className="text-xs text-base-content/60 mt-1">Hauptformular für die Bundesagentur für Arbeit</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary shrink-0"
+                        onClick={() => setIsErklaerungModalOpen(true)}
+                      >
+                        Öffnen
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-base-300 bg-base-100 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-semibold">Zusatzblatt A - Anerkennungsverfahren</div>
+                        <p className="text-xs text-base-content/60 mt-1">Beschäftigung im Rahmen des Anerkennungsverfahrens</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary shrink-0"
+                        onClick={() => setIsZusatzblattAModalOpen(true)}
+                      >
+                        Öffnen
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-base-300 bg-base-100 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-semibold">Zusatzblatt B - ICT / Personalaustausch</div>
+                        <p className="text-xs text-base-content/60 mt-1">Unternehmensinterner Transfer (ICT)</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary shrink-0"
+                        onClick={() => setIsZusatzblattBModalOpen(true)}
+                      >
+                        Öffnen
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-base-300 bg-base-100 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-semibold">Zusatzblatt C - Berufskraftfahrer</div>
+                        <p className="text-xs text-base-content/60 mt-1">Beschäftigung als Berufskraftfahrer/in</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary shrink-0"
+                        onClick={() => setIsZusatzblattCModalOpen(true)}
+                      >
+                        Öffnen
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-base-300 bg-base-100 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-semibold">Zusatzblatt D - Kurzfristige Beschäftigung</div>
+                        <p className="text-xs text-base-content/60 mt-1">Kurzfristige Beschäftigung (max. 70 Tage)</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary shrink-0"
+                        onClick={() => setIsZusatzblattDModalOpen(true)}
+                      >
+                        Öffnen
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -8030,6 +8139,36 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
         candidateEmail={String(formCv.personalInfo.email || "").trim()}
         hasTelegramId={Boolean(docCv?.telegramId)}
         documentLink={`${window.location.origin}/dataExchange/${candidateDocId}`}
+      />
+
+      <ErklaerungBeschaeftigungModal
+        open={isErklaerungModalOpen}
+        onClose={() => setIsErklaerungModalOpen(false)}
+        candidateData={formCv}
+      />
+
+      <ZusatzblattAModal
+        open={isZusatzblattAModalOpen}
+        onClose={() => setIsZusatzblattAModalOpen(false)}
+        candidateData={formCv}
+      />
+
+      <ZusatzblattBModal
+        open={isZusatzblattBModalOpen}
+        onClose={() => setIsZusatzblattBModalOpen(false)}
+        candidateData={formCv}
+      />
+
+      <ZusatzblattCModal
+        open={isZusatzblattCModalOpen}
+        onClose={() => setIsZusatzblattCModalOpen(false)}
+        candidateData={formCv}
+      />
+
+      <ZusatzblattDModal
+        open={isZusatzblattDModalOpen}
+        onClose={() => setIsZusatzblattDModalOpen(false)}
+        candidateData={formCv}
       />
 
       {isMobile && showBirthPlacePicker && (

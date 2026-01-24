@@ -34,7 +34,7 @@ const FormInput = forwardRef(function FormInput(
   return (
     <div className={`form-control w-full ${className}`}>
       {label ? (
-        <label htmlFor={safeId} className="label">
+        <label htmlFor={safeId} className="label whitespace-normal">
           <span className={labelClassName}>{label}</span>
         </label>
       ) : null}
