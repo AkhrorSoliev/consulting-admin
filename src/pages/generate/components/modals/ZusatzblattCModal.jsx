@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 import FormInput from "../../../../components/FormInput";
 import { getFillablePdfDefaults } from "../../../../utils/fillablePdfDefaults";
 
-const PDF_BACKEND_URL = import.meta.env.VITE_PDF_BACKEND_URL || "http://localhost:3001";
+const PDF_BACKEND_URL = import.meta.env.VITE_PDF_BACKEND_URL || "https://unsincerely-monarchal-alva.ngrok-free.dev";
 
 function todayDdMmYyyy() {
   const d = new Date();
@@ -218,7 +218,7 @@ export default function ZusatzblattCModal({ open, onClose, candidateData }) {
             <div className="bg-base-200/50 rounded-lg p-4 space-y-4">
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                  <span className="label-text font-medium text-sm   whitespace-normal">
                     4 Ist der/die Arbeitnehmer/in im Besitz der für die jeweilige Beschäftigung als Berufskraftfahrer/in im Güterkraftverkehr oder Personenverkehr mit Kraftomnibussen erforderlichen EU- oder EWR-Fahrerlaubnis der Klassen C1, C1E, C, CE, D1, D1E, D oder DE?
                   </span>
                 </label>
@@ -254,7 +254,7 @@ export default function ZusatzblattCModal({ open, onClose, candidateData }) {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                  <span className="label-text font-medium text-sm   whitespace-normal">
                     6 Ist die EU- oder EWR-Fahrerlaubnis mit der Schlüsselzahl 70 versehen?
                   </span>
                 </label>
@@ -284,7 +284,7 @@ export default function ZusatzblattCModal({ open, onClose, candidateData }) {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                  <span className="label-text font-medium text-sm   whitespace-normal">
                     7 Wenn ja, ist der Drittstaat, in dem die Fahrerlaubnis erstmalig erworben wurde, in Anlage 11 der Fahrerlaubnisverordnung aufgeführt und kann in der relevanten Fahrerlaubnisklasse prüfungsfrei umgeschrieben werden?
                   </span>
                 </label>
@@ -314,7 +314,7 @@ export default function ZusatzblattCModal({ open, onClose, candidateData }) {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                  <span className="label-text font-medium text-sm   whitespace-normal">
                     8 Ist der/die Arbeitnehmer/in im Besitz einer Fahrerlaubnis für den Güterverkehr oder für den Personenverkehr mit Kraftomnibussen aus einem Drittstaat?
                   </span>
                 </label>
@@ -344,7 +344,7 @@ export default function ZusatzblattCModal({ open, onClose, candidateData }) {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                  <span className="label-text font-medium text-sm   whitespace-normal">
                     9 Wenn ja, wurde die Fahrerlaubnis von einem in Anlage 11 der Fahrerlaubnisverordnung aufgeführten Staaten erteilt und kann in der relevanten Fahrerlaubnisklasse prüfungsfrei umgeschrieben werden?
                   </span>
                 </label>
@@ -380,7 +380,7 @@ export default function ZusatzblattCModal({ open, onClose, candidateData }) {
             <div className="bg-base-200/50 rounded-lg p-4 space-y-4">
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                  <span className="label-text font-medium text-sm   whitespace-normal">
                     10 Verfügt der/die Arbeitnehmer/in über eine Grundqualifikation oder beschleunigte Grundqualifikation, die nachgewiesen wurde durch einen Fahrerqualifizierungsnachweis aus einem EU-Mitgliedstaat oder EWR-Vertragsstaat oder der Schweiz?
                   </span>
                 </label>
@@ -402,7 +402,7 @@ export default function ZusatzblattCModal({ open, onClose, candidateData }) {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                  <span className="label-text font-medium text-sm   whitespace-normal">
                     11 Verfügt der/die Arbeitnehmer/in über eine Grundqualifikation oder beschleunigte Grundqualifikation, die nachgewiesen wurde durch einen Führerschein aus einem EU-Mitgliedstaat oder EWR-Vertragsstaat oder der Schweiz, in den die Schlüsselzahl 95 eingetragen ist?
                   </span>
                 </label>
@@ -426,7 +426,7 @@ export default function ZusatzblattCModal({ open, onClose, candidateData }) {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                  <span className="label-text font-medium text-sm   whitespace-normal">
                     12 Verfügt der/die Arbeitnehmer/in über eine Grundqualifikation oder beschleunigte Grundqualifikation, die nachgewiesen wurde durch eine Fahrerbescheinigung nach Artikel 5 Absatz 1 der Verordnung (EG) Nummer 1072/2009?
                   </span>
                 </label>
@@ -454,7 +454,7 @@ export default function ZusatzblattCModal({ open, onClose, candidateData }) {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                  <span className="label-text font-medium text-sm   whitespace-normal">
                     14 Falls keiner der unter Ziffer 10 bis 12 genannten Nachweise vorgelegt werden kann: Gilt der Bewerber durch die Besitzstandsregelung des § 4 BKrFQG als grundqualifiziert?
                   </span>
                 </label>
@@ -494,14 +494,14 @@ export default function ZusatzblattCModal({ open, onClose, candidateData }) {
                   checked={form.chbx_erwerb_fahrerlaubnis_1}
                   onChange={(e) => setForm((p) => ({ ...p, chbx_erwerb_fahrerlaubnis_1: e.target.checked }))}
                 />
-                <span className="label-text text-sm break-words whitespace-normal">
+                <span className="label-text text-sm   whitespace-normal">
                   Die Teilnahme an dem/den Kurs(en) beziehungsweise Prüfungen zum Erwerb der deutschen Fahrerlaubnis und/oder der Grundqualifikation oder beschleunigten Grundqualifikation und/oder bei Besitzstand nach § 4 BKrFQG der Weiterbildung ist erforderlich und geplant.
                 </span>
               </label>
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                  <span className="label-text font-medium text-sm   whitespace-normal">
                     15 Die Kurs- beziehungsweise Prüfungsteilnahme zum Erwerb der deutschen Fahrerlaubnis ist für folgenden Zeitraum ab Beschäftigungsaufnahme geplant:
                   </span>
                 </label>
@@ -536,7 +536,7 @@ export default function ZusatzblattCModal({ open, onClose, candidateData }) {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                  <span className="label-text font-medium text-sm   whitespace-normal">
                     18 Die Kurs- beziehungsweise Prüfungsteilnahme zum Erwerb der Grundqualifikation oder beschleunigten Grundqualifikation oder bei Besitzstand nach § 4 BKrFQG der Weiterbildung ist für folgenden Zeitraum ab Beschäftigungsaufnahme geplant:
                   </span>
                 </label>
@@ -591,7 +591,7 @@ export default function ZusatzblattCModal({ open, onClose, candidateData }) {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                  <span className="label-text font-medium text-sm   whitespace-normal">
                     21 Die Teilnahme am Sprachkurs ist für folgenden Zeitraum ab Beschäftigungsaufnahme geplant:
                   </span>
                 </label>
@@ -626,7 +626,7 @@ export default function ZusatzblattCModal({ open, onClose, candidateData }) {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                  <span className="label-text font-medium text-sm whitespace-normal">
                     24 Erfolgt der Beginn der angegebenen Kurs- beziehungsweise Prüfungsteilnahmen zum Erwerb der deutschen Fahrerlaubnis und/oder der Grundqualifikation oder beschleunigten Grundqualifikation oder bei Besitzstand nach § 4 BKrFQG der Weiterbildung und/oder des angestrebten Sprachniveaus parallel oder aufeinanderfolgend?
                   </span>
                 </label>

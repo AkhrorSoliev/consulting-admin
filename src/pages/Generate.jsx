@@ -7732,8 +7732,9 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                       </div>
                       <button
                         type="button"
-                        className="btn btn-sm btn-primary shrink-0"
+                        className="btn btn-sm btn-primary shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={() => setIsErklaerungModalOpen(true)}
+                        disabled={!formCv.personalInfo.firstName || !formCv.personalInfo.lastName}
                       >
                         Öffnen
                       </button>

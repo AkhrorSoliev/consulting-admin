@@ -51,6 +51,7 @@ import ZusatzblattA from "./pages/ZusatzblattA";
 import ZusatzblattB from "./pages/ZusatzblattB";
 import ZusatzblattC from "./pages/ZusatzblattC";
 import ZusatzblattD from "./pages/ZusatzblattD";
+import Beschaeftigungsverhaeltnis from "./pages/Beschaeftigungsverhaeltnis";
 import DataExchange from "./pages/DataExchange";
 import NotFound from "./pages/NotFound";
 import { useDesktopOnly } from "./hooks/useDesktopOnly";
@@ -183,6 +184,10 @@ function App() {
                 {
                   path: "zusatzblatt-d",
                   element: <ZusatzblattD />,
+                },
+                {
+                  path: "beschaeftigungsverhaeltnis",
+                  element: <Beschaeftigungsverhaeltnis />,
                 },
               ],
             },

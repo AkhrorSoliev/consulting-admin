@@ -1,6 +1,6 @@
 const express = require("express");
 const cors = require("cors");
-const { PDFDocument } = require("pdf-lib");
+const { PDFDocument, PDFName } = require("pdf-lib");
 const fs = require("fs");
 const path = require("path");
 
@@ -169,6 +169,28 @@ app.post("/generate-pdf", async (req, res) => {
       }
     }
 
+    // Handle multi-widget checkboxes (radio-like behavior with checkbox fields)
+    // Format: { fieldName: widgetIndex } where widgetIndex is 0, 1, 2, etc.
+    if (data.multiWidgetCheckboxes && typeof data.multiWidgetCheckboxes === "object") {
+      for (const [fieldName, widgetIndex] of Object.entries(data.multiWidgetCheckboxes)) {
+        try {
+          const checkbox = form.getCheckBox(fieldName);
+          if (checkbox && typeof widgetIndex === "number") {
+            const widgets = checkbox.acroField.getWidgets();
+            if (widgetIndex >= 0 && widgetIndex < widgets.length) {
+              // Set the widget's appearance state to its on value
+              const targetWidget = widgets[widgetIndex];
+              targetWidget.dict.set(PDFName.of("AS"), PDFName.of(String(widgetIndex)));
+              // Set the field value
+              checkbox.acroField.dict.set(PDFName.of("V"), PDFName.of(String(widgetIndex)));
+            }
+          }
+        } catch (e) {
+          console.warn(`Multi-widget checkbox "${fieldName}" error:`, e.message);
+        }
+      }
+    }
+
     // Select dropdown values
     if (data.dropdowns && typeof data.dropdowns === "object") {
       for (const [dropdownName, value] of Object.entries(data.dropdowns)) {
@@ -183,8 +205,21 @@ app.post("/generate-pdf", async (req, res) => {
       }
     }
 
+    // NOTE: We intentionally skip updateFieldAppearances() because it regenerates
+    // checkbox/radio appearances and can change the original PDF design (e.g., 
+    // square checkboxes become circles). The original appearance streams are preserved.
+
     // Flatten the form (makes it non-editable)
-    form.flatten();
+    // NOTE: Some templates may contain broken/orphan widget references. In that case pdf-lib can throw:
+    // "Could not find page for PDFRef ...".
+    // We fall back to returning a filled-but-not-flattened PDF rather than a 500 error.
+    let flattened = true;
+    try {
+      form.flatten();
+    } catch (e) {
+      flattened = false;
+      console.warn("form.flatten failed:", e.message);
+    }
 
     // Save the PDF
     const filledPdfBytes = await pdfDoc.save();
@@ -196,6 +231,7 @@ app.post("/generate-pdf", async (req, res) => {
     // Send as downloadable PDF
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${outputFilename}"`);
+    res.setHeader("X-PDF-Flattened", String(flattened));
     res.setHeader("Content-Length", filledPdfBytes.length);
     res.send(Buffer.from(filledPdfBytes));
   } catch (error) {
