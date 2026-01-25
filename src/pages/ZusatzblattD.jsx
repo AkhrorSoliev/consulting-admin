@@ -271,7 +271,7 @@ export default function ZusatzblattD() {
             <div className="bg-base-200/50 rounded-lg p-4 space-y-4">
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">4. Beschäftigung bis zu 90 Tage im Kalenderjahr?</span>
+                  <span className="label-text whitespace-normal font-medium">4 Die Arbeitnehmerin/Der Arbeitnehmer arbeitet insgesamt (inklusive bisheriger Beschäftigungen und der hier beantragten Beschäftigung) in Deutschland nicht mehr als 90 Tage je Zeitraum von 180 Tagen.</span>
                 </label>
                 <div className="flex gap-4">
                   {["ja", "nein"].map((opt) => (
@@ -283,15 +283,16 @@ export default function ZusatzblattD() {
                         checked={form.rbtn_4_Arbeit_90_Tage === opt}
                         onChange={() => setForm((p) => ({ ...p, rbtn_4_Arbeit_90_Tage: opt }))}
                       />
-                      <span className="label-text">{opt}</span>
+                      <span className="label-text whitespace-normal">{opt}</span>
                     </label>
                   ))}
                 </div>
               </div>
 
               <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-medium">5. Beschäftigung bis zu 8 Monate im Kalenderjahr?</span>
+                <label className="label flex-col items-start gap-1">
+                  <span className="label-text whitespace-normal font-medium">5 Die Arbeitnehmerin/Der Arbeitnehmer arbeitet insgesamt (inklusive bisheriger Beschäftigungen und der hier beantragten Beschäftigung) in Deutschland nicht mehr als acht Monate innerhalb eines Zeitraumes von zwölf Monaten.</span>
+                  <span className="label-text whitespace-normal text-xs opacity-70">Hinweis: Diese Frage ist auch zu beantworten, wenn Frage 4 mit Ja beantwortet wurde. Grund hierfür ist, dass die maximale Beschäftigungsdauer von acht Monaten innerhalb eines Zeitraumes von zwölf Monaten auch für Beschäftigungen nach Frage 4 gilt.</span>
                 </label>
                 <div className="flex gap-4">
                   {["ja", "nein"].map((opt) => (
@@ -303,7 +304,7 @@ export default function ZusatzblattD() {
                         checked={form.rbtn_5_Arbeit_8_Monate === opt}
                         onChange={() => setForm((p) => ({ ...p, rbtn_5_Arbeit_8_Monate: opt }))}
                       />
-                      <span className="label-text">{opt}</span>
+                      <span className="label-text whitespace-nowrap">{opt}</span>
                     </label>
                   ))}
                 </div>
@@ -311,7 +312,7 @@ export default function ZusatzblattD() {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">6. Beschäftigung als Erntehelfer/in?</span>
+                  <span className="label-text whitespace-normal font-medium">6 Handelt es sich um eine Beschäftigung als Erntehelferin/Erntehelfer in der Landwirtschaft?</span>
                 </label>
                 <div className="flex gap-4">
                   {["ja", "nein"].map((opt) => (
@@ -323,15 +324,16 @@ export default function ZusatzblattD() {
                         checked={form.rbtn_6_Erntehelfer === opt}
                         onChange={() => setForm((p) => ({ ...p, rbtn_6_Erntehelfer: opt }))}
                       />
-                      <span className="label-text">{opt}</span>
+                      <span className="label-text whitespace-nowrap">{opt}</span>
                     </label>
                   ))}
                 </div>
               </div>
 
               <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-medium">7. Visumfreie Einreise möglich?</span>
+                <label className="label flex-col items-start gap-1">
+                  <span className="label-text whitespace-normal font-medium">7 Die Arbeitnehmerin/Der Arbeitnehmer darf visumfrei zur Ausübung einer Beschäftigung einreisen (90 Tage je Zeitraum von 180 Tagen).</span>
+                  <span className="label-text whitespace-normal text-xs opacity-70">Hinweis: Staatsangehörige aus der Liste in Anhang II zur Verordnung (EU) 2018/1806 (sogenannte Positiv-Staater) können für 90 Tage innerhalb eines Zeitraums von 180 Tagen visumfrei einreisen.</span>
                 </label>
                 <div className="flex gap-4">
                   {["ja", "nein"].map((opt) => (
@@ -343,7 +345,7 @@ export default function ZusatzblattD() {
                         checked={form.rbtn_7_Arbeit_visumfrei === opt}
                         onChange={() => setForm((p) => ({ ...p, rbtn_7_Arbeit_visumfrei: opt }))}
                       />
-                      <span className="label-text">{opt}</span>
+                      <span className="label-text whitespace-nowrap">{opt}</span>
                     </label>
                   ))}
                 </div>
@@ -351,7 +353,7 @@ export default function ZusatzblattD() {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">8. War die Person bereits bei diesem Unternehmen beschäftigt?</span>
+                  <span className="label-text whitespace-normal font-medium">8 Im Unternehmen werden in höchstens zehn Monaten innerhalb von zwölf Monaten Arbeitnehmerinnen und Arbeitnehmer auf Grundlage des § 15d BeschV beschäftigt.</span>
                 </label>
                 <div className="flex gap-4">
                   {["ja", "nein"].map((opt) => (
@@ -363,7 +365,7 @@ export default function ZusatzblattD() {
                         checked={form.rbtn_8_Unternehmen_beschaeftigt === opt}
                         onChange={() => setForm((p) => ({ ...p, rbtn_8_Unternehmen_beschaeftigt: opt }))}
                       />
-                      <span className="label-text">{opt}</span>
+                      <span className="label-text whitespace-nowrap">{opt}</span>
                     </label>
                   ))}
                 </div>
@@ -371,7 +373,7 @@ export default function ZusatzblattD() {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">9. Werden Reisekosten übernommen?</span>
+                  <span className="label-text font-medium">9 Die erforderlichen Reisekosten für Hin- und Rückreise werden von dem Arbeitgeber übernommen.</span>
                 </label>
                 <div className="flex gap-4">
                   {["ja", "nein"].map((opt) => (
@@ -383,7 +385,7 @@ export default function ZusatzblattD() {
                         checked={form.rbtn_9_Reisekosten === opt}
                         onChange={() => setForm((p) => ({ ...p, rbtn_9_Reisekosten: opt }))}
                       />
-                      <span className="label-text">{opt}</span>
+                      <span className="label-text whitespace-nowrap">{opt}</span>
                     </label>
                   ))}
                 </div>
@@ -392,8 +394,9 @@ export default function ZusatzblattD() {
 
             {/* Section C - Unterschrift */}
             <div className="divider divider-start font-bold text-base-content/80">
-              C. Ort und Datum
+              C. Erklärung und Unterschrift
             </div>
+            <p className="text-sm opacity-70">Die Richtigkeit der Angaben wird durch Datum und Unterschrift bestätigt.</p>
             <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <FormInput
