@@ -271,7 +271,7 @@ export default function ZusatzblattD() {
             <div className="bg-base-200/50 rounded-lg p-4 space-y-4">
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">4. Beschäftigung bis zu 90 Tage im Kalenderjahr?</span>
+                  <span className="label-text whitespace-nowrap font-medium">4. Beschäftigung bis zu 90 Tage im Kalenderjahr?</span>
                 </label>
                 <div className="flex gap-4">
                   {["ja", "nein"].map((opt) => (
@@ -283,7 +283,7 @@ export default function ZusatzblattD() {
                         checked={form.rbtn_4_Arbeit_90_Tage === opt}
                         onChange={() => setForm((p) => ({ ...p, rbtn_4_Arbeit_90_Tage: opt }))}
                       />
-                      <span className="label-text">{opt}</span>
+                      <span className="label-text whitespace-nowrap">{opt}</span>
                     </label>
                   ))}
                 </div>
@@ -291,7 +291,7 @@ export default function ZusatzblattD() {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">5. Beschäftigung bis zu 8 Monate im Kalenderjahr?</span>
+                  <span className="label-text whitespace-nowrap font-medium">5. Beschäftigung bis zu 8 Monate im Kalenderjahr?</span>
                 </label>
                 <div className="flex gap-4">
                   {["ja", "nein"].map((opt) => (
@@ -303,7 +303,7 @@ export default function ZusatzblattD() {
                         checked={form.rbtn_5_Arbeit_8_Monate === opt}
                         onChange={() => setForm((p) => ({ ...p, rbtn_5_Arbeit_8_Monate: opt }))}
                       />
-                      <span className="label-text">{opt}</span>
+                      <span className="label-text whitespace-nowrap">{opt}</span>
                     </label>
                   ))}
                 </div>
@@ -311,7 +311,7 @@ export default function ZusatzblattD() {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">6. Beschäftigung als Erntehelfer/in?</span>
+                  <span className="label-text whitespace-nowrap font-medium">6. Beschäftigung als Erntehelfer/in?</span>
                 </label>
                 <div className="flex gap-4">
                   {["ja", "nein"].map((opt) => (
@@ -323,7 +323,7 @@ export default function ZusatzblattD() {
                         checked={form.rbtn_6_Erntehelfer === opt}
                         onChange={() => setForm((p) => ({ ...p, rbtn_6_Erntehelfer: opt }))}
                       />
-                      <span className="label-text">{opt}</span>
+                      <span className="label-text whitespace-nowrap">{opt}</span>
                     </label>
                   ))}
                 </div>
@@ -331,7 +331,7 @@ export default function ZusatzblattD() {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">7. Visumfreie Einreise möglich?</span>
+                  <span className="label-text whitespace-nowrap font-medium">7. Visumfreie Einreise möglich?</span>
                 </label>
                 <div className="flex gap-4">
                   {["ja", "nein"].map((opt) => (
@@ -343,7 +343,7 @@ export default function ZusatzblattD() {
                         checked={form.rbtn_7_Arbeit_visumfrei === opt}
                         onChange={() => setForm((p) => ({ ...p, rbtn_7_Arbeit_visumfrei: opt }))}
                       />
-                      <span className="label-text">{opt}</span>
+                      <span className="label-text whitespace-nowrap">{opt}</span>
                     </label>
                   ))}
                 </div>
@@ -351,7 +351,7 @@ export default function ZusatzblattD() {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">8. War die Person bereits bei diesem Unternehmen beschäftigt?</span>
+                  <span className="label-text whitespace-nowrap font-medium">8. War die Person bereits bei diesem Unternehmen beschäftigt?</span>
                 </label>
                 <div className="flex gap-4">
                   {["ja", "nein"].map((opt) => (
@@ -363,7 +363,7 @@ export default function ZusatzblattD() {
                         checked={form.rbtn_8_Unternehmen_beschaeftigt === opt}
                         onChange={() => setForm((p) => ({ ...p, rbtn_8_Unternehmen_beschaeftigt: opt }))}
                       />
-                      <span className="label-text">{opt}</span>
+                      <span className="label-text whitespace-nowrap">{opt}</span>
                     </label>
                   ))}
                 </div>
@@ -371,7 +371,7 @@ export default function ZusatzblattD() {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">9. Werden Reisekosten übernommen?</span>
+                  <span className="label-text whitespace-nowrap font-medium">9. Werden Reisekosten übernommen?</span>
                 </label>
                 <div className="flex gap-4">
                   {["ja", "nein"].map((opt) => (
@@ -383,7 +383,7 @@ export default function ZusatzblattD() {
                         checked={form.rbtn_9_Reisekosten === opt}
                         onChange={() => setForm((p) => ({ ...p, rbtn_9_Reisekosten: opt }))}
                       />
-                      <span className="label-text">{opt}</span>
+                      <span className="label-text whitespace-nowrap">{opt}</span>
                     </label>
                   ))}
                 </div>
