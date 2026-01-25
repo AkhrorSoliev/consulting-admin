@@ -187,25 +187,25 @@ export default function ZusatzblattCModal({ open, onClose, candidateData }) {
           </div>
 
           <div className="overflow-y-auto flex-1 p-4 sm:p-6 space-y-6">
-            {/* Section A - Angaben zur Person */}
+            {/* Section A - Angaben zur Arbeitnehmerin/zum Arbeitnehmer */}
             <div className="divider divider-start font-bold text-base-content/80">
               A. Angaben zur Arbeitnehmerin/zum Arbeitnehmer
             </div>
             <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <FormInput
-                  label="1. Vorname"
+                  label="1 Vorname"
                   value={form.txtf_1_vorname}
                   onChange={(e) => setForm((p) => ({ ...p, txtf_1_vorname: e.target.value }))}
                 />
                 <FormInput
-                  label="2. Nachname"
+                  label="2 Nachname"
                   value={form.txtf_2_name}
                   onChange={(e) => setForm((p) => ({ ...p, txtf_2_name: e.target.value }))}
                 />
               </div>
               <FormInput
-                label="3. Derzeitiger Wohnsitz oder gewöhnlicher Aufenthaltsort"
+                label="3 derzeitiger Wohnsitz oder gewöhnlicher Aufenthaltsort"
                 value={form.txtf_3_wohnsitz}
                 onChange={(e) => setForm((p) => ({ ...p, txtf_3_wohnsitz: e.target.value }))}
               />
@@ -219,85 +219,169 @@ export default function ZusatzblattCModal({ open, onClose, candidateData }) {
               <div className="form-control">
                 <label className="label">
                   <span className="label-text font-medium text-sm break-words whitespace-normal">
-                    4. Ist der/die Arbeitnehmer/in im Besitz der erforderlichen EU- oder EWR-Fahrerlaubnis?
+                    4 Ist der/die Arbeitnehmer/in im Besitz der für die jeweilige Beschäftigung als Berufskraftfahrer/in im Güterkraftverkehr oder Personenverkehr mit Kraftomnibussen erforderlichen EU- oder EWR-Fahrerlaubnis der Klassen C1, C1E, C, CE, D1, D1E, D oder DE?
                   </span>
                 </label>
                 <div className="flex gap-6 mt-2">
-                  {["ja", "nein"].map((opt) => (
-                    <label key={opt} className="label cursor-pointer gap-2">
-                      <input
-                        type="radio"
-                        name="modal_rbtn_4_fahrerlaubnis"
-                        className="radio radio-primary"
-                        checked={form.rbtn_4_fahrerlaubnis === opt}
-                        onChange={() => setForm((p) => ({ ...p, rbtn_4_fahrerlaubnis: opt }))}
-                      />
-                      <span className="label-text">{opt === "ja" ? "Ja" : "Nein"}</span>
-                    </label>
-                  ))}
+                  <label className="label cursor-pointer gap-2">
+                    <input
+                      type="radio"
+                      name="modal_rbtn_4_fahrerlaubnis"
+                      className="radio radio-primary"
+                      checked={form.rbtn_4_fahrerlaubnis === "ja"}
+                      onChange={() => setForm((p) => ({ ...p, rbtn_4_fahrerlaubnis: "ja" }))}
+                    />
+                    <span className="label-text">Ja</span>
+                  </label>
+                  <label className="label cursor-pointer gap-2">
+                    <input
+                      type="radio"
+                      name="modal_rbtn_4_fahrerlaubnis"
+                      className="radio radio-primary"
+                      checked={form.rbtn_4_fahrerlaubnis === "nein"}
+                      onChange={() => setForm((p) => ({ ...p, rbtn_4_fahrerlaubnis: "nein" }))}
+                    />
+                    <span className="label-text">Nein (weiter mit Ziffer 8)</span>
+                  </label>
                 </div>
               </div>
 
               <FormInput
-                label="5. Staat, in dem die EU- oder EWR-Fahrerlaubnis ausgestellt wurde"
+                label="5 Wenn ja, bitte Staat angeben, in dem die EU- oder EWR-Fahrerlaubnis ausgestellt wurde."
                 value={form.rbtn_5_fahrerlaubnis_ausgestellt}
                 onChange={(e) => setForm((p) => ({ ...p, rbtn_5_fahrerlaubnis_ausgestellt: e.target.value }))}
               />
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium text-sm">
-                    6. Ist die EU- oder EWR-Fahrerlaubnis mit der Schlüsselzahl 70 versehen?
+                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                    6 Ist die EU- oder EWR-Fahrerlaubnis mit der Schlüsselzahl 70 versehen?
                   </span>
                 </label>
                 <div className="flex gap-6 mt-2">
-                  {["ja", "nein"].map((opt) => (
-                    <label key={opt} className="label cursor-pointer gap-2">
-                      <input
-                        type="radio"
-                        name="modal_rbtn_6_fahrerlaubnis_schluesselzahl"
-                        className="radio radio-primary"
-                        checked={form.rbtn_6_fahrerlaubnis_schluesselzahl === opt}
-                        onChange={() => setForm((p) => ({ ...p, rbtn_6_fahrerlaubnis_schluesselzahl: opt }))}
-                      />
-                      <span className="label-text">{opt === "ja" ? "Ja" : "Nein"}</span>
-                    </label>
-                  ))}
+                  <label className="label cursor-pointer gap-2">
+                    <input
+                      type="radio"
+                      name="modal_rbtn_6_fahrerlaubnis_schluesselzahl"
+                      className="radio radio-primary"
+                      checked={form.rbtn_6_fahrerlaubnis_schluesselzahl === "ja"}
+                      onChange={() => setForm((p) => ({ ...p, rbtn_6_fahrerlaubnis_schluesselzahl: "ja" }))}
+                    />
+                    <span className="label-text">Ja</span>
+                  </label>
+                  <label className="label cursor-pointer gap-2">
+                    <input
+                      type="radio"
+                      name="modal_rbtn_6_fahrerlaubnis_schluesselzahl"
+                      className="radio radio-primary"
+                      checked={form.rbtn_6_fahrerlaubnis_schluesselzahl === "nein"}
+                      onChange={() => setForm((p) => ({ ...p, rbtn_6_fahrerlaubnis_schluesselzahl: "nein" }))}
+                    />
+                    <span className="label-text">Nein (weiter mit Abschnitt C)</span>
+                  </label>
                 </div>
               </div>
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium text-sm">
-                    8. Ist der/die Arbeitnehmer/in im Besitz einer Fahrerlaubnis aus einem Drittstaat?
+                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                    7 Wenn ja, ist der Drittstaat, in dem die Fahrerlaubnis erstmalig erworben wurde, in Anlage 11 der Fahrerlaubnisverordnung aufgeführt und kann in der relevanten Fahrerlaubnisklasse prüfungsfrei umgeschrieben werden?
                   </span>
                 </label>
                 <div className="flex gap-6 mt-2">
-                  {["ja", "nein"].map((opt) => (
-                    <label key={opt} className="label cursor-pointer gap-2">
-                      <input
-                        type="radio"
-                        name="modal_rbtn_8_fahrerlaubnis_drittstaat"
-                        className="radio radio-primary"
-                        checked={form.rbtn_8_fahrerlaubnis_drittstaat === opt}
-                        onChange={() => setForm((p) => ({ ...p, rbtn_8_fahrerlaubnis_drittstaat: opt }))}
-                      />
-                      <span className="label-text">{opt === "ja" ? "Ja" : "Nein"}</span>
-                    </label>
-                  ))}
+                  <label className="label cursor-pointer gap-2">
+                    <input
+                      type="radio"
+                      name="modal_rbtn_7_fahrerlaubnis_erworben"
+                      className="radio radio-primary"
+                      checked={form.rbtn_7_fahrerlaubnis_erworben === "ja"}
+                      onChange={() => setForm((p) => ({ ...p, rbtn_7_fahrerlaubnis_erworben: "ja" }))}
+                    />
+                    <span className="label-text">Ja (weiter mit Abschnitt C)</span>
+                  </label>
+                  <label className="label cursor-pointer gap-2">
+                    <input
+                      type="radio"
+                      name="modal_rbtn_7_fahrerlaubnis_erworben"
+                      className="radio radio-primary"
+                      checked={form.rbtn_7_fahrerlaubnis_erworben === "nein"}
+                      onChange={() => setForm((p) => ({ ...p, rbtn_7_fahrerlaubnis_erworben: "nein" }))}
+                    />
+                    <span className="label-text">Nein (weiter mit Abschnitt C)</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                    8 Ist der/die Arbeitnehmer/in im Besitz einer Fahrerlaubnis für den Güterverkehr oder für den Personenverkehr mit Kraftomnibussen aus einem Drittstaat?
+                  </span>
+                </label>
+                <div className="flex gap-6 mt-2">
+                  <label className="label cursor-pointer gap-2">
+                    <input
+                      type="radio"
+                      name="modal_rbtn_8_fahrerlaubnis_drittstaat"
+                      className="radio radio-primary"
+                      checked={form.rbtn_8_fahrerlaubnis_drittstaat === "ja"}
+                      onChange={() => setForm((p) => ({ ...p, rbtn_8_fahrerlaubnis_drittstaat: "ja" }))}
+                    />
+                    <span className="label-text">Ja (bitte Nachweis beifügen)</span>
+                  </label>
+                  <label className="label cursor-pointer gap-2">
+                    <input
+                      type="radio"
+                      name="modal_rbtn_8_fahrerlaubnis_drittstaat"
+                      className="radio radio-primary"
+                      checked={form.rbtn_8_fahrerlaubnis_drittstaat === "nein"}
+                      onChange={() => setForm((p) => ({ ...p, rbtn_8_fahrerlaubnis_drittstaat: "nein" }))}
+                    />
+                    <span className="label-text">Nein</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                    9 Wenn ja, wurde die Fahrerlaubnis von einem in Anlage 11 der Fahrerlaubnisverordnung aufgeführten Staaten erteilt und kann in der relevanten Fahrerlaubnisklasse prüfungsfrei umgeschrieben werden?
+                  </span>
+                </label>
+                <div className="flex gap-6 mt-2">
+                  <label className="label cursor-pointer gap-2">
+                    <input
+                      type="radio"
+                      name="modal_rbtn_9_fahrerlaubnis_erteilt"
+                      className="radio radio-primary"
+                      checked={form.rbtn_9_fahrerlaubnis_erteilt === "ja"}
+                      onChange={() => setForm((p) => ({ ...p, rbtn_9_fahrerlaubnis_erteilt: "ja" }))}
+                    />
+                    <span className="label-text">Ja</span>
+                  </label>
+                  <label className="label cursor-pointer gap-2">
+                    <input
+                      type="radio"
+                      name="modal_rbtn_9_fahrerlaubnis_erteilt"
+                      className="radio radio-primary"
+                      checked={form.rbtn_9_fahrerlaubnis_erteilt === "nein"}
+                      onChange={() => setForm((p) => ({ ...p, rbtn_9_fahrerlaubnis_erteilt: "nein" }))}
+                    />
+                    <span className="label-text">Nein</span>
+                  </label>
                 </div>
               </div>
             </div>
 
-            {/* Section C - Grundqualifikation */}
+            {/* Section C - Angaben zur Grundqualifikation oder beschleunigten Grundqualifikation */}
             <div className="divider divider-start font-bold text-base-content/80">
-              C. Angaben zur Grundqualifikation
+              C. Angaben zur Grundqualifikation oder beschleunigten Grundqualifikation
             </div>
             <div className="bg-base-200/50 rounded-lg p-4 space-y-4">
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium text-sm">
-                    10. Verfügt der/die Arbeitnehmer/in über einen Fahrerqualifizierungsnachweis?
+                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                    10 Verfügt der/die Arbeitnehmer/in über eine Grundqualifikation oder beschleunigte Grundqualifikation, die nachgewiesen wurde durch einen Fahrerqualifizierungsnachweis aus einem EU-Mitgliedstaat oder EWR-Vertragsstaat oder der Schweiz?
                   </span>
                 </label>
                 <div className="flex gap-6 mt-2">
@@ -318,8 +402,8 @@ export default function ZusatzblattCModal({ open, onClose, candidateData }) {
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium text-sm">
-                    11. Verfügt der/die Arbeitnehmer/in über einen Führerschein mit Schlüsselzahl 95?
+                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                    11 Verfügt der/die Arbeitnehmer/in über eine Grundqualifikation oder beschleunigte Grundqualifikation, die nachgewiesen wurde durch einen Führerschein aus einem EU-Mitgliedstaat oder EWR-Vertragsstaat oder der Schweiz, in den die Schlüsselzahl 95 eingetragen ist?
                   </span>
                 </label>
                 <div className="flex gap-6 mt-2">
@@ -338,23 +422,69 @@ export default function ZusatzblattCModal({ open, onClose, candidateData }) {
                 </div>
               </div>
 
+              <p className="text-sm opacity-70">oder</p>
+
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                    12 Verfügt der/die Arbeitnehmer/in über eine Grundqualifikation oder beschleunigte Grundqualifikation, die nachgewiesen wurde durch eine Fahrerbescheinigung nach Artikel 5 Absatz 1 der Verordnung (EG) Nummer 1072/2009?
+                  </span>
+                </label>
+                <div className="flex gap-6 mt-2">
+                  {["ja", "nein"].map((opt) => (
+                    <label key={opt} className="label cursor-pointer gap-2">
+                      <input
+                        type="radio"
+                        name="modal_rbtn_12_fahrerbescheinigung"
+                        className="radio radio-primary"
+                        checked={form.rbtn_12_fahrerbescheinigung === opt}
+                        onChange={() => setForm((p) => ({ ...p, rbtn_12_fahrerbescheinigung: opt }))}
+                      />
+                      <span className="label-text">{opt === "ja" ? "Ja" : "Nein"}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               <FormInput
-                label="13. Staat, in dem die Grundqualifikation erworben wurde"
+                label='13 Nur zu beantworten, wenn Ziffer 10, 11 oder 12 mit "Ja" beantwortet wurde: Bitte Staat angeben, in dem die Grundqualifikation oder beschleunigte Grundqualifikation erworben wurde.'
                 value={form.txtf_13_grundqualifikationsstaat}
                 onChange={(e) => setForm((p) => ({ ...p, txtf_13_grundqualifikationsstaat: e.target.value }))}
               />
 
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                    14 Falls keiner der unter Ziffer 10 bis 12 genannten Nachweise vorgelegt werden kann: Gilt der Bewerber durch die Besitzstandsregelung des § 4 BKrFQG als grundqualifiziert?
+                  </span>
+                </label>
+                <div className="flex gap-6 mt-2">
+                  {["ja", "nein"].map((opt) => (
+                    <label key={opt} className="label cursor-pointer gap-2">
+                      <input
+                        type="radio"
+                        name="modal_rbtn_14_grundqualifiziert"
+                        className="radio radio-primary"
+                        checked={form.rbtn_14_grundqualifiziert === opt}
+                        onChange={() => setForm((p) => ({ ...p, rbtn_14_grundqualifiziert: opt }))}
+                      />
+                      <span className="label-text">{opt === "ja" ? "Ja" : "Nein"}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               <div className="alert alert-info">
                 <FaInfoCircle className="text-lg" />
                 <div className="text-sm">
-                  <strong>Hinweis:</strong> Für die Besitzstandsregelung ist eine Weiterbildung von 35 Stunden erforderlich.
+                  <strong>Hinweis</strong> Für die Besitzstandsregelung ist eine Weiterbildung von 35 Stunden erforderlich, wenn sie nicht bereits in den letzten fünf Jahren während einer früheren Beschäftigung in einem EU-/EWR-Staat oder der Schweiz absolviert wurde.
                 </div>
               </div>
             </div>
 
-            {/* Section D - Erwerb */}
+            {/* Section D - Erwerb von deutscher Fahrerlaubnis und/oder Grundqualifikation */}
             <div className="divider divider-start font-bold text-base-content/80">
-              D. Erwerb von deutscher Fahrerlaubnis und/oder Grundqualifikation
+              D. Erwerb von deutscher Fahrerlaubnis und/oder Grundqualifikation oder beschleunigter Grundqualifikation
             </div>
             <div className="bg-base-200/50 rounded-lg p-4 space-y-4">
               <label className="label cursor-pointer justify-start gap-3">
@@ -364,36 +494,82 @@ export default function ZusatzblattCModal({ open, onClose, candidateData }) {
                   checked={form.chbx_erwerb_fahrerlaubnis_1}
                   onChange={(e) => setForm((p) => ({ ...p, chbx_erwerb_fahrerlaubnis_1: e.target.checked }))}
                 />
-                <span className="label-text text-sm">
-                  Die Teilnahme an Kursen/Prüfungen zum Erwerb der deutschen Fahrerlaubnis und/oder Grundqualifikation ist geplant.
+                <span className="label-text text-sm break-words whitespace-normal">
+                  Die Teilnahme an dem/den Kurs(en) beziehungsweise Prüfungen zum Erwerb der deutschen Fahrerlaubnis und/oder der Grundqualifikation oder beschleunigten Grundqualifikation und/oder bei Besitzstand nach § 4 BKrFQG der Weiterbildung ist erforderlich und geplant.
                 </span>
               </label>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <FormInput
-                  label="15. Kurs-/Prüfungsteilnahme (Wochen)"
-                  value={form.txtf_15_erwerb_kurs_wochen}
-                  onChange={(e) => setForm((p) => ({ ...p, txtf_15_erwerb_kurs_wochen: e.target.value }))}
-                />
-                <FormInput
-                  label="15. Kurs-/Prüfungsteilnahme (Monate)"
-                  value={form.txtf_15_erwerb_kurs_monat}
-                  onChange={(e) => setForm((p) => ({ ...p, txtf_15_erwerb_kurs_monat: e.target.value }))}
-                />
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                    15 Die Kurs- beziehungsweise Prüfungsteilnahme zum Erwerb der deutschen Fahrerlaubnis ist für folgenden Zeitraum ab Beschäftigungsaufnahme geplant:
+                  </span>
+                </label>
+                <div className="flex items-center gap-3 mt-2">
+                  <FormInput
+                    label="Wochen"
+                    value={form.txtf_15_erwerb_kurs_wochen}
+                    onChange={(e) => setForm((p) => ({ ...p, txtf_15_erwerb_kurs_wochen: e.target.value }))}
+                    className="w-24"
+                  />
+                  <span className="text-sm">oder Monate</span>
+                  <FormInput
+                    label="Monate"
+                    value={form.txtf_15_erwerb_kurs_monat}
+                    onChange={(e) => setForm((p) => ({ ...p, txtf_15_erwerb_kurs_monat: e.target.value }))}
+                    className="w-24"
+                  />
+                </div>
               </div>
 
               <FormInput
-                label="16. Wochenstunden für Kurs-/Prüfungsteilnahme"
+                label="16 Wie viele Wochenstunden wird die Kurs- beziehungsweise Prüfungsteilnahme zum Erwerb der deutschen Fahrerlaubnis in Anspruch nehmen?"
                 value={form.txtf_16_erwerb_kurs_wochenstunden}
                 onChange={(e) => setForm((p) => ({ ...p, txtf_16_erwerb_kurs_wochenstunden: e.target.value }))}
               />
 
               <FormInput
-                label="17. Freigestellte Wochenstunden"
+                label="17 Wie viele Wochenstunden wird die Arbeitnehmerin/der Arbeitnehmer zur Kurs- beziehungsweise Prüfungsteilnahme zum Erwerb der deutschen Fahrerlaubnis freigestellt?"
                 value={form.txtf_17_erwerb_kurs_freigestellt}
                 onChange={(e) => setForm((p) => ({ ...p, txtf_17_erwerb_kurs_freigestellt: e.target.value }))}
               />
 
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                    18 Die Kurs- beziehungsweise Prüfungsteilnahme zum Erwerb der Grundqualifikation oder beschleunigten Grundqualifikation oder bei Besitzstand nach § 4 BKrFQG der Weiterbildung ist für folgenden Zeitraum ab Beschäftigungsaufnahme geplant:
+                  </span>
+                </label>
+                <div className="flex items-center gap-3 mt-2">
+                  <FormInput
+                    label="Wochen"
+                    value={form.txtf_18_beschaeftigungsaufnahme_kurs_wochen}
+                    onChange={(e) => setForm((p) => ({ ...p, txtf_18_beschaeftigungsaufnahme_kurs_wochen: e.target.value }))}
+                    className="w-24"
+                  />
+                  <span className="text-sm">oder Monate</span>
+                  <FormInput
+                    label="Monate"
+                    value={form.txtf_18_beschaeftigungsaufnahme_kurs_monat}
+                    onChange={(e) => setForm((p) => ({ ...p, txtf_18_beschaeftigungsaufnahme_kurs_monat: e.target.value }))}
+                    className="w-24"
+                  />
+                </div>
+              </div>
+
+              <FormInput
+                label="19 Wie viele Wochenstunden wird die Kurs- beziehungsweise Prüfungsteilnahme zum Erwerb der Grundqualifikation oder beschleunigten Grundqualifikation oder bei Besitzstand nach § 4 BKrFQG der Weiterbildung in Anspruch nehmen?"
+                value={form.txtf_19_weiterbildung_kurs_wochenstunden}
+                onChange={(e) => setForm((p) => ({ ...p, txtf_19_weiterbildung_kurs_wochenstunden: e.target.value }))}
+              />
+
+              <FormInput
+                label="20 Wie viele Wochenstunden wird die Arbeitnehmerin/der Arbeitnehmer zur Kurs- beziehungsweise Prüfungsteilnahme zum Erwerb der Grundqualifikation oder beschleunigten Grundqualifikation oder bei Besitzstand nach § 4 BKrFQG der Weiterbildung freigestellt?"
+                value={form.txtf_20_weiterbildung_kurs_freigestellt}
+                onChange={(e) => setForm((p) => ({ ...p, txtf_20_weiterbildung_kurs_freigestellt: e.target.value }))}
+              />
+
+              {/* Sprachkurs Section */}
               <label className="label cursor-pointer justify-start gap-3 mt-4">
                 <input
                   type="checkbox"
@@ -401,83 +577,123 @@ export default function ZusatzblattCModal({ open, onClose, candidateData }) {
                   checked={form.chbx_erwerb_fahrerlaubnis_2}
                   onChange={(e) => setForm((p) => ({ ...p, chbx_erwerb_fahrerlaubnis_2: e.target.checked }))}
                 />
-                <span className="label-text text-sm">
-                  Für die Kurs-/Prüfungsteilnahme ist ein Sprachkurs erforderlich und geplant.
+                <span className="label-text text-sm whitespace-normal">
+                  Für die oben aufgeführte Kurs- beziehungsweise Prüfungsteilnahme ist der Besuch eines Sprachkurses in Deutschland erforderlich und geplant.
                 </span>
               </label>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <FormInput
-                  label="21. Sprachkurs (Wochen)"
-                  value={form.txtf_21_erwerb_sprachkurs_wochen}
-                  onChange={(e) => setForm((p) => ({ ...p, txtf_21_erwerb_sprachkurs_wochen: e.target.value }))}
-                />
-                <FormInput
-                  label="21. Sprachkurs (Monate)"
-                  value={form.txtf_21_erwerb_sprachkurs_monat}
-                  onChange={(e) => setForm((p) => ({ ...p, txtf_21_erwerb_sprachkurs_monat: e.target.value }))}
-                />
+              <div className="alert alert-info">
+                <FaInfoCircle className="text-lg" />
+                <div className="text-sm">
+                  <strong>Hinweis</strong> Die Prüfungsfragen zum Erwerb der beschleunigten Grundqualifikation in Deutsch sind an das Sprachniveau B1 angelehnt.
+                </div>
+              </div>
+
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                    21 Die Teilnahme am Sprachkurs ist für folgenden Zeitraum ab Beschäftigungsaufnahme geplant:
+                  </span>
+                </label>
+                <div className="flex items-center gap-3 mt-2">
+                  <FormInput
+                    label="Wochen"
+                    value={form.txtf_21_erwerb_sprachkurs_wochen}
+                    onChange={(e) => setForm((p) => ({ ...p, txtf_21_erwerb_sprachkurs_wochen: e.target.value }))}
+                    className="w-24"
+                  />
+                  <span className="text-sm">oder Monate</span>
+                  <FormInput
+                    label="Monate"
+                    value={form.txtf_21_erwerb_sprachkurs_monat}
+                    onChange={(e) => setForm((p) => ({ ...p, txtf_21_erwerb_sprachkurs_monat: e.target.value }))}
+                    className="w-24"
+                  />
+                </div>
               </div>
 
               <FormInput
-                label="22. Wochenstunden für Sprachkurs"
+                label="22 Wie viele Wochenstunden wird die Teilnahme am Sprachkurs in Anspruch nehmen?"
                 value={form.txtf_22_erwerb_sprachkurs_wochenstunden}
                 onChange={(e) => setForm((p) => ({ ...p, txtf_22_erwerb_sprachkurs_wochenstunden: e.target.value }))}
               />
 
               <FormInput
-                label="23. Freigestellte Wochenstunden für Sprachkurs"
+                label="23 Wie viele Wochenstunden wird die Arbeitnehmerin/der Arbeitnehmer zur Teilnahme am Sprachkurs freigestellt?"
                 value={form.txtf_23_erwerb_sprachkurs_freigestellt}
                 onChange={(e) => setForm((p) => ({ ...p, txtf_23_erwerb_sprachkurs_freigestellt: e.target.value }))}
               />
 
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium text-sm">
-                    24. Zeitlicher Ablauf der Kurse
+                  <span className="label-text font-medium text-sm break-words whitespace-normal">
+                    24 Erfolgt der Beginn der angegebenen Kurs- beziehungsweise Prüfungsteilnahmen zum Erwerb der deutschen Fahrerlaubnis und/oder der Grundqualifikation oder beschleunigten Grundqualifikation oder bei Besitzstand nach § 4 BKrFQG der Weiterbildung und/oder des angestrebten Sprachniveaus parallel oder aufeinanderfolgend?
                   </span>
                 </label>
                 <div className="flex gap-6 mt-2">
-                  {["parallel", "aufeinanderfolgend"].map((opt) => (
-                    <label key={opt} className="label cursor-pointer gap-2">
-                      <input
-                        type="radio"
-                        name="modal_rbtn_24_zeitlicher_ablauf"
-                        className="radio radio-primary"
-                        checked={form.rbtn_24_zeitlicher_ablauf === opt}
-                        onChange={() => setForm((p) => ({ ...p, rbtn_24_zeitlicher_ablauf: opt }))}
-                      />
-                      <span className="label-text">{opt}</span>
-                    </label>
-                  ))}
+                  <label className="label cursor-pointer gap-2">
+                    <input
+                      type="radio"
+                      name="modal_rbtn_24_zeitlicher_ablauf"
+                      className="radio radio-primary"
+                      checked={form.rbtn_24_zeitlicher_ablauf === "parallel"}
+                      onChange={() => setForm((p) => ({ ...p, rbtn_24_zeitlicher_ablauf: "parallel" }))}
+                    />
+                    <span className="label-text">parallel</span>
+                  </label>
+                  <label className="label cursor-pointer gap-2">
+                    <input
+                      type="radio"
+                      name="modal_rbtn_24_zeitlicher_ablauf"
+                      className="radio radio-primary"
+                      checked={form.rbtn_24_zeitlicher_ablauf === "aufeinanderfolgend (nach Abschluss eines Kurses beginnt der nächste)"}
+                      onChange={() => setForm((p) => ({ ...p, rbtn_24_zeitlicher_ablauf: "aufeinanderfolgend (nach Abschluss eines Kurses beginnt der nächste)" }))}
+                    />
+                    <span className="label-text">aufeinanderfolgend (nach Abschluss eines Kurses beginnt der nächste)</span>
+                  </label>
                 </div>
               </div>
 
+              <label className="label cursor-pointer justify-start gap-3">
+                <input
+                  type="checkbox"
+                  className="checkbox checkbox-primary"
+                  checked={form.chbx_erwerb_fahrerlaubnis_3}
+                  onChange={(e) => setForm((p) => ({ ...p, chbx_erwerb_fahrerlaubnis_3: e.target.checked }))}
+                />
+                <span className="label-text text-sm">
+                  Keine der genannten Konstellationen trifft zu.
+                </span>
+              </label>
+
               <div className="form-control">
                 <label className="label">
-                  <span className="label-text font-medium">25. Begründung</span>
+                  <span className="label-text font-medium">25 Begründung</span>
                 </label>
                 <textarea
-                  className="textarea textarea-bordered w-full h-24"
+                  className="textarea textarea-bordered w-full h-32"
                   value={form.txtf_25_erwerb_begruendung}
                   onChange={(e) => setForm((p) => ({ ...p, txtf_25_erwerb_begruendung: e.target.value }))}
                 />
               </div>
             </div>
 
-            {/* Section E - Unterschrift */}
+            {/* Section E - Erklärung und Unterschrift */}
             <div className="divider divider-start font-bold text-base-content/80">
               E. Erklärung und Unterschrift
             </div>
             <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
+              <p className="text-sm opacity-70">
+                Die Richtigkeit der Angaben wird durch Datum und Unterschrift bestätigt. Der Arbeitsvertrag verpflichtet zur Teilnahme an Maßnahmen zur Erlangung der oben genannten Weiterbildungen und Qualifikationen.
+              </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <FormInput
-                  label="26. Ort"
+                  label="26 Ort"
                   value={form.txtf_26_erklarung_ort}
                   onChange={(e) => setForm((p) => ({ ...p, txtf_26_erklarung_ort: e.target.value }))}
                 />
                 <FormInput
-                  label="27. Datum"
+                  label="27 Datum"
                   type="date"
                   value={toInputDate(form.txtf_27_erklarung_datum)}
                   onChange={(e) =>

@@ -768,8 +768,8 @@ export default function ZusatzblattC() {
                       type="radio"
                       name="rbtn_24_zeitlicher_ablauf"
                       className="radio radio-primary"
-                      checked={form.rbtn_24_zeitlicher_ablauf === "aufeinanderfolgend"}
-                      onChange={() => setForm((p) => ({ ...p, rbtn_24_zeitlicher_ablauf: "aufeinanderfolgend" }))}
+                      checked={form.rbtn_24_zeitlicher_ablauf === "aufeinanderfolgend (nach Abschluss eines Kurses beginnt der nächste)"}
+                      onChange={() => setForm((p) => ({ ...p, rbtn_24_zeitlicher_ablauf: "aufeinanderfolgend (nach Abschluss eines Kurses beginnt der nächste)" }))}
                     />
                     <span className="label-text">aufeinanderfolgend (nach Abschluss eines Kurses beginnt der nächste)</span>
                   </label>
