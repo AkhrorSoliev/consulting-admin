@@ -98,6 +98,7 @@ export const DOCUMENT_TEMPLATES = [
       "Template: Fillable PDF - Germaniya mehnat agentligi uchun ish beruvchi deklaratsiyasi.",
     to: "/settings/documents/erklaerung-beschaeftigung",
     kind: "fillable-pdf",
+    disabled: true,
   },
   {
     id: "zusatzblatt_a",
@@ -130,6 +131,15 @@ export const DOCUMENT_TEMPLATES = [
       "Template: Fillable PDF - Kurzfristige Beschäftigung (90 Tage / 8 Monate).",
     to: "/settings/documents/zusatzblatt-d",
     kind: "fillable-pdf",
+  },
+  {
+    id: "beschaeftigungsverhaeltnis",
+    title: "Beschäftigungsverhältnis (Yangi)",
+    description:
+      "Template: Fillable PDF - Yangi versiya Erklärung zum Beschäftigungsverhältnis.",
+    to: "/settings/documents/beschaeftigungsverhaeltnis",
+    kind: "fillable-pdf",
+    disabled: true,
   },
 ];
 

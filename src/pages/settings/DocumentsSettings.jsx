@@ -36,7 +36,7 @@ export default function DocumentsSettings() {
       </div>
 
       <div className="grid grid-cols-1 gap-3">
-        {DOCUMENT_TEMPLATES.map((doc) => (
+        {DOCUMENT_TEMPLATES.filter((doc) => !doc.disabled).map((doc) => (
           <div
             key={doc.id}
             className="rounded-xl border border-base-300 bg-base-100 p-4 shadow-sm"
