@@ -1048,7 +1048,8 @@ function MajorSettingsModal({
                                 .replace(/ü/g, "ue")
                                 .replace(/ö/g, "oe")
                                 .replace(/ä/g, "ae");
-                              const leadTelegramLink = `https://t.me/consultinguz_admin_bot?start=${sanitizedMajorId}__lead__${leadName}`;
+                              const leadIdShort = String(l.id || "").slice(0, 8);
+                              const leadTelegramLink = `https://t.me/consultinguz_admin_bot?start=${sanitizedMajorId}__lead__${leadIdShort}`;
                               const canCopy =
                                 isLinkActive && leadLinksActive && leadActive;
                               return (
