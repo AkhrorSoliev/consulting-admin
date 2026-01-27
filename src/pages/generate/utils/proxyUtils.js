@@ -40,7 +40,12 @@ export function buildProxyAssetUrlCandidates(rawUrl) {
   }
   const host = String(u.hostname || "").toLowerCase();
   const isJsonApi = host === "json-api.uz";
-  if (!isJsonApi) return [];
+  const isFirebaseStorage =
+    host === "firebasestorage.googleapis.com" ||
+    host.endsWith(".firebasestorage.app");
+
+  // Only proxy json-api.uz and Firebase Storage URLs
+  if (!isJsonApi && !isFirebaseStorage) return [];
 
   try {
     let isLocalhost = false;
@@ -55,8 +60,15 @@ export function buildProxyAssetUrlCandidates(rawUrl) {
       // ignore
     }
     const isDev = Boolean(import.meta?.env?.DEV) || isLocalhost;
-    if (isDev) {
+    if (isDev && isJsonApi) {
       return [`/__pdf_proxy${u.pathname}${u.search || ""}`];
+    }
+    // For Firebase Storage in dev, use the Cloud Function proxy
+    if (isDev && isFirebaseStorage) {
+      const bases = getFunctionsBaseCandidates();
+      return bases.map(
+        (base) => `${String(base)}/proxyPdf?url=${encodeURIComponent(raw)}`
+      );
     }
   } catch {
     // ignore

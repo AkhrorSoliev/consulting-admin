@@ -283,6 +283,15 @@ function isAllowedPdfProxyUrl(raw) {
     return false;
   }
   const host = String(u.hostname || "").toLowerCase();
+
+  // Allow Firebase Storage URLs (for passport/document PDFs)
+  if (
+    host === "firebasestorage.googleapis.com" ||
+    host.endsWith(".firebasestorage.app")
+  ) {
+    return true;
+  }
+
   if (host !== "json-api.uz") return false;
   const path = String(u.pathname || "");
   const lower = path.toLowerCase();

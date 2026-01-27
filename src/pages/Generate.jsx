@@ -420,6 +420,11 @@ function Generate() {
   const [commentHistoryIndex, setCommentHistoryIndex] = useState(-1);
   const [emailMetaAvatarFromUsers, setEmailMetaAvatarFromUsers] = useState("");
 
+  // Allow candidate to delete incoming documents (controlled by admin)
+  const [allowIncomingDelete, setAllowIncomingDelete] = useState(true);
+  const [savingAllowDelete, setSavingAllowDelete] = useState(false);
+  const [deletingIncomingDoc, setDeletingIncomingDoc] = useState({});
+
   // Document upload state
   const [selectedDocumentType, setSelectedDocumentType] = useState("");
 
@@ -560,6 +565,83 @@ function Generate() {
       outgoingDocsRef.current = {};
     }
   }, [docCv]);
+
+  // Fetch allowIncomingDelete from candidate_metadata
+  useEffect(() => {
+    if (!candidateDocId) return;
+    const fetchMetadata = async () => {
+      try {
+        const metaDoc = await getDocumentDataById("candidate_metadata", candidateDocId);
+        if (metaDoc && typeof metaDoc.allowIncomingDelete === "boolean") {
+          setAllowIncomingDelete(metaDoc.allowIncomingDelete);
+        } else {
+          setAllowIncomingDelete(true);
+        }
+      } catch {
+        setAllowIncomingDelete(true);
+      }
+    };
+    fetchMetadata();
+  }, [candidateDocId]);
+
+  async function handleToggleAllowIncomingDelete(newValue) {
+    if (!candidateDocId) return;
+    setSavingAllowDelete(true);
+    try {
+      await updateDocument("candidate_metadata", candidateDocId, {
+        allowIncomingDelete: newValue,
+        updatedAt: Date.now(),
+      });
+      setAllowIncomingDelete(newValue);
+      toast.success(newValue ? "Löschen erlaubt" : "Löschen gesperrt");
+    } catch (err) {
+      console.error("Failed to update allowIncomingDelete:", err);
+      toast.error("Fehler beim Speichern");
+    } finally {
+      setSavingAllowDelete(false);
+    }
+  }
+
+  async function handleDeleteIncomingDoc(docId) {
+    if (!candidateDocId || !candidateCollection) return;
+    const incomingDocs = docCv?.incomingDocuments || {};
+    const docData = incomingDocs[docId];
+    if (!docData?.url) return;
+
+    setDeletingIncomingDoc((prev) => ({ ...prev, [docId]: true }));
+    try {
+      await deleteUploadedFile(docData.url);
+      const updatedIncoming = { ...incomingDocs };
+      delete updatedIncoming[docId];
+      await updateDocument(candidateCollection, candidateDocId, {
+        incomingDocuments: updatedIncoming,
+      });
+      toast.success("Dokument gelöscht");
+    } catch (err) {
+      console.error("Failed to delete incoming doc:", err);
+      toast.error("Fehler beim Löschen");
+    } finally {
+      setDeletingIncomingDoc((prev) => ({ ...prev, [docId]: false }));
+    }
+  }
+
+  async function handleDownloadIncomingDoc(url, fileName) {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = blobUrl;
+      link.download = fileName || "document.pdf";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      console.error("Download failed:", err);
+      toast.error("Download fehlgeschlagen");
+    }
+  }
 
   const outgoingEntries = useMemo(
     () =>
@@ -4156,14 +4238,14 @@ function Generate() {
     setIsSendDocLinkModalOpen(false);
   }
 
-  async function handleSendDocLinkSubmit(e) {
+  async function handleSendDocLinkSubmit(e, customMessage) {
     e?.preventDefault();
     if (!candidateDocId) {
       toast.error("Keine Dokument-ID vorhanden.");
       return;
     }
 
-    const dataExchangeUrl = `${window.location.origin}/dataExchange/${candidateDocId}`;
+    const dataExchangeUrl = `https://admin.consultinguz.de/dataExchange/${candidateDocId}`;
     const candidateEmail = String(formCv.personalInfo.email || "").trim();
     const candidateTelegramId = docCv?.telegramId;
 
@@ -4181,12 +4263,11 @@ function Generate() {
       if (candidateEmail) {
         try {
           const emailSubject = "Dokument-Upload-Link";
-          const emailMessage = `Hallo ${formCv.personalInfo.name} ${formCv.personalInfo.lastName},\n\nBitte verwenden Sie den folgenden Link, um Ihre Dokumente hochzuladen:\n\n${dataExchangeUrl}\n\nMit freundlichen Grüßen,\nIhr ConsultingUZ Team`;
+          const emailMessage = `${customMessage}\n\n🔗 Link: ${dataExchangeUrl}`;
           const emailHtml = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
               <h2 style="color: #333;">Dokument-Upload</h2>
-              <p>Hallo ${formCv.personalInfo.name} ${formCv.personalInfo.lastName},</p>
-              <p>Bitte verwenden Sie den folgenden Link, um Ihre Dokumente hochzuladen:</p>
+              <p style="white-space: pre-line;">${customMessage}</p>
               <p style="margin: 20px 0;">
                 <a href="${dataExchangeUrl}" 
                    style="background-color: #4CAF50; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">
@@ -4194,7 +4275,6 @@ function Generate() {
                 </a>
               </p>
               <p style="color: #666; font-size: 14px;">Oder kopieren Sie diesen Link: ${dataExchangeUrl}</p>
-              <p>Mit freundlichen Grüßen,<br>Ihr ConsultingUZ Team</p>
             </div>
           `;
 
@@ -4218,13 +4298,8 @@ function Generate() {
 
       if (candidateTelegramId) {
         try {
-          const candidateFullName =
-            `${formCv.personalInfo.name} ${formCv.personalInfo.lastName}`.trim();
-          const telegramMessage = `
+          const telegramMessage = `${customMessage}
 
-Assalomu alaykum, ${candidateFullName},
-
-Iltimos, quyidagi havola orqali kerakli hujjatlaringizni yuklang:
 🔗: ${dataExchangeUrl}
 
 ━━━━━━━━━━━━━━━
@@ -7166,8 +7241,29 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                       }
                       defaultOpen={false}
                     >
+                      {/* Admin toggle for allowing candidate to delete documents */}
+                      {(userRole === "admin" || userRole === "super_admin") && (
+                        <div className="flex items-center justify-between mb-3 p-2 bg-base-200 rounded-lg">
+                          <span className="text-sm font-medium">
+                            Kandidat darf Dokumente löschen
+                          </span>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            {savingAllowDelete && (
+                              <span className="loading loading-spinner loading-xs"></span>
+                            )}
+                            <input
+                              type="checkbox"
+                              className="toggle toggle-sm toggle-primary"
+                              checked={allowIncomingDelete}
+                              onChange={(e) => handleToggleAllowIncomingDelete(e.target.checked)}
+                              disabled={savingAllowDelete}
+                            />
+                          </label>
+                        </div>
+                      )}
                       {(() => {
                         const incomingDocs = docCv?.incomingDocuments || {};
+                        const outgoingDocsMap = docCv?.outgoingDocuments || {};
                         const entries = Object.entries(incomingDocs).filter(
                           ([, v]) =>
                             v &&
@@ -7186,6 +7282,8 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                         return (
                           <div className="space-y-3">
                             {entries.map(([docId, docData]) => {
+                              const outgoingDoc = outgoingDocsMap[docId];
+                              const docLabel = String(outgoingDoc?.title || "").trim();
                               const fileName =
                                 String(docData?.fileName || "").trim() ||
                                 "Dokument";
@@ -7199,17 +7297,14 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                 >
                                   <div className="flex items-start justify-between gap-3">
                                     <div className="flex-1 min-w-0">
-                                      <div className="font-semibold text-sm mb-1">
+                                      {docLabel && (
+                                        <div className="badge badge-primary badge-sm mb-2">
+                                          {docLabel}
+                                        </div>
+                                      )}
+                                      <div className="font-semibold text-sm">
                                         {fileName}
                                       </div>
-                                      <a
-                                        href={url}
-                                        target="_blank"
-                                        rel="noreferrer"
-                                        className="link link-primary text-xs break-all"
-                                      >
-                                        {url}
-                                      </a>
                                       {uploadedAt && (
                                         <div className="text-xs text-base-content/60 mt-1">
                                           Hochgeladen:{" "}
@@ -7219,14 +7314,38 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                         </div>
                                       )}
                                     </div>
-                                    <a
-                                      href={url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="btn btn-sm btn-outline gap-2"
-                                    >
-                                      <FaExternalLinkAlt />
-                                    </a>
+                                    <div className="flex gap-2">
+                                      <a
+                                        href={url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="btn btn-sm btn-outline gap-1"
+                                        title="Öffnen"
+                                      >
+                                        <FaExternalLinkAlt />
+                                      </a>
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-outline gap-1"
+                                        onClick={() => handleDownloadIncomingDoc(url, fileName)}
+                                        title="Herunterladen"
+                                      >
+                                        <FaDownload />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-error gap-1"
+                                        onClick={() => handleDeleteIncomingDoc(docId)}
+                                        disabled={deletingIncomingDoc[docId]}
+                                        title="Löschen"
+                                      >
+                                        {deletingIncomingDoc[docId] ? (
+                                          <span className="loading loading-spinner loading-xs"></span>
+                                        ) : (
+                                          <FaTrash />
+                                        )}
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
                               );
@@ -7832,7 +7951,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                       type="button"
                       className="btn btn-sm btn-primary gap-2"
                       onClick={async () => {
-                        const dataExchangeUrl = `${window.location.origin}/dataExchange/${candidateDocId}`;
+                        const dataExchangeUrl = `https://admin.consultinguz.de/dataExchange/${candidateDocId}`;
                         try {
                           if (
                             navigator?.clipboard &&
@@ -8139,7 +8258,8 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
         isSending={isSendingDocLink}
         candidateEmail={String(formCv.personalInfo.email || "").trim()}
         hasTelegramId={Boolean(docCv?.telegramId)}
-        documentLink={`${window.location.origin}/dataExchange/${candidateDocId}`}
+        documentLink={`https://admin.consultinguz.de/dataExchange/${candidateDocId}`}
+        candidateName={`${formCv.personalInfo.lastName || ""} ${formCv.personalInfo.name || ""}`.trim()}
       />
 
       <ErklaerungBeschaeftigungModal
