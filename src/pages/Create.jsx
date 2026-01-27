@@ -381,8 +381,7 @@ function Create() {
             const match = list.find((l) => {
               const n = String(l?.name || "").trim();
               const id = String(l?.id || l?.key || "").trim();
-              // Support both full ID and short ID (first 8 chars) for Telegram deep links
-              return n === leadParam || id === leadParam || id.startsWith(leadParam);
+              return n === leadParam || id === leadParam;
             });
             const leadActive = match ? match?.active !== false : false;
             if (!leadsGloballyActive) {

@@ -135,6 +135,17 @@ function MajorSettingsModal({
   const isLinkActive = major?.linkActive !== false;
   const createLink = buildCreateLink(major);
 
+  // Calculate max lead name length based on Telegram 64-byte limit
+  // Format: majorId__lead__leadName (total must be <= 64)
+  const majorId = major?.linkId || major?.uuid || major?.id || major?.collectionName || major;
+  const sanitizedMajorIdLength = String(majorId)
+    .replace(/ß/g, "ss")
+    .replace(/ü/g, "ue")
+    .replace(/ö/g, "oe")
+    .replace(/ä/g, "ae").length;
+  // 64 - majorId length - "__lead__" (8 chars) = max lead name length
+  const maxLeadNameLength = Math.max(0, 64 - sanitizedMajorIdLength - 8);
+
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingLeads, setIsSavingLeads] = useState(false);
@@ -470,6 +481,10 @@ function MajorSettingsModal({
     const name = String(newLeadName || "").trim();
     if (!name) {
       toast.error("Bitte geben Sie den Lead-Namen ein.");
+      return;
+    }
+    if (name.length > maxLeadNameLength) {
+      toast.error(`Lead nomi ${maxLeadNameLength} belgidan oshmasligi kerak (Telegram limiti).`);
       return;
     }
     const exists = (leadLinks || []).some(
@@ -893,10 +908,11 @@ function MajorSettingsModal({
                         <div className="flex gap-2">
                           <input
                             type="text"
-                            className="input input-bordered flex-1"
-                            placeholder="Lead nomi (masalan: germaniyLive)"
+                            className={`input input-bordered flex-1 ${newLeadName.length > maxLeadNameLength ? 'input-error' : ''}`}
+                            placeholder={`Lead nomi (max ${maxLeadNameLength} belgi)`}
                             value={newLeadName}
                             onChange={(e) => setNewLeadName(e.target.value)}
+                            maxLength={maxLeadNameLength}
                             onKeyDown={(e) => {
                               if (e.key === "Enter" && !e.shiftKey) {
                                 e.preventDefault();
@@ -1048,8 +1064,7 @@ function MajorSettingsModal({
                                 .replace(/ü/g, "ue")
                                 .replace(/ö/g, "oe")
                                 .replace(/ä/g, "ae");
-                              const leadIdShort = String(l.id || "").slice(0, 8);
-                              const leadTelegramLink = `https://t.me/consultinguz_admin_bot?start=${sanitizedMajorId}__lead__${leadIdShort}`;
+                              const leadTelegramLink = `https://t.me/consultinguz_admin_bot?start=${sanitizedMajorId}__lead__${leadName}`;
                               const canCopy =
                                 isLinkActive && leadLinksActive && leadActive;
                               return (
