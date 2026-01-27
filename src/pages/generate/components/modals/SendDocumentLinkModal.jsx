@@ -1,4 +1,10 @@
+import { useState, useEffect } from "react";
 import { FaEnvelope, FaTelegram, FaPaperPlane } from "react-icons/fa";
+
+const DEFAULT_MESSAGE_BODY = `Quyidagi havola orqali kerakli hujjatlaringizni yuklashingiz mumkin.
+
+Hurmat bilan,
+Consulting UZ jamoasi`;
 
 export default function SendDocumentLinkModal({
   open,
@@ -8,7 +14,23 @@ export default function SendDocumentLinkModal({
   candidateEmail,
   hasTelegramId,
   documentLink,
+  candidateName,
 }) {
+  const [customMessage, setCustomMessage] = useState("");
+  const [useCustomMessage, setUseCustomMessage] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setCustomMessage("");
+      setUseCustomMessage(false);
+    }
+  }, [open]);
+
+  const greeting = `Assalomu alaykum, ${candidateName || ""}`;
+  const finalMessage = useCustomMessage && customMessage.trim()
+    ? `${greeting},\n\n${customMessage.trim()}`
+    : `${greeting},\n\n${DEFAULT_MESSAGE_BODY}`;
+
   if (!open) return null;
 
   const hasEmail = Boolean(candidateEmail);
@@ -45,15 +67,35 @@ export default function SendDocumentLinkModal({
 
           <form
             className="flex flex-col flex-1 overflow-hidden"
-            onSubmit={onSubmit}
+            onSubmit={(e) => onSubmit(e, finalMessage)}
           >
             <div className="flex-1 overflow-y-auto px-6 pb-4 space-y-4">
               <div className="bg-base-200/60 border border-base-300 rounded-lg p-4 space-y-3">
-                <div className="font-semibold text-sm">Ziel:</div>
-                <div className="text-sm opacity-80">
-                  Dieser Link wird an den Kandidaten gesendet, damit er seine
-                  Dokumente hochladen kann.
+                <div className="text-sm font-medium text-base-content/80 mb-2">
+                  {greeting},
                 </div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-sm checkbox-primary"
+                    checked={useCustomMessage}
+                    onChange={(e) => setUseCustomMessage(e.target.checked)}
+                  />
+                  <span className="text-sm">Eigene Nachricht schreiben</span>
+                </label>
+                {useCustomMessage ? (
+                  <textarea
+                    className="textarea textarea-bordered w-full h-32 text-sm mt-2"
+                    placeholder="Ihre Nachricht hier..."
+                    value={customMessage}
+                    onChange={(e) => setCustomMessage(e.target.value)}
+                    autoFocus
+                  />
+                ) : (
+                  <div className="text-sm opacity-70 mt-2 whitespace-pre-line">
+                    {DEFAULT_MESSAGE_BODY}
+                  </div>
+                )}
               </div>
 
               <div className="bg-base-200/60 border border-base-300 rounded-lg p-4 space-y-3">

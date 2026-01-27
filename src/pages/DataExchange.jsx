@@ -7,6 +7,7 @@ import {
   setDoc,
   collection,
   getDocs,
+  onSnapshot,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import {
@@ -27,6 +28,7 @@ function DataExchange() {
   const [incomingDocs, setIncomingDocs] = useState({});
   const [uploadingDocs, setUploadingDocs] = useState({});
   const [deletingDocs, setDeletingDocs] = useState({});
+  const [allowDelete, setAllowDelete] = useState(true);
 
   useEffect(() => {
     if (!id) {
@@ -47,6 +49,8 @@ function DataExchange() {
           // Metadata found - use it
           const metadata = metadataSnap.data();
           collectionName = metadata.collectionName;
+          // Check if delete is allowed (default to true if not set)
+          setAllowDelete(metadata.allowIncomingDelete !== false);
         } else {
           // Fallback: Get all collections from meta and search
           try {
@@ -159,6 +163,19 @@ function DataExchange() {
     };
 
     findCandidate();
+  }, [id]);
+
+  // Real-time listener for allowIncomingDelete changes
+  useEffect(() => {
+    if (!id) return;
+    const metadataRef = doc(db, "candidate_metadata", id);
+    const unsubscribe = onSnapshot(metadataRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const metadata = snapshot.data();
+        setAllowDelete(metadata.allowIncomingDelete !== false);
+      }
+    });
+    return () => unsubscribe();
   }, [id]);
 
   const handleFileUpload = async (docId, file) => {
@@ -460,8 +477,8 @@ function DataExchange() {
                                 type="button"
                                 className="btn btn-sm btn-error gap-1 flex-1 sm:flex-none min-h-[2.5rem]"
                                 onClick={() => handleFileDelete(docId)}
-                                disabled={isDeleting}
-                                title="O'chirish"
+                                disabled={isDeleting || !allowDelete}
+                                title={allowDelete ? "O'chirish" : "O'chirish taqiqlangan"}
                               >
                                 {isDeleting ? (
                                   <span className="loading loading-spinner loading-xs"></span>

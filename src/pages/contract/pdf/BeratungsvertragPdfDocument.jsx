@@ -385,15 +385,27 @@ export default function BeratungsvertragPdfDocument({ form, passportImageDataUrl
           <View style={{ flex: 1, justifyContent: "flex-start", alignItems: "center" }}>
             {/* Use explicit content width (points) so the image fills the page correctly */}
             <View style={{ width: CONTENT_WIDTH_PT }}>
-              <Image
-                src={passportSrc}
+              {/* Rotate image -90deg: swap width/height and use transform */}
+              <View
                 style={{
                   width: CONTENT_WIDTH_PT,
                   height: PASSPORT_BOX_HEIGHT_PT,
-                  objectFit: "contain",
-                  backgroundColor: "#ffffff",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  overflow: "hidden",
                 }}
-              />
+              >
+                <Image
+                  src={passportSrc}
+                  style={{
+                    width: PASSPORT_BOX_HEIGHT_PT,
+                    height: CONTENT_WIDTH_PT,
+                    objectFit: "contain",
+                    backgroundColor: "#ffffff",
+                    transform: "rotate(-90deg)",
+                  }}
+                />
+              </View>
 
               <View style={{ marginTop: 14 }}>
                 <Text style={{ fontWeight: 600 }}>
