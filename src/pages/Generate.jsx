@@ -165,7 +165,7 @@ function Generate() {
   const location = useLocation();
   const sp = useMemo(
     () => new URLSearchParams(String(location?.search || "")),
-    [location?.search]
+    [location?.search],
   );
   const remoteMode = sp.get("remote") === "1";
   const remoteKind = String(sp.get("kind") || "")
@@ -264,10 +264,10 @@ function Generate() {
     if (pendingStageStep === "stage_2") {
       const hasLeadershipMeta = Boolean(
         metaInfo?.interviewLeadership &&
-          (metaInfo?.interviewLeadership?.date ||
-            metaInfo?.interviewLeadership?.link ||
-            metaInfo?.interviewLeadership?.locationName ||
-            metaInfo?.interviewLeadership?.locationUrl)
+        (metaInfo?.interviewLeadership?.date ||
+          metaInfo?.interviewLeadership?.link ||
+          metaInfo?.interviewLeadership?.locationName ||
+          metaInfo?.interviewLeadership?.locationUrl),
       );
       setSelectedExample(hasLeadershipMeta ? "example2" : "example1");
     }
@@ -377,7 +377,7 @@ function Generate() {
       },
       commentar: "",
     }),
-    []
+    [],
   );
   const [formCv, setFormCv] = useState(initialForm);
   const [phoneTouched, setPhoneTouched] = useState(false);
@@ -452,7 +452,7 @@ function Generate() {
   }
 
   const [addressFields, setAddressFields] = useState(() =>
-    parseGermanAddress(initialForm.personalInfo.address)
+    parseGermanAddress(initialForm.personalInfo.address),
   );
   const lastSyncedAddressRef = useRef("");
   const internalAddressUpdateRef = useRef(false);
@@ -482,7 +482,7 @@ function Generate() {
           .toUpperCase(),
         phone: String(safe?.personalInfo?.phone || "").trim(),
         passportNumber: normalizePassportNumber(
-          safe?.personalInfo?.passportNumber || ""
+          safe?.personalInfo?.passportNumber || "",
         ),
         email: String(safe?.personalInfo?.email || "").trim(),
         photo: String(safe?.personalInfo?.photo || "").trim(),
@@ -515,7 +515,7 @@ function Generate() {
           ? safe.skills.pcSkills.map((s) => String(s || "").trim())
           : [],
         languages: Object.fromEntries(
-          langEntries.map(([k, v]) => [String(k), v])
+          langEntries.map(([k, v]) => [String(k), v]),
         ),
       },
       documents: {
@@ -526,7 +526,7 @@ function Generate() {
           ? safe.documents.certificates.map((c) => String(c || ""))
           : [],
         certificatesDetailed: Array.isArray(
-          safe?.documents?.certificatesDetailed
+          safe?.documents?.certificatesDetailed,
         )
           ? safe.documents.certificatesDetailed.map((cert) => ({
               url: String(cert?.url || "").trim(),
@@ -547,7 +547,7 @@ function Generate() {
 
   // ---- Outgoing documents (templates sent to the candidate) ----
   const candidateCollection = String(
-    resolvedMajor?.collectionName || ""
+    resolvedMajor?.collectionName || "",
   ).trim();
   const candidateDocId = String(id || "").trim();
   const [outgoingDocs, setOutgoingDocs] = useState(() => ({}));
@@ -571,7 +571,10 @@ function Generate() {
     if (!candidateDocId) return;
     const fetchMetadata = async () => {
       try {
-        const metaDoc = await getDocumentDataById("candidate_metadata", candidateDocId);
+        const metaDoc = await getDocumentDataById(
+          "candidate_metadata",
+          candidateDocId,
+        );
         if (metaDoc && typeof metaDoc.allowIncomingDelete === "boolean") {
           setAllowIncomingDelete(metaDoc.allowIncomingDelete);
         } else {
@@ -646,14 +649,14 @@ function Generate() {
   const outgoingEntries = useMemo(
     () =>
       Object.entries(outgoingDocs || {}).filter(
-        ([, v]) => v && typeof v === "object" && String(v?.url || "").trim()
+        ([, v]) => v && typeof v === "object" && String(v?.url || "").trim(),
       ),
-    [outgoingDocs]
+    [outgoingDocs],
   );
 
   const outgoingAnyBusy = useMemo(
     () => Object.values(outgoingBusyById || {}).some(Boolean),
-    [outgoingBusyById]
+    [outgoingBusyById],
   );
 
   function getOutgoingDocState(templateId) {
@@ -730,7 +733,7 @@ function Generate() {
         ? options.current
         : getOutgoingDocState(safeId);
     const url = String(
-      options?.urlOverride ?? currentSnapshot?.url ?? ""
+      options?.urlOverride ?? currentSnapshot?.url ?? "",
     ).trim();
 
     let remoteMissing = false;
@@ -765,7 +768,7 @@ function Generate() {
     }));
 
     toast.success(
-      "Dokument zum Löschen markiert. Wird beim Speichern endgültig gelöscht."
+      "Dokument zum Löschen markiert. Wird beim Speichern endgültig gelöscht.",
     );
     return { ok: true, remoteMissing: false };
   }
@@ -775,7 +778,7 @@ function Generate() {
     // Load template defaults from Firestore (same source as Contract template page)
     const templateDoc = await getDocumentDataById(
       "template_documents",
-      "beratungsvertrag"
+      "beratungsvertrag",
     );
     const savedForm =
       templateDoc &&
@@ -790,7 +793,7 @@ function Generate() {
     const city =
       String(addressFields?.city || "").trim() ||
       String(
-        parseGermanAddress(formCv?.personalInfo?.address || "")?.city || ""
+        parseGermanAddress(formCv?.personalInfo?.address || "")?.city || "",
       ).trim();
 
     const baseForm = {
@@ -834,7 +837,7 @@ function Generate() {
           new Set([
             ...(passportUrls.length ? passportUrls : []),
             ...(!passportUrls.length ? diplomaUrls : []),
-          ])
+          ]),
         );
     let passportSrc = "";
     let usedPassportUrl = "";
@@ -869,7 +872,7 @@ function Generate() {
       <BeratungsvertragPdfDocument
         form={merged}
         passportImageDataUrl={passportSrc || null}
-      />
+      />,
     ).toBlob();
 
     const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
@@ -883,7 +886,7 @@ function Generate() {
     // Load template defaults from Firestore (same source as Contract template page)
     const templateDoc = await getDocumentDataById(
       "template_documents",
-      "vermittlungsvertrag"
+      "vermittlungsvertrag",
     );
     const savedForm =
       templateDoc &&
@@ -939,7 +942,7 @@ function Generate() {
       fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Vermittlungsvertrag";
 
     const blob = await pdf(
-      <VermittlungsvertragPdfDocument form={merged} />
+      <VermittlungsvertragPdfDocument form={merged} />,
     ).toBlob();
 
     const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
@@ -953,7 +956,7 @@ function Generate() {
     // Load template defaults from Firestore (same source as Contract template page)
     const templateDoc = await getDocumentDataById(
       "template_documents",
-      "vollmacht"
+      "vollmacht",
     );
     const savedForm =
       templateDoc && typeof templateDoc.form === "object"
@@ -996,7 +999,7 @@ function Generate() {
     // Load template defaults from Firestore (same source as Contract template page)
     const templateDoc = await getDocumentDataById(
       "template_documents",
-      "vollmacht_arbeitgeber"
+      "vollmacht_arbeitgeber",
     );
     const savedForm =
       templateDoc && typeof templateDoc.form === "object"
@@ -1039,7 +1042,7 @@ function Generate() {
       "Vollmacht an Arbeitgeber";
 
     const blob = await pdf(
-      <VollmachtArbeitgeberPdfDocument form={merged} />
+      <VollmachtArbeitgeberPdfDocument form={merged} />,
     ).toBlob();
 
     const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
@@ -1053,7 +1056,7 @@ function Generate() {
     // Load template defaults from Firestore
     const templateDoc = await getDocumentDataById(
       "template_documents",
-      "rozilik_xati"
+      "rozilik_xati",
     );
     const savedForm =
       templateDoc && typeof templateDoc.form === "object"
@@ -1128,7 +1131,7 @@ function Generate() {
     // Load template defaults from Firestore
     const templateDoc = await getDocumentDataById(
       "template_documents",
-      "nomzod_rozilik_xati"
+      "nomzod_rozilik_xati",
     );
     const savedForm =
       templateDoc && typeof templateDoc.form === "object"
@@ -1155,7 +1158,7 @@ function Generate() {
       fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Nomzod rozilik xati";
 
     const blob = await pdf(
-      <NomzodRozilikXatiPdfDocument form={merged} />
+      <NomzodRozilikXatiPdfDocument form={merged} />,
     ).toBlob();
 
     const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
@@ -1169,7 +1172,7 @@ function Generate() {
     // Load template defaults from Firestore
     const templateDoc = await getDocumentDataById(
       "template_documents",
-      "mitarbeiterwohnung"
+      "mitarbeiterwohnung",
     );
     const savedForm =
       templateDoc && typeof templateDoc.form === "object"
@@ -1196,7 +1199,7 @@ function Generate() {
       fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Mitarbeiterwohnung";
 
     const blob = await pdf(
-      <MitarbeiterwohnungPdfDocument form={merged} />
+      <MitarbeiterwohnungPdfDocument form={merged} />,
     ).toBlob();
 
     const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
@@ -1210,7 +1213,7 @@ function Generate() {
     // Load template defaults from Firestore
     const templateDoc = await getDocumentDataById(
       "template_documents",
-      "sprachsbestaetigung"
+      "sprachsbestaetigung",
     );
     const savedForm =
       templateDoc && typeof templateDoc.form === "object"
@@ -1237,7 +1240,7 @@ function Generate() {
       fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Sprachsbestaetigung";
 
     const blob = await pdf(
-      <SprachsbestaetigungPdfDocument form={merged} />
+      <SprachsbestaetigungPdfDocument form={merged} />,
     ).toBlob();
 
     const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
@@ -1251,7 +1254,7 @@ function Generate() {
     // Load template defaults from Firestore
     const templateDoc = await getDocumentDataById(
       "template_documents",
-      "einwilligungserklaerung"
+      "einwilligungserklaerung",
     );
     const savedForm =
       templateDoc && typeof templateDoc.form === "object"
@@ -1262,7 +1265,9 @@ function Generate() {
     const vorname = String(formCv?.personalInfo?.name || "").trim();
     const nachname = String(formCv?.personalInfo?.lastName || "").trim();
     const geburtsort = String(formCv?.personalInfo?.birthPlace || "").trim();
-    const gender = String(formCv?.personalInfo?.gender || "").trim().toLowerCase();
+    const gender = String(formCv?.personalInfo?.gender || "")
+      .trim()
+      .toLowerCase();
     const anpirede = gender === "male" ? "Herr" : "Frau";
 
     const date = todayDdMmYyyy();
@@ -1284,7 +1289,7 @@ function Generate() {
       fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Einwilligungserklaerung";
 
     const blob = await pdf(
-      <EinwilligungserklaerungPdfDocument form={merged} />
+      <EinwilligungserklaerungPdfDocument form={merged} />,
     ).toBlob();
 
     const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
@@ -1298,7 +1303,7 @@ function Generate() {
     // Load template defaults from Firestore
     const templateDoc = await getDocumentDataById(
       "template_documents",
-      "foto_video_rozilik"
+      "foto_video_rozilik",
     );
     const savedForm =
       templateDoc && typeof templateDoc.form === "object"
@@ -1331,7 +1336,7 @@ function Generate() {
       fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Foto-Video-Rozilik";
 
     const blob = await pdf(
-      <FotoVideoRozilikPdfDocument form={merged} />
+      <FotoVideoRozilikPdfDocument form={merged} />,
     ).toBlob();
 
     const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
@@ -1345,7 +1350,7 @@ function Generate() {
     // Load template defaults from Firestore
     const templateDoc = await getDocumentDataById(
       "template_documents",
-      "personalfragebogen"
+      "personalfragebogen",
     );
     const savedForm =
       templateDoc && typeof templateDoc.form === "object"
@@ -1358,12 +1363,15 @@ function Generate() {
     const birthDate = String(formCv?.personalInfo?.birthDate || "").trim();
     const birthPlace = String(formCv?.personalInfo?.birthPlace || "").trim();
     const address = String(formCv?.personalInfo?.address || "").trim();
-    const geschlecht = String(docCv?.persoenlicheDaten?.geschlecht || "").trim();
+    const geschlecht = String(
+      docCv?.persoenlicheDaten?.geschlecht || "",
+    ).trim();
 
     // Extract country from berufserfahrung[0].ort (e.g. "Navoiy , Usbekistan" -> "Usbekistan")
     const firstJobOrt = String(docCv?.berufserfahrung?.[0]?.ort || "").trim();
     const ortParts = firstJobOrt.split(",");
-    const countryFromOrt = ortParts.length > 1 ? ortParts[ortParts.length - 1].trim() : "";
+    const countryFromOrt =
+      ortParts.length > 1 ? ortParts[ortParts.length - 1].trim() : "";
     const staatsangehoerigkeit = countryFromOrt || "usbekisch";
 
     const date = todayDdMmYyyy();
@@ -1388,7 +1396,7 @@ function Generate() {
       fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Personalfragebogen";
 
     const blob = await pdf(
-      <PersonalfragebogenPdfDocument form={merged} />
+      <PersonalfragebogenPdfDocument form={merged} />,
     ).toBlob();
 
     const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
@@ -1526,7 +1534,7 @@ function Generate() {
         toast.success(
           remoteMissing
             ? "Link o‘chirildi (fayl allaqachon yo‘q edi)."
-            : "Link o‘chirildi."
+            : "Link o‘chirildi.",
         );
       } else {
         toast.error("Linkni o‘chirishda xatolik.");
@@ -1575,7 +1583,7 @@ function Generate() {
         try {
           const { ok, remoteMissing } = await deleteOutgoingDocRemoteFirst(
             tplId,
-            { current: value }
+            { current: value },
           );
           if (ok) {
             removedIds.add(tplId);
@@ -1616,11 +1624,11 @@ function Generate() {
   const commentHtml = useMemo(() => getCommentHtml(formCv), [formCv]);
   const hasComment = useMemo(
     () => hasRichTextContent(commentHtml),
-    [commentHtml]
+    [commentHtml],
   );
   const commentChanged = useMemo(
     () => String(commentHtml || "") !== String(commentBaseline || ""),
-    [commentHtml, commentBaseline]
+    [commentHtml, commentBaseline],
   );
 
   const normalizedDocForm = useMemo(() => {
@@ -1634,7 +1642,7 @@ function Generate() {
 
   const currentFormJson = useMemo(
     () => JSON.stringify(normalizedCurrentForm),
-    [normalizedCurrentForm]
+    [normalizedCurrentForm],
   );
 
   const hasUnsavedChanges = useMemo(() => {
@@ -1642,7 +1650,7 @@ function Generate() {
     if (!savedBaselineJson) return false;
     const formChanged = savedBaselineJson !== currentFormJson;
     const hasDocumentsMarkedForDeletion = Object.values(
-      documentsMarkedForDeletion
+      documentsMarkedForDeletion,
     ).some((arr) => arr.length > 0);
 
     // Debug logging
@@ -1658,11 +1666,11 @@ function Generate() {
           console.log("First difference at position", i);
           console.log(
             "Baseline:",
-            savedBaselineJson.substring(Math.max(0, i - 50), i + 50)
+            savedBaselineJson.substring(Math.max(0, i - 50), i + 50),
           );
           console.log(
             "Current:",
-            currentFormJson.substring(Math.max(0, i - 50), i + 50)
+            currentFormJson.substring(Math.max(0, i - 50), i + 50),
           );
           break;
         }
@@ -1679,7 +1687,7 @@ function Generate() {
 
   const [unsavedModalOpen, setUnsavedModalOpen] = useState(false);
   const unsavedBlocker = useBlocker(
-    Boolean(hasUnsavedChanges) && !Boolean(isSaving)
+    Boolean(hasUnsavedChanges) && !Boolean(isSaving),
   );
 
   useEffect(() => {
@@ -1855,7 +1863,7 @@ function Generate() {
           setMetaInfo(null);
           setMetaLoading(false);
         }
-      }
+      },
     );
 
     return () => unsub?.();
@@ -1898,7 +1906,7 @@ function Generate() {
             const snap = await getDoc(doc(db, "archived_users", archivedDocId));
             if (!cancelled) {
               setRemoteRecord(
-                snap.exists() ? { id: snap.id, ...snap.data() } : null
+                snap.exists() ? { id: snap.id, ...snap.data() } : null,
               );
             }
             return;
@@ -1917,7 +1925,7 @@ function Generate() {
           const snap = await getDoc(doc(db, "deleted_users", deletedDocId));
           if (!cancelled) {
             setRemoteRecord(
-              snap.exists() ? { id: snap.id, ...snap.data() } : null
+              snap.exists() ? { id: snap.id, ...snap.data() } : null,
             );
           }
         } else {
@@ -1999,8 +2007,8 @@ function Generate() {
           const status = data?.status || {};
           setStatusValue(
             normalizeCandidateStatusValue(
-              status?.value || CANDIDATE_STATUS_DEFAULT
-            ) || CANDIDATE_STATUS_DEFAULT
+              status?.value || CANDIDATE_STATUS_DEFAULT,
+            ) || CANDIDATE_STATUS_DEFAULT,
           );
           setStatusUpdatedAt(status?.updatedAt || null);
           setStatusUpdatedBy(status?.updatedBy || "");
@@ -2040,11 +2048,15 @@ function Generate() {
 
           // Fetch avatar from users collection by UID if photo is missing
           if (eMeta?.lastSentByUid && !eMeta?.lastSentByPhoto) {
-            getUserFromFirestore(eMeta.lastSentByUid).then((userData) => {
-              if (userData && (userData.avatar || userData.photoURL)) {
-                setEmailMetaAvatarFromUsers(userData.avatar || userData.photoURL);
-              }
-            }).catch(() => {});
+            getUserFromFirestore(eMeta.lastSentByUid)
+              .then((userData) => {
+                if (userData && (userData.avatar || userData.photoURL)) {
+                  setEmailMetaAvatarFromUsers(
+                    userData.avatar || userData.photoURL,
+                  );
+                }
+              })
+              .catch(() => {});
           } else {
             setEmailMetaAvatarFromUsers("");
           }
@@ -2081,7 +2093,7 @@ function Generate() {
       () => {
         setNotFound(true);
         setLoading(false);
-      }
+      },
     );
     return () => unsub();
   }, [resolvedMajor.collectionName, id]);
@@ -2128,7 +2140,7 @@ function Generate() {
   useEffect(() => {
     if (!formInitialized || passportToastShownRef.current) return;
     const passportNumber = String(
-      formCv?.personalInfo?.passportNumber || ""
+      formCv?.personalInfo?.passportNumber || "",
     ).trim();
     const hasPassportDoc = Array.isArray(formCv?.documents?.passport)
       ? formCv.documents.passport.some((u) => String(u || "").trim())
@@ -2237,7 +2249,7 @@ function Generate() {
         remoteRecord?.sourceMajor ||
           remoteRecord?.major ||
           remoteRecord?.collectionName ||
-          ""
+          "",
       ).trim();
 
       let majorKey = rawMajor;
@@ -2266,7 +2278,7 @@ function Generate() {
         });
         toast.success(`Wiederhergestellt: ${res.major} (ID=${res.firebaseId})`);
         navigate(
-          `/generate/${resolvedMeta.linkId || res.major}/${res.firebaseId}`
+          `/generate/${resolvedMeta.linkId || res.major}/${res.firebaseId}`,
         );
         return;
       }
@@ -2284,7 +2296,7 @@ function Generate() {
             payload,
             {
               majorLabel,
-            }
+            },
           );
 
           const email = extractEmailFromSnapshot(payload);
@@ -2314,7 +2326,7 @@ function Generate() {
         });
         toast.success(`Wiederhergestellt: ${res.major} (ID=${res.firebaseId})`);
         navigate(
-          `/generate/${resolvedMeta.linkId || res.major}/${res.firebaseId}`
+          `/generate/${resolvedMeta.linkId || res.major}/${res.firebaseId}`,
         );
         return;
       }
@@ -2335,7 +2347,7 @@ function Generate() {
           payload,
           {
             majorLabel,
-          }
+          },
         );
 
         const email = extractEmailFromSnapshot(payload);
@@ -2393,7 +2405,7 @@ function Generate() {
           toast.success(
             `Wiederhergestellt: ${meta?.title || res.major} (ID=${
               res.firebaseId
-            })`
+            })`,
           );
           navigate(`/generate/${meta.linkId || col}/${res.firebaseId}`);
           return;
@@ -2410,7 +2422,7 @@ function Generate() {
               payload,
               {
                 majorLabel,
-              }
+              },
             );
             const email = extractEmailFromSnapshot(payload);
             const passportId = extractPassportIdFromSnapshot(payload);
@@ -2423,7 +2435,7 @@ function Generate() {
             }
             await deleteDoc(doc(db, "archived_users", archivedDocId));
             toast.success(
-              `Wiederhergestellt: ${meta?.title || col} (ID=${newId})`
+              `Wiederhergestellt: ${meta?.title || col} (ID=${newId})`,
             );
             navigate(`/generate/${meta.linkId || col}/${newId}`);
             return;
@@ -2439,7 +2451,7 @@ function Generate() {
           toast.success(
             `Wiederhergestellt: ${meta?.title || res.major} (ID=${
               res.firebaseId
-            })`
+            })`,
           );
           navigate(`/generate/${meta.linkId || col}/${res.firebaseId}`);
           return;
@@ -2498,7 +2510,7 @@ function Generate() {
       typeof rawLicense === "string" &&
       rawLicense &&
       !["ja", "true", "nein", "false"].includes(
-        String(rawLicense).trim().toLowerCase()
+        String(rawLicense).trim().toLowerCase(),
       )
         ? String(rawLicense).trim()
         : "";
@@ -2514,7 +2526,7 @@ function Generate() {
       Boolean(String(rawLicenseType || "").trim()) ||
       Boolean(licenseTypeFromLegacy);
     const drivingLicenseType = String(
-      rawLicenseType || licenseTypeFromLegacy || ""
+      rawLicenseType || licenseTypeFromLegacy || "",
     )
       .trim()
       .toUpperCase();
@@ -2546,8 +2558,8 @@ function Generate() {
       const aufgaben = Array.isArray(r?.aufgaben)
         ? r.aufgaben
         : Array.isArray(r?.responsibilities)
-        ? r.responsibilities
-        : [];
+          ? r.responsibilities
+          : [];
       if (
         !beginn &&
         !ende &&
@@ -2787,7 +2799,7 @@ function Generate() {
     // misclassifying real diplomas as passport files.
     if (passportUnique.length === 0 && diplomas.length > 0) {
       const passIdx = diplomas.findIndex((u) =>
-        /pass|reisepass/i.test(String(u || ""))
+        /pass|reisepass/i.test(String(u || "")),
       );
       if (passIdx >= 0) {
         passportUnique = [diplomas[passIdx]];
@@ -2827,7 +2839,7 @@ function Generate() {
             p?.passportId ||
             p?.passportNumber ||
             data?.reisepassNummer ||
-            ""
+            "",
         ),
         email: String(
           p.email ||
@@ -2835,7 +2847,7 @@ function Generate() {
             data?.email ||
             data?.emailAddress ||
             data?.email_address ||
-            ""
+            "",
         ).trim(),
         photo: String(p.foto || ""),
       },
@@ -2883,7 +2895,7 @@ function Generate() {
   function mapFormToDoc(f) {
     const noChildren = Boolean(f?.personalInfo?.noChildren);
     const passportNumber = normalizePassportNumber(
-      f?.personalInfo?.passportNumber || ""
+      f?.personalInfo?.passportNumber || "",
     );
 
     // Check if languages object is empty
@@ -2953,8 +2965,8 @@ function Generate() {
         passport: Array.isArray(f.documents?.passport)
           ? f.documents.passport
           : f.documents?.passport
-          ? [f.documents.passport]
-          : [],
+            ? [f.documents.passport]
+            : [],
         noLanguageCertificate: Boolean(f?.documents?.noLanguageCertificate),
       },
       commentar: String(getCommentHtml(f) || ""),
@@ -3026,7 +3038,7 @@ function Generate() {
 
         // Also add to certificatesDetailed with empty type (user will set type later)
         const updatedDetailed = Array.isArray(
-          prev.documents?.certificatesDetailed
+          prev.documents?.certificatesDetailed,
         )
           ? [...prev.documents.certificatesDetailed, { url: tempUrl, type: "" }]
           : [{ url: tempUrl, type: "" }];
@@ -3055,7 +3067,7 @@ function Generate() {
     setSelectedDocumentType("");
 
     toast.success(
-      `${typeName} hinzugefügt. Klicken Sie auf "Speichern", um hochzuladen.`
+      `${typeName} hinzugefügt. Klicken Sie auf "Speichern", um hochzuladen.`,
     );
   }
 
@@ -3102,7 +3114,7 @@ function Generate() {
     setFormCv((prev) => {
       const next = [...prev.experience];
       const resp = next[expIdx].responsibilities.filter(
-        (_, i) => i !== respIdx
+        (_, i) => i !== respIdx,
       );
       next[expIdx] = { ...next[expIdx], responsibilities: resp };
       return { ...prev, experience: next };
@@ -3185,7 +3197,7 @@ function Generate() {
         }
       } else {
         setRecentlyAdded((p) =>
-          kind === "soft" ? { ...p, soft: [] } : { ...p, pc: [] }
+          kind === "soft" ? { ...p, soft: [] } : { ...p, pc: [] },
         );
       }
     } finally {
@@ -3201,7 +3213,7 @@ function Generate() {
         name,
         level,
       })),
-    [formCv.skills.languages]
+    [formCv.skills.languages],
   );
   const experienceCount = Array.isArray(formCv.experience)
     ? formCv.experience.length
@@ -3241,8 +3253,8 @@ function Generate() {
       else next[rowIdx] = [oldName, value];
       const nextObj = Object.fromEntries(
         next.filter(
-          ([k]) => k !== "" || (k === "" && field === "name" && value !== "")
-        )
+          ([k]) => k !== "" || (k === "" && field === "name" && value !== ""),
+        ),
       );
       return { ...prev, skills: { ...prev.skills, languages: nextObj } };
     });
@@ -3251,7 +3263,7 @@ function Generate() {
     if (isLimitedAdmin) return;
     setFormCv((prev) => {
       const entries = Object.entries(prev.skills.languages).filter(
-        (_, i) => i !== rowIdx
+        (_, i) => i !== rowIdx,
       );
       const newLanguages = Object.fromEntries(entries);
       console.log("🗑️ Removing language row:", {
@@ -3339,7 +3351,7 @@ function Generate() {
 
   async function sendStatusEmail(
     stepValue,
-    { stageDecision: decisionRaw, decisionNote, additionalInfo } = {}
+    { stageDecision: decisionRaw, decisionNote, additionalInfo } = {},
   ) {
     if (isLimitedAdmin) {
       toast.error("Sie haben keine Berechtigung, E-Mails zu senden.");
@@ -3381,7 +3393,7 @@ function Generate() {
 
       const telegramGroupIdForStage = getTelegramGroupIdForStage(
         metaInfo,
-        stepValue
+        stepValue,
       );
 
       if (
@@ -3443,7 +3455,7 @@ function Generate() {
         baseCopy.examples
       ) {
         const selectedExampleData = baseCopy.examples.find(
-          (ex) => ex.id === selectedExample
+          (ex) => ex.id === selectedExample,
         );
         if (selectedExampleData) {
           finalCopyOverrides = {
@@ -3463,17 +3475,20 @@ function Generate() {
       if (stepValue === "stage_1" && normalizedDecision === "accepted") {
         try {
           // Get first active channel from Firestore
-          const { getDocs, query, collection, where, limit } = await import("firebase/firestore");
+          const { getDocs, query, collection, where, limit } =
+            await import("firebase/firestore");
           const channelsQuery = query(
             collection(db, "telegram_channels"),
             where("active", "==", true),
-            limit(1)
+            limit(1),
           );
           const channelsSnap = await getDocs(channelsQuery);
           if (!channelsSnap.empty) {
             const channelDoc = channelsSnap.docs[0];
             const channelId = channelDoc.id;
-            const { invite_link } = await generateTelegramChannelInviteLink({ channelId });
+            const { invite_link } = await generateTelegramChannelInviteLink({
+              channelId,
+            });
             channelInviteLink = invite_link;
           }
         } catch (channelErr) {
@@ -3524,7 +3539,7 @@ function Generate() {
           console.error("Telegram send error:", telegramError);
           const errorMsg = telegramError?.message || String(telegramError);
           toast.error(
-            `E-Mail wurde gesendet, aber Telegram-Nachricht konnte nicht gesendet werden. Fehler: ${errorMsg}`
+            `E-Mail wurde gesendet, aber Telegram-Nachricht konnte nicht gesendet werden. Fehler: ${errorMsg}`,
           );
         }
       }
@@ -3544,7 +3559,7 @@ function Generate() {
       } catch (e) {
         // Don't fail the email send if counter update fails
         toast.error(
-          "E-Mail wurde gesendet, aber Telegram-Zähler konnte nicht aktualisiert werden."
+          "E-Mail wurde gesendet, aber Telegram-Zähler konnte nicht aktualisiert werden.",
         );
       }
 
@@ -3560,7 +3575,8 @@ function Generate() {
 
         const displayName =
           userData?.displayName || user?.displayName || user?.email || "Admin";
-        const photoURL = userData?.avatar || userData?.photoURL || user?.photoURL || "";
+        const photoURL =
+          userData?.avatar || userData?.photoURL || user?.photoURL || "";
 
         const stageBase = `stageMeta.${stepValue}`;
         const updatePayload = {
@@ -3627,9 +3643,8 @@ function Generate() {
             toast("Foydalanuvchi Telegram guruhlaridan chiqarilmoqda...", {
               autoClose: 2000,
             });
-            const result = await removeUserFromTelegramGroups(
-              candidateTelegramId
-            );
+            const result =
+              await removeUserFromTelegramGroups(candidateTelegramId);
             if (result.ok) {
               const msg =
                 result.removed > 0
@@ -3639,7 +3654,7 @@ function Generate() {
             }
           } catch (removeErr) {
             toast.error(
-              "Telegram guruhlaridan chiqarishda xatolik. Davom etilmoqda..."
+              "Telegram guruhlaridan chiqarishda xatolik. Davom etilmoqda...",
             );
           }
         }
@@ -3655,7 +3670,7 @@ function Generate() {
       }
     } catch (err) {
       toast.error(
-        "Fehler beim Senden der E-Mail. Bitte später erneut versuchen."
+        "Fehler beim Senden der E-Mail. Bitte später erneut versuchen.",
       );
     } finally {
       setSendingStepValue(null);
@@ -3705,7 +3720,7 @@ function Generate() {
 
       if (allUrls.length > 0) {
         await Promise.all(
-          allUrls.map((url) => deleteUploadedFile(url).catch(() => {}))
+          allUrls.map((url) => deleteUploadedFile(url).catch(() => {})),
         );
       }
 
@@ -3829,7 +3844,7 @@ function Generate() {
 
     if (!hasMain) {
       toast.error(
-        "Im Textbereich muss mindestens 1 Absatz (Haupttext) enthalten sein."
+        "Im Textbereich muss mindestens 1 Absatz (Haupttext) enthalten sein.",
       );
       return;
     }
@@ -3903,7 +3918,7 @@ function Generate() {
           toast.success("Nachricht auch per Telegram gesendet! 📱");
         } catch (telegramError) {
           toast.error(
-            "E-Mail wurde gesendet, aber Telegram-Nachricht konnte nicht gesendet werden."
+            "E-Mail wurde gesendet, aber Telegram-Nachricht konnte nicht gesendet werden.",
           );
         }
       }
@@ -3914,7 +3929,7 @@ function Generate() {
           String(additionalInfo?.linkType || "").toLowerCase() === "telegram";
         const telegramGroupIdForStage = getTelegramGroupIdForStage(
           metaInfo,
-          safeStatusValue
+          safeStatusValue,
         );
 
         if (usedTelegramLink && telegramGroupIdForStage) {
@@ -3945,7 +3960,8 @@ function Generate() {
             user?.displayName ||
             user?.email ||
             "Admin";
-          const photoURL = userData?.avatar || userData?.photoURL || user?.photoURL || "";
+          const photoURL =
+            userData?.avatar || userData?.photoURL || user?.photoURL || "";
 
           await updateDocument(col, docId, {
             "emailMeta.count": increment(1),
@@ -3973,7 +3989,7 @@ function Generate() {
       setIsCustomEmailModalOpen(false);
     } catch (err) {
       toast.error(
-        "Fehler beim Senden der benutzerdefinierten E-Mail. Bitte später erneut versuchen."
+        "Fehler beim Senden der benutzerdefinierten E-Mail. Bitte später erneut versuchen.",
       );
     } finally {
       setSendingStepValue(null);
@@ -3995,7 +4011,7 @@ function Generate() {
     if (!col || !docId) return;
 
     const ok = window.confirm(
-      "Kandidatenstufen auf Anfang (Stufe 1) zurücksetzen?\n\nHinweis: Der E-Mail-Zähler wird ebenfalls auf 0 gesetzt."
+      "Kandidatenstufen auf Anfang (Stufe 1) zurücksetzen?\n\nHinweis: Der E-Mail-Zähler wird ebenfalls auf 0 gesetzt.",
     );
     if (!ok) return;
 
@@ -4058,7 +4074,7 @@ function Generate() {
       // Special case: If resetting to stage_2 or earlier, and leadership interview was used,
       // we need to remove the sentWithLeadership flag so stage_2_result is no longer shown
       const hasLeadershipInterview = Boolean(
-        docCv?.stageMeta?.stage_2?.sentWithLeadership
+        docCv?.stageMeta?.stage_2?.sentWithLeadership,
       );
 
       if (hasLeadershipInterview) {
@@ -4120,7 +4136,7 @@ function Generate() {
     if (v === "stage_2") {
       // Prefer leadership settings for stage 2; fallback to internal
       return normalizeInterview(
-        metaInfo?.interviewLeadership || metaInfo?.interviewInternal
+        metaInfo?.interviewLeadership || metaInfo?.interviewInternal,
       );
     }
     if (v === "stage_2_result") {
@@ -4162,7 +4178,7 @@ function Generate() {
     const initialInfo = getStageAdditionalInfo(stepValue);
     const telegramGroupIdForStage = getTelegramGroupIdForStage(
       metaInfo,
-      stepValue
+      stepValue,
     );
     const canGenerateTelegramLinkForStage = Boolean(telegramGroupIdForStage);
     // Best-effort: preload group name so modal can show it immediately.
@@ -4192,8 +4208,8 @@ function Generate() {
         stepValue === "stage_4"
           ? "other"
           : initialInfo?.linkType === "telegram"
-          ? "telegram"
-          : inferLinkType(initialInfo?.link, "zoom"),
+            ? "telegram"
+            : inferLinkType(initialInfo?.link, "zoom"),
       useGeneratedLink:
         initialInfo?.linkType === "telegram" &&
         canGenerateTelegramLinkForStage &&
@@ -4327,7 +4343,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
         if (emailSent) messages.push("E-Mail");
         if (telegramSent) messages.push("Telegram");
         toast.success(
-          `Link erfolgreich gesendet via ${messages.join(" und ")}.`
+          `Link erfolgreich gesendet via ${messages.join(" und ")}.`,
         );
         closeSendDocLinkModal();
       } else {
@@ -4374,7 +4390,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
       // - If auto-generate is selected: show a placeholder (real invite is generated on send)
       const telegramGroupIdForStage = getTelegramGroupIdForStage(
         metaInfo,
-        pendingStageStep
+        pendingStageStep,
       );
       const wantsGeneratedLink = Boolean(info?.useGeneratedLink);
       if (
@@ -4389,7 +4405,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
 
       const templateId = makeEmailTemplateId(
         pendingStageStep,
-        normalizedDecision
+        normalizedDecision,
       );
       const templateDoc = emailTemplatesMap?.[templateId] || null;
       const copyOverrides =
@@ -4406,7 +4422,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
         baseCopy.examples
       ) {
         const selectedExampleData = baseCopy.examples.find(
-          (ex) => ex.id === selectedExample
+          (ex) => ex.id === selectedExample,
         );
         if (selectedExampleData) {
           finalCopyOverrides = {
@@ -4488,18 +4504,18 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
           new RegExp(
             `<p[^>]*>\\s*${intro.replace(
               /[.*+?^${}()|[\]\\]/g,
-              "\\$&"
+              "\\$&",
             )}\\s*<\\/p>\\s*`,
-            "g"
+            "g",
           ),
-          ""
+          "",
         )
         .replace(
           new RegExp(
             `\\s*${intro.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\n?`,
-            "g"
+            "g",
           ),
-          ""
+          "",
         );
     }
     return out.trim();
@@ -4511,7 +4527,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
     // HTML header "Status/Holat: <strong>...": remove the entire div line.
     const htmlOut = raw.replace(
       /<div[^>]*>\s*(?:Holat|Status):\s*<strong>[\s\S]*?<\/strong>\s*<\/div>\s*/gi,
-      ""
+      "",
     );
     // Plain text "Status/Holat: ..." line
     return htmlOut
@@ -4526,7 +4542,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
     const decision = "accepted";
     const info = getStageAdditionalInfo(stage);
     const { mainText, nextStepNote, hasMain, hasNote } = splitCustomEmailBody(
-      customEmailForm?.bodyText
+      customEmailForm?.bodyText,
     );
     try {
       const { subject, message, htmlContent } = buildStatusEmailTemplate({
@@ -4553,10 +4569,10 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
         to: recipientEmail,
         subject,
         message: stripStatusLineFromCustomEmail(
-          stripDefaultIntroFromCustomPreview(message)
+          stripDefaultIntroFromCustomPreview(message),
         ),
         htmlContent: stripStatusLineFromCustomEmail(
-          stripDefaultIntroFromCustomPreview(htmlContent)
+          stripDefaultIntroFromCustomPreview(htmlContent),
         ),
       };
     } catch (err) {
@@ -4574,7 +4590,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
     console.log("💾 handleSave called");
     if (remoteMode) {
       toast.error(
-        "Stellen Sie den Kandidaten zuerst im passenden Bereich (Major) wieder her. Danach können E-Mails versendet werden."
+        "Stellen Sie den Kandidaten zuerst im passenden Bereich (Major) wieder her. Danach können E-Mails versendet werden.",
       );
       return;
     }
@@ -4604,12 +4620,12 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
         user?.email ||
         user?.phoneNumber ||
         "Unbekannt";
-      const photoURL = userData?.avatar || userData?.photoURL || user?.photoURL || "";
+      const photoURL =
+        userData?.avatar || userData?.photoURL || user?.photoURL || "";
 
       nextCommentMeta = {
         updatedAt: Date.now(),
         updatedByUid: user?.uid || "",
-        updatedBy: user?.email || user?.uid || "",
         updatedByName: displayName,
         updatedByPhoto: photoURL,
       };
@@ -4634,7 +4650,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
       }
       if (!isGermanAddressComplete(addressFields)) {
         toast.error(
-          "Bitte vollständige Adresse eingeben (Straße, Hausnummer, PLZ, Ort, Land)."
+          "Bitte vollständige Adresse eingeben (Straße, Hausnummer, PLZ, Ort, Land).",
         );
         return;
       }
@@ -4642,7 +4658,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
       const kidsCount = String(formCv.personalInfo.childrenCount || "").trim();
       if (!noKids && !kidsCount) {
         toast.error(
-          "Bitte Kinderanzahl eingeben oder 'Keine Kinder' auswählen."
+          "Bitte Kinderanzahl eingeben oder 'Keine Kinder' auswählen.",
         );
         return;
       }
@@ -4674,7 +4690,10 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
 
           for (const { file, tempUrl } of pendingFiles) {
             // Upload file to Firebase
-            const realUrl = await uploadFileToFirebase(file, folderMap[docType]);
+            const realUrl = await uploadFileToFirebase(
+              file,
+              folderMap[docType],
+            );
             urlReplacements[tempUrl] = realUrl;
 
             // Revoke the blob URL to free memory
@@ -4707,7 +4726,9 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
           certificates: Array.isArray(formCv.documents?.certificates)
             ? formCv.documents.certificates.map(replaceUrl)
             : [],
-          certificatesDetailed: Array.isArray(formCv.documents?.certificatesDetailed)
+          certificatesDetailed: Array.isArray(
+            formCv.documents?.certificatesDetailed,
+          )
             ? formCv.documents.certificatesDetailed.map((cert) => ({
                 ...cert,
                 url: replaceUrl(cert.url),
@@ -4753,7 +4774,8 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
       // Normalize languages for persistence (Firestore merge does not remove missing map keys).
       const languageEntries = formCv.skills?.languages
         ? Object.entries(formCv.skills.languages).filter(
-            ([key, val]) => key && key.trim() !== "" && val && val.trim() !== ""
+            ([key, val]) =>
+              key && key.trim() !== "" && val && val.trim() !== "",
           )
         : [];
       const cleanedLanguages = Object.fromEntries(languageEntries);
@@ -4819,7 +4841,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
           const currentDocs = updatedPayload.documents?.[documentType] || [];
           const remainingDocs = currentDocs.filter(
             (url, index) =>
-              !markedForDeletion.some((marked) => marked.index === index)
+              !markedForDeletion.some((marked) => marked.index === index),
           );
 
           if (!updatedPayload.documents) {
@@ -4848,7 +4870,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
             const currentDocs = tempUpdatedForm.documents[documentType] || [];
             const remainingDocs = currentDocs.filter(
               (url, index) =>
-                !markedForDeletion.some((marked) => marked.index === index)
+                !markedForDeletion.some((marked) => marked.index === index),
             );
             tempUpdatedForm.documents[documentType] = remainingDocs;
           }
@@ -4886,7 +4908,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
           console.log(
             hasLanguages
               ? "✅ Languages map overwritten in Firebase"
-              : "✅ Languages field deleted from Firebase"
+              : "✅ Languages field deleted from Firebase",
           );
         } catch (langErr) {
           console.error("❌ Error updating languages field:", langErr);
@@ -4911,7 +4933,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
           await updateEmailRemote(oldEmail, newEmail, col);
         } catch (err) {
           toast.error(
-            "In Firebase gespeichert, aber Fehler beim Aktualisieren der externen E-Mail-Datenbank."
+            "In Firebase gespeichert, aber Fehler beim Aktualisieren der externen E-Mail-Datenbank.",
           );
         }
 
@@ -4924,7 +4946,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
           // Add new email entry
           if (newEmail) {
             const passportId = normalizePassportNumber(
-              formCv.personalInfo.passportNumber || ""
+              formCv.personalInfo.passportNumber || "",
             );
             await upsertEmailAndPassIdFirestore({
               email: newEmail,
@@ -4934,13 +4956,13 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
           }
         } catch (err) {
           toast.error(
-            "E-Mail wurde in Firebase gespeichert, aber Fehler beim Aktualisieren der E-Mail-Registrierung."
+            "E-Mail wurde in Firebase gespeichert, aber Fehler beim Aktualisieren der E-Mail-Registrierung.",
           );
         }
       }
       if (shouldSyncEmail) {
         toast(
-          "E-Mail wurde geändert: Kandidatenstufen wurden auf stage_1 zurückgesetzt."
+          "E-Mail wurde geändert: Kandidatenstufen wurden auf stage_1 zurückgesetzt.",
         );
       }
       if (isLimitedAdmin) {
@@ -4949,7 +4971,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
 
       // Clear documents marked for deletion and update form state
       const hadDocumentsToDelete = Object.values(
-        documentsMarkedForDeletion
+        documentsMarkedForDeletion,
       ).some((arr) => arr.length > 0);
 
       if (hadDocumentsToDelete) {
@@ -4971,7 +4993,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
               const currentDocs = updated.documents[documentType] || [];
               const remainingDocs = currentDocs.filter(
                 (url, index) =>
-                  !markedForDeletion.some((marked) => marked.index === index)
+                  !markedForDeletion.some((marked) => marked.index === index),
               );
               updated.documents[documentType] = remainingDocs;
             }
@@ -5006,13 +5028,13 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
         toast.success(
           isLimitedAdmin
             ? "Kommentar und Dokumente wurden gespeichert."
-            : "Änderungen und Dokumente wurden gespeichert."
+            : "Änderungen und Dokumente wurden gespeichert.",
         );
       } else {
         toast.success(
           isLimitedAdmin
             ? "Kommentar wurde gespeichert."
-            : "Änderungen wurden gespeichert."
+            : "Änderungen wurden gespeichert.",
         );
       }
     } catch (e) {
@@ -5086,7 +5108,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
   async function handleDownloadPdf() {
     if (remoteMode) {
       toast.error(
-        "Stellen Sie den Kandidaten zuerst im passenden Bereich (Major) wieder her."
+        "Stellen Sie den Kandidaten zuerst im passenden Bereich (Major) wieder her.",
       );
       return;
     }
@@ -5110,7 +5132,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
           showDocuments={showDocuments}
           showComment={showComment}
           showCommentDate={showCommentDate}
-        />
+        />,
       ).toBlob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -5140,7 +5162,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
   const birthDate = String(formCv.personalInfo.birthDate || "").trim();
   const phone = String(formCv.personalInfo.phone || "").trim();
   const passportNumber = normalizePassportNumber(
-    formCv.personalInfo.passportNumber || ""
+    formCv.personalInfo.passportNumber || "",
   );
   const email = String(formCv.personalInfo.email || "").trim();
   const maritalStatus = String(formCv.personalInfo.maritalStatus || "").trim();
@@ -5317,7 +5339,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
       return;
     }
     const ok = window.confirm(
-      "Kommentar wirklich löschen?\n\nHinweis: Diese Änderung wird erst in Firestore gespeichert, wenn Sie auf „Speichern“ klicken."
+      "Kommentar wirklich löschen?\n\nHinweis: Diese Änderung wird erst in Firestore gespeichert, wenn Sie auf „Speichern“ klicken.",
     );
     if (!ok) return;
     setCommentHtml("");
@@ -5377,7 +5399,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
       console.error("Error correcting comment:", error);
       toast.error(
         "Fehler beim Korrigieren des Kommentars: " +
-          (error.message || "Unbekannter Fehler")
+          (error.message || "Unbekannter Fehler"),
       );
     } finally {
       setIsCorrectingComment(false);
@@ -5409,8 +5431,8 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
         newReaction === "like"
           ? "👍 Gefällt mir"
           : newReaction === "dislike"
-          ? "👎 Gefällt mir nicht"
-          : "Reaktion entfernt"
+            ? "👎 Gefällt mir nicht"
+            : "Reaktion entfernt",
       );
     } catch (err) {
       toast.error("Fehler beim Speichern der Reaktion.");
@@ -5446,12 +5468,12 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
       toast.success(
         aufgabenOnly
           ? "Aufgaben wurden erfolgreich korrigiert!"
-          : "Berufserfahrung wurde erfolgreich korrigiert!"
+          : "Berufserfahrung wurde erfolgreich korrigiert!",
       );
     } catch (error) {
       console.error("Error correcting experience:", error);
       toast.error(
-        "Fehler beim Korrigieren: " + (error.message || "Unbekannter Fehler")
+        "Fehler beim Korrigieren: " + (error.message || "Unbekannter Fehler"),
       );
     } finally {
       setCorrectingExperienceIndex(null);
@@ -5580,16 +5602,16 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
   const busyLabel = loading
     ? "Wird geladen..."
     : isSaving
-    ? "Wird gespeichert..."
-    : isDownloading
-    ? "PDF wird erstellt..."
-    : isSavingStatus
-    ? "Status wird gespeichert..."
-    : sendingStepValue
-    ? "E-Mail wird gesendet..."
-    : metaLoading
-    ? "Daten werden geladen..."
-    : "Bitte warten...";
+      ? "Wird gespeichert..."
+      : isDownloading
+        ? "PDF wird erstellt..."
+        : isSavingStatus
+          ? "Status wird gespeichert..."
+          : sendingStepValue
+            ? "E-Mail wird gesendet..."
+            : metaLoading
+              ? "Daten werden geladen..."
+              : "Bitte warten...";
 
   return (
     <div className="p-2 min-h-screen">
@@ -6121,7 +6143,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                     childrenCount: checked
                                       ? ""
                                       : String(
-                                          prev.personalInfo.childrenCount || ""
+                                          prev.personalInfo.childrenCount || "",
                                         ),
                                   },
                                 }));
@@ -6153,8 +6175,8 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                             phoneShowOk
                               ? "input-success"
                               : phoneWarn
-                              ? "input-warning"
-                              : ""
+                                ? "input-warning"
+                                : ""
                           }
                           helperText={
                             phoneWarn ? (
@@ -6185,8 +6207,8 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                           passportShowOk
                             ? "input-success"
                             : passportWarn
-                            ? "input-warning"
-                            : ""
+                              ? "input-warning"
+                              : ""
                         }
                         helperText={
                           passportWarn ? (
@@ -6217,8 +6239,8 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                           emailShowOk
                             ? "input-success"
                             : emailWarn
-                            ? "input-warning"
-                            : ""
+                              ? "input-warning"
+                              : ""
                         }
                         helperText={
                           emailWarn ? (
@@ -6472,7 +6494,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                         updateEducation(
                                           idx,
                                           "startDate",
-                                          fromInputMonth(e.target.value)
+                                          fromInputMonth(e.target.value),
                                         )
                                       }
                                     />
@@ -6492,7 +6514,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                         updateEducation(
                                           idx,
                                           "endDate",
-                                          fromInputMonth(e.target.value)
+                                          fromInputMonth(e.target.value),
                                         )
                                       }
                                       disabled={endIsBisHeute}
@@ -6506,7 +6528,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                           updateEducation(
                                             idx,
                                             "endDate",
-                                            e.target.checked ? "bis heute" : ""
+                                            e.target.checked ? "bis heute" : "",
                                           );
                                         }}
                                       />
@@ -6531,7 +6553,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                         updateEducation(
                                           idx,
                                           "institution",
-                                          e.target.value
+                                          e.target.value,
                                         )
                                       }
                                     />
@@ -6552,7 +6574,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                         updateEducation(
                                           idx,
                                           "degree",
-                                          e.target.value
+                                          e.target.value,
                                         )
                                       }
                                     />
@@ -6585,7 +6607,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                               type="checkbox"
                               className="checkbox"
                               checked={Boolean(
-                                formCv.personalInfo.hasDrivingLicense
+                                formCv.personalInfo.hasDrivingLicense,
                               )}
                               onChange={(e) => {
                                 const checked = e.target.checked;
@@ -6597,7 +6619,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                     drivingLicenseType: checked
                                       ? String(
                                           prev.personalInfo
-                                            .drivingLicenseType || ""
+                                            .drivingLicenseType || "",
                                         )
                                       : "",
                                   },
@@ -6632,7 +6654,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                   {(() => {
                                     const raw = String(
                                       formCv.personalInfo.drivingLicenseType ||
-                                        ""
+                                        "",
                                     )
                                       .trim()
                                       .toUpperCase();
@@ -6677,7 +6699,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                           .toUpperCase();
                                         const selected = String(
                                           formCv.personalInfo
-                                            .drivingLicenseType || ""
+                                            .drivingLicenseType || "",
                                         )
                                           .trim()
                                           .toUpperCase()
@@ -6707,7 +6729,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                                   },
                                                 }));
                                                 setIsDrivingLicenseDropdownOpen(
-                                                  false
+                                                  false,
                                                 );
                                               }}
                                             >
@@ -6797,7 +6819,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                             formCv.documents.passport.map((url, i) => {
                               const isMarkedForDeletion =
                                 documentsMarkedForDeletion.passport.some(
-                                  (marked) => marked.index === i
+                                  (marked) => marked.index === i,
                                 );
                               return (
                                 <div
@@ -6842,7 +6864,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                         deleteDocumentRemoteFirst(
                                           url,
                                           "passport",
-                                          i
+                                          i,
                                         )
                                       }
                                     >
@@ -6871,7 +6893,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                             formCv.documents.diplomas.map((url, i) => {
                               const isMarkedForDeletion =
                                 documentsMarkedForDeletion.diplomas.some(
-                                  (marked) => marked.index === i
+                                  (marked) => marked.index === i,
                                 );
                               return (
                                 <div
@@ -6916,7 +6938,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                         deleteDocumentRemoteFirst(
                                           url,
                                           "diplomas",
-                                          i
+                                          i,
                                         )
                                       }
                                     >
@@ -6952,13 +6974,13 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                               <ul className="space-y-2">
                                 {/* Show certificatesDetailed if available */}
                                 {Array.isArray(
-                                  formCv.documents?.certificatesDetailed
+                                  formCv.documents?.certificatesDetailed,
                                 ) &&
                                   formCv.documents.certificatesDetailed.map(
                                     (cert, i) => {
                                       const isMarkedForDeletion =
                                         documentsMarkedForDeletion.certificates.some(
-                                          (marked) => marked.index === i
+                                          (marked) => marked.index === i,
                                         );
                                       return (
                                         <li
@@ -7008,7 +7030,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                                   deleteDocumentRemoteFirst(
                                                     cert.url,
                                                     "certificates",
-                                                    i
+                                                    i,
                                                   )
                                                 }
                                               >
@@ -7058,7 +7080,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                                         (url) =>
                                                           url &&
                                                           typeof url ===
-                                                            "string"
+                                                            "string",
                                                       );
 
                                                   const updatedForm = {
@@ -7074,7 +7096,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                                       const collectionName =
                                                         String(
                                                           resolvedMajor?.collectionName ||
-                                                            ""
+                                                            "",
                                                         ).trim();
 
                                                       if (
@@ -7083,7 +7105,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                                       ) {
                                                         const docData =
                                                           mapFormToDoc(
-                                                            updatedForm
+                                                            updatedForm,
                                                           );
 
                                                         await updateDocument(
@@ -7092,7 +7114,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                                           {
                                                             documents:
                                                               docData.documents,
-                                                          }
+                                                          },
                                                         );
                                                       }
                                                     } catch (saveErr) {}
@@ -7120,12 +7142,12 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                           ) : null}
                                         </li>
                                       );
-                                    }
+                                    },
                                   )}
 
                                 {/* Show legacy certificates if no certificatesDetailed */}
                                 {!Array.isArray(
-                                  formCv.documents?.certificatesDetailed
+                                  formCv.documents?.certificatesDetailed,
                                 ) ||
                                 formCv.documents.certificatesDetailed.length ===
                                   0
@@ -7133,7 +7155,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                       (url, i) => {
                                         const isMarkedForDeletion =
                                           documentsMarkedForDeletion.certificates.some(
-                                            (marked) => marked.index === i
+                                            (marked) => marked.index === i,
                                           );
                                         return (
                                           <div
@@ -7178,7 +7200,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                                   deleteDocumentRemoteFirst(
                                                     url,
                                                     "certificates",
-                                                    i
+                                                    i,
                                                   )
                                                 }
                                               >
@@ -7187,7 +7209,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                             )}
                                           </div>
                                         );
-                                      }
+                                      },
                                     )
                                   : null}
                               </ul>
@@ -7255,7 +7277,11 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                               type="checkbox"
                               className="toggle toggle-sm toggle-primary"
                               checked={allowIncomingDelete}
-                              onChange={(e) => handleToggleAllowIncomingDelete(e.target.checked)}
+                              onChange={(e) =>
+                                handleToggleAllowIncomingDelete(
+                                  e.target.checked,
+                                )
+                              }
                               disabled={savingAllowDelete}
                             />
                           </label>
@@ -7268,7 +7294,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                           ([, v]) =>
                             v &&
                             typeof v === "object" &&
-                            String(v?.url || "").trim()
+                            String(v?.url || "").trim(),
                         );
 
                         if (entries.length === 0) {
@@ -7283,7 +7309,9 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                           <div className="space-y-3">
                             {entries.map(([docId, docData]) => {
                               const outgoingDoc = outgoingDocsMap[docId];
-                              const docLabel = String(outgoingDoc?.title || "").trim();
+                              const docLabel = String(
+                                outgoingDoc?.title || "",
+                              ).trim();
                               const fileName =
                                 String(docData?.fileName || "").trim() ||
                                 "Dokument";
@@ -7309,7 +7337,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                         <div className="text-xs text-base-content/60 mt-1">
                                           Hochgeladen:{" "}
                                           {new Date(uploadedAt).toLocaleString(
-                                            "de-DE"
+                                            "de-DE",
                                           )}
                                         </div>
                                       )}
@@ -7327,7 +7355,12 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                       <button
                                         type="button"
                                         className="btn btn-sm btn-outline gap-1"
-                                        onClick={() => handleDownloadIncomingDoc(url, fileName)}
+                                        onClick={() =>
+                                          handleDownloadIncomingDoc(
+                                            url,
+                                            fileName,
+                                          )
+                                        }
                                         title="Herunterladen"
                                       >
                                         <FaDownload />
@@ -7335,7 +7368,9 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                       <button
                                         type="button"
                                         className="btn btn-sm btn-error gap-1"
-                                        onClick={() => handleDeleteIncomingDoc(docId)}
+                                        onClick={() =>
+                                          handleDeleteIncomingDoc(docId)
+                                        }
                                         disabled={deletingIncomingDoc[docId]}
                                         title="Löschen"
                                       >
@@ -7628,9 +7663,11 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
             <div className="mb-4 flex items-center gap-3 p-3 bg-base-200 rounded-lg border border-base-300">
               <div className="avatar">
                 <div className="w-10 h-10 rounded-full">
-                  {(emailMeta.lastSentByPhoto || emailMetaAvatarFromUsers) ? (
+                  {emailMeta.lastSentByPhoto || emailMetaAvatarFromUsers ? (
                     <img
-                      src={emailMeta.lastSentByPhoto || emailMetaAvatarFromUsers}
+                      src={
+                        emailMeta.lastSentByPhoto || emailMetaAvatarFromUsers
+                      }
                       alt={emailMeta.lastSentByName || "User"}
                     />
                   ) : (
@@ -7665,7 +7702,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
             openCustomEmailModal={openCustomEmailModal}
             onResetStage={resetSingleStage}
             hasLeadershipInterview={Boolean(
-              docCv?.stageMeta?.stage_2?.sentWithLeadership
+              docCv?.stageMeta?.stage_2?.sentWithLeadership,
             )}
           />
 
@@ -7714,7 +7751,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                         "zusatzblatt_b",
                         "zusatzblatt_c",
                         "zusatzblatt_d",
-                      ].includes(tpl.id)
+                      ].includes(tpl.id),
                   ).map((tpl) => {
                     const st = getOutgoingDocState(tpl.id);
                     const checked = Boolean(st?.enabled);
@@ -7840,20 +7877,28 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                   Erklärung zum Beschäftigungsverhältnis
                 </div>
                 <p className="text-xs text-base-content/60 mb-3">
-                  Klicken Sie auf "Öffnen", um das Formular mit Kandidatendaten zu öffnen und PDF herunterzuladen.
+                  Klicken Sie auf "Öffnen", um das Formular mit Kandidatendaten
+                  zu öffnen und PDF herunterzuladen.
                 </p>
                 <div className="space-y-2">
                   <div className="rounded-xl border border-base-300 bg-base-100 p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="font-semibold">Erklärung zum Beschäftigungsverhältnis</div>
-                        <p className="text-xs text-base-content/60 mt-1">Hauptformular für die Bundesagentur für Arbeit</p>
+                        <div className="font-semibold">
+                          Erklärung zum Beschäftigungsverhältnis
+                        </div>
+                        <p className="text-xs text-base-content/60 mt-1">
+                          Hauptformular für die Bundesagentur für Arbeit
+                        </p>
                       </div>
                       <button
                         type="button"
                         className="btn btn-sm btn-primary shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={() => setIsErklaerungModalOpen(true)}
-                        disabled={!formCv.personalInfo.firstName || !formCv.personalInfo.lastName}
+                        disabled={
+                          !formCv.personalInfo.firstName ||
+                          !formCv.personalInfo.lastName
+                        }
                       >
                         Öffnen
                       </button>
@@ -7863,8 +7908,12 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                   <div className="rounded-xl border border-base-300 bg-base-100 p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="font-semibold">Zusatzblatt A - Anerkennungsverfahren</div>
-                        <p className="text-xs text-base-content/60 mt-1">Beschäftigung im Rahmen des Anerkennungsverfahrens</p>
+                        <div className="font-semibold">
+                          Zusatzblatt A - Anerkennungsverfahren
+                        </div>
+                        <p className="text-xs text-base-content/60 mt-1">
+                          Beschäftigung im Rahmen des Anerkennungsverfahrens
+                        </p>
                       </div>
                       <button
                         type="button"
@@ -7879,8 +7928,12 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                   <div className="rounded-xl border border-base-300 bg-base-100 p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="font-semibold">Zusatzblatt B - ICT / Personalaustausch</div>
-                        <p className="text-xs text-base-content/60 mt-1">Unternehmensinterner Transfer (ICT)</p>
+                        <div className="font-semibold">
+                          Zusatzblatt B - ICT / Personalaustausch
+                        </div>
+                        <p className="text-xs text-base-content/60 mt-1">
+                          Unternehmensinterner Transfer (ICT)
+                        </p>
                       </div>
                       <button
                         type="button"
@@ -7895,8 +7948,12 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                   <div className="rounded-xl border border-base-300 bg-base-100 p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="font-semibold">Zusatzblatt C - Berufskraftfahrer</div>
-                        <p className="text-xs text-base-content/60 mt-1">Beschäftigung als Berufskraftfahrer/in</p>
+                        <div className="font-semibold">
+                          Zusatzblatt C - Berufskraftfahrer
+                        </div>
+                        <p className="text-xs text-base-content/60 mt-1">
+                          Beschäftigung als Berufskraftfahrer/in
+                        </p>
                       </div>
                       <button
                         type="button"
@@ -7911,8 +7968,12 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                   <div className="rounded-xl border border-base-300 bg-base-100 p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="font-semibold">Zusatzblatt D - Kurzfristige Beschäftigung</div>
-                        <p className="text-xs text-base-content/60 mt-1">Kurzfristige Beschäftigung (max. 70 Tage)</p>
+                        <div className="font-semibold">
+                          Zusatzblatt D - Kurzfristige Beschäftigung
+                        </div>
+                        <p className="text-xs text-base-content/60 mt-1">
+                          Kurzfristige Beschäftigung (max. 70 Tage)
+                        </p>
                       </div>
                       <button
                         type="button"
@@ -7958,7 +8019,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                             typeof navigator.clipboard.writeText === "function"
                           ) {
                             await navigator.clipboard.writeText(
-                              dataExchangeUrl
+                              dataExchangeUrl,
                             );
                             toast.success("DataExchange-Link kopiert.");
                           } else {
@@ -8004,7 +8065,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                 {(() => {
                   const entries = Object.entries(outgoingDocs || {}).filter(
                     ([, v]) =>
-                      v && typeof v === "object" && String(v?.url || "").trim()
+                      v && typeof v === "object" && String(v?.url || "").trim(),
                   );
                   if (entries.length === 0) {
                     return (
@@ -8058,12 +8119,12 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                           "function"
                                       ) {
                                         await navigator.clipboard.writeText(
-                                          url
+                                          url,
                                         );
                                         toast.success("Link kopiert.");
                                       } else {
                                         throw new Error(
-                                          "clipboard-unavailable"
+                                          "clipboard-unavailable",
                                         );
                                       }
                                     } catch {
@@ -8081,7 +8142,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                                         toast.success("Link kopiert.");
                                       } catch {
                                         toast.error(
-                                          "Fehler beim Kopieren des Links."
+                                          "Fehler beim Kopieren des Links.",
                                         );
                                       }
                                     }
@@ -8200,10 +8261,10 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
           pendingStageStep === "stage_2"
             ? "In der Stufe-2-E-Mail werden Link und Datum/Uhrzeit nicht gesendet."
             : isLimitedAdmin
-            ? "Sie haben keine Berechtigung, E-Mails zu senden."
-            : metaLoading
-            ? "Zusätzliche Informationen werden geladen..."
-            : "Bei Annahme werden Datum/Uhrzeit und Link (oder Standort) zur E-Mail hinzugefügt."
+              ? "Sie haben keine Berechtigung, E-Mails zu senden."
+              : metaLoading
+                ? "Zusätzliche Informationen werden geladen..."
+                : "Bei Annahme werden Datum/Uhrzeit und Link (oder Standort) zur E-Mail hinzugefügt."
         }
         decision={stageDecision}
         setDecision={setStageDecision}
@@ -8220,7 +8281,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
         setAdditionalInfoForm={setStageAdditionalInfoForm}
         canGenerateTelegramLink={Boolean(
           pendingStageStep &&
-            getTelegramGroupIdForStage(metaInfo, pendingStageStep)
+          getTelegramGroupIdForStage(metaInfo, pendingStageStep),
         )}
         autoTelegramGroupLabel={(() => {
           try {
@@ -8402,7 +8463,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                         <span className="float-right">✓</span>
                       )}
                     </button>
-                  )
+                  ),
                 )}
               </div>
             </div>
