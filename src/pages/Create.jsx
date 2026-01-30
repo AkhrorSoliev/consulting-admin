@@ -105,7 +105,7 @@ function Create() {
       "telc Deutsch",
       "ÖSD",
     ],
-    []
+    [],
   );
   const DRIVING_LICENSE_OPTIONS = useMemo(() => ["A", "B", "BE", "C", "D"], []);
 
@@ -147,7 +147,7 @@ function Create() {
         pcSkills: [],
       },
     }),
-    []
+    [],
   );
 
   const [cv, setCv] = useState(initialCv);
@@ -229,7 +229,7 @@ function Create() {
   });
   const [isInputFocused, setIsInputFocused] = useState(false);
 
-  const TELEGRAM_SUPPORT_URL = "https://t.me/consultinguz_kundensupport";
+  const TELEGRAM_SUPPORT_URL = "https://t.me/consultinguz_chat";
   const CHECK_REGISTRY_ENDPOINT =
     import.meta.env.VITE_CHECK_REGISTRY_URL ||
     (import.meta.env.VITE_FUNCTIONS_BASE &&
@@ -250,7 +250,7 @@ function Create() {
       { key: "documents", label: "Dokumente" },
       { key: "confirm", label: "Bestätigen" },
     ],
-    []
+    [],
   );
   const FINAL_STEP = STEPS.length - 1;
   const [currentStep, setCurrentStep] = useState(0);
@@ -262,7 +262,7 @@ function Create() {
         name,
         level,
       })),
-    [cv.skills.languages]
+    [cv.skills.languages],
   );
 
   useEffect(() => {
@@ -370,7 +370,7 @@ function Create() {
           if (!isActive) {
             setIsLinkBlocked(true);
             setBlockedLinkTitle(
-              String(meta?.title || meta?.collectionName || key)
+              String(meta?.title || meta?.collectionName || key),
             );
           }
 
@@ -389,7 +389,7 @@ function Create() {
               setBlockedLinkTitle(
                 `Lead linklar vaqtincha o‘chirilgan (${
                   meta?.title || meta?.collectionName || key
-                })`
+                })`,
               );
             } else if (!match) {
               setIsLinkBlocked(true);
@@ -678,7 +678,7 @@ function Create() {
     const hasPartiallyFilledExperience =
       Array.isArray(cv.experience) &&
       cv.experience.some(
-        (exp) => !isExperienceEntryFilled(exp) && !isExperienceEntryEmpty(exp)
+        (exp) => !isExperienceEntryFilled(exp) && !isExperienceEntryEmpty(exp),
       );
     if (!hasPartiallyFilledExperience) {
       setShowExperienceWarning(false);
@@ -770,7 +770,7 @@ function Create() {
           .map((s) =>
             String(s || "")
               .trim()
-              .toUpperCase()
+              .toUpperCase(),
           )
           .filter(Boolean)
           .join(", ")
@@ -779,7 +779,7 @@ function Create() {
           .map((s) =>
             String(s || "")
               .trim()
-              .toUpperCase()
+              .toUpperCase(),
           )
           .filter(Boolean)
           .join(", ");
@@ -1236,7 +1236,8 @@ function Create() {
       const hasPartiallyFilledExperience =
         Array.isArray(cv.experience) &&
         cv.experience.some(
-          (exp) => !isExperienceEntryFilled(exp) && !isExperienceEntryEmpty(exp)
+          (exp) =>
+            !isExperienceEntryFilled(exp) && !isExperienceEntryEmpty(exp),
         );
       if (hasPartiallyFilledExperience) {
         setShowExperienceWarning(true);
@@ -1354,13 +1355,13 @@ function Create() {
     // Clean up empty experience entries before navigating forward
     if (Array.isArray(cv.experience) && cv.experience.length > 0) {
       const hasPartiallyFilled = cv.experience.some(
-        (exp) => !isExperienceEntryFilled(exp) && !isExperienceEntryEmpty(exp)
+        (exp) => !isExperienceEntryFilled(exp) && !isExperienceEntryEmpty(exp),
       );
 
       // Only remove empty entries if there are no partially filled ones
       if (!hasPartiallyFilled) {
         const filteredExperience = cv.experience.filter(
-          (exp) => !isExperienceEntryEmpty(exp)
+          (exp) => !isExperienceEntryEmpty(exp),
         );
         if (filteredExperience.length !== cv.experience.length) {
           setCv((prev) => ({
@@ -1382,13 +1383,13 @@ function Create() {
     // Clean up empty experience entries before navigating
     if (Array.isArray(cv.experience) && cv.experience.length > 0) {
       const hasPartiallyFilled = cv.experience.some(
-        (exp) => !isExperienceEntryFilled(exp) && !isExperienceEntryEmpty(exp)
+        (exp) => !isExperienceEntryFilled(exp) && !isExperienceEntryEmpty(exp),
       );
 
       // Only remove empty entries if there are no partially filled ones
       if (!hasPartiallyFilled) {
         const filteredExperience = cv.experience.filter(
-          (exp) => !isExperienceEntryEmpty(exp)
+          (exp) => !isExperienceEntryEmpty(exp),
         );
         if (filteredExperience.length !== cv.experience.length) {
           setCv((prev) => ({
@@ -1556,7 +1557,7 @@ function Create() {
     setCv((prev) => {
       const next = [...prev.experience];
       const resp = next[expIdx].responsibilities.filter(
-        (_, i) => i !== respIdx
+        (_, i) => i !== respIdx,
       );
       next[expIdx] = { ...next[expIdx], responsibilities: resp };
       return { ...prev, experience: next };
@@ -1684,8 +1685,8 @@ function Create() {
       }
       const nextObj = Object.fromEntries(
         nextEntries.filter(
-          ([k]) => k !== "" || (k === "" && field === "name" && value !== "")
-        )
+          ([k]) => k !== "" || (k === "" && field === "name" && value !== ""),
+        ),
       );
       return {
         ...prev,
@@ -1697,7 +1698,7 @@ function Create() {
   function removeLanguageRow(rowIdx) {
     setCv((prev) => {
       const entries = Object.entries(prev.skills.languages).filter(
-        (_, i) => i !== rowIdx
+        (_, i) => i !== rowIdx,
       );
       return {
         ...prev,
@@ -1745,7 +1746,8 @@ function Create() {
       const hasPartiallyFilledExperience =
         Array.isArray(cv.experience) &&
         cv.experience.some(
-          (exp) => !isExperienceEntryFilled(exp) && !isExperienceEntryEmpty(exp)
+          (exp) =>
+            !isExperienceEntryFilled(exp) && !isExperienceEntryEmpty(exp),
         );
       if (hasPartiallyFilledExperience) {
         setShowExperienceWarning(true);
@@ -1846,7 +1848,7 @@ function Create() {
               .map((t) =>
                 String(t || "")
                   .trim()
-                  .toUpperCase()
+                  .toUpperCase(),
               )
               .filter(Boolean)
               .join(", ");
@@ -1854,7 +1856,7 @@ function Create() {
           telefon: final.personalInfo.phone,
           email: final.personalInfo.email,
           reisepassNummer: normalizePassportNumber(
-            final?.personalInfo?.passportNumber || ""
+            final?.personalInfo?.passportNumber || "",
           ),
           foto: final.personalInfo.photo,
         },
@@ -1914,7 +1916,7 @@ function Create() {
 
       const email = (formData.personalInfo.email || "").trim();
       const passportNumber = normalizePassportNumber(
-        formData?.personalInfo?.passportNumber || ""
+        formData?.personalInfo?.passportNumber || "",
       );
 
       try {
@@ -1930,7 +1932,7 @@ function Create() {
         }
         const passportUrls = await uploadFilesToFirebase(
           passportFilesToUpload,
-          "passports"
+          "passports",
         );
 
         // 2. Diplomas yuklash
@@ -1939,10 +1941,13 @@ function Create() {
           : [];
         if (diplomaFilesToUpload.length === 0) {
           throw new Error(
-            "Diplome fehlen. Bitte laden Sie mindestens ein PDF hoch."
+            "Diplome fehlen. Bitte laden Sie mindestens ein PDF hoch.",
           );
         }
-        const diplomaUrls = await uploadFilesToFirebase(diplomaFilesToUpload, "diplomas");
+        const diplomaUrls = await uploadFilesToFirebase(
+          diplomaFilesToUpload,
+          "diplomas",
+        );
 
         // 3. Language certificates yuklash (optional)
         let langCertUrls = [];
@@ -1960,10 +1965,10 @@ function Create() {
 
         // URL larni to'plash
         const safeDiplomaUrls = diplomaUrls.filter((u) =>
-          /^https?:\/\//.test(u)
+          /^https?:\/\//.test(u),
         );
         const safePassportUrls = passportUrls.filter((u) =>
-          /^https?:\/\//.test(u)
+          /^https?:\/\//.test(u),
         );
         const safeLangUrls = langCertUrls.filter((u) => /^https?:\/\//.test(u));
 
@@ -2008,7 +2013,7 @@ function Create() {
         // Submit via Cloud Function to enforce link/lead checks server-side
         if (!SUBMIT_ENDPOINT) {
           throw new Error(
-            "SUBMIT_CANDIDATE_URL is not configured (VITE_SUBMIT_CANDIDATE_URL)"
+            "SUBMIT_CANDIDATE_URL is not configured (VITE_SUBMIT_CANDIDATE_URL)",
           );
         }
         const res = await fetch(SUBMIT_ENDPOINT, {
@@ -2044,7 +2049,7 @@ function Create() {
           const major = String(json?.existing?.major || "Unbekannt");
           setExistingPassportMajor(major);
           setEnteredPassport(
-            String(json?.existing?.passportId || passportNumber).trim()
+            String(json?.existing?.passportId || passportNumber).trim(),
           );
           setError("personalInfo.passportNumber", {
             type: "remoteExists",
@@ -2060,7 +2065,7 @@ function Create() {
           const major = String(json?.existing?.major || "Unbekannt");
           toast.error(
             `Diese Telegram-ID ist bereits für „${major}" registriert. Bitte kontaktieren Sie den Support.`,
-            { duration: 8000 }
+            { duration: 8000 },
           );
           return;
         }
@@ -2333,7 +2338,7 @@ function Create() {
                                         : getSuccessClass(
                                             "personalInfo.name",
                                             field.value,
-                                            "input"
+                                            "input",
                                           )
                                     }
                                     aria-invalid={
@@ -2370,7 +2375,7 @@ function Create() {
                                         : getSuccessClass(
                                             "personalInfo.lastName",
                                             field.value,
-                                            "input"
+                                            "input",
                                           )
                                     }
                                     aria-invalid={
@@ -2450,7 +2455,7 @@ function Create() {
                                           : getSuccessClass(
                                               "personalInfo.birthDate",
                                               field.value,
-                                              "input"
+                                              "input",
                                             )
                                       }`}
                                       aria-invalid={
@@ -2539,7 +2544,7 @@ function Create() {
                                             ? "select-error"
                                             : getSuccessClass(
                                                 field.value,
-                                                "personalInfo.birthPlace"
+                                                "personalInfo.birthPlace",
                                               )
                                         }`}
                                         aria-invalid={
@@ -2637,7 +2642,7 @@ function Create() {
                                             : getSuccessClass(
                                                 "personalInfo.maritalStatus",
                                                 field.value,
-                                                "select"
+                                                "select",
                                               )
                                         }`}
                                         aria-invalid={
@@ -2691,7 +2696,7 @@ function Create() {
                                         : getSuccessClass(
                                             "personalInfo.childrenCount",
                                             watchChildrenCount,
-                                            "input"
+                                            "input",
                                           )
                                     }`}
                                     disabled={watch("personalInfo.noChildren")}
@@ -2703,7 +2708,7 @@ function Create() {
                                     {...register("personalInfo.childrenCount", {
                                       validate: (value) => {
                                         const noKids = Boolean(
-                                          watch("personalInfo.noChildren")
+                                          watch("personalInfo.noChildren"),
                                         );
                                         if (noKids) return true;
                                         const v = String(value || "").trim();
@@ -2720,7 +2725,7 @@ function Create() {
                                         const num = Number(s);
                                         if (Number.isNaN(num)) return "";
                                         return String(
-                                          Math.max(0, Math.floor(num))
+                                          Math.max(0, Math.floor(num)),
                                         );
                                       },
                                     })}
@@ -2752,7 +2757,7 @@ function Create() {
                                           {
                                             shouldDirty: true,
                                             shouldValidate: true,
-                                          }
+                                          },
                                         );
                                         if (checked) {
                                           setValue(
@@ -2761,12 +2766,12 @@ function Create() {
                                             {
                                               shouldDirty: true,
                                               shouldValidate: true,
-                                            }
+                                            },
                                           );
                                         }
                                       }}
                                       checked={Boolean(
-                                        watch("personalInfo.noChildren")
+                                        watch("personalInfo.noChildren"),
                                       )}
                                     />
                                     <span className="text-sm">
@@ -2790,7 +2795,7 @@ function Create() {
                                   const body = raw.slice(firstSpace + 1);
                                   const digits = String(body || "").replace(
                                     /[^\d]/g,
-                                    ""
+                                    "",
                                   );
                                   if (digits.length !== 9) {
                                     return "Bitte Telefonnummer vollständig eingeben.";
@@ -2801,10 +2806,10 @@ function Create() {
                               render={({ field }) => {
                                 const st = getFieldState("personalInfo.phone");
                                 const touched = Boolean(
-                                  st?.isTouched || st?.isDirty
+                                  st?.isTouched || st?.isDirty,
                                 );
                                 const rawPhone = String(
-                                  field.value || ""
+                                  field.value || "",
                                 ).trim();
                                 const phoneOk = isPhoneComplete(rawPhone);
                                 const phoneHas = hasNonEmptyValue(rawPhone);
@@ -2838,7 +2843,7 @@ function Create() {
                                           : getLiveInputClass(
                                               "personalInfo.phone",
                                               field.value,
-                                              isPhoneComplete
+                                              isPhoneComplete,
                                             )
                                       }
                                       helperText={
@@ -2875,10 +2880,10 @@ function Create() {
                                   const st =
                                     getFieldState("personalInfo.email");
                                   const touched = Boolean(
-                                    st?.isTouched || st?.isDirty
+                                    st?.isTouched || st?.isDirty,
                                   );
                                   const rawEmail = String(
-                                    field.value || ""
+                                    field.value || "",
                                   ).trim();
                                   const emailHas = hasNonEmptyValue(rawEmail);
                                   const emailOk = isEmailValid(rawEmail);
@@ -2890,7 +2895,7 @@ function Create() {
 
                                   const emailChecked = Boolean(
                                     lastEmailCheckRef.current?.email ===
-                                      rawEmail
+                                    rawEmail,
                                   );
                                   const emailValid =
                                     emailOk && !errors?.personalInfo?.email;
@@ -2950,7 +2955,7 @@ function Create() {
                                             : getLiveInputClass(
                                                 "personalInfo.email",
                                                 field.value,
-                                                isEmailValid
+                                                isEmailValid,
                                               )
                                         }
                                         aria-invalid={
@@ -2982,10 +2987,10 @@ function Create() {
                                 }}
                                 render={({ field }) => {
                                   const st = getFieldState(
-                                    "personalInfo.passportNumber"
+                                    "personalInfo.passportNumber",
                                   );
                                   const touched = Boolean(
-                                    st?.isTouched || st?.isDirty
+                                    st?.isTouched || st?.isDirty,
                                   );
                                   const raw = String(field.value || "");
                                   const norm = normalizePassportNumber(raw);
@@ -2999,7 +3004,7 @@ function Create() {
 
                                   const passportChecked = Boolean(
                                     lastPassportCheckRef.current?.passport ===
-                                      norm
+                                    norm,
                                   );
                                   const passportValid =
                                     ok && !errors?.personalInfo?.passportNumber;
@@ -3058,7 +3063,7 @@ function Create() {
                                             : getLiveInputClass(
                                                 "personalInfo.passportNumber",
                                                 raw,
-                                                isPassportNumberValid
+                                                isPassportNumberValid,
                                               )
                                         }
                                         aria-invalid={
@@ -3071,7 +3076,7 @@ function Create() {
                                         onBlur={field.onBlur}
                                         onChange={(e) => {
                                           const next = normalizePassportNumber(
-                                            e?.target?.value
+                                            e?.target?.value,
                                           );
                                           field.onChange(next);
                                         }}
@@ -3119,7 +3124,7 @@ function Create() {
                                     : getSuccessClass(
                                         "personalInfo.photo",
                                         watchPhoto,
-                                        "file"
+                                        "file",
                                       )
                                 }`}
                                 onChange={handlePhotoFileChange}
@@ -3181,7 +3186,7 @@ function Create() {
                                           : getSuccessClass(
                                               "personalInfo.addressStreet",
                                               addressStreet,
-                                              "input"
+                                              "input",
                                             )
                                       }`}
                                       aria-invalid={
@@ -3195,7 +3200,7 @@ function Create() {
                                           required: "Straße ist erforderlich",
                                           setValueAs: (v) =>
                                             String(v || "").trim(),
-                                        }
+                                        },
                                       )}
                                     />
                                     {errors?.personalInfo?.addressStreet ? (
@@ -3229,7 +3234,7 @@ function Create() {
                                           : getSuccessClass(
                                               "personalInfo.addressHouseNumber",
                                               addressHouseNumber,
-                                              "input"
+                                              "input",
                                             )
                                       }`}
                                       aria-invalid={
@@ -3244,7 +3249,7 @@ function Create() {
                                             "Hausnummer ist erforderlich",
                                           setValueAs: (v) =>
                                             String(v || "").trim(),
-                                        }
+                                        },
                                       )}
                                     />
                                     {errors?.personalInfo
@@ -3334,7 +3339,7 @@ function Create() {
                                                   ? "select-error"
                                                   : getSuccessClass(
                                                       field.value,
-                                                      "personalInfo.addressCity"
+                                                      "personalInfo.addressCity",
                                                     )
                                               }`}
                                               aria-invalid={
@@ -3447,7 +3452,7 @@ function Create() {
                                                   ? "select-error"
                                                   : getSuccessClass(
                                                       field.value,
-                                                      "personalInfo.addressCountry"
+                                                      "personalInfo.addressCountry",
                                                     )
                                               }`}
                                               aria-invalid={
@@ -3482,12 +3487,12 @@ function Create() {
                                                   if (aIndex !== -1) return -1;
                                                   if (bIndex !== -1) return 1;
                                                   return a.deu.localeCompare(
-                                                    b.deu
+                                                    b.deu,
                                                   );
                                                 })
                                                 .map((country) => {
                                                   const name = String(
-                                                    country?.deu || ""
+                                                    country?.deu || "",
                                                   ).trim();
                                                   if (!name) return null;
                                                   return (
@@ -3628,7 +3633,7 @@ function Create() {
                                   type="checkbox"
                                   className="checkbox"
                                   {...register(
-                                    "personalInfo.hasDrivingLicense"
+                                    "personalInfo.hasDrivingLicense",
                                   )}
                                   onChange={(e) => {
                                     const checked = e.target.checked;
@@ -3638,7 +3643,7 @@ function Create() {
                                       {
                                         shouldDirty: true,
                                         shouldValidate: true,
-                                      }
+                                      },
                                     );
                                     if (!checked) {
                                       setValue(
@@ -3647,12 +3652,12 @@ function Create() {
                                         {
                                           shouldDirty: true,
                                           shouldValidate: true,
-                                        }
+                                        },
                                       );
                                     }
                                   }}
                                   checked={Boolean(
-                                    watch("personalInfo.hasDrivingLicense")
+                                    watch("personalInfo.hasDrivingLicense"),
                                   )}
                                 />
                                 <span className="text-sm">Vorhanden</span>
@@ -3666,8 +3671,8 @@ function Create() {
                                       validate: (v) => {
                                         const has = Boolean(
                                           watch(
-                                            "personalInfo.hasDrivingLicense"
-                                          )
+                                            "personalInfo.hasDrivingLicense",
+                                          ),
                                         );
                                         if (!has) return true;
                                         const arr = Array.isArray(v)
@@ -3798,13 +3803,13 @@ function Create() {
                                     /\.pdf$/i.test(String(f.name || ""));
                                   if (!isPdf) {
                                     toast.error(
-                                      "Nur PDF-Dateien sind erlaubt."
+                                      "Nur PDF-Dateien sind erlaubt.",
                                     );
                                     return;
                                   }
                                   if ((f?.size || 0) > MAX_PDF_BYTES) {
                                     toast.error(
-                                      "PDF-Datei darf maximal 2 MB groß sein."
+                                      "PDF-Datei darf maximal 2 MB groß sein.",
                                     );
                                     setPassportSizeError(true);
                                     return;
@@ -3853,7 +3858,7 @@ function Create() {
                                           <div className="text-xs opacity-70">
                                             {f.size
                                               ? `${(f.size / 1024).toFixed(
-                                                  1
+                                                  1,
                                                 )} KB`
                                               : "Unknown"}
                                           </div>
@@ -3945,21 +3950,21 @@ function Create() {
                                     (f) =>
                                       String(f.type).toLowerCase() ===
                                         "application/pdf" ||
-                                      /\.pdf$/i.test(String(f.name || ""))
+                                      /\.pdf$/i.test(String(f.name || "")),
                                   );
                                   const sized = pdfs.filter(
-                                    (f) => (f?.size || 0) <= MAX_PDF_BYTES
+                                    (f) => (f?.size || 0) <= MAX_PDF_BYTES,
                                   );
                                   const tooBig = pdfs.length - sized.length;
                                   const invalid = raw.length - pdfs.length;
                                   if (invalid > 0) {
                                     toast.error(
-                                      "Nur PDF-Dateien sind erlaubt."
+                                      "Nur PDF-Dateien sind erlaubt.",
                                     );
                                   }
                                   if (tooBig > 0) {
                                     toast.error(
-                                      "PDF-Datei darf maximal 2 MB groß sein."
+                                      "PDF-Datei darf maximal 2 MB groß sein.",
                                     );
                                     setLangCertSizeError(true);
                                   } else {
@@ -3985,7 +3990,7 @@ function Create() {
                                       prevArr.map((it) => [
                                         uniqueKey(it.file || it),
                                         it,
-                                      ])
+                                      ]),
                                     );
                                     nextItems.forEach((it) => {
                                       const key = uniqueKey(it.file);
@@ -4047,8 +4052,8 @@ function Create() {
                                                     ? prev
                                                     : []
                                                   ).filter(
-                                                    (_, idx) => idx !== i
-                                                  )
+                                                    (_, idx) => idx !== i,
+                                                  ),
                                                 );
                                               }}
                                               aria-label="Entfernen"
@@ -4089,8 +4094,8 @@ function Create() {
                                                           ...entry,
                                                           type: e.target.value,
                                                         }
-                                                      : entry
-                                                  )
+                                                      : entry,
+                                                  ),
                                                 )
                                               }
                                             >
@@ -4176,21 +4181,21 @@ function Create() {
                                     (f) =>
                                       String(f.type).toLowerCase() ===
                                         "application/pdf" ||
-                                      /\.pdf$/i.test(String(f.name || ""))
+                                      /\.pdf$/i.test(String(f.name || "")),
                                   );
                                   const sized = pdfs.filter(
-                                    (f) => (f?.size || 0) <= MAX_PDF_BYTES
+                                    (f) => (f?.size || 0) <= MAX_PDF_BYTES,
                                   );
                                   const tooBig = pdfs.length - sized.length;
                                   const invalid = raw.length - pdfs.length;
                                   if (invalid > 0) {
                                     toast.error(
-                                      "Nur PDF-Dateien sind erlaubt."
+                                      "Nur PDF-Dateien sind erlaubt.",
                                     );
                                   }
                                   if (tooBig > 0) {
                                     toast.error(
-                                      "PDF-Datei darf maximal 2 MB groß sein."
+                                      "PDF-Datei darf maximal 2 MB groß sein.",
                                     );
                                     setDiplomaSizeError(true);
                                   } else {
@@ -4207,7 +4212,7 @@ function Create() {
                                       ? prev
                                       : [];
                                     const map = new Map(
-                                      prevArr.map((it) => [uniqueKey(it), it])
+                                      prevArr.map((it) => [uniqueKey(it), it]),
                                     );
                                     sized.forEach((file) => {
                                       const key = uniqueKey(file);
@@ -4255,7 +4260,7 @@ function Create() {
                                           <div className="text-xs opacity-70">
                                             {f.size
                                               ? `${(f.size / 1024).toFixed(
-                                                  1
+                                                  1,
                                                 )} KB`
                                               : "Unknown"}
                                           </div>
@@ -4268,7 +4273,7 @@ function Create() {
                                               (Array.isArray(prev)
                                                 ? prev
                                                 : []
-                                              ).filter((_, idx) => idx !== i)
+                                              ).filter((_, idx) => idx !== i),
                                             );
                                           }}
                                           aria-label="Entfernen"
@@ -4373,7 +4378,7 @@ function Create() {
                                 className="bg-primary h-full rounded-full transition-all duration-300 ease-out"
                                 style={{
                                   width: `${Math.round(
-                                    ((currentStep + 1) / STEPS.length) * 100
+                                    ((currentStep + 1) / STEPS.length) * 100,
                                   )}%`,
                                 }}
                               ></div>
@@ -4387,7 +4392,7 @@ function Create() {
                             </span>
                             <span className="text-primary font-semibold">
                               {Math.round(
-                                ((currentStep + 1) / STEPS.length) * 100
+                                ((currentStep + 1) / STEPS.length) * 100,
                               )}
                               %
                             </span>
@@ -4465,7 +4470,7 @@ function Create() {
                                   window.open(
                                     TELEGRAM_SUPPORT_URL,
                                     "_blank",
-                                    "noopener,noreferrer"
+                                    "noopener,noreferrer",
                                   )
                                 }
                               >
@@ -4531,7 +4536,10 @@ function Create() {
 
       <RequiredDocumentsModal
         open={isRequiredDocsOpen}
-        onClose={() => setIsRequiredDocsOpen(false)}
+        onClose={() => {
+          setIsRequiredDocsOpen(false);
+          setIsGuideOpen(true);
+        }}
       />
 
       <PdfPreviewModal
@@ -4557,13 +4565,13 @@ function Create() {
           // After telling the user that this email was already used for a different area,
           // we mark the current major as "submitted" locally so they see the Thank You screen.
           const majorCollection = String(
-            majorInfo?.collectionName || ""
+            majorInfo?.collectionName || "",
           ).trim();
           if (majorCollection) {
             try {
               localStorage.setItem(
                 `createCvSubmitted:${majorCollection}`,
-                "true"
+                "true",
               );
               // legacy key cleanup (avoid cross-major false positives)
               localStorage.removeItem("createCvSubmitted");
@@ -4585,13 +4593,13 @@ function Create() {
           // Same behavior as email duplicate: mark this major as "submitted"
           // so the user sees the Thank You screen.
           const majorCollection = String(
-            majorInfo?.collectionName || ""
+            majorInfo?.collectionName || "",
           ).trim();
           if (majorCollection) {
             try {
               localStorage.setItem(
                 `createCvSubmitted:${majorCollection}`,
-                "true"
+                "true",
               );
               // legacy key cleanup (avoid cross-major false positives)
               localStorage.removeItem("createCvSubmitted");
