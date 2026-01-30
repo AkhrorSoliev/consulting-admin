@@ -27,11 +27,20 @@ export default function GuideModal({ open, onClose }) {
               ✕
             </button>
           </div>
-          <div className="p-4 bg-base-200/40">
+          <div className="px-4 pt-4 pb-2">
+            <div className="p-3 rounded-xl bg-warning/10 border border-warning/30">
+              <p className="text-sm text-base-content/80 leading-relaxed text-center">
+                <span className="font-semibold text-warning mr-1">⚠️</span>
+                Bitte schauen Sie sich das Video an, bevor Sie das Formular
+                ausfüllen.
+              </p>
+            </div>
+          </div>
+          <div className="p-4 pt-2 bg-base-200/40">
             <div className="w-full aspect-video rounded-box overflow-hidden border border-base-300">
               <iframe
                 className="w-full h-full"
-                src="https://www.youtube-nocookie.com/embed/sx3I8o5yJA4?si=VcZUufcpOgByVRwX"
+                src="https://www.youtube.com/embed/AQHLVrsp6Qo?si=jHGOddtycQB_NNr5"
                 title="Video-Guide"
                 frameBorder="0"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -45,5 +54,3 @@ export default function GuideModal({ open, onClose }) {
     </div>
   );
 }
-
-

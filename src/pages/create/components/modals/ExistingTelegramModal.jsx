@@ -37,7 +37,7 @@ export default function ExistingTelegramModal({
           </p>
           <div className="space-y-2">
             <a
-              href="https://t.me/consultinguz_kundensupport"
+              href="https://t.me/consultinguz_chat"
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-primary w-full"
