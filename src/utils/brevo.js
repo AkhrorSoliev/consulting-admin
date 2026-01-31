@@ -1,5 +1,5 @@
 const DEFAULT_BREVO_URL =
-  "https://brevo-project-production.up.railway.app/send-email";
+  "https://consultinguz-email-system-production.up.railway.app/send-email";
 
 const BREVO_EMAIL_URL =
   import.meta.env?.VITE_BREVO_EMAIL_URL?.trim() || DEFAULT_BREVO_URL;
@@ -31,7 +31,7 @@ export async function sendBrevoEmail({ to, subject, message, htmlContent }) {
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     throw new Error(
-      `Brevo yuborishda xatolik (${response.status}): ${text || "no detail"}`
+      `Brevo yuborishda xatolik (${response.status}): ${text || "no detail"}`,
     );
   }
 
