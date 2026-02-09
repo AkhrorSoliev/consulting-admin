@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useSelector } from "react-redux";
 import {
   subscribeToCollections,
   getMetaByName,
@@ -137,7 +138,8 @@ function MajorSettingsModal({
 
   // Calculate max lead name length based on Telegram 64-byte limit
   // Format: majorId__lead__leadName (total must be <= 64)
-  const majorId = major?.linkId || major?.uuid || major?.id || major?.collectionName || major;
+  const majorId =
+    major?.linkId || major?.uuid || major?.id || major?.collectionName || major;
   const sanitizedMajorIdLength = String(majorId)
     .replace(/ß/g, "ss")
     .replace(/ü/g, "ue")
@@ -154,8 +156,8 @@ function MajorSettingsModal({
     tab === "link"
       ? "Link"
       : tab === "internal"
-      ? "Ichki suxbat"
-      : "Ish beruvchi";
+        ? "Ichki suxbat"
+        : "Ish beruvchi";
 
   const [internalDate, setInternalDate] = useState("");
   const [internalLink, setInternalLink] = useState("");
@@ -222,7 +224,7 @@ function MajorSettingsModal({
       const q = query(
         collection(db, "telegram_groups"),
         where("active", "==", true),
-        limit(200)
+        limit(200),
       );
       const snap = await getDocs(q);
       const list = snap.docs.map((d) => ({ id: d.id, ...(d.data() || {}) }));
@@ -246,14 +248,14 @@ function MajorSettingsModal({
         setInternalLinkType(
           resolveLinkType(
             data?.interviewInternal?.linkType,
-            data?.interviewInternal?.link
-          )
+            data?.interviewInternal?.link,
+          ),
         );
         setInternalLocationName(
-          String(data?.interviewInternal?.locationName || "")
+          String(data?.interviewInternal?.locationName || ""),
         );
         setInternalLocationUrl(
-          String(data?.interviewInternal?.locationUrl || "")
+          String(data?.interviewInternal?.locationUrl || ""),
         );
 
         // Leadership (Orif Aka)
@@ -262,14 +264,14 @@ function MajorSettingsModal({
         setLeadershipLinkType(
           resolveLinkType(
             data?.interviewLeadership?.linkType,
-            data?.interviewLeadership?.link
-          )
+            data?.interviewLeadership?.link,
+          ),
         );
         setLeadershipLocationName(
-          String(data?.interviewLeadership?.locationName || "")
+          String(data?.interviewLeadership?.locationName || ""),
         );
         setLeadershipLocationUrl(
-          String(data?.interviewLeadership?.locationUrl || "")
+          String(data?.interviewLeadership?.locationUrl || ""),
         );
 
         setEmployerDate(toInputDateString(data?.interviewEmployer?.date));
@@ -277,23 +279,23 @@ function MajorSettingsModal({
         setEmployerLinkType(
           resolveLinkType(
             data?.interviewEmployer?.linkType,
-            data?.interviewEmployer?.link
-          )
+            data?.interviewEmployer?.link,
+          ),
         );
         setEmployerLocationName(
-          String(data?.interviewEmployer?.locationName || "")
+          String(data?.interviewEmployer?.locationName || ""),
         );
         setEmployerLocationUrl(
-          String(data?.interviewEmployer?.locationUrl || "")
+          String(data?.interviewEmployer?.locationUrl || ""),
         );
         setInternalTelegramGroupId(
-          String(data?.interviewInternal?.telegramGroupId || "").trim()
+          String(data?.interviewInternal?.telegramGroupId || "").trim(),
         );
         setLeadershipTelegramGroupId(
-          String(data?.interviewLeadership?.telegramGroupId || "").trim()
+          String(data?.interviewLeadership?.telegramGroupId || "").trim(),
         );
         setEmployerTelegramGroupId(
-          String(data?.interviewEmployer?.telegramGroupId || "").trim()
+          String(data?.interviewEmployer?.telegramGroupId || "").trim(),
         );
 
         setMetaName(String(data?.name || "").trim());
@@ -369,7 +371,7 @@ function MajorSettingsModal({
     }
 
     const ok = window.confirm(
-      `Hamma foydalanuvchilarga Telegram invite link yuborilsinmi?\n\nCollection: ${colName}\nGroup: ${safeGroupId}\n\nEslatma: har bir email uchun alohida 1-martalik link yaratiladi.`
+      `Hamma foydalanuvchilarga Telegram invite link yuborilsinmi?\n\nCollection: ${colName}\nGroup: ${safeGroupId}\n\nEslatma: har bir email uchun alohida 1-martalik link yaratiladi.`,
     );
     if (!ok) return;
 
@@ -381,8 +383,8 @@ function MajorSettingsModal({
         new Set(
           snap.docs
             .map((d) => extractEmailFromCandidate(d.data()))
-            .filter((e) => e && e.includes("@"))
-        )
+            .filter((e) => e && e.includes("@")),
+        ),
       );
 
       if (emails.length === 0) {
@@ -419,8 +421,8 @@ function MajorSettingsModal({
 
       await Promise.all(
         Array.from({ length: Math.min(concurrency, emails.length) }, () =>
-          worker()
-        )
+          worker(),
+        ),
       );
 
       // Track how many invites were actually sent successfully (single batched increment).
@@ -431,7 +433,7 @@ function MajorSettingsModal({
       } catch (e) {}
 
       toast.success(
-        `Fertig: gesendet=${sent}, fehler=${failed}, gesamt=${emails.length}`
+        `Fertig: gesendet=${sent}, fehler=${failed}, gesamt=${emails.length}`,
       );
     } finally {
       setTgSending(false);
@@ -484,14 +486,16 @@ function MajorSettingsModal({
       return;
     }
     if (name.length > maxLeadNameLength) {
-      toast.error(`Lead nomi ${maxLeadNameLength} belgidan oshmasligi kerak (Telegram limiti).`);
+      toast.error(
+        `Lead nomi ${maxLeadNameLength} belgidan oshmasligi kerak (Telegram limiti).`,
+      );
       return;
     }
     const exists = (leadLinks || []).some(
       (l) =>
         String(l?.name || "")
           .trim()
-          .toLowerCase() === name.toLowerCase()
+          .toLowerCase() === name.toLowerCase(),
     );
     if (exists) {
       toast.error("Ein solcher Lead existiert bereits.");
@@ -514,7 +518,7 @@ function MajorSettingsModal({
 
   const handleToggleLeadActive = async (id, checked) => {
     const next = (Array.isArray(leadLinks) ? leadLinks : []).map((l) =>
-      l?.id === id ? { ...(l || {}), active: Boolean(checked) } : l
+      l?.id === id ? { ...(l || {}), active: Boolean(checked) } : l,
     );
     setLeadLinks(next);
     await persistLeadSettings(next, leadLinksActive);
@@ -522,7 +526,7 @@ function MajorSettingsModal({
 
   const handleRemoveLead = async (id) => {
     const next = (Array.isArray(leadLinks) ? leadLinks : []).filter(
-      (l) => l?.id !== id
+      (l) => l?.id !== id,
     );
     setLeadLinks(next);
     await persistLeadSettings(next, leadLinksActive);
@@ -545,7 +549,7 @@ function MajorSettingsModal({
           linkType: internalLinkType || "zoom",
           locationName: normalizeLocation(
             internalLocationName,
-            internalLocationUrl
+            internalLocationUrl,
           ),
           locationUrl: internalLocationUrl || "",
           telegramGroupId:
@@ -560,7 +564,7 @@ function MajorSettingsModal({
           linkType: leadershipLinkType || "zoom",
           locationName: normalizeLocation(
             leadershipLocationName,
-            leadershipLocationUrl
+            leadershipLocationUrl,
           ),
           locationUrl: leadershipLocationUrl || "",
           telegramGroupId:
@@ -575,7 +579,7 @@ function MajorSettingsModal({
           linkType: employerLinkType || "zoom",
           locationName: normalizeLocation(
             employerLocationName,
-            employerLocationUrl
+            employerLocationUrl,
           ),
           locationUrl: employerLocationUrl || "",
           telegramGroupId:
@@ -826,7 +830,7 @@ function MajorSettingsModal({
 
                             if (!safeName || !safeSlug || !safeTitle) {
                               setMetaValidationError(
-                                "Barcha maydonlarni to'ldiring."
+                                "Barcha maydonlarni to'ldiring.",
                               );
                               return;
                             }
@@ -838,16 +842,16 @@ function MajorSettingsModal({
                               const nameQuery = query(
                                 collection(db, "meta"),
                                 where("name", "==", safeName),
-                                limit(10)
+                                limit(10),
                               );
                               const nameSnap = await getDocs(nameQuery);
                               const existingDocs = nameSnap.docs.filter(
-                                (d) => d.id !== majorKey
+                                (d) => d.id !== majorKey,
                               );
 
                               if (existingDocs.length > 0) {
                                 setMetaValidationError(
-                                  `"${safeName}" nomi allaqachon mavjud. Boshqa nom tanlang.`
+                                  `"${safeName}" nomi allaqachon mavjud. Boshqa nom tanlang.`,
                                 );
                                 setIsSavingMeta(false);
                                 return;
@@ -857,16 +861,16 @@ function MajorSettingsModal({
                               const slugQuery = query(
                                 collection(db, "meta"),
                                 where("slug", "==", safeSlug),
-                                limit(10)
+                                limit(10),
                               );
                               const slugSnap = await getDocs(slugQuery);
                               const existingSlugDocs = slugSnap.docs.filter(
-                                (d) => d.id !== majorKey
+                                (d) => d.id !== majorKey,
                               );
 
                               if (existingSlugDocs.length > 0) {
                                 setMetaValidationError(
-                                  `"${safeSlug}" slug allaqachon mavjud. Boshqa slug tanlang.`
+                                  `"${safeSlug}" slug allaqachon mavjud. Boshqa slug tanlang.`,
                                 );
                                 setIsSavingMeta(false);
                                 return;
@@ -882,7 +886,7 @@ function MajorSettingsModal({
                               toast.success("Yo'nalish ma'lumotlari saqlandi!");
                             } catch (e) {
                               setMetaValidationError(
-                                "Saqlashda xatolik yuz berdi."
+                                "Saqlashda xatolik yuz berdi.",
                               );
                             } finally {
                               setIsSavingMeta(false);
@@ -908,7 +912,7 @@ function MajorSettingsModal({
                         <div className="flex gap-2">
                           <input
                             type="text"
-                            className={`input input-bordered flex-1 ${newLeadName.length > maxLeadNameLength ? 'input-error' : ''}`}
+                            className={`input input-bordered flex-1 ${newLeadName.length > maxLeadNameLength ? "input-error" : ""}`}
                             placeholder={`Lead nomi (max ${maxLeadNameLength} belgi)`}
                             value={newLeadName}
                             onChange={(e) => setNewLeadName(e.target.value)}
@@ -1007,7 +1011,7 @@ function MajorSettingsModal({
                             navigator.clipboard
                               .writeText(telegramLink)
                               .then(() =>
-                                toast.success("Telegram link nusxalandi!")
+                                toast.success("Telegram link nusxalandi!"),
                               )
                               .catch(() => toast.error("Link nusxalanmadi."));
                           }}
@@ -1086,7 +1090,7 @@ function MajorSettingsModal({
                                         onChange={async (e) =>
                                           handleToggleLeadActive(
                                             l.id,
-                                            e.target.checked
+                                            e.target.checked,
                                           )
                                         }
                                         disabled={
@@ -1127,7 +1131,7 @@ function MajorSettingsModal({
                                         onClick={() => {
                                           if (!canCopy || !leadUrl) {
                                             toast.error(
-                                              "Lead link aktiv emas yoki mavjud emas."
+                                              "Lead link aktiv emas yoki mavjud emas.",
                                             );
                                             return;
                                           }
@@ -1135,11 +1139,11 @@ function MajorSettingsModal({
                                             .writeText(leadUrl)
                                             .then(() =>
                                               toast.success(
-                                                "Web link nusxalandi!"
-                                              )
+                                                "Web link nusxalandi!",
+                                              ),
                                             )
                                             .catch(() =>
-                                              toast.error("Link nusxalanmadi.")
+                                              toast.error("Link nusxalanmadi."),
                                             );
                                         }}
                                         disabled={
@@ -1165,7 +1169,7 @@ function MajorSettingsModal({
                                         onClick={() => {
                                           if (!canCopy) {
                                             toast.error(
-                                              "Lead link aktiv emas."
+                                              "Lead link aktiv emas.",
                                             );
                                             return;
                                           }
@@ -1173,11 +1177,11 @@ function MajorSettingsModal({
                                             .writeText(leadTelegramLink)
                                             .then(() =>
                                               toast.success(
-                                                "Telegram link nusxalandi!"
-                                              )
+                                                "Telegram link nusxalandi!",
+                                              ),
                                             )
                                             .catch(() =>
-                                              toast.error("Link nusxalanmadi.")
+                                              toast.error("Link nusxalanmadi."),
                                             );
                                         }}
                                         disabled={!canCopy || isSavingLeads}
@@ -1270,7 +1274,7 @@ function MajorSettingsModal({
                               onClick={() =>
                                 handleGenerateAndCopyInvite(
                                   internalTelegramGroupId,
-                                  "internal"
+                                  "internal",
                                 )
                               }
                               disabled={
@@ -1412,7 +1416,7 @@ function MajorSettingsModal({
                               onClick={() =>
                                 handleGenerateAndCopyInvite(
                                   leadershipTelegramGroupId,
-                                  "leadership"
+                                  "leadership",
                                 )
                               }
                               disabled={
@@ -1554,7 +1558,7 @@ function MajorSettingsModal({
                               onClick={() =>
                                 handleGenerateAndCopyInvite(
                                   employerTelegramGroupId,
-                                  "employer"
+                                  "employer",
                                 )
                               }
                               disabled={
@@ -1712,9 +1716,16 @@ function MajorSettingsModal({
         </div>
       ) : null}
     </div>,
-    document.body
+    document.body,
   );
 }
+
+// User-specific major visibility restrictions
+// Format: { [userId]: [majorId1, majorId2, ...] }
+const HIDDEN_MAJORS_BY_USER = {
+  HRE9Dtf8g3WXXGB3a9nctZ9dz3b2: ["92790303-f374-44ff-9382-5e6ba2a06eec"],
+  R5edmWfoBoOcQGZVAb2giFDCqJk1: ["92790303-f374-44ff-9382-5e6ba2a06eec"],
+};
 
 export default function MajorsList() {
   const [majors, setMajors] = useState([]);
@@ -1726,13 +1737,28 @@ export default function MajorsList() {
     open: false,
     major: null,
   });
+  const { user } = useSelector((state) => state.auth);
   const { role } = useUserRole();
   const isLimitedAdmin = useMemo(() => role === "limited_admin", [role]);
+
+  // Filter out hidden majors for specific users
+  const hiddenMajorIds = useMemo(() => {
+    const uid = user?.uid || "";
+    return HIDDEN_MAJORS_BY_USER[uid] || [];
+  }, [user?.uid]);
+
+  const filteredMajors = useMemo(() => {
+    if (hiddenMajorIds.length === 0) return majors;
+    return majors.filter((major) => {
+      const majorId = major?.id || major?.uuid || major?.linkId || "";
+      return !hiddenMajorIds.includes(majorId);
+    });
+  }, [majors, hiddenMajorIds]);
   const isSettingsOpen = Boolean(settingsMajor);
 
   const getMajorCollectionName = (major) => {
     return String(
-      major?.collectionName || major?.slug || major?.name || ""
+      major?.collectionName || major?.slug || major?.name || "",
     ).trim();
   };
 
@@ -1752,7 +1778,7 @@ export default function MajorsList() {
     const link = buildCreateLink(major);
     if (!link) {
       toast.error(
-        "Link konnte nicht erstellt werden (Berufsfeld nicht erkannt)."
+        "Link konnte nicht erstellt werden (Berufsfeld nicht erkannt).",
       );
       return;
     }
@@ -1771,7 +1797,7 @@ export default function MajorsList() {
         major.collectionName ||
         major.slug ||
         major.name ||
-        ""
+        "",
     ).trim();
   };
 
@@ -1792,7 +1818,7 @@ export default function MajorsList() {
         const k = resolveMajorKey(m);
         if (k !== key) return m;
         return { ...(m || {}), linkActive: Boolean(nextChecked) };
-      })
+      }),
     );
     try {
       await updateMetaByName(key, {
@@ -1807,7 +1833,7 @@ export default function MajorsList() {
           const k = resolveMajorKey(m);
           if (k !== key) return m;
           return { ...(m || {}), linkActive: !Boolean(nextChecked) };
-        })
+        }),
       );
       toast.error("Fehler beim Ändern.");
     } finally {
@@ -1826,7 +1852,7 @@ export default function MajorsList() {
   const currentSettingsMajor = useMemo(() => {
     if (!settingsMajorKey) return settingsMajor?.major || null;
     const found = (majors || []).find(
-      (m) => resolveMajorKey(m) === settingsMajorKey
+      (m) => resolveMajorKey(m) === settingsMajorKey,
     );
     return found || settingsMajor?.major || null;
   }, [majors, settingsMajorKey, settingsMajor?.major]);
@@ -1859,7 +1885,7 @@ export default function MajorsList() {
             } catch (e) {
               return [col, null];
             }
-          })
+          }),
         );
         if (cancelled) return;
         const next = { ...(serverCounts || {}) };
@@ -1910,7 +1936,7 @@ export default function MajorsList() {
           major={currentSettingsMajor}
           majorKey={settingsMajorKey}
           isTogglingLink={Boolean(
-            settingsMajorKey && togglingMajorId === settingsMajorKey
+            settingsMajorKey && togglingMajorId === settingsMajorKey,
           )}
           onClose={() => setSettingsMajor(null)}
           onCopyLink={() => handleCopyLink(currentSettingsMajor)}
@@ -1919,7 +1945,7 @@ export default function MajorsList() {
           }
         />
       ) : null}
-      {majors.length === 0 ? (
+      {filteredMajors.length === 0 ? (
         <div className="text-center opacity-70 py-8 text-sm">
           <p>Derzeit keine Berufsfelder vorhanden.</p>
           <p className="mt-1">
@@ -1928,7 +1954,7 @@ export default function MajorsList() {
         </div>
       ) : (
         <ul className="flex flex-col gap-3">
-          {majors.map((major) => {
+          {filteredMajors.map((major) => {
             const title =
               major?.title ||
               major?.collectionName ||
@@ -1951,7 +1977,7 @@ export default function MajorsList() {
             const count = resolveMajorCount(major);
             const colNameForCount = getMajorCollectionName(major);
             const isCountLoading = Boolean(
-              colNameForCount && loadingCounts?.[colNameForCount]
+              colNameForCount && loadingCounts?.[colNameForCount],
             );
             return (
               <li
@@ -1967,7 +1993,7 @@ export default function MajorsList() {
                         : `Kandidaten: ${count ?? 0}`
                     }
                   >
-                    {isCountLoading ? "…" : count ?? 0}
+                    {isCountLoading ? "…" : (count ?? 0)}
                   </span>
                   <Link
                     //  to={`/create?major=${major}`}
