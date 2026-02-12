@@ -24,6 +24,8 @@ import {
   FaThumbsDown,
   FaFileExcel,
 } from "react-icons/fa";
+import { BsSendCheck } from "react-icons/bs";
+
 import { HiMiniDocumentCheck } from "react-icons/hi2";
 import {
   deleteCandidateWithCurrentStats,
@@ -803,6 +805,7 @@ function CollectionCv() {
             lead: data.lead || null,
             reaction,
             documentReady: data.documentReady || false,
+            isDocumentSend: data.isDocumentSend || false,
           };
         });
         setItems(list);
@@ -1633,9 +1636,17 @@ function CollectionCv() {
                           {item.documentReady ? (
                             <span
                               className="inline-flex items-center gap-1 text-green-600"
-                              title="Document is ready"
+                              title="Das Dokument ist fertig"
                             >
                               <HiMiniDocumentCheck className="w-4 h-4" />
+                            </span>
+                          ) : null}
+                          {item.isDocumentSend ? (
+                            <span
+                              className="inline-flex items-center gap-1 text-blue-500"
+                              title="Das Dokument wurde gesendet."
+                            >
+                              <BsSendCheck className="w-3.5 h-3.5" />
                             </span>
                           ) : null}
                         </>
