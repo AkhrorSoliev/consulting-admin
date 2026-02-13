@@ -98,6 +98,8 @@ export default function CandidatesDeletedUsers() {
   const [items, setItems] = useState([]);
   const [query, setQuery] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
 
   const [majors, setMajors] = useState([]);
   const [majorModalOpen, setMajorModalOpen] = useState(false);
@@ -121,34 +123,24 @@ export default function CandidatesDeletedUsers() {
     }
   }
 
-  // Multi-select state (localStorage persistent)
-  const SELECTED_KEYS_STORAGE = "deletedUsersSelectedKeys";
-  const [selectedKeys, setSelectedKeys] = useState(() => {
+  // Multi-select state (no localStorage persistence to avoid stale selections)
+  const [selectedKeys, setSelectedKeys] = useState([]);
+
+  // Cleanup old localStorage data on mount
+  useEffect(() => {
     try {
-      const raw = localStorage.getItem(SELECTED_KEYS_STORAGE);
-      return raw ? JSON.parse(raw) : [];
-    } catch {
-      return [];
-    }
-  });
+      localStorage.removeItem("deletedUsersSelectedKeys");
+    } catch {}
+  }, []);
 
   function toggleSelect(key) {
-    setSelectedKeys((prev) => {
-      const next = prev.includes(key)
-        ? prev.filter((k) => k !== key)
-        : [...prev, key];
-      try {
-        localStorage.setItem(SELECTED_KEYS_STORAGE, JSON.stringify(next));
-      } catch {}
-      return next;
-    });
+    setSelectedKeys((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    );
   }
 
   function clearSelection() {
     setSelectedKeys([]);
-    try {
-      localStorage.removeItem(SELECTED_KEYS_STORAGE);
-    } catch {}
   }
 
   function handleBulkDelete() {
@@ -171,7 +163,7 @@ export default function CandidatesDeletedUsers() {
       setLoading(true);
       const q = fsQuery(
         collection(db, "deleted_users"),
-        orderBy("deletedAt", "desc")
+        orderBy("deletedAt", "desc"),
       );
       const snap = await getDocs(q);
       const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -216,6 +208,17 @@ export default function CandidatesDeletedUsers() {
     });
   }, [items, query]);
 
+  // Pagination logic
+  const totalPages = Math.ceil(filtered.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedItems = filtered.slice(startIndex, endIndex);
+
+  // Reset to page 1 when search query changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [query]);
+
   const leadStats = useMemo(() => {
     const byLead = {};
     let telegramCount = 0;
@@ -250,14 +253,14 @@ export default function CandidatesDeletedUsers() {
   async function restoreToOriginal(record) {
     if (!isPrivileged) return;
     const originalMajor = String(
-      record?.sourceMajor || record?.major || ""
+      record?.sourceMajor || record?.major || "",
     ).trim();
     const originalMajorLabel =
       String(record?.sourceMajorTitle || "").trim() || originalMajor;
 
     if (!originalMajor) {
       toast.error(
-        "Originaler Bereich nicht gefunden. Bitte wählen Sie einen Bereich."
+        "Originaler Bereich nicht gefunden. Bitte wählen Sie einen Bereich.",
       );
       openMajorModal(record);
       return;
@@ -357,7 +360,7 @@ export default function CandidatesDeletedUsers() {
 
         // 1) Track direction history - preserve existing history and add current direction
         const previousMajor = String(
-          record?.sourceMajor || record?.major || ""
+          record?.sourceMajor || record?.major || "",
         ).trim();
         const previousMajorTitle =
           String(record?.sourceMajorTitle || "").trim() || previousMajor;
@@ -410,7 +413,7 @@ export default function CandidatesDeletedUsers() {
           enhancedPayload,
           {
             majorLabel,
-          }
+          },
         );
 
         const email = extractEmailFromSnapshot(enhancedPayload);
@@ -455,7 +458,7 @@ export default function CandidatesDeletedUsers() {
             const email = extractEmailFromSnapshot(record);
             if (email) {
               await deleteEmailAndPassIdByEmail(
-                String(email).trim().toLowerCase()
+                String(email).trim().toLowerCase(),
               );
             }
             await deleteDoc(doc(db, "deleted_users", key));
@@ -469,7 +472,7 @@ export default function CandidatesDeletedUsers() {
         toast.success(`${successCount} Kandidat(en) erfolgreich gelöscht.`);
       } else if (successCount > 0 && errorCount > 0) {
         toast.success(
-          `${successCount} Kandidat(en) gelöscht, ${errorCount} Fehler.`
+          `${successCount} Kandidat(en) gelöscht, ${errorCount} Fehler.`,
         );
       } else {
         toast.error(`Fehler beim Löschen.`);
@@ -490,7 +493,7 @@ export default function CandidatesDeletedUsers() {
         const urls = extractConsultingUploadUrlsFromSnapshot(record);
         if (Array.isArray(urls) && urls.length > 0) {
           await Promise.all(
-            urls.map((url) => deleteUploadedFile(url).catch(() => {}))
+            urls.map((url) => deleteUploadedFile(url).catch(() => {})),
           );
         }
 
@@ -610,12 +613,16 @@ export default function CandidatesDeletedUsers() {
         <div className="mb-6 p-4 rounded-box border border-base-300 bg-base-100 shadow-sm">
           <div className="flex flex-wrap gap-4 items-start">
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
-              <span className="font-semibold text-primary">{leadStats.total}</span>
+              <span className="font-semibold text-primary">
+                {leadStats.total}
+              </span>
               <span className="text-sm text-base-content/70">Gesamt</span>
             </div>
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#0088cc]/10 border border-[#0088cc]/20">
               <FaTelegram className="w-5 h-5 text-[#0088cc]" />
-              <span className="font-semibold text-[#0088cc]">{leadStats.telegramCount}</span>
+              <span className="font-semibold text-[#0088cc]">
+                {leadStats.telegramCount}
+              </span>
               <span className="text-sm text-base-content/70">Telegram</span>
             </div>
             {leadStats.leadList.length > 0 && (
@@ -625,8 +632,12 @@ export default function CandidatesDeletedUsers() {
                     key={item.name}
                     className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-500/10 border border-purple-500/20"
                   >
-                    <span className="font-semibold text-purple-600 dark:text-purple-400">{item.count}</span>
-                    <span className="text-sm text-purple-600 dark:text-purple-400">{item.name}</span>
+                    <span className="font-semibold text-purple-600 dark:text-purple-400">
+                      {item.count}
+                    </span>
+                    <span className="text-sm text-purple-600 dark:text-purple-400">
+                      {item.name}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -645,7 +656,7 @@ export default function CandidatesDeletedUsers() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6">
-          {filtered.map((r, idx) => {
+          {paginatedItems.map((r, idx) => {
             const first = String(r?.persoenlicheDaten?.name || "").trim();
             const last = String(r?.persoenlicheDaten?.nachname || "").trim();
             const full = [first, last].filter(Boolean).join(" ") || "—";
@@ -654,7 +665,7 @@ export default function CandidatesDeletedUsers() {
               "—";
             const photo =
               String(
-                r?.persoenlicheDaten?.foto || r?.foto || r?.photo || ""
+                r?.persoenlicheDaten?.foto || r?.foto || r?.photo || "",
               ).trim() || "";
             const major =
               String(r?.sourceMajor || r?.major || "").trim() || "—";
@@ -693,9 +704,9 @@ export default function CandidatesDeletedUsers() {
                       String(r?.sourceDocId || "").trim() || "deleted";
                     navigate(
                       `/generate/${majorParam}/${idParam}?remote=1&kind=deleted&deletedDocId=${encodeURIComponent(
-                        String(r?.id || "")
+                        String(r?.id || ""),
                       )}`,
-                      { state: { remoteRecord: r } }
+                      { state: { remoteRecord: r } },
                     );
                   }}
                   footer={
@@ -787,6 +798,47 @@ export default function CandidatesDeletedUsers() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {!loading && filtered.length > itemsPerPage && (
+        <div className="flex flex-wrap items-center justify-center gap-2 mt-6">
+          <button
+            type="button"
+            className="btn btn-sm btn-outline"
+            onClick={() => setCurrentPage(1)}
+            disabled={currentPage === 1}
+          >
+            «
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm btn-outline"
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+          >
+            ‹
+          </button>
+          <span className="text-sm text-base-content/70 px-2">
+            Seite {currentPage} von {totalPages} ({filtered.length} Ergebnisse)
+          </span>
+          <button
+            type="button"
+            className="btn btn-sm btn-outline"
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+          >
+            ›
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm btn-outline"
+            onClick={() => setCurrentPage(totalPages)}
+            disabled={currentPage === totalPages}
+          >
+            »
+          </button>
         </div>
       )}
     </div>
