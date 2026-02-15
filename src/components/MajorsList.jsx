@@ -5,6 +5,7 @@ import {
   subscribeToCollections,
   getMetaByName,
   updateMetaByName,
+  deleteCollectionByName,
 } from "../utils";
 import { Link } from "react-router-dom";
 import {
@@ -1737,6 +1738,11 @@ export default function MajorsList() {
     open: false,
     major: null,
   });
+  const [deleteMajorModal, setDeleteMajorModal] = useState({
+    open: false,
+    major: null,
+    deleting: false,
+  });
   const { user } = useSelector((state) => state.auth);
   const { role } = useUserRole();
   const isLimitedAdmin = useMemo(() => role === "limited_admin", [role]);
@@ -1785,7 +1791,23 @@ export default function MajorsList() {
     setLinkCopyModal({ open: true, major });
   };
 
-  // Delete is currently disabled globally; we keep UI minimal per requirement.
+  const handleDeleteMajor = async () => {
+    const major = deleteMajorModal?.major;
+    if (!major) return;
+    const key = resolveMajorKey(major);
+    if (!key) {
+      toast.error("Berufsfeld konnte nicht identifiziert werden.");
+      return;
+    }
+    setDeleteMajorModal((prev) => ({ ...prev, deleting: true }));
+    try {
+      await deleteCollectionByName(key, { deleteCandidates: true });
+      setDeleteMajorModal({ open: false, major: null, deleting: false });
+    } catch (e) {
+      toast.error("Fehler beim Löschen des Berufsfelds.");
+      setDeleteMajorModal((prev) => ({ ...prev, deleting: false }));
+    }
+  };
 
   const resolveMajorKey = (major) => {
     if (!major) return "";
@@ -1930,6 +1952,71 @@ export default function MajorsList() {
             : ""
         }
       />
+      {/* Delete Major Confirmation Modal */}
+      {deleteMajorModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-base-content/50"
+            onClick={() => {
+              if (!deleteMajorModal.deleting) {
+                setDeleteMajorModal({
+                  open: false,
+                  major: null,
+                  deleting: false,
+                });
+              }
+            }}
+          />
+          <div className="relative bg-base-100 rounded-box shadow-xl p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold text-error mb-4">
+              Yo'nalishni o'chirish
+            </h3>
+            <p className="text-sm mb-2">
+              <span className="font-semibold">
+                {deleteMajorModal.major?.title ||
+                  deleteMajorModal.major?.collectionName ||
+                  "Yo'nalish"}
+              </span>{" "}
+              yo'nalishini o'chirmoqchimisiz?
+            </p>
+            <p className="text-xs text-error mb-4">
+              Diqqat: Bu yo'nalish va uning ichidagi barcha kandidatlar butunlay
+              o'chiriladi! Bu amalni qaytarib bo'lmaydi.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() =>
+                  setDeleteMajorModal({
+                    open: false,
+                    major: null,
+                    deleting: false,
+                  })
+                }
+                disabled={deleteMajorModal.deleting}
+              >
+                Bekor qilish
+              </button>
+              <button
+                type="button"
+                className="btn btn-error"
+                onClick={handleDeleteMajor}
+                disabled={deleteMajorModal.deleting}
+              >
+                {deleteMajorModal.deleting ? (
+                  <>
+                    <span className="loading loading-spinner loading-sm" />
+                    O'chirilmoqda...
+                  </>
+                ) : (
+                  "O'chirish"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {!isLimitedAdmin ? (
         <MajorSettingsModal
           open={isSettingsOpen}
@@ -2014,15 +2101,32 @@ export default function MajorsList() {
                   <FaRegCopy />
                 </button>
                 {!isLimitedAdmin ? (
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-outline"
-                    onClick={() => setSettingsMajor({ major, key: majorKey })}
-                    aria-label={`Einstellungen für „${title}“ öffnen`}
-                    title="Einstellungen"
-                  >
-                    <FaCog />
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline btn-error"
+                      onClick={() =>
+                        setDeleteMajorModal({
+                          open: true,
+                          major,
+                          deleting: false,
+                        })
+                      }
+                      aria-label={`„${title}" yo'nalishini o'chirish`}
+                      title="Yo'nalishni o'chirish"
+                    >
+                      <FaTrash />
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline"
+                      onClick={() => setSettingsMajor({ major, key: majorKey })}
+                      aria-label={`Einstellungen für „${title}" öffnen`}
+                      title="Einstellungen"
+                    >
+                      <FaCog />
+                    </button>
+                  </>
                 ) : null}
               </li>
             );

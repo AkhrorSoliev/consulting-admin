@@ -78,8 +78,8 @@ export async function createCollection(name, createdBy) {
       query(
         collection(db, "meta"),
         where("collectionName", "==", normalizedName),
-        limit(1)
-      )
+        limit(1),
+      ),
     );
     if (!dupSnap.empty) {
       toast.error(`„${normalizedName}“ ist bereits vorhanden.`);
@@ -113,7 +113,7 @@ export async function createCollection(name, createdBy) {
     }
 
     toast.success(
-      `„${rawTitle || normalizedName}“ wurde zur Meta-Liste hinzugefügt!`
+      `„${rawTitle || normalizedName}“ wurde zur Meta-Liste hinzugefügt!`,
     );
     return {
       created: true,
@@ -141,7 +141,7 @@ export async function getMetaByName(name) {
 
   // 2) Try lookup by uuid field
   const byUuidSnap = await getDocs(
-    query(collection(db, "meta"), where("uuid", "==", safe), limit(1))
+    query(collection(db, "meta"), where("uuid", "==", safe), limit(1)),
   );
   if (!byUuidSnap.empty) {
     return normalizeMajorMeta(byUuidSnap.docs[0]);
@@ -149,7 +149,11 @@ export async function getMetaByName(name) {
 
   // 3) Try lookup by slug/name field (legacy)
   const byNameSnap = await getDocs(
-    query(collection(db, "meta"), where("collectionName", "==", safe), limit(1))
+    query(
+      collection(db, "meta"),
+      where("collectionName", "==", safe),
+      limit(1),
+    ),
   );
   if (!byNameSnap.empty) {
     return normalizeMajorMeta(byNameSnap.docs[0]);
@@ -209,7 +213,7 @@ export function subscribeToMetaByName(name, callback, onError) {
       (e) => {
         if (cancelled) return;
         errCb(e);
-      }
+      },
     );
   }
 
@@ -256,7 +260,7 @@ export function subscribeToMetaByName(name, callback, onError) {
     },
     (e) => {
       if (!cancelled) errCb(e);
-    }
+    },
   );
 
   return cleanup;
@@ -283,7 +287,8 @@ export function subscribeToCollections(callback) {
         .filter(
           (n) =>
             typeof n.collectionName === "string" &&
-            n.collectionName.trim().length > 0
+            n.collectionName.trim().length > 0 &&
+            n.isDeleted !== true,
         );
       callback(list);
     });
@@ -308,36 +313,27 @@ export async function deleteCollectionByName(name, options = {}) {
     if (deleteCandidates) {
       // WARNING: This will permanently delete all candidates!
       const deletePromises = docsSnapshot.docs.map((d) =>
-        deleteDoc(doc(db, colName, d.id))
+        deleteDoc(doc(db, colName, d.id)),
       );
       await Promise.all(deletePromises);
       toast.success(
-        `Sammlung „${colName}" und ${candidatesCount} Kandidaten wurden gelöscht!`
+        `Sammlung „${colName}" und ${candidatesCount} Kandidaten wurden gelöscht!`,
       );
     } else {
       // Safe mode: Keep candidates, only soft-delete meta document
       if (candidatesCount > 0) {
         toast.info(
           `Sammlung „${colName}" wurde deaktiviert. ${candidatesCount} Kandidaten bleiben erhalten.`,
-          { duration: 5000 }
+          { duration: 5000 },
         );
       } else {
         toast.success(`Sammlung „${colName}" wurde gelöscht!`);
       }
     }
 
-    // Soft delete: mark meta document as deleted instead of removing it
-    // This preserves historical stats (totals.directions never decreases)
+    // Hard delete: remove meta document from Firestore completely
     const metaDocRef = doc(db, "meta", metaId);
-    await setDoc(
-      metaDocRef,
-      {
-        isDeleted: true,
-        deletedAt: Date.now(),
-        candidatesCountAtDeletion: candidatesCount,
-      },
-      { merge: true }
-    );
+    await deleteDoc(metaDocRef);
   } catch (error) {
     toast.error(`Fehler: ${error.message}`);
   }
@@ -355,7 +351,7 @@ export async function imageFileToBase64(
     maxHeight = 1200,
     quality = 0.9,
     mimeType = "image/jpeg",
-  } = {}
+  } = {},
 ) {
   if (!(file instanceof File)) {
     throw new Error("imageFileToBase64: file must be a File");
@@ -636,13 +632,13 @@ export async function uploadFileToConsulting(file) {
     {
       method: "POST",
       body: formData,
-    }
+    },
   );
   if (!response.ok) {
     throw new Error(`Upload failed: ${response.status}`);
   }
   const contentType = String(
-    response.headers.get("content-type") || ""
+    response.headers.get("content-type") || "",
   ).toLowerCase();
   const rawText = await response.text();
   let parsed;
@@ -672,7 +668,7 @@ export async function uploadFileToConsulting(file) {
         urlCandidate = parsed.data.link;
     } else if (Array.isArray(parsed)) {
       const firstUrl = parsed.find(
-        (v) => typeof v === "string" && /^https?:\/\//.test(v)
+        (v) => typeof v === "string" && /^https?:\/\//.test(v),
       );
       if (firstUrl) urlCandidate = firstUrl;
     }
@@ -784,8 +780,8 @@ export async function deleteUploadedFiles(urls) {
     new Set(
       list
         .map((u) => String(u || "").trim())
-        .filter((u) => /^https?:\/\//.test(u))
-    )
+        .filter((u) => /^https?:\/\//.test(u)),
+    ),
   );
   if (unique.length === 0) return [];
   return Promise.all(unique.map((u) => deleteUploadedFile(u)));
@@ -861,8 +857,8 @@ export async function listRemoteUsers(kind = "all") {
     k === "deleted"
       ? USERS_DELETED_ENDPOINT
       : k === "archived"
-      ? USERS_ARCHIVED_ENDPOINT
-      : USERS_ALL_ENDPOINT;
+        ? USERS_ARCHIVED_ENDPOINT
+        : USERS_ALL_ENDPOINT;
   const res = await fetch(endpoint, { method: "GET" });
   if (!res.ok) throw new Error(`Remote list failed: ${res.status}`);
   const json = await safeJsonResponse(res);
@@ -895,15 +891,15 @@ export async function deleteRemoteUserRecord(kind, recordId) {
     k === "deleted"
       ? USERS_DELETED_ENDPOINT
       : k === "archived"
-      ? USERS_ARCHIVED_ENDPOINT
-      : USERS_ALL_ENDPOINT;
+        ? USERS_ARCHIVED_ENDPOINT
+        : USERS_ALL_ENDPOINT;
   // Prefer DELETE /collection/:id if supported
   const url = `${endpoint}/${encodeURIComponent(safeId)}`;
   const res = await fetch(url, { method: "DELETE" });
   if (res.ok) return safeJsonResponse(res);
   // Fallback: some json-api collections support by-property deletes
   const byPropUrl = `${endpoint}/by-property?property=id&value=${encodeURIComponent(
-    safeId
+    safeId,
   )}&all=false`;
   const res2 = await fetch(byPropUrl, { method: "DELETE" });
   if (res2.ok) return safeJsonResponse(res2);
@@ -1047,7 +1043,7 @@ export async function checkEmailRemote(email) {
         (item) =>
           String(item?.email || "")
             .trim()
-            .toLowerCase() === safeEmail
+            .toLowerCase() === safeEmail,
       ) || null;
     return { ok: true, status: 200, data: match };
   };
@@ -1058,7 +1054,7 @@ export async function checkEmailRemote(email) {
   const b = await tryGet(ALL_EMAILS_ENDPOINT_FALLBACK);
   if (b.ok) return b.data ? { exists: true, data: b.data } : { exists: false };
   throw new Error(
-    `E-Mail Prüfung fehlgeschlagen: ${a.status || b.status || "unknown"}`
+    `E-Mail Prüfung fehlgeschlagen: ${a.status || b.status || "unknown"}`,
   );
 }
 
@@ -1128,7 +1124,7 @@ export async function checkPassportFirestore(passportId) {
   const q = query(
     collection(db, EMAIL_AND_PASSID_COLLECTION),
     where("passportId", "==", safePassport),
-    limit(1)
+    limit(1),
   );
   const snaps = await getDocs(q);
   if (snaps.empty) return { exists: false };
@@ -1139,14 +1135,14 @@ export async function checkPassportFirestore(passportId) {
 function buildDeletedUserDocId({ major, sourceDocId }) {
   // Firestore doc ids must not contain "/". `encodeURIComponent` ensures that.
   return `${encodeURIComponent(
-    String(major || "").trim()
+    String(major || "").trim(),
   )}__${encodeURIComponent(String(sourceDocId || "").trim())}`;
 }
 
 function buildArchivedUserDocId({ major, sourceDocId }) {
   // Same deterministic strategy as deleted_users.
   return `${encodeURIComponent(
-    String(major || "").trim()
+    String(major || "").trim(),
   )}__${encodeURIComponent(String(sourceDocId || "").trim())}`;
 }
 
@@ -1185,7 +1181,7 @@ export async function upsertEmailAndPassIdFirestore({
       ...(safePassport ? { passportId: safePassport } : {}),
       updatedAt: Date.now(),
     },
-    { merge: true }
+    { merge: true },
   );
   return { ok: true, email: safeEmail };
 }
@@ -1222,7 +1218,7 @@ export async function saveDeletedUserSnapshotFirestore({
       ...(email ? { email: normalizeEmailForRegistry(email) } : {}),
       ...snapshot,
     },
-    { merge: true }
+    { merge: true },
   );
   return { id: docId };
 }
@@ -1259,7 +1255,7 @@ export async function saveArchivedUserSnapshotFirestore({
       ...(email ? { email: normalizeEmailForRegistry(email) } : {}),
       ...snapshot,
     },
-    { merge: true }
+    { merge: true },
   );
   return { id: docId };
 }
@@ -1342,12 +1338,12 @@ export function extractConsultingUploadUrlsFromSnapshot(snapshot) {
 export async function deleteConsultingUploadUrlsBestEffort(urls) {
   const list = Array.isArray(urls) ? urls : [];
   const unique = Array.from(
-    new Set(list.map((u) => String(u || "").trim()).filter(Boolean))
+    new Set(list.map((u) => String(u || "").trim()).filter(Boolean)),
   );
   if (unique.length === 0) return { ok: true, deleted: 0, failed: 0 };
 
   const results = await Promise.allSettled(
-    unique.map((u) => deleteUploadedFileRemote(u))
+    unique.map((u) => deleteUploadedFileRemote(u)),
   );
   const failed = results.filter((r) => r.status === "rejected").length;
   return { ok: failed === 0, deleted: unique.length - failed, failed };
@@ -1358,7 +1354,7 @@ export async function deleteConsultingUploadUrlsBestEffort(urls) {
 export async function deleteConsultingUploadUrlsStrict(urls) {
   const list = Array.isArray(urls) ? urls : [];
   const unique = Array.from(
-    new Set(list.map((u) => String(u || "").trim()).filter(Boolean))
+    new Set(list.map((u) => String(u || "").trim()).filter(Boolean)),
   );
   if (unique.length === 0) {
     return { ok: true, deleted: 0 };
@@ -1375,8 +1371,8 @@ export async function deleteConsultingUploadUrlsStrict(urls) {
         // attach context (non-standard field, but useful in console logs)
         err.url = u;
         throw err;
-      })
-    )
+      }),
+    ),
   );
   return { ok: true, deleted: unique.length };
 }
@@ -1454,7 +1450,7 @@ export async function deleteEmailRemote(email) {
   const tryDeleteById = async (baseEndpoint) => {
     const getRes = await fetch(
       `${baseEndpoint}?email=${encodeURIComponent(safeEmail)}`,
-      { method: "GET" }
+      { method: "GET" },
     );
     if (!getRes.ok) return { ok: false, status: getRes.status };
     const json = await getRes.json().catch(() => ({}));
@@ -1464,7 +1460,7 @@ export async function deleteEmailRemote(email) {
         (item) =>
           String(item?.email || "")
             .trim()
-            .toLowerCase() === safeEmail
+            .toLowerCase() === safeEmail,
       ) || null;
     if (!match) return { ok: true, deleted: false, reason: "not-found" };
 
@@ -1473,7 +1469,7 @@ export async function deleteEmailRemote(email) {
     if (id !== null && id !== undefined && String(id).trim() !== "") {
       const delRes = await fetch(
         `${baseEndpoint}/${encodeURIComponent(String(id))}`,
-        { method: "DELETE" }
+        { method: "DELETE" },
       );
       if (delRes.ok) return { ok: true, deleted: true, via: "id" };
       return { ok: false, status: delRes.status };
@@ -1481,7 +1477,7 @@ export async function deleteEmailRemote(email) {
 
     // Fallback: some servers only support by-property deletes.
     const byPropUrl = `${baseEndpoint}/by-property?property=email&value=${encodeURIComponent(
-      safeEmail
+      safeEmail,
     )}&all=false`;
     const del2 = await fetch(byPropUrl, { method: "DELETE" });
     if (del2.ok) return { ok: true, deleted: true, via: "by-property" };
@@ -1521,8 +1517,8 @@ export async function deleteUploadedFilesRemote(urls) {
     new Set(
       list
         .map((u) => String(u || "").trim())
-        .filter((u) => /^https?:\/\//.test(u))
-    )
+        .filter((u) => /^https?:\/\//.test(u)),
+    ),
   );
   if (unique.length === 0) return [];
   return Promise.all(unique.map((u) => deleteUploadedFileRemote(u)));
@@ -1559,7 +1555,7 @@ export async function updateEmailRemote(oldEmail, newEmail, major) {
               email: String(newEmail || "").trim(),
               major: String(major || "").trim() || null,
             }),
-          }
+          },
         );
         if (res.ok) return res.json().catch(() => ({}));
       }
