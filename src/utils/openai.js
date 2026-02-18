@@ -1,18 +1,70 @@
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
+import { auth } from "../firebase/config";
 
-async function correctTextWithAI(text) {
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+function getFunctionsBaseUrl() {
+  const env = import.meta.env || {};
+  const explicit = String(env.VITE_FUNCTIONS_BASE || "").trim();
+  if (explicit) return explicit.replace(/\/+$/, "");
+
+  const submitUrlRaw = String(env.VITE_SUBMIT_CANDIDATE_URL || "").trim();
+  if (submitUrlRaw) {
+    try {
+      const u = new URL(submitUrlRaw);
+      return `${u.protocol}//${u.host}`;
+    } catch {
+      // ignore
+    }
+  }
+
+  const projectId = String(env.VITE_FIREBASE_PROJECT_ID || "").trim();
+  if (projectId) {
+    return `https://us-central1-${projectId}.cloudfunctions.net`;
+  }
+
+  throw new Error("Functions base URL not configured");
+}
+
+async function callOpenAIProxy(messages, options = {}) {
+  const user = auth.currentUser;
+  if (!user) throw new Error("Not authenticated");
+
+  const token = await user.getIdToken();
+  const baseUrl = getFunctionsBaseUrl();
+  const url = `${baseUrl}/openaiProxy`;
+
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: `Du bist ein professioneller Übersetzer und Korrektor. Deine Aufgabe ist es:
+      messages,
+      model: options.model || "gpt-4o-mini",
+      temperature: options.temperature ?? 0.3,
+      max_tokens: options.max_tokens ?? 2000,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(
+      `OpenAI API error: ${errorData.details || errorData.error || response.statusText}`,
+    );
+  }
+
+  const result = await response.json();
+  if (!result.ok) {
+    throw new Error(`OpenAI API error: ${result.details || result.error}`);
+  }
+
+  return result.data;
+}
+
+async function correctTextWithAI(text) {
+  const messages = [
+    {
+      role: "system",
+      content: `Du bist ein professioneller Übersetzer und Korrektor. Deine Aufgabe ist es:
 
 1. Wenn der Text auf Usbekisch ist, übersetze ihn ins Deutsche (professionell und korrekt)
 2. Wenn der Text auf Deutsch ist, korrigiere nur Grammatik- und Rechtschreibfehler
@@ -37,25 +89,14 @@ WICHTIG:
 - Entferne alle wiederholten Informationen - jede Information nur EINMAL!
 - NIEMALS "Ich" verwenden - dies ist absolut verboten!
 - Sätze sollten subjektlos sein, es sei denn "er" oder "sie" wird verwendet`,
-        },
-        {
-          role: "user",
-          content: text,
-        },
-      ],
-      temperature: 0.3,
-      max_tokens: 2000,
-    }),
-  });
+    },
+    {
+      role: "user",
+      content: text,
+    },
+  ];
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(
-      `OpenAI API error: ${errorData.error?.message || response.statusText}`
-    );
-  }
-
-  const data = await response.json();
+  const data = await callOpenAIProxy(messages);
   const correctedText = data.choices[0]?.message?.content?.trim();
 
   if (!correctedText) {
@@ -137,7 +178,7 @@ export async function correctCommentWithAI(htmlContent) {
 
 export async function correctExperienceWithAI(
   experience,
-  aufgabenOnly = false
+  aufgabenOnly = false,
 ) {
   try {
     const { position, company, location, responsibilities } = experience;
@@ -151,20 +192,10 @@ export async function correctExperienceWithAI(
         company || ""
       }, Ort: ${location || ""}`;
 
-      const response = await fetch(
-        "https://api.openai.com/v1/chat/completions",
+      const messages = [
         {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${OPENAI_API_KEY}`,
-          },
-          body: JSON.stringify({
-            model: "gpt-4o-mini",
-            messages: [
-              {
-                role: "system",
-                content: `Du bist ein professioneller deutscher Lebenslauf-Experte. Deine Aufgabe ist es, Aufgaben (Tätigkeiten) für einen Lebenslauf zu erstellen oder zu verbessern.
+          role: "system",
+          content: `Du bist ein professioneller deutscher Lebenslauf-Experte. Deine Aufgabe ist es, Aufgaben (Tätigkeiten) für einen Lebenslauf zu erstellen oder zu verbessern.
 
 Kontext:
 ${context}
@@ -195,26 +226,17 @@ Unterstützung bei täglichen Arbeitsabläufen – Sicherstellung eines reibungs
 Mitarbeit im Team – Zusammenarbeit mit Kollegen zur Erreichung gemeinsamer Ziele
 Einhaltung von Arbeits- und Sicherheitsregeln – Gewährleistung eines sicheren Arbeitsumfelds
 Qualitätskontrolle der Produkte – Sicherstellung hoher Qualitätsstandards`,
-              },
-              {
-                role: "user",
-                content: responsibilities.join("\n"),
-              },
-            ],
-            temperature: 0.4,
-            max_tokens: 500,
-          }),
-        }
-      );
+        },
+        {
+          role: "user",
+          content: responsibilities.join("\n"),
+        },
+      ];
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          `OpenAI API error: ${errorData.error?.message || response.statusText}`
-        );
-      }
-
-      const data = await response.json();
+      const data = await callOpenAIProxy(messages, {
+        temperature: 0.4,
+        max_tokens: 500,
+      });
       const correctedText = data.choices[0]?.message?.content?.trim();
 
       if (!correctedText) {
@@ -244,20 +266,10 @@ Qualitätskontrolle der Produkte – Sicherstellung hoher Qualitätsstandards`,
         throw new Error("Keine Daten zum Korrigieren vorhanden.");
       }
 
-      const response = await fetch(
-        "https://api.openai.com/v1/chat/completions",
+      const messages = [
         {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${OPENAI_API_KEY}`,
-          },
-          body: JSON.stringify({
-            model: "gpt-4o-mini",
-            messages: [
-              {
-                role: "system",
-                content: `Du bist ein professioneller deutscher Lebenslauf-Experte. Korrigiere und verbessere die folgenden Berufserfahrungs-Daten.
+          role: "system",
+          content: `Du bist ein professioneller deutscher Lebenslauf-Experte. Korrigiere und verbessere die folgenden Berufserfahrungs-Daten.
 
 Anforderungen:
 1. Wenn der Text auf Usbekisch ist, übersetze ihn ins Deutsche
@@ -298,26 +310,17 @@ Aufgaben:
 [Aufgabe 4]
 
 Gib NUR dieses Format zurück, KEINE zusätzlichen Erklärungen.`,
-              },
-              {
-                role: "user",
-                content: fieldsToCorrect.join("\n"),
-              },
-            ],
-            temperature: 0.4,
-            max_tokens: 600,
-          }),
-        }
-      );
+        },
+        {
+          role: "user",
+          content: fieldsToCorrect.join("\n"),
+        },
+      ];
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-          `OpenAI API error: ${errorData.error?.message || response.statusText}`
-        );
-      }
-
-      const data = await response.json();
+      const data = await callOpenAIProxy(messages, {
+        temperature: 0.4,
+        max_tokens: 600,
+      });
       const correctedText = data.choices[0]?.message?.content?.trim();
 
       if (!correctedText) {
