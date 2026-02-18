@@ -28,6 +28,9 @@ const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
 // Store via: firebase functions:secrets:set RECAPTCHA_SECRET_KEY
 // Used to protect public endpoints (Create form) from abuse.
 const RECAPTCHA_SECRET_KEY = defineSecret("RECAPTCHA_SECRET_KEY");
+// Store via: firebase functions:secrets:set OPENAI_API_KEY
+// Used for AI text correction features.
+const OPENAI_API_KEY = defineSecret("OPENAI_API_KEY");
 
 const REMOTE_API_BASE = "https://json-api.uz/api/project/consultinguz";
 const REMOTE_ALL_USERS = `${REMOTE_API_BASE}/all_users`;
@@ -2170,3 +2173,78 @@ exports.countState1Candidates = onRequest(async (req, res) => {
     return res.status(500).json({ ok: false, error: err.message });
   }
 });
+
+// POST /openaiProxy
+// Body: { messages: array, model?: string, temperature?: number, max_tokens?: number }
+// Proxy for OpenAI API to bypass CORS restrictions
+// Auth: admin or super_admin
+exports.openaiProxy = onRequest(
+  { secrets: [OPENAI_API_KEY], timeoutSeconds: 60 },
+  async (req, res) => {
+    try {
+      setCors(req, res);
+      if (req.method === "OPTIONS") return res.status(204).send("");
+      if (req.method !== "POST") {
+        return res.status(405).json({ ok: false, error: "method-not-allowed" });
+      }
+
+      // Auth (admin-only)
+      const decoded = await verifyFirebaseIdToken(req);
+      assertAdminLikeClaims(decoded);
+
+      const apiKey = String(OPENAI_API_KEY.value() || "").trim();
+      if (!apiKey) {
+        return res.status(500).json({ ok: false, error: "openai-key-missing" });
+      }
+
+      const { messages, model, temperature, max_tokens } = req.body || {};
+
+      if (!Array.isArray(messages) || messages.length === 0) {
+        return res.status(400).json({ ok: false, error: "missing-messages" });
+      }
+
+      const response = await fetch(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: model || "gpt-4o-mini",
+            messages,
+            temperature: temperature ?? 0.3,
+            max_tokens: max_tokens ?? 2000,
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        logger.error("OpenAI API error", {
+          status: response.status,
+          errorData,
+        });
+        return res.status(response.status).json({
+          ok: false,
+          error: "openai-api-error",
+          details: errorData.error?.message || response.statusText,
+        });
+      }
+
+      const data = await response.json();
+      return res.status(200).json({ ok: true, data });
+    } catch (err) {
+      logger.error("openaiProxy error", err);
+      setCors(req, res);
+      const status = Number(err?.status) || 500;
+      const code = String(err?.code || "internal");
+      return res.status(status).json({
+        ok: false,
+        error: code,
+        details: String(err?.message || err),
+      });
+    }
+  },
+);
