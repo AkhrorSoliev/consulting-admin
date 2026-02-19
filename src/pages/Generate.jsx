@@ -709,7 +709,7 @@ function Generate() {
       });
       return true;
     } catch (e) {
-      toast.error("Hujjatlar bo‘limini saqlashda xatolik.");
+      toast.error("Hujjatlar bo'limini saqlashda xatolik.");
       outgoingDocsRef.current = prevSnapshot;
       setOutgoingDocs(prevSnapshot);
       return false;

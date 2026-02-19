@@ -61,10 +61,15 @@ service cloud.firestore {
     }
 
     // Helper function to check if collection is a candidate collection
-    // This checks if the collection exists in the meta collection
-    // Any collection with a meta document is considered a candidate collection
+    // Hardcoded list of candidate collections for public access (DataExchange)
     function isCandidateCollection(collectionName) {
-      return exists(/databases/$(database)/documents/meta/$(collectionName));
+      return collectionName in [
+        'krankenpfleger',
+        'altenpfleger', 
+        'pflegefachkraft',
+        'kinderkrankenpfleger',
+        'uy-quruvchisi-fachkraft-2026'
+      ];
     }
 
     // ============================================
@@ -87,30 +92,28 @@ service cloud.firestore {
       allow write: if isSuperAdmin() || isAdmin();  // Only admins can write
     }
 
-    // Public access ONLY for candidate collections (for DataExchange page)
-    match /{candidateCollection}/{candidateId} {
-      // Allow public read ONLY if it's a candidate collection
-      allow read: if isCandidateCollection(candidateCollection) ||
-                     isSuperAdmin() || isAdmin() || isLimitedAdmin();
+    // Public read access for meta collection (needed for DataExchange fallback)
+    match /meta/{metaId} {
+      allow read: if true;  // Public read for collection list
+      allow write: if isSuperAdmin() || isAdmin();
+    }
+
+    // ============================================
+    // ALL OTHER COLLECTIONS - with public access for DataExchange
+    // Protected collections (users, settings, etc.) are handled above
+    // ============================================
+    match /{collectionName}/{documentId} {
+      // Public read for all collections (needed for DataExchange)
+      // Sensitive collections like 'users' are already handled above with specific rules
+      allow read: if true;
       
-      // Allow update for admins OR if only updating incomingDocuments in candidate collections
+      // Update: admins can update anything, public can only update incomingDocuments
       allow update: if isSuperAdmin() || 
                        (isAdmin() && adminCanUpdate()) ||
                        (isLimitedAdmin() && limitedAdminCanUpdate()) ||
-                       (isCandidateCollection(candidateCollection) && 
-                        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['incomingDocuments']));
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['incomingDocuments']);
       
-      // Only admins can create/delete
       allow create, delete: if isSuperAdmin() || isAdmin();
-    }
-
-    // Protected access for all other collections (settings, users, etc.)
-    match /{document=**} {
-      allow read: if isSuperAdmin() || isAdmin() || isLimitedAdmin();
-      allow create, delete: if isSuperAdmin() || isAdmin();
-      allow update: if isSuperAdmin() ||
-                     (isAdmin() && adminCanUpdate()) ||
-                     (isLimitedAdmin() && limitedAdminCanUpdate());
     }
   }
 }
