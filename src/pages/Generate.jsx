@@ -15,6 +15,7 @@ import {
   increment,
   onSnapshot,
   updateDoc,
+  setDoc,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import {
@@ -591,10 +592,17 @@ function Generate() {
     if (!candidateDocId) return;
     setSavingAllowDelete(true);
     try {
-      await updateDocument("candidate_metadata", candidateDocId, {
-        allowIncomingDelete: newValue,
-        updatedAt: Date.now(),
-      });
+      // Use setDoc with merge to create document if it doesn't exist
+      const metadataRef = doc(db, "candidate_metadata", candidateDocId);
+      await setDoc(
+        metadataRef,
+        {
+          allowIncomingDelete: newValue,
+          collectionName: candidateCollection,
+          updatedAt: Date.now(),
+        },
+        { merge: true },
+      );
       setAllowIncomingDelete(newValue);
       toast.success(newValue ? "Löschen erlaubt" : "Löschen gesperrt");
     } catch (err) {
