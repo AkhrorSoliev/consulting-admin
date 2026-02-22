@@ -60,6 +60,7 @@ function ensureInterRegistered() {
 const s = StyleSheet.create({
   page: {
     padding: 72,
+    paddingTop: 55,
     fontFamily: "Inter",
     fontSize: 9,
     color: "#0f172a",
@@ -103,300 +104,431 @@ function safeName(n) {
 export default function VermittlungsvertragPdfDocument({ form }) {
   ensureInterRegistered();
 
-  const candidateFirstName = String(form?.candidateFirstName || "").trim();
-  const candidateLastName = String(form?.candidateLastName || "").trim();
-  const candidateStreet = String(form?.candidateStreet || "").trim();
-  const candidateHouseNumber = String(form?.candidateHouseNumber || "").trim();
-  const candidatePLZ = String(form?.candidatePLZ || "").trim();
-  const candidateBirthPlace = String(form?.candidateBirthPlace || "").trim();
-  const candidateLand = String(form?.candidateLand || "").trim();
+  // Dynamic candidate data (primary keys + backward-compatible fallbacks)
+  const firstName = String(
+    form?.candidateFirstName || form?.firstName || "",
+  ).trim();
+  const lastName = String(
+    form?.candidateLastName || form?.lastName || "",
+  ).trim();
+  const candidateName =
+    firstName && lastName ? `${firstName} ${lastName}` : safeName("");
 
-  const fullName = `${candidateFirstName} ${candidateLastName}`.trim();
-  const streetAndHouse = `${candidateStreet}. ${candidateHouseNumber}`.trim();
-  const plzAndBirthPlace = `${candidatePLZ} ${candidateBirthPlace}`.trim();
-  const nameLine = safeName(fullName);
+  const candidateBirthPrimary = String(form?.candidateBirthDate || "").trim();
+  const candidateBirthFallback = String(form?.candidateBirthPlace || "").trim();
+  const candidateBirthDate =
+    candidateBirthPrimary || candidateBirthFallback || "__________";
 
-  // Calculate contract dates
-  const today = new Date();
-  const startDate = new Date(today);
-  const years = parseInt(form?.contractDurationYears) || 2;
-  const endDate = new Date(today);
-  endDate.setFullYear(endDate.getFullYear() + years);
+  const nationalityPrimary = String(form?.candidateNationality || "").trim();
+  const nationalityFallback = String(form?.candidateLand || "").trim();
+  const candidateNationality =
+    nationalityPrimary || nationalityFallback || "__________";
 
-  const formatDate = (date) => {
-    const dd = String(date.getDate()).padStart(2, "0");
-    const mm = String(date.getMonth() + 1).padStart(2, "0");
-    const yyyy = String(date.getFullYear());
-    return `${dd}.${mm}.${yyyy}`;
+  const street = String(form?.candidateStreet || "").trim();
+  const houseNumber = String(form?.candidateHouseNumber || "").trim();
+  const postalCode = String(form?.candidatePLZ || "").trim();
+  const country = String(form?.candidateLand || "").trim();
+  const composedAddress = [street, houseNumber]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const composedAddressWithPostal = [composedAddress, postalCode]
+    .filter(Boolean)
+    .join(", ")
+    .trim();
+  const composedAddressFull = [composedAddressWithPostal, country]
+    .filter(Boolean)
+    .join(", ")
+    .trim();
+  const candidateAddress =
+    composedAddressFull ||
+    String(form?.candidateAddress || "").trim() ||
+    "__________";
+  const candidatePassportNr =
+    String(
+      form?.candidatePassportNr ||
+        form?.passportNumber ||
+        form?.passportId ||
+        "",
+    ).trim() || "__________";
+  const signaturePlace =
+    String(form?.signatureCity || form?.candidateCity || "").trim() ||
+    "__________";
+  const signatureDate =
+    String(form?.signatureDate || form?.pdfGeneratedDate || "").trim() ||
+    safeDate("");
+
+  // Section title style (dark blue, bold)
+  const sectionTitle = {
+    fontSize: 11,
+    fontWeight: 700,
+    marginTop: 14,
+    color: "#0f172a",
   };
-
-  const contractStartDate = formatDate(startDate);
-  const contractEndDate = formatDate(endDate);
-  const signatureDate = safeDate(form?.signatureDate);
-  const signatureCity =
-    String(form?.signatureCity || "").trim() || "_____________________";
+  // Red bold for penalty amounts
+  const redBold = { fontWeight: 700, color: "#000000" };
 
   return (
     <Document>
       <Page size="A4" style={s.page}>
-        <Text style={s.title}>Vermittlungsvertrag</Text>
-
-        <Text style={[s.p, { textAlign: "center" }]}>zwischen:</Text>
-        <Text style={[s.p, s.bold, { textAlign: "center" }]}>
-          Orif Akhmadaliev
+        <Text style={[s.title, { color: "#1a365d", letterSpacing: 1 }]}>
+          VERMITTLUNGSVERTRAG
         </Text>
-        <Text style={[s.p, { textAlign: "center" }]}>Alemannenweg. 6</Text>
-        <Text style={[s.p, { textAlign: "center" }]}>72488 Sigmaringen</Text>
-        <Text style={[s.p, { textAlign: "center" }]}>Deutschland</Text>
-        <Text style={[s.p, { textAlign: "center" }]}>
-          (nachstehend "Vermittler" genannt)
+        <Text
+          style={{ textAlign: "center", fontStyle: "italic", marginBottom: 10 }}
+        >
+          Internationale Arbeitsvermittlung
         </Text>
 
-        <Text style={[s.p, { marginTop: 10, textAlign: "center" }]}>und</Text>
-        <Text style={[s.p, { textAlign: "center", fontWeight: 700 }]}>
-          {fullName || "________________________________"}
-        </Text>
-        <Text style={[s.p, { textAlign: "center" }]}>
-          {streetAndHouse || "________________________________"}
-        </Text>
-        <Text style={[s.p, { textAlign: "center" }]}>
-          {plzAndBirthPlace || "________________________________"}
-        </Text>
-        <Text style={[s.p, { textAlign: "center" }]}>
-          {candidateLand || "________________________________"}
-        </Text>
-        <Text style={[s.p, { textAlign: "center" }]}>
-          (nachstehend "Auftraggeber/Bewerber" genannt)
-        </Text>
-
-        <Text style={s.h}>1. Leistungen des Vermittlers</Text>
-        <Text style={s.p}>
-          Der Auftraggeber / Bewerber beauftragt den Vermittler mit seiner
-          Arbeitsvermittlung. Dabei erbringt der Vermittler für den Auftraggeber
-          / Bewerber folgende Leistungen:
-        </Text>
-        <View style={s.list}>
-          <View style={s.liRow}>
-            <Text style={s.liDash}>•</Text>
-            <Text>Individuelle, vermittlungsrelevante Beratung</Text>
-          </View>
-          <View style={s.liRow}>
-            <Text style={s.liDash}>•</Text>
-            <Text>Berufsberatung</Text>
-          </View>
-          <View style={s.liRow}>
-            <Text style={s.liDash}>•</Text>
-            <Text>
-              Feststellung der Kenntnisse und Fertigkeiten des Auftraggebers
-            </Text>
-          </View>
-          <View style={s.liRow}>
-            <Text style={s.liDash}>•</Text>
-            <Text>
-              Unterstützung bei der Erstellung von Bewerbungsunterlagen
-            </Text>
-          </View>
-          <View style={s.liRow}>
-            <Text style={s.liDash}>•</Text>
-            <Text>Vorbereitung auf Vorstellungsgespräche</Text>
-          </View>
+        <Text style={s.p}>zwischen</Text>
+        <View style={{ marginLeft: 16, marginTop: 6 }}>
+          <Text style={s.bold}>Orif Akhmadaliev (ConsultingUz)</Text>
+          <Text>Alemannenweg 6</Text>
+          <Text>72488 Sigmaringen</Text>
+          <Text>Deutschland</Text>
+          <Text>– nachfolgend „Vermittler" –</Text>
         </View>
-        <Text style={s.p}>
-          Der Vermittler akquiriert auf Grund des erhobenen Bewerberprofils
-          geeignete Arbeitsstellen und unterstützt den Auftraggeber während des
-          gesamten Vermittlungsprozesses. Der Vermittler kann an
-          Vorstellungsgesprächen teilnehmen.
-        </Text>
 
-        <Text style={s.h}>2. Leistungen des Auftraggebers</Text>
+        <Text style={[s.p, { marginTop: 10 }]}>und</Text>
+        <View style={{ marginLeft: 16, marginTop: 6 }}>
+          <Text style={s.bold}>{candidateName}</Text>
+          <Text>Geburtsdatum: {candidateBirthDate}</Text>
+          <Text>Staatsangehörigkeit: {candidateNationality}</Text>
+          <Text>Adresse: {candidateAddress}</Text>
+          <Text>Reisepass-Nr.: {candidatePassportNr}</Text>
+          <Text>– nachfolgend „Bewerber" –</Text>
+        </View>
+
+        <Text style={sectionTitle}>§ 1 Vertragsgegenstand</Text>
         <Text style={s.p}>
-          Zur Erfüllung der unter Punkt 1 genannten Leistungen des Vermittlers
-          erbringt der Auftraggeber folgende Leistungen:
+          (1) Der Bewerber beauftragt den Vermittler mit der Unterstützung bei
+          der Vermittlung eines sozialversicherungspflichtigen
+          Beschäftigungsverhältnisses in Deutschland.
         </Text>
+        <Text style={s.p}>(2) Der Vermittler erbringt insbesondere:</Text>
         <View style={s.list}>
           <View style={s.liRow}>
             <Text style={s.liDash}>•</Text>
-            <Text>Aktive Mithilfe bei der Erstellung des Bewerberprofils</Text>
+            <Text>Analyse der beruflichen Qualifikation</Text>
           </View>
           <View style={s.liRow}>
             <Text style={s.liDash}>•</Text>
-            <Text>Wahrheitsgemäße Angaben zu personenbezogenen Daten</Text>
+            <Text>Erstellung/Optimierung von Bewerbungsunterlagen</Text>
           </View>
           <View style={s.liRow}>
             <Text style={s.liDash}>•</Text>
-            <Text>Einhaltung von vereinbarten Terminen</Text>
+            <Text>Kontaktaufnahme mit Arbeitgebern</Text>
+          </View>
+          <View style={s.liRow}>
+            <Text style={s.liDash}>•</Text>
+            <Text>Organisation von Bewerbungsgesprächen</Text>
           </View>
           <View style={s.liRow}>
             <Text style={s.liDash}>•</Text>
             <Text>
-              Umgehende Mitteilung des Auftraggebers an den Vermittler über das
-              Zustandekommen eines sozialversicherungspflichtigen
-              Beschäftigungsverhältnisses sowie über dessen vereinbarte Dauer
+              Koordination im Visum- und Anerkennungsverfahren (rein
+              organisatorisch)
             </Text>
           </View>
         </View>
         <Text style={s.p}>
-          Die Arbeitsplatzangebote des Vermittlers sind vertraulich und nur für
-          den Auftraggeber bestimmt. Eine Weitergabe an Dritte bedarf der
-          schriftlichen Zustimmung des Vermittlers.
+          (3) Ein Anspruch auf erfolgreiche Vermittlung oder Abschluss eines
+          Arbeitsvertrages besteht nicht.
         </Text>
 
-        <Text style={s.h}>3. Vertragsdauer</Text>
+        <Text style={sectionTitle}>§ 2 Vergütung</Text>
+        <Text style={s.p}>(1) Der Bewerber schuldet keinerlei Vergütung.</Text>
         <Text style={s.p}>
-          Dieses Vertragsverhältnis beginnt mit Vertragsabschluss und wird auf
-          die Gültigkeitsdauer des vom Auftraggeber vorgelegten
-          Vermittlungsgutscheines vom{" "}
-          <Text style={s.bold}>{contractStartDate}</Text> bis{" "}
-          <Text style={s.bold}>{contractEndDate}</Text> befristet und endet
-          automatisch ohne eine Kündigung.
+          (2) Die Vergütung des Vermittlers erfolgt ausschließlich durch das
+          beauftragende Arbeitgeberunternehmen auf Grundlage eines gesonderten
+          Vertrages.
         </Text>
-
-        <Text style={s.h}>4. Wettbewerbsabrede</Text>
         <Text style={s.p}>
-          Während der Laufzeit des Vertrages darf der Auftraggeber/Bewerber{" "}
-          <Text style={s.bold}>nicht</Text> andere Vermittler für sich tätig
-          werden lassen.
+          (3) Dem Bewerber entstehen keine Vermittlungskosten.
         </Text>
 
-        <Text style={s.h}>
-          5. Geheimhaltungsvereinbarung / Non-Disclosure Agreement (NDA)
-        </Text>
-        <Text style={s.p}>Auftraggeber verpflichtet sich,</Text>
+        <Text style={sectionTitle}>§ 3 Mitwirkungspflichten des Bewerbers</Text>
+        <Text style={s.p}>Der Bewerber verpflichtet sich:</Text>
         <View style={s.list}>
           <View style={s.liRow}>
-            <Text style={s.liDash}>•</Text>
+            <Text style={s.liDash}>1.</Text>
+            <Text>vollständige und wahrheitsgemäße Angaben zu machen</Text>
+          </View>
+          <View style={s.liRow}>
+            <Text style={s.liDash}>2.</Text>
             <Text>
-              die mitgeteilten Informationen, ohne ausdrückliche schriftliche
-              Einwilligung durch den Vermittler nicht selbst zu verwerten;
+              ausschließlich echte und unverfälschte Dokumente vorzulegen
             </Text>
           </View>
           <View style={s.liRow}>
-            <Text style={s.liDash}>•</Text>
-            <Text>
-              die Vertraulichen Informationen streng vertraulich zu behandeln
-              und nur im Zusammenhang mit dem Zweck zu verwenden;
-            </Text>
+            <Text style={s.liDash}>3.</Text>
+            <Text>erforderliche Unterlagen fristgerecht einzureichen</Text>
           </View>
           <View style={s.liRow}>
-            <Text style={s.liDash}>•</Text>
-            <Text>
-              die Vertraulichen Informationen ebenfalls durch angemessene
-              Geheimhaltungsmaßnahmen gegen den unbefugten Zugriff durch Dritte
-              zu sichern und bei der Verarbeitung der Vertraulichen
-              Informationen die gesetzlichen und vertraglichen Vorschriften zum
-              Datenschutz einzuhalten. Dies beinhaltet auch dem aktuellen Stand
-              der Technik angepasste technische Sicherheitsmaßnahmen (Art. 32
-              DS-GVO) und die Verpflichtung der Mitarbeiter auf die
-              Vertraulichkeit und die Beachtung des Datenschutzes (Art. 28 Abs.
-              3 lit. b DS-GVO); Der Vermittler behält sich das alleinige und
-              uneingeschränkte Recht zur Schutzrechtsanmeldung vor.
-            </Text>
-          </View>
-        </View>
-        <Text style={s.p}>
-          Vertrauliche Informationen im Sinne dieser Vereinbarung sind sämtliche
-          Informationen (ob schriftlich, elektronisch, mündlich, digital
-          verkörpert oder in anderer Form), die von dem Vermittler an den
-          Auftraggeber oder einem mit dem Interessenten im Sinne der §§ 15 ff.
-          AktG verbundenen Unternehmen zum vorgenannten Zweck offenbart werden.
-          Als Vertrauliche Informationen gelten insbesondere:
-        </Text>
-        <View style={s.list}>
-          <View style={s.liRow}>
-            <Text style={s.liDash}>•</Text>
-            <Text>
-              Geschäftsgeheimnisse, Produkte, Bewerbungsprozesse, Know-how,
-              Erfindungen, geschäftliche Beziehungen, Geschäftsstrategien,
-              Businesspläne, Finanzplanung, Personalangelegenheiten, digital
-              verkörperte Informationen (Daten);
-            </Text>
+            <Text style={s.liDash}>4.</Text>
+            <Text>aktiv am Vermittlungs- und Visumverfahren mitzuwirken</Text>
           </View>
           <View style={s.liRow}>
-            <Text style={s.liDash}>•</Text>
+            <Text style={s.liDash}>5.</Text>
             <Text>
-              Jegliche Unterlagen und Informationen des Vermittlers, die
-              Gegenstand technischer und organisatorischer
-              Geheimhaltungsmaßnahmen sind und als vertraulich gekennzeichnet
-              oder nach der Art der Information oder den Umständen der
-              Übermittlung als vertraulich anzusehen sind;
-            </Text>
-          </View>
-          <View style={s.liRow}>
-            <Text style={s.liDash}>•</Text>
-            <Text>das Bestehen dieser Vereinbarung und ihr Inhalt.</Text>
-          </View>
-          <View style={s.liRow}>
-            <Text style={s.liDash}>•</Text>
-            <Text>
-              Alle Unterlagen (Informationen über Arbeitgeber, Arbeitsverträge,
-              Vorabzustimmungen, alle behördliche Unterlagen etc.), die vom
-              Vermittler an Auftraggeber zur Verfügung gestellt worden sind
+              den Vermittler unverzüglich über Vertragsangebote oder
+              Vertragsabschlüsse zu informieren
             </Text>
           </View>
         </View>
 
-        <Text style={s.h}>6. Schadens - / Aufwendungsersatz bei Abbruch</Text>
-        <Text style={s.p}>
-          Für den Fall, dass die Auftraggeber / Bewerber trotz der Zusage der
-          Arbeitsgebers und Abschluss eines Ausbildungs- /Arbeitsvertrages -
-          egal aus welchem Grund, nicht zu dem in der Stellenanforderung
-          vereinbarten Termin, nach Deutschland einreist oder
-          Vermittlungsprozess abbricht und nicht hier die Arbeit aufnimmt, ist
-          der Vermittler ab Scheitern des Vermittlungsprozesses berechtigt, die,
-          bis dahin bei ihm anfallenden Verwaltungskosten als Schadens - /
-          Aufwendungsersatz geltend zu machen. Der Auftraggeber / Bewerber
-          stimmt dieser Aufrechnung zu.
+        <Text style={sectionTitle}>
+          § 4 Internationale Rekrutierung – Risikohinweis
         </Text>
-
-        <Text style={s.h}>6. Datenschutz</Text>
-        <Text style={s.p}>
-          Personenbezogene Daten werden vertraulich behandelt und nicht an
-          Dritte weitergegeben. Mit der Weitergabe solcher personenbezogenen
-          Daten an Dritte, die im Rahmen der Verrichtung der
-          Vermittlungstätigkeit erhoben werden, ist der Auftraggeber
-          einverstanden.
-        </Text>
-
-        <Text style={s.h}>7. Vertragsänderungen / Salvatorische Klausel</Text>
-        <Text style={s.p}>
-          Änderungen und Ergänzungen dieses Vertrages bedürfen zu ihrer
-          Rechtsgültigkeit der Schriftform. Nebenabreden sind nicht getroffen.
-        </Text>
-        <Text style={s.p}>
-          Sollten einzelne Bestimmungen dieses Vertrages ganz oder teilweise
-          unwirksam oder undurchführbar sein oder werden, so berührt das den
-          Vertrag im Übrigen nicht. Anstelle der unwirksamen oder
-          undurchführbaren Bestimmung gilt eine solche als vereinbart, die dem
-          von den Parteien gewollten Zweck der unwirksamen oder undurchführbaren
-          Regelung am nächsten kommt.
-        </Text>
-
-        <Text style={s.h}>8. Gerichtsstand</Text>
-        <Text style={s.p}>
-          Der Gerichtsstand ist Namangan (Usbekistan) und Sigmaringen
-          (Deutschland).
-        </Text>
-
-        <View style={s.sigRow}>
-          <View style={s.sigTwoCol}>
-            <View style={s.sigCol}>
-              <View style={s.sigUnderline} />
-              <Text style={[s.sigTopName, { fontStyle: "italic" }]}>
-                Orif Akhmadaliev
-              </Text>
-              <Text style={s.sigLabel}>Vermittler</Text>
-              <Text style={[s.sigLabel, { textAlign: "left", marginTop: 60 }]}>
-                {candidateBirthPlace || "Geburtsort"} / {signatureDate}
-              </Text>
-            </View>
-            <View style={s.sigCol}>
-              <View style={s.sigUnderline} />
-              <Text style={[s.sigTopName, { fontStyle: "italic" }]}>
-                {fullName || "Kandidat Name"}
-              </Text>
-              <Text style={s.sigLabel}>Auftraggeber / Bewerber</Text>
-            </View>
+        <Text style={s.p}>(1) Der Bewerber ist darüber informiert, dass:</Text>
+        <View style={s.list}>
+          <View style={s.liRow}>
+            <Text style={s.liDash}>•</Text>
+            <Text>
+              Visumserteilungen ausschließlich durch staatliche Behörden
+              erfolgen
+            </Text>
           </View>
+          <View style={s.liRow}>
+            <Text style={s.liDash}>•</Text>
+            <Text>
+              Anerkennungsverfahren nicht im Einflussbereich des Vermittlers
+              liegen
+            </Text>
+          </View>
+          <View style={s.liRow}>
+            <Text style={s.liDash}>•</Text>
+            <Text>
+              gesetzliche Änderungen Einfluss auf das Verfahren haben können
+            </Text>
+          </View>
+        </View>
+        <Text style={s.p}>(2) Der Vermittler übernimmt keine Haftung für:</Text>
+        <View style={s.list}>
+          <View style={s.liRow}>
+            <Text style={s.liDash}>•</Text>
+            <Text>Ablehnung oder Verzögerung eines Visums</Text>
+          </View>
+          <View style={s.liRow}>
+            <Text style={s.liDash}>•</Text>
+            <Text>behördliche Entscheidungen</Text>
+          </View>
+          <View style={s.liRow}>
+            <Text style={s.liDash}>•</Text>
+            <Text>Änderungen gesetzlicher Vorschriften</Text>
+          </View>
+          <View style={s.liRow}>
+            <Text style={s.liDash}>•</Text>
+            <Text>Entscheidungen des Arbeitgebers</Text>
+          </View>
+        </View>
+
+        <Text style={sectionTitle}>
+          § 5 Schutzklausel bei schuldhaftem Nichtantritt („Vertragsstrafe
+          light")
+        </Text>
+        <Text style={s.p}>
+          (1) Kommt infolge der Tätigkeit des Vermittlers ein Arbeitsvertrag
+          zustande und nimmt der Bewerber diesen an, verpflichtet sich der
+          Bewerber, den Arbeitsantritt ordnungsgemäß vorzubereiten und
+          wahrzunehmen.
+        </Text>
+        <Text style={s.p}>
+          (2) Verletzt der Bewerber diese Verpflichtung schuldhaft, insbesondere
+          indem er:
+        </Text>
+        <View style={s.list}>
+          <View style={s.liRow}>
+            <Text style={s.liDash}>•</Text>
+            <Text>
+              vorsätzlich oder grob fahrlässig falsche Angaben gemacht hat
+            </Text>
+          </View>
+          <View style={s.liRow}>
+            <Text style={s.liDash}>•</Text>
+            <Text>nach Visumerteilung ohne wichtigen Grund nicht einreist</Text>
+          </View>
+          <View style={s.liRow}>
+            <Text style={s.liDash}>•</Text>
+            <Text>
+              ohne wichtigen Grund den Arbeitsantritt endgültig ablehnt
+            </Text>
+          </View>
+          <View style={s.liRow}>
+            <Text style={s.liDash}>•</Text>
+            <Text>trotz verbindlicher Zusage nicht erscheint</Text>
+          </View>
+        </View>
+        <Text style={s.p}>
+          so ist der Bewerber zur Zahlung einer Vertragsstrafe verpflichtet.
+        </Text>
+        <Text style={s.p}>
+          (3) Die Vertragsstrafe beträgt{" "}
+          <Text style={redBold}>
+            50 % einer vereinbarten Bruttomonatsvergütung
+          </Text>
+          , <Text style={redBold}>jedoch maximal 2.000 EUR</Text>.
+        </Text>
+        <Text style={s.p}>
+          (4) Ein wichtiger Grund liegt insbesondere vor bei:
+        </Text>
+        <View style={s.list}>
+          <View style={s.liRow}>
+            <Text style={s.liDash}>•</Text>
+            <Text>nachweisbarer Erkrankung</Text>
+          </View>
+          <View style={s.liRow}>
+            <Text style={s.liDash}>•</Text>
+            <Text>behördlicher Visumablehnung</Text>
+          </View>
+          <View style={s.liRow}>
+            <Text style={s.liDash}>•</Text>
+            <Text>
+              wesentlicher nachträglicher Vertragsänderung durch den Arbeitgeber
+            </Text>
+          </View>
+        </View>
+        <Text style={s.p}>
+          (5) Dem Bewerber bleibt ausdrücklich der Nachweis gestattet, dass kein
+          oder ein wesentlich geringerer Schaden entstanden ist.
+        </Text>
+        <Text style={s.p}>
+          (6) Ein weitergehender Schaden kann geltend gemacht werden; die
+          Vertragsstrafe wird angerechnet.
+        </Text>
+
+        <Text style={sectionTitle}>
+          § 6 Schutz vor Umgehung der Vermittlung (6 Monate)
+        </Text>
+        <Text style={s.p}>
+          (1) Der Bewerber ist berechtigt, sich eigenständig oder über Dritte zu
+          bewerben.
+        </Text>
+        <Text style={s.p}>
+          (2) Wird dem Bewerber durch den Vermittler ein konkreter Arbeitgeber
+          nachweislich benannt oder vorgestellt, verpflichtet sich der Bewerber,
+          für die Dauer von{" "}
+          <Text style={s.bold}>6 Monaten ab nachweislicher Benennung</Text>{" "}
+          keinen Arbeitsvertrag mit diesem Arbeitgeber ohne Mitwirkung des
+          Vermittlers abzuschließen.
+        </Text>
+        <Text style={s.p}>
+          (3) Kommt innerhalb dieses Zeitraums dennoch ein Arbeitsvertrag
+          zustande, gilt die Vermittlung als durch den Vermittler erfolgt.
+        </Text>
+        <Text style={s.p}>
+          (4) Diese Regelung gilt ausschließlich für konkret benannte
+          Arbeitgeber und stellt kein allgemeines Wettbewerbsverbot dar.
+        </Text>
+        <Text style={s.p}>
+          (5) Dem Bewerber bleibt der Nachweis gestattet, dass der Vertrag
+          unabhängig von der Tätigkeit des Vermittlers zustande gekommen ist.
+        </Text>
+      </Page>
+
+      {/* Page 2 - § 7 dan boshlanadi */}
+      <Page size="A4" style={s.page}>
+        <Text style={sectionTitle}>§ 7 Datenschutz (DSGVO)</Text>
+        <Text style={s.p}>
+          (1) Die Verarbeitung personenbezogener Daten erfolgt gemäß Art. 6 Abs.
+          1 lit. b DSGVO zur Durchführung dieses Vertrages.
+        </Text>
+        <Text style={s.p}>(2) Eine Weitergabe erfolgt ausschließlich an:</Text>
+        <View style={s.list}>
+          <View style={s.liRow}>
+            <Text style={s.liDash}>•</Text>
+            <Text>potenzielle Arbeitgeber</Text>
+          </View>
+          <View style={s.liRow}>
+            <Text style={s.liDash}>•</Text>
+            <Text>zuständige Behörden</Text>
+          </View>
+          <View style={s.liRow}>
+            <Text style={s.liDash}>•</Text>
+            <Text>Anerkennungsstellen</Text>
+          </View>
+          <View style={s.liRow}>
+            <Text style={s.liDash}>•</Text>
+            <Text>Visumstellen</Text>
+          </View>
+        </View>
+        <Text style={s.p}>
+          (3) Der Bewerber erhält eine gesonderte Datenschutzerklärung gemäß
+          Art. 13 DSGVO.
+        </Text>
+        <Text style={s.p}>
+          (4) Daten werden gelöscht, sobald sie für den Vertragszweck nicht mehr
+          erforderlich sind und keine gesetzlichen Aufbewahrungspflichten
+          bestehen.
+        </Text>
+
+        <Text style={sectionTitle}>§ 8 Vertraulichkeit</Text>
+        <Text style={s.p}>
+          (1) Arbeitgeberinformationen, Vertragsunterlagen und interne
+          Informationen sind vertraulich zu behandeln.
+        </Text>
+        <Text style={s.p}>(2) Eine Weitergabe an Dritte ist unzulässig.</Text>
+        <Text style={s.p}>
+          (3) Diese Verpflichtung gilt auch nach Vertragsende.
+        </Text>
+
+        <Text style={sectionTitle}>§ 9 Haftung</Text>
+        <Text style={s.p}>
+          (1) Der Vermittler haftet unbeschränkt bei Vorsatz und grober
+          Fahrlässigkeit.
+        </Text>
+        <Text style={s.p}>
+          (2) Bei einfacher Fahrlässigkeit haftet der Vermittler nur bei
+          Verletzung wesentlicher Vertragspflichten.
+        </Text>
+        <Text style={s.p}>
+          (3) Die Haftung für Schäden aus Verletzung von Leben, Körper oder
+          Gesundheit bleibt unberührt.
+        </Text>
+
+        <Text style={sectionTitle}>§ 10 Vertragsdauer und Kündigung</Text>
+        <Text style={s.p}>
+          (1) Der Vertrag wird auf unbestimmte Zeit geschlossen.
+        </Text>
+        <Text style={s.p}>
+          (2) Beide Parteien können jederzeit ohne Angabe von Gründen kündigen.
+        </Text>
+        <Text style={s.p}>
+          (3) Ansprüche nach § 5 und § 6 bleiben unberührt.
+        </Text>
+
+        <Text style={sectionTitle}>§ 11 Rechtswahl und Gerichtsstand</Text>
+        <Text style={s.p}>
+          (1) Es gilt das Recht der Bundesrepublik Deutschland.
+        </Text>
+        <Text style={s.p}>
+          (2) Für Verbraucher gelten die gesetzlichen Gerichtsstandsregelungen.
+        </Text>
+        <Text style={s.p}>
+          (3) Gerichtsstand für Kaufleute ist Sigmaringen.
+        </Text>
+
+        <Text style={sectionTitle}>§ 12 Schriftform</Text>
+        <Text style={s.p}>
+          Änderungen und Ergänzungen bedürfen der Textform.
+        </Text>
+
+        <Text style={sectionTitle}>§ 13 Salvatorische Klausel</Text>
+        <Text style={s.p}>
+          Sollten einzelne Bestimmungen unwirksam sein, bleibt der Vertrag im
+          Übrigen wirksam.
+        </Text>
+
+        <View style={{ marginTop: 20 }}>
+          <Text>
+            {signaturePlace}, {signatureDate}
+          </Text>
+          <Text style={{ marginTop: 14 }}>
+            Unterschrift Vermittler: ____________________________
+          </Text>
+          <Text style={{ marginTop: 10 }}>
+            Unterschrift Bewerber: ____________________________
+          </Text>
         </View>
       </Page>
     </Document>

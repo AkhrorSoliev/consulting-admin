@@ -6,30 +6,33 @@ export function getMotivationModel() {
   return configured || "gpt-4o-mini";
 }
 
-function getOpenAIApiKey() {
+function getProxyUrl() {
   const env = import.meta.env || {};
-  const key = String(env.VITE_OPENAI_API_KEY || "").trim();
-  if (!key) {
-    throw new Error("VITE_OPENAI_API_KEY not configured in .env");
+  const base = String(env.VITE_FUNCTIONS_BASE || "")
+    .trim()
+    .replace(/\/+$/, "");
+  if (!base) {
+    throw new Error("VITE_FUNCTIONS_BASE not configured in .env");
   }
-  return key;
+  return `${base}/openaiProxy`;
 }
 
 export async function callOpenAIProxy(messages, options = {}) {
   const user = auth.currentUser;
   if (!user) throw new Error("Not authenticated");
 
-  const apiKey = getOpenAIApiKey();
+  const token = await user.getIdToken();
+  const url = getProxyUrl();
 
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
-      model: options.model || "gpt-4o-mini",
       messages,
+      model: options.model || "gpt-4o-mini",
       temperature: options.temperature ?? 0.3,
       max_tokens: options.max_tokens ?? 2000,
     }),
@@ -38,12 +41,16 @@ export async function callOpenAIProxy(messages, options = {}) {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(
-      `OpenAI API error: ${errorData.error?.message || response.statusText}`,
+      `OpenAI API error: ${errorData.details || errorData.error || response.statusText}`,
     );
   }
 
-  const data = await response.json();
-  return data;
+  const result = await response.json();
+  if (!result.ok) {
+    throw new Error(`OpenAI API error: ${result.details || result.error}`);
+  }
+
+  return result.data;
 }
 
 async function correctTextWithAI(text) {
