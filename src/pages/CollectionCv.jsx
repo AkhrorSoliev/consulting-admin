@@ -14,6 +14,7 @@ import {
   FaCommentDots,
   FaEnvelope,
   FaPhone,
+  FaStar,
   FaTrash,
   FaUsers,
   FaChartLine,
@@ -39,11 +40,9 @@ import {
 } from "../utils";
 import { useUserRole } from "../hooks/useUserRole";
 import DeleteCandidateModal from "../components/DeleteCandidateModal";
-import CollapsibleSection from "../components/CollapsibleSection";
 import CandidateCard from "../components/CandidateCard";
 import {
   CANDIDATE_STATUS_DEFAULT,
-  CANDIDATE_STATUS_OPTIONS,
   getCandidateStatus,
   normalizeCandidateStatusValue,
 } from "../constants/candidateStatus";
@@ -53,6 +52,8 @@ import {
   exportFullCandidatesToExcel,
 } from "../utils/excelExport";
 import { getDocs } from "firebase/firestore";
+import { formatRatingForUi, normalizeRating } from "./generate/utils/ratingUtils";
+import CollectionFilters from "./candidates/components/CollectionFilters";
 
 function CollectionCv() {
   const { major } = useParams();
@@ -77,7 +78,8 @@ function CollectionCv() {
   const [ageFilter, setAgeFilter] = useState("all");
   const [drivingFilter, setDrivingFilter] = useState("all");
   const [langLevelFilter, setLangLevelFilter] = useState("all");
-  const [commentAuthorFilter, setCommentAuthorFilter] = useState("all");
+  const [ratingFilter, setRatingFilter] = useState("all");
+  const [reactionFilter, setReactionFilter] = useState("all");
   const { role } = useUserRole();
   const isLimitedAdmin = role === "limited_admin";
   const isSuperAdmin = role === "super_admin";
@@ -89,6 +91,47 @@ function CollectionCv() {
   const itemsPerPage = 24;
   const [exporting, setExporting] = useState(false);
   const [exportingFull, setExportingFull] = useState(false);
+
+  const filters = useMemo(
+    () => ({
+      certificate: certificateFilter,
+      experience: experienceFilter,
+      comment: commentFilter,
+      stage: stageFilter,
+      stageOutcome: stageOutcomeFilter,
+      age: ageFilter,
+      driving: drivingFilter,
+      langLevel: langLevelFilter,
+      rating: ratingFilter,
+      reaction: reactionFilter,
+    }),
+    [
+      certificateFilter,
+      experienceFilter,
+      commentFilter,
+      stageFilter,
+      stageOutcomeFilter,
+      ageFilter,
+      drivingFilter,
+      langLevelFilter,
+      ratingFilter,
+      reactionFilter,
+    ],
+  );
+
+  function setFilter(key, value) {
+    const next = String(value || "all").trim();
+    if (key === "certificate") setCertificateFilter(next);
+    else if (key === "experience") setExperienceFilter(next);
+    else if (key === "comment") setCommentFilter(next);
+    else if (key === "stage") setStageFilter(next);
+    else if (key === "stageOutcome") setStageOutcomeFilter(next);
+    else if (key === "age") setAgeFilter(next);
+    else if (key === "driving") setDrivingFilter(next);
+    else if (key === "langLevel") setLangLevelFilter(next);
+    else if (key === "rating") setRatingFilter(next);
+    else if (key === "reaction") setReactionFilter(next);
+  }
 
   function handleExportExcel() {
     if (exporting || filteredItems.length === 0) return;
@@ -297,6 +340,14 @@ function CollectionCv() {
         if (!it.langLevels.some((lv) => lv === wanted)) return false;
       }
 
+      if (ratingFilter === "with" && it.rating === null) return false;
+      if (ratingFilter === "without" && it.rating !== null) return false;
+
+      if (reactionFilter !== "all") {
+        const wantedReaction = String(reactionFilter || "").trim();
+        if (String(it.reaction || "").trim() !== wantedReaction) return false;
+      }
+
       if (tokens.length === 0) return true;
       const name = String(it.name || "").toLowerCase();
       return tokens.every((t) => name.includes(t));
@@ -313,19 +364,9 @@ function CollectionCv() {
     ageFilter,
     drivingFilter,
     langLevelFilter,
+    ratingFilter,
+    reactionFilter,
   ]);
-
-  const hasActiveFilters =
-    certificateFilter !== "all" ||
-    experienceFilter !== "all" ||
-    commentFilter !== "all" ||
-    commentAuthorFilter !== "all" ||
-    stageFilter !== "all" ||
-    stageOutcomeFilter !== "all" ||
-    ageFilter !== "all" ||
-    drivingFilter !== "all" ||
-    langLevelFilter !== "all" ||
-    Boolean(searchQuery.trim());
 
   // Pagination logic
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
@@ -347,109 +388,9 @@ function CollectionCv() {
     ageFilter,
     drivingFilter,
     langLevelFilter,
+    ratingFilter,
+    reactionFilter,
   ]);
-
-  const activeFilterCount = useMemo(() => {
-    let count = 0;
-    if (certificateFilter !== "all") count++;
-    if (experienceFilter !== "all") count++;
-    if (commentFilter !== "all") count++;
-    if (commentAuthorFilter !== "all") count++;
-    if (stageFilter !== "all") count++;
-    if (stageOutcomeFilter !== "all") count++;
-    if (ageFilter !== "all") count++;
-    if (drivingFilter !== "all") count++;
-    if (langLevelFilter !== "all") count++;
-    if (searchQuery.trim()) count++;
-    return count;
-  }, [
-    ageFilter,
-    certificateFilter,
-    commentFilter,
-    commentAuthorFilter,
-    drivingFilter,
-    experienceFilter,
-    langLevelFilter,
-    stageFilter,
-    stageOutcomeFilter,
-    searchQuery,
-  ]);
-
-  const certificateTabs = [
-    { value: "all", label: "Alle" },
-    { value: "with", label: "Zertifikat vorhanden" },
-    { value: "without", label: "Kein Zertifikat" },
-  ];
-
-  const experienceTabs = [
-    { value: "all", label: "Alle" },
-    { value: "with", label: "Erfahrung vorhanden" },
-    { value: "without", label: "Keine Erfahrung" },
-  ];
-
-  const commentTabs = [
-    { value: "all", label: "Alle" },
-    { value: "with", label: "Kommentar vorhanden" },
-    { value: "without", label: "Kein Kommentar" },
-  ];
-
-  const stageTabs = [
-    { value: "all", label: "Alle" },
-    ...CANDIDATE_STATUS_OPTIONS.map((opt) => ({
-      value: opt.value,
-      label: opt.label,
-    })),
-  ];
-
-  const stageOutcomeTabs = [
-    { value: "all", label: "Alle" },
-    { value: "stage_1:accepted", label: "Stufe 1: angenommen" },
-    { value: "stage_1:rejected", label: "Stufe 1: abgelehnt" },
-    { value: "stage_2:accepted", label: "Stufe 2: angenommen" },
-    { value: "stage_2:rejected", label: "Stufe 2: abgelehnt" },
-    { value: "stage_2_result:accepted", label: "Stufe 2 Ergebnis: angenommen" },
-    { value: "stage_2_result:rejected", label: "Stufe 2 Ergebnis: abgelehnt" },
-    { value: "stage_3:accepted", label: "Stufe 3: angenommen" },
-    { value: "stage_3:rejected", label: "Stufe 3: abgelehnt" },
-    { value: "stage_4:accepted", label: "Arbeitgeber: angenommen" },
-    { value: "stage_4:rejected", label: "Arbeitgeber: abgelehnt" },
-  ];
-
-  const ageTabs = [
-    { value: "all", label: "Alle Altersgruppen" },
-    { value: "18_25", label: "18-25" },
-    { value: "26_35", label: "26-35" },
-    { value: "36_45", label: "36-45" },
-    { value: "46_plus", label: "46+" },
-  ];
-
-  const ageFilterLabel =
-    ageTabs.find((t) => t.value === ageFilter)?.label || "Alle";
-
-  const drivingTabs = [
-    { value: "all", label: "Alle" },
-    { value: "with", label: "Führerschein vorhanden" },
-    { value: "without", label: "Kein Führerschein" },
-  ];
-
-  const langLevelTabs = [
-    { value: "all", label: "Alle" },
-    { value: "A1", label: "A1" },
-    { value: "A2", label: "A2" },
-    { value: "B1", label: "B1" },
-    { value: "B2", label: "B2" },
-    { value: "C1", label: "C1" },
-    { value: "C2", label: "C2" },
-  ];
-
-  const uniqueCommentAuthors = useMemo(() => {
-    const authors = new Set();
-    items.forEach((item) => {
-      const name = String(item.commentUpdatedByName || "").trim();
-      if (name) authors.add(name);
-    });
-    return Array.from(authors).sort((a, b) => a.localeCompare(b, "de"));
-  }, [items]);
 
   const statistics = useMemo(() => {
     if (!items.length) return null;
@@ -488,142 +429,6 @@ function CollectionCv() {
       .sort((a, b) => b.count - a.count);
     return { leadList, telegramCount, total: items.length };
   }, [items]);
-
-  const activeFilterBadges = useMemo(() => {
-    const badges = [];
-
-    if (searchQuery.trim()) {
-      badges.push({
-        key: "search",
-        label: `Suche: ${searchQuery.trim()}`,
-        onClear: () => setSearchQuery(""),
-      });
-    }
-
-    if (certificateFilter !== "all") {
-      const label =
-        certificateTabs.find((t) => t.value === certificateFilter)?.label ||
-        certificateFilter;
-      badges.push({
-        key: "certificate",
-        label: `Zertifikat: ${label}`,
-        onClear: () => setCertificateFilter("all"),
-      });
-    }
-
-    if (experienceFilter !== "all") {
-      const label =
-        experienceTabs.find((t) => t.value === experienceFilter)?.label ||
-        experienceFilter;
-      badges.push({
-        key: "experience",
-        label: `Erfahrung: ${label}`,
-        onClear: () => setExperienceFilter("all"),
-      });
-    }
-
-    if (commentFilter !== "all") {
-      const label =
-        commentTabs.find((t) => t.value === commentFilter)?.label ||
-        commentFilter;
-      badges.push({
-        key: "comment",
-        label: `Kommentar: ${label}`,
-        onClear: () => setCommentFilter("all"),
-      });
-    }
-
-    if (stageFilter !== "all") {
-      const label =
-        stageTabs.find((t) => t.value === stageFilter)?.label || stageFilter;
-      badges.push({
-        key: "stage",
-        label: `Stufe: ${label}`,
-        onClear: () => setStageFilter("all"),
-      });
-    }
-
-    if (stageOutcomeFilter !== "all") {
-      const label =
-        stageOutcomeTabs.find((t) => t.value === stageOutcomeFilter)?.label ||
-        stageOutcomeFilter;
-      badges.push({
-        key: "stageOutcome",
-        label: `Ergebnis: ${label}`,
-        onClear: () => setStageOutcomeFilter("all"),
-      });
-    }
-
-    if (ageFilter !== "all") {
-      const label =
-        ageTabs.find((t) => t.value === ageFilter)?.label || ageFilter;
-      badges.push({
-        key: "age",
-        label: `Alter: ${label}`,
-        onClear: () => setAgeFilter("all"),
-      });
-    }
-
-    if (drivingFilter !== "all") {
-      const label =
-        drivingTabs.find((t) => t.value === drivingFilter)?.label ||
-        drivingFilter;
-      badges.push({
-        key: "driving",
-        label: `Führerschein: ${label}`,
-        onClear: () => setDrivingFilter("all"),
-      });
-    }
-
-    if (langLevelFilter !== "all") {
-      const label =
-        langLevelTabs.find((t) => t.value === langLevelFilter)?.label ||
-        langLevelFilter;
-      badges.push({
-        key: "langLevel",
-        label: `Sprache: ${label}`,
-        onClear: () => setLangLevelFilter("all"),
-      });
-    }
-
-    if (commentAuthorFilter !== "all") {
-      badges.push({
-        key: "commentAuthor",
-        label: `Kommentar von: ${commentAuthorFilter}`,
-        onClear: () => setCommentAuthorFilter("all"),
-      });
-    }
-
-    return badges;
-  }, [
-    ageFilter,
-    certificateFilter,
-    certificateTabs,
-    commentFilter,
-    commentTabs,
-    drivingFilter,
-    drivingTabs,
-    experienceFilter,
-    experienceTabs,
-    langLevelFilter,
-    langLevelTabs,
-    commentAuthorFilter,
-    searchQuery,
-    stageFilter,
-    stageOutcomeFilter,
-    stageOutcomeTabs,
-    stageTabs,
-  ]);
-
-  const tabClass = (active) =>
-    active
-      ? "tab tab-active tab-sm whitespace-nowrap"
-      : "tab tab-sm whitespace-nowrap";
-
-  const chipClass = (active) =>
-    active
-      ? "btn btn-sm btn-primary gap-2"
-      : "btn btn-sm btn-ghost gap-2 hover:bg-base-200";
 
   useEffect(() => {
     const key = String(major || "").trim();
@@ -765,6 +570,7 @@ function CollectionCv() {
             }
           }
           const reaction = data?.reaction || null;
+          const rating = normalizeRating(data?.rating);
           const statusUpdatedBy = data?.status?.updatedBy || "";
           const emailLastSentBy = emailMeta?.lastSentBy || "";
           const commentUpdatedBy = commentMeta?.updatedBy || "";
@@ -804,6 +610,7 @@ function CollectionCv() {
             telegramId: data.telegramId || null,
             lead: data.lead || null,
             reaction,
+            rating,
             documentReady: data.documentReady || false,
             isDocumentSend: data.isDocumentSend || false,
           };
@@ -1280,264 +1087,12 @@ function CollectionCv() {
           </div>
         )}
 
-        <div className="mb-6">
-          {activeFilterBadges.length > 0 ? (
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <span className="text-xs font-semibold uppercase text-base-content/60 shrink-0">
-                Filter:
-              </span>
-              <div className="flex flex-wrap gap-1 sm:gap-2">
-                {activeFilterBadges.map((b) => (
-                  <button
-                    key={b.key}
-                    type="button"
-                    className="badge badge-outline gap-1 py-2 px-2 sm:py-3 sm:px-3 cursor-pointer hover:bg-base-200 text-xs sm:text-sm"
-                    title="Filter entfernen"
-                    onClick={b.onClear}
-                  >
-                    <span className="truncate max-w-[120px] sm:max-w-[200px] md:max-w-60 lg:max-w-80">
-                      {b.label}
-                    </span>
-                    <span aria-hidden="true" className="text-xs sm:text-base">
-                      ×
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
-          <CollapsibleSection
-            title="Filter"
-            defaultOpen={false}
-            className="shadow-md border-base-300/60"
-            meta={`${activeFilterCount} aktiv`}
-          >
-            <div className="p-3 sm:p-4 space-y-4 sm:space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold">
-                    Schnellauswahl nach Zertifikat, Erfahrung und Alter.
-                  </p>
-                  <p className="text-xs text-base-content/60">
-                    Auch nach Führerschein und Sprachniveau filtern.
-                  </p>
-                </div>
-                {hasActiveFilters ? (
-                  <button
-                    type="button"
-                    className="btn btn-xs btn-outline mt-2 sm:mt-0"
-                    onClick={() => {
-                      setCertificateFilter("all");
-                      setExperienceFilter("all");
-                      setCommentFilter("all");
-                      setCommentAuthorFilter("all");
-                      setStageFilter("all");
-                      setStageOutcomeFilter("all");
-                      setAgeFilter("all");
-                      setDrivingFilter("all");
-                      setLangLevelFilter("all");
-                      setSearchQuery("");
-                    }}
-                  >
-                    Filter zurücksetzen
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="badge badge-ghost mt-2 sm:mt-0 cursor-pointer hover:bg-base-200 transition-colors"
-                    onClick={() => {
-                      setCertificateFilter("all");
-                      setExperienceFilter("all");
-                      setCommentFilter("all");
-                      setCommentAuthorFilter("all");
-                      setStageFilter("all");
-                      setStageOutcomeFilter("all");
-                      setAgeFilter("all");
-                      setDrivingFilter("all");
-                      setLangLevelFilter("all");
-                      setSearchQuery("");
-                    }}
-                    title="Alle Filter aktivieren"
-                  >
-                    Keine Filter
-                  </button>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <span className="text-xs font-semibold uppercase text-base-content/60 block">
-                      Zertifikat:
-                    </span>
-                    <div className="flex flex-wrap gap-1 sm:gap-2">
-                      {certificateTabs.map((tab) => (
-                        <button
-                          key={tab.value}
-                          className={`text-xs sm:text-sm ${chipClass(
-                            certificateFilter === tab.value,
-                          )}`}
-                          onClick={() => setCertificateFilter(tab.value)}
-                          type="button"
-                        >
-                          {certificateFilter === tab.value ? "●" : "○"}{" "}
-                          {tab.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <span className="text-xs font-semibold uppercase text-base-content/60 block">
-                      Erfahrung:
-                    </span>
-                    <div className="flex flex-wrap gap-1 sm:gap-2">
-                      {experienceTabs.map((tab) => (
-                        <button
-                          key={tab.value}
-                          className={`text-xs sm:text-sm ${chipClass(
-                            experienceFilter === tab.value,
-                          )}`}
-                          onClick={() => setExperienceFilter(tab.value)}
-                          type="button"
-                        >
-                          {experienceFilter === tab.value ? "●" : "○"}{" "}
-                          {tab.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <span className="text-xs font-semibold uppercase text-base-content/60 block">
-                      Kommentar:
-                    </span>
-                    <div className="flex flex-wrap gap-1 sm:gap-2">
-                      {commentTabs.map((tab) => (
-                        <button
-                          key={tab.value}
-                          className={`text-xs sm:text-sm ${chipClass(
-                            commentFilter === tab.value,
-                          )}`}
-                          onClick={() => setCommentFilter(tab.value)}
-                          type="button"
-                        >
-                          {commentFilter === tab.value ? "●" : "○"} {tab.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <span className="text-xs font-semibold uppercase text-base-content/60 block">
-                      Stufe:
-                    </span>
-                    <div className="flex flex-wrap gap-1 sm:gap-2">
-                      {stageTabs.map((tab) => (
-                        <button
-                          key={tab.value}
-                          className={`text-xs sm:text-sm ${chipClass(
-                            stageFilter === tab.value,
-                          )}`}
-                          onClick={() => setStageFilter(tab.value)}
-                          type="button"
-                        >
-                          {stageFilter === tab.value ? "●" : "○"} {tab.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <span className="text-xs font-semibold uppercase text-base-content/60 block">
-                      Ergebnis:
-                    </span>
-                    <div className="flex flex-wrap gap-1 sm:gap-2">
-                      {stageOutcomeTabs.map((tab) => (
-                        <button
-                          key={tab.value}
-                          className={`text-xs sm:text-sm ${chipClass(
-                            stageOutcomeFilter === tab.value,
-                          )}`}
-                          onClick={() => setStageOutcomeFilter(tab.value)}
-                          type="button"
-                        >
-                          {stageOutcomeFilter === tab.value ? "●" : "○"}{" "}
-                          {tab.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="space-y-2">
-                    <span className="text-xs font-semibold uppercase text-base-content/60 block">
-                      Alter:
-                    </span>
-                    <div className="flex flex-wrap gap-1 sm:gap-2">
-                      {ageTabs.map((tab) => (
-                        <button
-                          key={tab.value}
-                          className={`text-xs sm:text-sm ${chipClass(
-                            ageFilter === tab.value,
-                          )}`}
-                          onClick={() => setAgeFilter(tab.value)}
-                          type="button"
-                        >
-                          {ageFilter === tab.value ? "●" : "○"} {tab.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <span className="text-xs font-semibold uppercase text-base-content/60 block">
-                      Führerschein:
-                    </span>
-                    <div className="flex flex-wrap gap-1 sm:gap-2">
-                      {drivingTabs.map((tab) => (
-                        <button
-                          key={tab.value}
-                          className={`text-xs sm:text-sm ${chipClass(
-                            drivingFilter === tab.value,
-                          )}`}
-                          onClick={() => setDrivingFilter(tab.value)}
-                          type="button"
-                        >
-                          {drivingFilter === tab.value ? "●" : "○"} {tab.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <span className="text-xs font-semibold uppercase text-base-content/60 block">
-                      Sprachniveau:
-                    </span>
-                    <div className="flex flex-wrap gap-1 sm:gap-2">
-                      {langLevelTabs.map((tab) => (
-                        <button
-                          key={tab.value}
-                          className={`text-xs sm:text-sm ${chipClass(
-                            langLevelFilter === tab.value,
-                          )}`}
-                          onClick={() => setLangLevelFilter(tab.value)}
-                          type="button"
-                        >
-                          {langLevelFilter === tab.value ? "●" : "○"}{" "}
-                          {tab.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CollapsibleSection>
-        </div>
+        <CollectionFilters
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          filters={filters}
+          setFilter={setFilter}
+        />
 
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-6">
@@ -1691,6 +1246,17 @@ function CollectionCv() {
                       footer={
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
+                            {item.rating !== null ? (
+                              <div
+                                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-base-300/60 bg-base-100/60"
+                                title={`Bewertung: ${formatRatingForUi(item.rating)}`}
+                              >
+                                <FaStar className="shrink-0 w-4 h-4 text-warning" />
+                                <span className="tabular-nums text-sm font-semibold">
+                                  {formatRatingForUi(item.rating)}
+                                </span>
+                              </div>
+                            ) : null}
                             <div
                               className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-base-300/60 bg-base-100/60"
                               title={
