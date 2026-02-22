@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import {
   doc,
   getDoc,
   updateDoc,
-  setDoc,
   collection,
   getDocs,
   onSnapshot,
@@ -39,48 +38,34 @@ function DataExchange() {
 
     const findCandidate = async () => {
       try {
-        // Step 1: Try to get collection name from metadata
+        // Step 1: Try to get collection name from candidate_metadata
         const metadataRef = doc(db, "candidate_metadata", id);
         const metadataSnap = await getDoc(metadataRef);
 
         let collectionName = null;
 
         if (metadataSnap.exists()) {
-          // Metadata found - use it
           const metadata = metadataSnap.data();
           collectionName = metadata.collectionName;
-          // Check if delete is allowed (default to true if not set)
           setAllowDelete(metadata.allowIncomingDelete !== false);
         } else {
           // Fallback: Get all collections from meta and search
           try {
             const metaSnapshot = await getDocs(collection(db, "meta"));
             const collections = metaSnapshot.docs
-              .map((doc) => doc.data()?.collectionName || doc.id)
+              .map((d) => d.data()?.collectionName || d.id)
               .filter((name) => name);
 
             for (const col of collections) {
               try {
                 const candidateRef = doc(db, col, id);
                 const candidateSnap = await getDoc(candidateRef);
-
                 if (candidateSnap.exists()) {
                   collectionName = col;
-
-                  // Create metadata for future use
-                  try {
-                    await setDoc(metadataRef, {
-                      collectionName: col,
-                      updatedAt: Date.now(),
-                      createdViaFallback: true,
-                    });
-                  } catch (metaErr) {
-                    // Metadata creation failed - not critical
-                  }
                   break;
                 }
               } catch (err) {
-                // Collection check failed - continue to next
+                // Continue to next collection
               }
             }
           } catch (metaError) {
@@ -97,22 +82,12 @@ function DataExchange() {
               try {
                 const candidateRef = doc(db, col, id);
                 const candidateSnap = await getDoc(candidateRef);
-
                 if (candidateSnap.exists()) {
                   collectionName = col;
-                  try {
-                    await setDoc(metadataRef, {
-                      collectionName: col,
-                      updatedAt: Date.now(),
-                      createdViaFallback: true,
-                    });
-                  } catch (metaErr) {
-                    // Metadata creation failed - not critical
-                  }
                   break;
                 }
               } catch (err) {
-                // Collection check failed - continue to next
+                // Continue to next collection
               }
             }
           }
@@ -145,12 +120,6 @@ function DataExchange() {
           collectionName,
         };
 
-        console.log(
-          "Candidate name:",
-          simplifiedData.name,
-          simplifiedData.lastName
-        );
-
         setCandidateData(simplifiedData);
         setOutgoingDocs(data.outgoingDocuments || {});
         setIncomingDocs(data.incomingDocuments || {});
@@ -169,12 +138,22 @@ function DataExchange() {
   useEffect(() => {
     if (!id) return;
     const metadataRef = doc(db, "candidate_metadata", id);
-    const unsubscribe = onSnapshot(metadataRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const metadata = snapshot.data();
-        setAllowDelete(metadata.allowIncomingDelete !== false);
-      }
-    });
+    const unsubscribe = onSnapshot(
+      metadataRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          const metadata = snapshot.data();
+          setAllowDelete(metadata.allowIncomingDelete !== false);
+        }
+      },
+      (error) => {
+        // Silently ignore permission errors for public access
+        console.log(
+          "[DataExchange] onSnapshot error (ignored):",
+          error.message,
+        );
+      },
+    );
     return () => unsubscribe();
   }, [id]);
 
@@ -183,6 +162,13 @@ function DataExchange() {
 
     if (file.type !== "application/pdf") {
       toast.error("Faqat PDF fayllariga ruxsat berilgan.");
+      return;
+    }
+
+    // 2MB limit
+    const MAX_FILE_SIZE = 2 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error("Fayl hajmi 2MB dan oshmasligi kerak.");
       return;
     }
 
@@ -253,7 +239,7 @@ function DataExchange() {
 
       // Use Firebase Cloud Function proxy to download with proper headers
       const proxyUrl = `https://us-central1-consulting-bdb74.cloudfunctions.net/downloadProxy?url=${encodeURIComponent(
-        url
+        url,
       )}&filename=${encodeURIComponent(fileName || "document.pdf")}`;
 
       // Fetch through proxy
@@ -330,7 +316,7 @@ function DataExchange() {
   }`.trim();
 
   const outgoingEntries = Object.entries(outgoingDocs).filter(
-    ([, v]) => v && typeof v === "object" && String(v?.url || "").trim()
+    ([, v]) => v && typeof v === "object" && String(v?.url || "").trim(),
   );
 
   return (
@@ -439,7 +425,7 @@ function DataExchange() {
                               </p>
                               <p className="text-xs text-base-content/60 mt-1">
                                 {new Date(
-                                  incomingDoc.uploadedAt
+                                  incomingDoc.uploadedAt,
                                 ).toLocaleString("uz-UZ")}
                               </p>
                             </div>
@@ -450,7 +436,7 @@ function DataExchange() {
                                 onClick={() =>
                                   handleDownload(
                                     incomingDoc.url,
-                                    incomingDoc.fileName
+                                    incomingDoc.fileName,
                                   )
                                 }
                                 title="Yuklab olish"
@@ -478,7 +464,11 @@ function DataExchange() {
                                 className="btn btn-sm btn-error gap-1 flex-1 sm:flex-none min-h-[2.5rem]"
                                 onClick={() => handleFileDelete(docId)}
                                 disabled={isDeleting || !allowDelete}
-                                title={allowDelete ? "O'chirish" : "O'chirish taqiqlangan"}
+                                title={
+                                  allowDelete
+                                    ? "O'chirish"
+                                    : "O'chirish taqiqlangan"
+                                }
                               >
                                 {isDeleting ? (
                                   <span className="loading loading-spinner loading-xs"></span>

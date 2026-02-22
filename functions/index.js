@@ -28,11 +28,14 @@ const TELEGRAM_BOT_TOKEN = defineSecret("TELEGRAM_BOT_TOKEN");
 // Store via: firebase functions:secrets:set RECAPTCHA_SECRET_KEY
 // Used to protect public endpoints (Create form) from abuse.
 const RECAPTCHA_SECRET_KEY = defineSecret("RECAPTCHA_SECRET_KEY");
+// Store via: firebase functions:secrets:set OPENAI_API_KEY
+// Used for AI text correction features.
+const OPENAI_API_KEY = defineSecret("OPENAI_API_KEY");
 
 const REMOTE_API_BASE = "https://json-api.uz/api/project/consultinguz";
 const REMOTE_ALL_USERS = `${REMOTE_API_BASE}/all_users`;
 const BREVO_EMAIL_URL =
-  "https://brevo-project-production.up.railway.app/send-email";
+  "https://consultinguz-email-system-production.up.railway.app";
 const EMAIL_AND_PASSID_COLLECTION = "email_and_passId";
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
@@ -88,7 +91,7 @@ function setCors(req, res) {
   res.set("Access-Control-Allow-Headers", "Content-Type, Range, Authorization");
   res.set(
     "Access-Control-Expose-Headers",
-    "Content-Type, Content-Length, Content-Range, Accept-Ranges"
+    "Content-Type, Content-Length, Content-Range, Accept-Ranges",
   );
 }
 
@@ -112,7 +115,7 @@ async function verifyRecaptchaV2({ token, secret }) {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: params.toString(),
     },
-    8000
+    8000,
   );
   if (!resp.ok) return { ok: false, reason: "upstream-failed" };
   const json = await resp.json().catch(() => ({}));
@@ -162,7 +165,7 @@ function signCheckRegistrySession({ secret, ttlMs = 10 * 60 * 1000 } = {}) {
   };
   const body = base64UrlEncode(JSON.stringify(payload));
   const sig = base64UrlEncode(
-    crypto.createHmac("sha256", s).update(body).digest()
+    crypto.createHmac("sha256", s).update(body).digest(),
   );
   return `${body}.${sig}`;
 }
@@ -176,7 +179,7 @@ function verifyCheckRegistrySession({ token, secret }) {
   const [body, sig] = parts;
   if (!body || !sig) return { ok: false, reason: "invalid-format" };
   const expected = base64UrlEncode(
-    crypto.createHmac("sha256", s).update(body).digest()
+    crypto.createHmac("sha256", s).update(body).digest(),
   );
   if (!safeTimingEqual(sig, expected)) return { ok: false, reason: "bad-sig" };
   const jsonText = base64UrlDecodeToString(body);
@@ -511,7 +514,7 @@ exports.generateInvite = onRequest(
               linksGeneratedLastAt:
                 admin.firestore.FieldValue.serverTimestamp(),
             },
-            { merge: true }
+            { merge: true },
           );
       } catch (e) {
         // Don't fail the invite generation if stats update fails.
@@ -547,7 +550,7 @@ exports.generateInvite = onRequest(
         .status(status)
         .json({ ok: false, error: code, details: details || undefined });
     }
-  }
+  },
 );
 
 // POST /generateChannelInvite
@@ -577,7 +580,10 @@ exports.generateChannelInvite = onRequest(
         return res.status(400).json({ ok: false, error: "missing-channelId" });
       }
 
-      const snap = await db.collection("telegram_channels").doc(channelId).get();
+      const snap = await db
+        .collection("telegram_channels")
+        .doc(channelId)
+        .get();
       if (!snap.exists) {
         return res.status(404).json({ ok: false, error: "channel-not-found" });
       }
@@ -618,7 +624,7 @@ exports.generateChannelInvite = onRequest(
               linksGeneratedLastAt:
                 admin.firestore.FieldValue.serverTimestamp(),
             },
-            { merge: true }
+            { merge: true },
           );
       } catch (e) {
         logger.warn("generateChannelInvite stats update failed", {
@@ -651,7 +657,7 @@ exports.generateChannelInvite = onRequest(
         .status(status)
         .json({ ok: false, error: code, details: details || undefined });
     }
-  }
+  },
 );
 
 // POST /trackInviteSent
@@ -697,7 +703,7 @@ exports.trackInviteSent = onRequest(async (req, res) => {
         linksDispatchedCount: admin.firestore.FieldValue.increment(count),
         linksDispatchedLastAt: admin.firestore.FieldValue.serverTimestamp(),
       },
-      { merge: true }
+      { merge: true },
     );
 
     return res.status(200).json({ ok: true });
@@ -788,7 +794,7 @@ exports.telegramGroupsFromUpdates = onRequest(
         details: typeof details === "object" ? details : String(details),
       });
     }
-  }
+  },
 );
 
 // POST /removeTelegramGroupMember
@@ -851,7 +857,7 @@ exports.removeTelegramGroupMember = onRequest(
         .status(status)
         .json({ ok: false, error: code, details: details || undefined });
     }
-  }
+  },
 );
 
 // GET /getTelegramGroupMembers?groupId=xxx
@@ -909,7 +915,7 @@ exports.getTelegramGroupMembers = onRequest(
             : String(err?.details || ""),
       });
     }
-  }
+  },
 );
 
 // POST /removeUserFromTelegramGroups
@@ -944,8 +950,8 @@ exports.removeUserFromTelegramGroups = onRequest(
       const callerEmail = decoded?.email || decoded?.uid || "unknown";
       const callerIp = req.headers["x-forwarded-for"] || req.ip || "unknown";
       const userAgent = req.headers["user-agent"] || "unknown";
-      
-      logger.info("Removing user from all Telegram groups", { 
+
+      logger.info("Removing user from all Telegram groups", {
         telegramId,
         callerEmail,
         callerIp,
@@ -984,7 +990,7 @@ exports.removeUserFromTelegramGroups = onRequest(
             : String(err?.details || ""),
       });
     }
-  }
+  },
 );
 
 function findLead(meta, leadParam) {
@@ -1020,7 +1026,7 @@ async function upsertRemoteAllUsers({ firebaseId, major, payload }) {
     return Promise.race([
       fetch(url, options),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error("fetch-timeout")), TIMEOUT_MS)
+        setTimeout(() => reject(new Error("fetch-timeout")), TIMEOUT_MS),
       ),
     ]);
   };
@@ -1030,7 +1036,7 @@ async function upsertRemoteAllUsers({ firebaseId, major, payload }) {
     const check = await fetchWithTimeout(
       `${REMOTE_ALL_USERS}?firebaseId=${encodeURIComponent(safeId)}`,
       { method: "GET" },
-      4000
+      4000,
     );
     if (check.ok) {
       const json = await safeJson(check);
@@ -1153,7 +1159,7 @@ async function sendCandidateEmail({ to, subject, text }) {
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     const e = new Error(
-      `Brevo email sending failed (${response.status}): ${text || "no detail"}`
+      `Brevo email sending failed (${response.status}): ${text || "no detail"}`,
     );
     e.code = "brevo-send-failed";
     e.status = response.status;
@@ -1326,7 +1332,7 @@ exports.syncEmailAndPassIdRegistry = onDocumentWritten(
                   email: safeEmail,
                   major: collectionId,
                   docId: docId,
-                }
+                },
               );
             }
           });
@@ -1375,7 +1381,7 @@ exports.syncEmailAndPassIdRegistry = onDocumentWritten(
       logger.error("syncEmailAndPassIdRegistry failed", e);
       // Never block candidate writes; this is a background sync.
     }
-  }
+  },
 );
 
 // POST /submitCandidate
@@ -1652,7 +1658,7 @@ exports.submitCandidate = onRequest(
             botToken,
             chatId: safeTelegramId,
             text: confirmationText,
-          })
+          }),
         );
       }
       // Send email via Brevo Railway service
@@ -1662,7 +1668,7 @@ exports.submitCandidate = onRequest(
             to: safeEmail,
             subject: "✅ Arizangiz qabul qilindi",
             text: confirmationText,
-          })
+          }),
         );
       }
 
@@ -1689,7 +1695,7 @@ exports.submitCandidate = onRequest(
         .status(500)
         .json({ ok: false, error: "internal", details: err.message });
     }
-  }
+  },
 );
 
 exports.syncRemoteAllUsers = onDocumentWritten(
@@ -1718,7 +1724,7 @@ exports.syncRemoteAllUsers = onDocumentWritten(
       logger.error("syncRemoteAllUsers failed", e);
       // Never block Firestore writes; this is a background sync.
     }
-  }
+  },
 );
 
 // ---- Callable (super_admin only) user management ----
@@ -1770,7 +1776,7 @@ exports.createUser = onCall(async (request) => {
   if (password.trim().length < 6)
     throw new HttpsError(
       "invalid-argument",
-      "password must be at least 6 chars"
+      "password must be at least 6 chars",
     );
 
   const user = await admin
@@ -1813,7 +1819,7 @@ exports.setUserPassword = onCall(async (request) => {
   if (password.trim().length < 6)
     throw new HttpsError(
       "invalid-argument",
-      "password must be at least 6 chars"
+      "password must be at least 6 chars",
     );
   await admin.auth().updateUser(uid, { password });
   return { ok: true, uid };
@@ -1828,7 +1834,7 @@ exports.setUserRole = onCall(async (request) => {
   if (!allowed.has(role)) {
     throw new HttpsError(
       "invalid-argument",
-      "role must be one of: user, admin, limited_admin"
+      "role must be one of: user, admin, limited_admin",
     );
   }
   await admin.auth().setCustomUserClaims(uid, { role });
@@ -1871,7 +1877,7 @@ exports.telegramBotWebhook = onRequest(
         });
       }
     }
-  }
+  },
 );
 
 // Admin: Send one-time invite link to a specific candidate
@@ -1888,7 +1894,7 @@ exports.sendInviteToCandidate = onCall(
     if (!candidateId || !collectionName || !groupId) {
       throw new HttpsError(
         "invalid-argument",
-        "Missing candidateId, collectionName, or groupId"
+        "Missing candidateId, collectionName, or groupId",
       );
     }
 
@@ -1904,7 +1910,7 @@ exports.sendInviteToCandidate = onCall(
     if (!telegramChatId) {
       throw new HttpsError(
         "failed-precondition",
-        "Bu kandidat Telegram orqali ro‘yxatdan o‘tmagan (Chat ID yo‘q)."
+        "Bu kandidat Telegram orqali ro‘yxatdan o‘tmagan (Chat ID yo‘q).",
       );
     }
 
@@ -1934,7 +1940,7 @@ exports.sendInviteToCandidate = onCall(
       logger.error("Invite generation failed:", e);
       throw new HttpsError(
         "internal",
-        "invite-generation-failed: " + e.message
+        "invite-generation-failed: " + e.message,
       );
     }
 
@@ -1942,7 +1948,7 @@ exports.sendInviteToCandidate = onCall(
     try {
       await bot.telegram.sendMessage(
         telegramChatId,
-        `🎉 Sizning arizangiz qabul qilindi!\n\nQuyidagi link orqali guruhga qo‘shilishingiz mumkin (Link faqat 1 marta ishlaydi):\n${inviteLink}`
+        `🎉 Sizning arizangiz qabul qilindi!\n\nQuyidagi link orqali guruhga qo‘shilishingiz mumkin (Link faqat 1 marta ishlaydi):\n${inviteLink}`,
       );
     } catch (e) {
       logger.error("Sending message to user failed:", e);
@@ -1950,12 +1956,12 @@ exports.sendInviteToCandidate = onCall(
         "unavailable",
         "Link yaratildi, lekin foydalanuvchiga yuborishda xatolik: " +
           e.message,
-        { inviteLink }
+        { inviteLink },
       );
     }
 
     return { ok: true, sent: true };
-  }
+  },
 );
 
 // Admin: Kick (Ban/Unban) a candidate from a group
@@ -1998,7 +2004,7 @@ exports.kickCandidate = onCall(
     }
 
     return { ok: true, kicked: true };
-  }
+  },
 );
 
 // POST /sendTelegramMessage
@@ -2075,7 +2081,7 @@ exports.sendTelegramMessage = onRequest(
         .status(status)
         .json({ ok: false, error: code, details: details || undefined });
     }
-  }
+  },
 );
 
 // DEBUG: Check Majors
@@ -2097,37 +2103,39 @@ exports.countState1Candidates = onRequest(async (req, res) => {
   try {
     setCors(req, res);
     if (req.method === "OPTIONS") return res.status(204).send("");
-    
+
     // Get all directions from meta collection
     const metaSnap = await db.collection("meta").get();
-    
+
     if (metaSnap.empty) {
       return res.json({ ok: false, error: "No directions found in meta" });
     }
-    
+
     const results = [];
     let totalState1 = 0;
-    
+
     for (const metaDoc of metaSnap.docs) {
       const metaData = metaDoc.data();
-      const collectionName = metaData.collectionName || metaData.slug || metaDoc.id;
+      const collectionName =
+        metaData.collectionName || metaData.slug || metaDoc.id;
       const title = metaData.title || collectionName;
       const isDeleted = metaData.isDeleted === true;
-      
+
       if (!collectionName) continue;
-      
+
       try {
         // Count candidates with stepValue = "stage_1"
-        const state1Snap = await db.collection(collectionName)
+        const state1Snap = await db
+          .collection(collectionName)
           .where("stepValue", "==", "stage_1")
           .get();
-        
+
         const state1Count = state1Snap.size;
-        
+
         // Also get total count
         const totalSnap = await db.collection(collectionName).get();
         const totalCount = totalSnap.size;
-        
+
         results.push({
           collectionName,
           title,
@@ -2135,10 +2143,12 @@ exports.countState1Candidates = onRequest(async (req, res) => {
           state1Count,
           totalCount,
         });
-        
+
         totalState1 += state1Count;
-        
-        logger.info(`${collectionName}: state_1=${state1Count}, total=${totalCount}`);
+
+        logger.info(
+          `${collectionName}: state_1=${state1Count}, total=${totalCount}`,
+        );
       } catch (err) {
         results.push({
           collectionName,
@@ -2148,10 +2158,10 @@ exports.countState1Candidates = onRequest(async (req, res) => {
         });
       }
     }
-    
+
     // Sort by state_1 count descending
     results.sort((a, b) => (b.state1Count || 0) - (a.state1Count || 0));
-    
+
     return res.json({
       ok: true,
       totalDirections: metaSnap.size,
@@ -2163,3 +2173,78 @@ exports.countState1Candidates = onRequest(async (req, res) => {
     return res.status(500).json({ ok: false, error: err.message });
   }
 });
+
+// POST /openaiProxy
+// Body: { messages: array, model?: string, temperature?: number, max_tokens?: number }
+// Proxy for OpenAI API to bypass CORS restrictions
+// Auth: admin or super_admin
+exports.openaiProxy = onRequest(
+  { secrets: [OPENAI_API_KEY], timeoutSeconds: 60 },
+  async (req, res) => {
+    try {
+      setCors(req, res);
+      if (req.method === "OPTIONS") return res.status(204).send("");
+      if (req.method !== "POST") {
+        return res.status(405).json({ ok: false, error: "method-not-allowed" });
+      }
+
+      // Auth (admin-only)
+      const decoded = await verifyFirebaseIdToken(req);
+      assertAdminLikeClaims(decoded);
+
+      const apiKey = String(OPENAI_API_KEY.value() || "").trim();
+      if (!apiKey) {
+        return res.status(500).json({ ok: false, error: "openai-key-missing" });
+      }
+
+      const { messages, model, temperature, max_tokens } = req.body || {};
+
+      if (!Array.isArray(messages) || messages.length === 0) {
+        return res.status(400).json({ ok: false, error: "missing-messages" });
+      }
+
+      const response = await fetch(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify({
+            model: model || "gpt-4o-mini",
+            messages,
+            temperature: temperature ?? 0.3,
+            max_tokens: max_tokens ?? 2000,
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        logger.error("OpenAI API error", {
+          status: response.status,
+          errorData,
+        });
+        return res.status(response.status).json({
+          ok: false,
+          error: "openai-api-error",
+          details: errorData.error?.message || response.statusText,
+        });
+      }
+
+      const data = await response.json();
+      return res.status(200).json({ ok: true, data });
+    } catch (err) {
+      logger.error("openaiProxy error", err);
+      setCors(req, res);
+      const status = Number(err?.status) || 500;
+      const code = String(err?.code || "internal");
+      return res.status(status).json({
+        ok: false,
+        error: code,
+        details: String(err?.message || err),
+      });
+    }
+  },
+);

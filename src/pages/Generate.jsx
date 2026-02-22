@@ -15,6 +15,7 @@ import {
   increment,
   onSnapshot,
   updateDoc,
+  setDoc,
 } from "firebase/firestore";
 import { db } from "../firebase/config";
 import {
@@ -595,10 +596,17 @@ function Generate() {
     if (!candidateDocId) return;
     setSavingAllowDelete(true);
     try {
-      await updateDocument("candidate_metadata", candidateDocId, {
-        allowIncomingDelete: newValue,
-        updatedAt: Date.now(),
-      });
+      // Use setDoc with merge to create document if it doesn't exist
+      const metadataRef = doc(db, "candidate_metadata", candidateDocId);
+      await setDoc(
+        metadataRef,
+        {
+          allowIncomingDelete: newValue,
+          collectionName: candidateCollection,
+          updatedAt: Date.now(),
+        },
+        { merge: true },
+      );
       setAllowIncomingDelete(newValue);
       toast.success(newValue ? "Löschen erlaubt" : "Löschen gesperrt");
     } catch (err) {
@@ -713,7 +721,7 @@ function Generate() {
       });
       return true;
     } catch (e) {
-      toast.error("Hujjatlar bo‘limini saqlashda xatolik.");
+      toast.error("Hujjatlar bo'limini saqlashda xatolik.");
       outgoingDocsRef.current = prevSnapshot;
       setOutgoingDocs(prevSnapshot);
       return false;
@@ -5110,6 +5118,63 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
     }
   }
 
+  async function handleDocumentSend() {
+    if (remoteMode) {
+      toast.error("Document send can only be set in edit mode.");
+      return;
+    }
+
+    const col = String(resolvedMajor?.collectionName || "").trim();
+    const docId = String(id || "").trim();
+
+    if (!col || !docId) {
+      toast.error("Candidate information not found.");
+      return;
+    }
+
+    const currentStatus = docCv?.isDocumentSend || false;
+    const newStatus = !currentStatus;
+
+    try {
+      const candidateRef = doc(db, col, docId);
+
+      if (newStatus) {
+        await updateDoc(candidateRef, {
+          isDocumentSend: true,
+          isDocumentSendAt: Date.now(),
+          isDocumentSendBy: user?.email || user?.uid || "admin",
+        });
+
+        setDocCv((prev) => ({
+          ...prev,
+          isDocumentSend: true,
+          isDocumentSendAt: Date.now(),
+          isDocumentSendBy: user?.email || user?.uid || "admin",
+        }));
+
+        toast.success("Dokument als gesendet markiert!");
+      } else {
+        await updateDoc(candidateRef, {
+          isDocumentSend: false,
+          isDocumentSendAt: null,
+          isDocumentSendBy: null,
+        });
+
+        setDocCv((prev) => ({
+          ...prev,
+          isDocumentSend: false,
+          isDocumentSendAt: null,
+          isDocumentSendBy: null,
+        }));
+
+        toast.success("Dokument als nicht gesendet markiert!");
+      }
+    } catch (err) {
+      toast.error("Error updating document send status.");
+      console.error("Error updating document send:", err);
+    }
+  }
+
   async function handleDownloadPdf() {
     if (remoteMode) {
       toast.error(
@@ -5842,6 +5907,24 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                   <HiMiniDocumentCheck />
                   <span className="hidden sm:inline">
                     {docCv?.documentReady ? "Bereit" : "Als Bereit Markieren"}
+                  </span>
+                </button>
+                <button
+                  className={[
+                    "btn btn-sm",
+                    docCv?.isDocumentSend ? "btn-info" : "btn-outline",
+                  ].join(" ")}
+                  onClick={handleDocumentSend}
+                  disabled={loading || notFound || remoteMode}
+                  title={
+                    docCv?.isDocumentSend
+                      ? "Dokument als nicht gesendet markieren"
+                      : "Dokument als gesendet markieren"
+                  }
+                >
+                  <FaPaperPlane />
+                  <span className="hidden sm:inline">
+                    {docCv?.isDocumentSend ? "Gesendet" : "Als Gesendet"}
                   </span>
                 </button>
               </>

@@ -25,6 +25,8 @@ import {
   FaThumbsDown,
   FaFileExcel,
 } from "react-icons/fa";
+import { BsSendCheck } from "react-icons/bs";
+
 import { HiMiniDocumentCheck } from "react-icons/hi2";
 import {
   deleteCandidateWithCurrentStats,
@@ -45,7 +47,10 @@ import {
   normalizeCandidateStatusValue,
 } from "../constants/candidateStatus";
 import { hasRichTextContent } from "../utils/commentar";
-import { exportCandidatesToExcel, exportFullCandidatesToExcel } from "../utils/excelExport";
+import {
+  exportCandidatesToExcel,
+  exportFullCandidatesToExcel,
+} from "../utils/excelExport";
 import { getDocs } from "firebase/firestore";
 import { formatRatingForUi, normalizeRating } from "./generate/utils/ratingUtils";
 import CollectionFilters from "./candidates/components/CollectionFilters";
@@ -158,7 +163,9 @@ function CollectionCv() {
         ...d.data(),
       }));
       exportFullCandidatesToExcel(fullDocs, title);
-      toast.success(`${fullDocs.length} kandidat to'liq ma'lumotlari eksport qilindi.`);
+      toast.success(
+        `${fullDocs.length} kandidat to'liq ma'lumotlari eksport qilindi.`,
+      );
     } catch (err) {
       toast.error(err.message || "Fehler beim Exportieren.");
     } finally {
@@ -290,6 +297,11 @@ function CollectionCv() {
       if (commentFilter === "with" && !it.hasComment) return false;
       if (commentFilter === "without" && it.hasComment) return false;
 
+      if (commentAuthorFilter !== "all") {
+        const authorName = String(it.commentUpdatedByName || "").trim();
+        if (authorName !== commentAuthorFilter) return false;
+      }
+
       if (stageFilter !== "all") {
         if (
           String(it.statusValue || "").trim() !==
@@ -346,6 +358,7 @@ function CollectionCv() {
     certificateFilter,
     experienceFilter,
     commentFilter,
+    commentAuthorFilter,
     stageFilter,
     stageOutcomeFilter,
     ageFilter,
@@ -369,6 +382,7 @@ function CollectionCv() {
     certificateFilter,
     experienceFilter,
     commentFilter,
+    commentAuthorFilter,
     stageFilter,
     stageOutcomeFilter,
     ageFilter,
@@ -383,7 +397,7 @@ function CollectionCv() {
 
     const total = items.length;
     const withEmail = items.filter(
-      (item) => (item.emailSentCount || 0) > 0
+      (item) => (item.emailSentCount || 0) > 0,
     ).length;
     const withoutEmail = total - withEmail;
     const withComment = items.filter((item) => item.hasComment).length;
@@ -499,7 +513,7 @@ function CollectionCv() {
             .map((lv) =>
               String(lv || "")
                 .trim()
-                .toUpperCase()
+                .toUpperCase(),
             )
             .filter((lv) => ["A1", "A2", "B1", "B2", "C1", "C2"].includes(lv));
           const pd = data.persoenlicheDaten || {};
@@ -598,6 +612,7 @@ function CollectionCv() {
             reaction,
             rating,
             documentReady: data.documentReady || false,
+            isDocumentSend: data.isDocumentSend || false,
           };
         });
         setItems(list);
@@ -606,7 +621,7 @@ function CollectionCv() {
       (err) => {
         toast.error("Fehler beim Laden der Daten.");
         setLoading(false);
-      }
+      },
     );
     return () => unsub();
   }, [resolvedMajor.collectionName, metaLoading, resolvingMajor]);
@@ -687,7 +702,10 @@ function CollectionCv() {
             newPhotos[email] = userData.avatar || userData.photoURL;
           }
         } catch (error) {
-          console.error(`Failed to fetch user photo for email ${email}:`, error);
+          console.error(
+            `Failed to fetch user photo for email ${email}:`,
+            error,
+          );
         }
       }
 
@@ -837,8 +855,8 @@ function CollectionCv() {
         newReaction === "like"
           ? "👍 Gefällt mir"
           : newReaction === "dislike"
-          ? "👎 Gefällt mir nicht"
-          : "Reaktion entfernt"
+            ? "👎 Gefällt mir nicht"
+            : "Reaktion entfernt",
       );
     } catch (err) {
       toast.error("Fehler beim Speichern der Reaktion.");
@@ -974,7 +992,7 @@ function CollectionCv() {
                     <span className="font-semibold text-base-content/80">
                       {statistics.total > 0
                         ? Math.round(
-                            (statistics.withEmail / statistics.total) * 100
+                            (statistics.withEmail / statistics.total) * 100,
                           )
                         : 0}
                       %
@@ -987,33 +1005,84 @@ function CollectionCv() {
         )}
 
         {/* Lead & Telegram Statistics */}
-        {!loading && items.length > 0 && (leadStats.telegramCount > 0 || leadStats.leadList.length > 0) && (
-          <div className="mb-6 p-4 rounded-box border border-base-300 bg-base-100 shadow-sm">
-            <div className="flex flex-wrap gap-4 items-start">
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
-                <span className="font-semibold text-primary">{leadStats.total}</span>
-                <span className="text-sm text-base-content/70">Gesamt</span>
+        {!loading &&
+          items.length > 0 &&
+          (leadStats.telegramCount > 0 || leadStats.leadList.length > 0) && (
+            <div className="mb-6 p-4 rounded-box border border-base-300 bg-base-100 shadow-sm">
+              <div className="flex flex-wrap gap-4 items-start">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20">
+                  <span className="font-semibold text-primary">
+                    {leadStats.total}
+                  </span>
+                  <span className="text-sm text-base-content/70">Gesamt</span>
+                </div>
+                {leadStats.telegramCount > 0 && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#0088cc]/10 border border-[#0088cc]/20">
+                    <FaTelegram className="w-5 h-5 text-[#0088cc]" />
+                    <span className="font-semibold text-[#0088cc]">
+                      {leadStats.telegramCount}
+                    </span>
+                    <span className="text-sm text-base-content/70">
+                      Telegram
+                    </span>
+                  </div>
+                )}
+                {leadStats.leadList.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {leadStats.leadList.map((item) => (
+                      <div
+                        key={item.name}
+                        className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-500/10 border border-purple-500/20"
+                      >
+                        <span className="font-semibold text-purple-600 dark:text-purple-400">
+                          {item.count}
+                        </span>
+                        <span className="text-sm text-purple-600 dark:text-purple-400">
+                          {item.name}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              {leadStats.telegramCount > 0 && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#0088cc]/10 border border-[#0088cc]/20">
-                  <FaTelegram className="w-5 h-5 text-[#0088cc]" />
-                  <span className="font-semibold text-[#0088cc]">{leadStats.telegramCount}</span>
-                  <span className="text-sm text-base-content/70">Telegram</span>
-                </div>
-              )}
-              {leadStats.leadList.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {leadStats.leadList.map((item) => (
-                    <div
-                      key={item.name}
-                      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-500/10 border border-purple-500/20"
-                    >
-                      <span className="font-semibold text-purple-600 dark:text-purple-400">{item.count}</span>
-                      <span className="text-sm text-purple-600 dark:text-purple-400">{item.name}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+            </div>
+          )}
+
+        {/* Comment Author Filter - alohida, collapse ichida emas */}
+        {!loading && uniqueCommentAuthors.length > 0 && (
+          <div className="mb-6 p-4 rounded-box border border-base-300 bg-base-100 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <span className="text-xs font-semibold uppercase text-base-content/60 shrink-0 flex items-center gap-2">
+                <FaCommentDots className="text-success" />
+                Kommentar von:
+              </span>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className={`btn btn-xs ${
+                    commentAuthorFilter === "all"
+                      ? "btn-primary"
+                      : "btn-ghost hover:bg-base-200"
+                  }`}
+                  onClick={() => setCommentAuthorFilter("all")}
+                >
+                  Alle
+                </button>
+                {uniqueCommentAuthors.map((author) => (
+                  <button
+                    key={author}
+                    type="button"
+                    className={`btn btn-xs ${
+                      commentAuthorFilter === author
+                        ? "btn-primary"
+                        : "btn-ghost hover:bg-base-200"
+                    }`}
+                    onClick={() => setCommentAuthorFilter(author)}
+                  >
+                    {author}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -1089,7 +1158,7 @@ function CollectionCv() {
                         navigate(
                           `/generate/${resolvedMajor.linkId || major}/${
                             item.id
-                          }`
+                          }`,
                         )
                       }
                       busy={deletingId === item.id}
@@ -1122,9 +1191,17 @@ function CollectionCv() {
                           {item.documentReady ? (
                             <span
                               className="inline-flex items-center gap-1 text-green-600"
-                              title="Document is ready"
+                              title="Das Dokument ist fertig"
                             >
                               <HiMiniDocumentCheck className="w-4 h-4" />
+                            </span>
+                          ) : null}
+                          {item.isDocumentSend ? (
+                            <span
+                              className="inline-flex items-center gap-1 text-blue-500"
+                              title="Das Dokument wurde gesendet."
+                            >
+                              <BsSendCheck className="w-3.5 h-3.5" />
                             </span>
                           ) : null}
                         </>
@@ -1189,7 +1266,7 @@ function CollectionCv() {
                                     }${
                                       item.emailLastSentAt
                                         ? ` • Zuletzt: ${formatCreatedAt(
-                                            item.emailLastSentAt
+                                            item.emailLastSentAt,
                                           )}`
                                         : ""
                                     }${
@@ -1262,7 +1339,7 @@ function CollectionCv() {
                                 title={
                                   item.commentUpdatedAt
                                     ? `Kommentar aktualisiert: ${formatCreatedAt(
-                                        item.commentUpdatedAt
+                                        item.commentUpdatedAt,
                                       )}${
                                         item.commentUpdatedByName
                                           ? ` • Von: ${item.commentUpdatedByName}`
@@ -1387,7 +1464,7 @@ function CollectionCv() {
                       }
                     />
                   );
-                })()
+                })(),
               )}
             </div>
 
