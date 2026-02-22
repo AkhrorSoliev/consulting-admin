@@ -111,6 +111,7 @@ import ZusatzblattBModal from "./generate/components/modals/ZusatzblattBModal";
 import ZusatzblattCModal from "./generate/components/modals/ZusatzblattCModal";
 import ZusatzblattDModal from "./generate/components/modals/ZusatzblattDModal";
 import LivePreview from "./generate/components/LivePreview";
+import CandidateRating from "./generate/components/CandidateRating";
 import SelectMajorModal from "../components/SelectMajorModal";
 import { restoreRemoteRecordToFirebase } from "./candidates/remoteUserUtils";
 import { UZBEK_REGIONS } from "../constants/uzbekRegions";
@@ -158,6 +159,7 @@ import {
   LANG_CERT_TYPES,
   INITIAL_FORM,
 } from "./generate/constants/formDefaults";
+import { normalizeRating } from "./generate/utils/ratingUtils";
 
 function Generate() {
   const { major, id } = useParams();
@@ -200,6 +202,7 @@ function Generate() {
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [reaction, setReaction] = useState(null);
+  const [rating, setRating] = useState(null);
   const [statusValue, setStatusValue] = useState(CANDIDATE_STATUS_DEFAULT);
   const [statusUpdatedAt, setStatusUpdatedAt] = useState(null);
   const [statusUpdatedBy, setStatusUpdatedBy] = useState("");
@@ -544,6 +547,7 @@ function Generate() {
 
   const isLimitedAdmin = userRole === "limited_admin";
   const isSuperAdmin = userRole === "super_admin";
+  const canRate = userRole === "admin" || userRole === "super_admin";
 
   // ---- Outgoing documents (templates sent to the candidate) ----
   const candidateCollection = String(
@@ -2013,6 +2017,7 @@ function Generate() {
           setStatusUpdatedAt(status?.updatedAt || null);
           setStatusUpdatedBy(status?.updatedBy || "");
           setReaction(data?.reaction || null);
+          setRating(normalizeRating(data?.rating));
           setDocCv(data);
 
           // Console'ga kandidat ma'lumotlarini chiqarish
@@ -5439,6 +5444,39 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
     }
   }
 
+  async function handleRatingChange(nextRating) {
+    if (!canRate) {
+      toast.error("Faqat admin/super_admin rating qo'ya oladi.");
+      return;
+    }
+
+    const col = String(resolvedMajor?.collectionName || "").trim();
+    const docId = String(id || "").trim();
+    if (!col || !docId) return;
+
+    const normalizedNextRating = normalizeRating(nextRating);
+
+    try {
+      const candidateRef = doc(db, col, docId);
+      await updateDoc(candidateRef, {
+        rating: normalizedNextRating,
+        ratingUpdatedAt: Date.now(),
+        ratingUpdatedBy: user?.email || user?.uid || "admin",
+      });
+      setRating(normalizedNextRating);
+
+      if (normalizedNextRating === null) {
+        toast.success("Bewertung entfernt");
+      }
+    } catch {
+      toast.error("Fehler beim Speichern der Bewertung.");
+    }
+  }
+
+  function handleRatingReset() {
+    handleRatingChange(null);
+  }
+
   async function handleCorrectExperience(idx) {
     const exp = formCv.experience[idx];
     if (!exp) {
@@ -5712,7 +5750,15 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
 
           <div className="flex items-center gap-2">
             {!remoteMode && !loading && !notFound && (
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2">
+                <CandidateRating
+                  value={rating}
+                  onChange={handleRatingChange}
+                  onReset={handleRatingReset}
+                  disabled={loading || notFound || !canRate}
+                  canRate={canRate}
+                  inputName={`rating-${id || "candidate"}`}
+                />
                 <button
                   type="button"
                   className={[
