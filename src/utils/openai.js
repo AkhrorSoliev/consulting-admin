@@ -1,45 +1,35 @@
 import { auth } from "../firebase/config";
 
-function getFunctionsBaseUrl() {
+export function getMotivationModel() {
   const env = import.meta.env || {};
-  const explicit = String(env.VITE_FUNCTIONS_BASE || "").trim();
-  if (explicit) return explicit.replace(/\/+$/, "");
-
-  const submitUrlRaw = String(env.VITE_SUBMIT_CANDIDATE_URL || "").trim();
-  if (submitUrlRaw) {
-    try {
-      const u = new URL(submitUrlRaw);
-      return `${u.protocol}//${u.host}`;
-    } catch {
-      // ignore
-    }
-  }
-
-  const projectId = String(env.VITE_FIREBASE_PROJECT_ID || "").trim();
-  if (projectId) {
-    return `https://us-central1-${projectId}.cloudfunctions.net`;
-  }
-
-  throw new Error("Functions base URL not configured");
+  const configured = String(env.VITE_OPENAI_MOTIVATION_MODEL || "").trim();
+  return configured || "gpt-4o-mini";
 }
 
-async function callOpenAIProxy(messages, options = {}) {
+function getOpenAIApiKey() {
+  const env = import.meta.env || {};
+  const key = String(env.VITE_OPENAI_API_KEY || "").trim();
+  if (!key) {
+    throw new Error("VITE_OPENAI_API_KEY not configured in .env");
+  }
+  return key;
+}
+
+export async function callOpenAIProxy(messages, options = {}) {
   const user = auth.currentUser;
   if (!user) throw new Error("Not authenticated");
 
-  const token = await user.getIdToken();
-  const baseUrl = getFunctionsBaseUrl();
-  const url = `${baseUrl}/openaiProxy`;
+  const apiKey = getOpenAIApiKey();
 
-  const response = await fetch(url, {
+  const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      messages,
       model: options.model || "gpt-4o-mini",
+      messages,
       temperature: options.temperature ?? 0.3,
       max_tokens: options.max_tokens ?? 2000,
     }),
@@ -48,16 +38,12 @@ async function callOpenAIProxy(messages, options = {}) {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(
-      `OpenAI API error: ${errorData.details || errorData.error || response.statusText}`,
+      `OpenAI API error: ${errorData.error?.message || response.statusText}`,
     );
   }
 
-  const result = await response.json();
-  if (!result.ok) {
-    throw new Error(`OpenAI API error: ${result.details || result.error}`);
-  }
-
-  return result.data;
+  const data = await response.json();
+  return data;
 }
 
 async function correctTextWithAI(text) {
