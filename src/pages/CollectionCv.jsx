@@ -73,6 +73,7 @@ function CollectionCv() {
   const [certificateFilter, setCertificateFilter] = useState("all");
   const [experienceFilter, setExperienceFilter] = useState("all");
   const [commentFilter, setCommentFilter] = useState("all");
+  const [commentAuthorFilter, setCommentAuthorFilter] = useState("all");
   const [stageFilter, setStageFilter] = useState("all");
   const [stageOutcomeFilter, setStageOutcomeFilter] = useState("all");
   const [ageFilter, setAgeFilter] = useState("all");
@@ -428,6 +429,15 @@ function CollectionCv() {
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count);
     return { leadList, telegramCount, total: items.length };
+  }, [items]);
+
+  const uniqueCommentAuthors = useMemo(() => {
+    const authors = new Set();
+    items.forEach((item) => {
+      const name = String(item?.commentUpdatedByName || "").trim();
+      if (name) authors.add(name);
+    });
+    return Array.from(authors).sort((a, b) => a.localeCompare(b));
   }, [items]);
 
   useEffect(() => {
