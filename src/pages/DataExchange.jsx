@@ -1,3 +1,4 @@
+// this page is for data exchange between candidates and admins
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
