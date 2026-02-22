@@ -35,53 +35,30 @@ function SafeInline({ children, className }) {
 }
 
 function buildVermittlungsvertragBlocks({
-  candidateFirstName,
-  candidateLastName,
-  candidateStreet,
-  candidateHouseNumber,
-  candidatePLZ,
-  candidateBirthPlace,
-  candidateLand,
-  contractDurationYears,
-  signatureCity,
-  signatureDate,
+  firstName,
+  lastName,
+  candidateBirthDate,
+  candidateNationality,
+  candidateAddress,
+  candidatePassportNr,
+  candidateCity,
+  pdfGeneratedDate,
 }) {
-  const fullName = `${String(candidateFirstName || "").trim()} ${String(
-    candidateLastName || ""
-  ).trim()}`.trim();
-  const nameLine = fullName || "_____________________";
-  const streetAndHouse = `${String(candidateStreet || "").trim()}.${String(
-    candidateHouseNumber || ""
-  ).trim()}`.trim();
-  const plzAndBirthPlace = `${String(candidatePLZ || "").trim()} ${String(
-    candidateBirthPlace || ""
-  ).trim()}`.trim();
-
-  // Calculate contract dates
-  const today = new Date();
-  const startDate = new Date(today);
-  const years = parseInt(contractDurationYears) || 2;
-  const endDate = new Date(today);
-  endDate.setFullYear(endDate.getFullYear() + years);
-
-  const formatDate = (date) => {
-    const dd = String(date.getDate()).padStart(2, "0");
-    const mm = String(date.getMonth() + 1).padStart(2, "0");
-    const yyyy = String(date.getFullYear());
-    return `${dd}.${mm}.${yyyy}`;
-  };
-
-  const startDateLine = formatDate(startDate);
-  const endDateLine = formatDate(endDate);
-  const signatureCityLine =
-    String(signatureCity || "").trim() || "_____________________";
+  const candidateNameLine =
+    firstName && lastName
+      ? `${firstName} ${lastName}`
+      : "_____________________";
+  const birthDateLine = String(candidateBirthDate || "").trim() || "__________";
+  const nationalityLine =
+    String(candidateNationality || "").trim() || "__________";
+  const addressLine = String(candidateAddress || "").trim() || "__________";
+  const passportLine = String(candidatePassportNr || "").trim() || "__________";
+  const signaturePlaceLine = String(candidateCity || "").trim() || "__________";
   const signatureDateLine =
-    String(signatureDate || "").trim() || "____.__.____";
+    String(pdfGeneratedDate || "").trim() || "____.__.____";
 
-  const SectionTitle = ({ n, title }) => (
-    <div className="mt-[10pt] font-semibold">
-      {n}. {title}
-    </div>
+  const SectionTitle = ({ title }) => (
+    <div className="mt-[14pt] font-bold text-[#1a365d]">{title}</div>
   );
 
   const P = ({ children, className = "" }) => (
@@ -95,13 +72,25 @@ function buildVermittlungsvertragBlocks({
     </div>
   );
 
+  const NumberedItem = ({ n, children }) => (
+    <div className="flex gap-[6pt] mt-[3pt]">
+      <span className="shrink-0">{n}.</span>
+      <span className="min-w-0 wrap-break-word">{children}</span>
+    </div>
+  );
+
   return [
     {
       id: "header",
       keepWithNext: true,
       node: (
         <div className="text-center">
-          <div className="text-[18pt] font-bold">Vermittlungsvertrag</div>
+          <div className="text-[18pt] font-bold text-[#1a365d] tracking-wide">
+            VERMITTLUNGSVERTRAG
+          </div>
+          <div className="text-[11pt] mt-2 italic">
+            Internationale Arbeitsvermittlung
+          </div>
         </div>
       ),
     },
@@ -109,35 +98,25 @@ function buildVermittlungsvertragBlocks({
       id: "zwischen",
       keepWithNext: true,
       node: (
-        <div className="mt-[14pt] text-center">
-          <div>zwischen:</div>
-          <div className="mt-[6pt]">
-            <div className="font-semibold">Orif Akhmadaliev</div>
-            <div className="mt-[2pt]">Alemannenweg. 6</div>
-            <div className="mt-[2pt]">72488 Sigmaringen</div>
-            <div className="mt-[2pt]">Deutschland</div>
-            <div className="mt-[4pt]">(nachstehend "Vermittler" genannt)</div>
+        <div className="mt-6">
+          <div>zwischen</div>
+          <div className="mt-4 ml-4">
+            <div className="font-bold">Orif Akhmadaliev (ConsultingUz)</div>
+            <div>Alemannenweg 6</div>
+            <div>72488 Sigmaringen</div>
+            <div>Deutschland</div>
+            <div>– nachfolgend „Vermittler" –</div>
           </div>
 
-          <div className="mt-[2pt]">und</div>
+          <div className="mt-4">und</div>
 
-          <div className="mt-[6pt]">
-            <div className="mt-[2pt]">
-              {fullName || "__________________________________"}
-            </div>
-            <div className="mt-[2pt]">
-              {streetAndHouse || "__________________________________"}
-            </div>
-            <div className="mt-[2pt]">
-              {plzAndBirthPlace || "__________________________________"}
-            </div>
-            <div className="mt-[2pt]">
-              {String(candidateLand || "").trim() ||
-                "__________________________________"}
-            </div>
-            <div className="mt-[4pt]">
-              (nachstehend "Auftraggeber/Bewerber" genannt)
-            </div>
+          <div className="mt-4 ml-4">
+            <div className="font-bold">{candidateNameLine}</div>
+            <div>Geburtsdatum: {birthDateLine}</div>
+            <div>Staatsangehörigkeit: {nationalityLine}</div>
+            <div>Adresse: {addressLine}</div>
+            <div>Reisepass-Nr.: {passportLine}</div>
+            <div>– nachfolgend „Bewerber" –</div>
           </div>
         </div>
       ),
@@ -146,28 +125,26 @@ function buildVermittlungsvertragBlocks({
       id: "1",
       node: (
         <div>
-          <SectionTitle n={1} title="Leistungen des Vermittlers" />
+          <SectionTitle title="§ 1 Vertragsgegenstand" />
           <P>
-            Der Auftraggeber / Bewerber beauftragt den Vermittler mit seiner
-            Arbeitsvermittlung. Dabei erbringt der Vermittler für den
-            Auftraggeber / Bewerber folgende Leistungen:
+            (1) Der Bewerber beauftragt den Vermittler mit der Unterstützung bei
+            der Vermittlung eines sozialversicherungspflichtigen
+            Beschäftigungsverhältnisses in Deutschland.
           </P>
-          <div className="mt-[6pt] ml-3">
-            <Bullet>Individuelle, vermittlungsrelevante Beratung</Bullet>
-            <Bullet>Berufsberatung</Bullet>
+          <P>(2) Der Vermittler erbringt insbesondere:</P>
+          <div className="mt-2 ml-6">
+            <Bullet>Analyse der beruflichen Qualifikation</Bullet>
+            <Bullet>Erstellung/Optimierung von Bewerbungsunterlagen</Bullet>
+            <Bullet>Kontaktaufnahme mit Arbeitgebern</Bullet>
+            <Bullet>Organisation von Bewerbungsgesprächen</Bullet>
             <Bullet>
-              Feststellung der Kenntnisse und Fertigkeiten des Auftraggebers
+              Koordination im Visum- und Anerkennungsverfahren (rein
+              organisatorisch)
             </Bullet>
-            <Bullet>
-              Unterstützung bei der Erstellung von Bewerbungsunterlagen
-            </Bullet>
-            <Bullet>Vorbereitung auf Vorstellungsgespräche</Bullet>
           </div>
           <P>
-            Der Vermittler akquiriert auf Grund des erhobenen Bewerberprofils
-            geeignete Arbeitsstellen und unterstützt den Auftraggeber während
-            des gesamten Vermittlungsprozesses. Der Vermittler kann an
-            Vorstellungsgesprächen teilnehmen.
+            (3) Ein Anspruch auf erfolgreiche Vermittlung oder Abschluss eines
+            Arbeitsvertrages besteht nicht.
           </P>
         </div>
       ),
@@ -176,28 +153,14 @@ function buildVermittlungsvertragBlocks({
       id: "2",
       node: (
         <div>
-          <SectionTitle n={2} title="Leistungen des Auftraggebers" />
+          <SectionTitle title="§ 2 Vergütung" />
+          <P>(1) Der Bewerber schuldet keinerlei Vergütung.</P>
           <P>
-            Zur Erfüllung der unter Punkt 1 genannten Leistungen des Vermittlers
-            erbringt der Auftraggeber folgende Leistungen:
+            (2) Die Vergütung des Vermittlers erfolgt ausschließlich durch das
+            beauftragende Arbeitgeberunternehmen auf Grundlage eines gesonderten
+            Vertrages.
           </P>
-          <div className="mt-[6pt] ml-3">
-            <Bullet>
-              Aktive Mithilfe bei der Erstellung des Bewerberprofils
-            </Bullet>
-            <Bullet>Wahrheitsgemäße Angaben zu personenbezogenen Daten</Bullet>
-            <Bullet>Einhaltung von vereinbarten Terminen</Bullet>
-            <Bullet>
-              Umgehende Mitteilung des Auftraggebers an den Vermittler über das
-              Zustandekommen eines sozialversicherungspflichtigen
-              Beschäftigungsverhältnisses sowie über dessen vereinbarte Dauer
-            </Bullet>
-          </div>
-          <P>
-            Die Arbeitsplatzangebote des Vermittlers sind vertraulich und nur
-            für den Auftraggeber bestimmt. Eine Weitergabe an Dritte bedarf der
-            schriftlichen Zustimmung des Vermittlers.
-          </P>
+          <P>(3) Dem Bewerber entstehen keine Vermittlungskosten.</P>
         </div>
       ),
     },
@@ -205,20 +168,26 @@ function buildVermittlungsvertragBlocks({
       id: "3",
       node: (
         <div>
-          <SectionTitle n={3} title="Vertragsdauer" />
-          <P>
-            Dieses Vertragsverhältnis beginnt mit Vertragsabschluss und wird auf
-            die Gültigkeitsdauer des vom Auftraggeber vorgelegten
-            Vermittlungsgutscheines vom{" "}
-            <span className="font-bold">
-              <SafeInline>{startDateLine}</SafeInline>
-            </span>{" "}
-            bis{" "}
-            <span className="font-bold">
-              <SafeInline>{endDateLine}</SafeInline>
-            </span>{" "}
-            befristet und endet automatisch ohne eine Kündigung.
-          </P>
+          <SectionTitle title="§ 3 Mitwirkungspflichten des Bewerbers" />
+          <P>Der Bewerber verpflichtet sich:</P>
+          <div className="mt-2 ml-6">
+            <NumberedItem n={1}>
+              vollständige und wahrheitsgemäße Angaben zu machen
+            </NumberedItem>
+            <NumberedItem n={2}>
+              ausschließlich echte und unverfälschte Dokumente vorzulegen
+            </NumberedItem>
+            <NumberedItem n={3}>
+              erforderliche Unterlagen fristgerecht einzureichen
+            </NumberedItem>
+            <NumberedItem n={4}>
+              aktiv am Vermittlungs- und Visumverfahren mitzuwirken
+            </NumberedItem>
+            <NumberedItem n={5}>
+              den Vermittler unverzüglich über Vertragsangebote oder
+              Vertragsabschlüsse zu informieren
+            </NumberedItem>
+          </div>
         </div>
       ),
     },
@@ -226,88 +195,88 @@ function buildVermittlungsvertragBlocks({
       id: "4",
       node: (
         <div>
-          <SectionTitle n={4} title="Wettbewerbsabrede" />
-          <P>
-            Während der Laufzeit des Vertrages darf der Auftraggeber/Bewerber{" "}
-            <span className="font-bold">nicht</span> andere Vermittler für sich
-            tätig werden lassen.
-          </P>
+          <SectionTitle title="§ 4 Internationale Rekrutierung – Risikohinweis" />
+          <P>(1) Der Bewerber ist darüber informiert, dass:</P>
+          <div className="mt-2 ml-6">
+            <Bullet>
+              Visumserteilungen ausschließlich durch staatliche Behörden
+              erfolgen
+            </Bullet>
+            <Bullet>
+              Anerkennungsverfahren nicht im Einflussbereich des Vermittlers
+              liegen
+            </Bullet>
+            <Bullet>
+              gesetzliche Änderungen Einfluss auf das Verfahren haben können
+            </Bullet>
+          </div>
+          <P>(2) Der Vermittler übernimmt keine Haftung für:</P>
+          <div className="mt-2 ml-6">
+            <Bullet>Ablehnung oder Verzögerung eines Visums</Bullet>
+            <Bullet>behördliche Entscheidungen</Bullet>
+            <Bullet>Änderungen gesetzlicher Vorschriften</Bullet>
+            <Bullet>Entscheidungen des Arbeitgebers</Bullet>
+          </div>
         </div>
       ),
     },
     {
       id: "5",
-      keepWithNext: true,
       node: (
         <div>
-          <SectionTitle
-            n={5}
-            title="Geheimhaltungsvereinbarung / Non-Disclosure Agreement (NDA)"
-          />
-          <P>Auftraggeber verpflichtet sich,</P>
-        </div>
-      ),
-    },
-    {
-      id: "5-list",
-      node: (
-        <div className="ml-3">
-          <Bullet>
-            die mitgeteilten Informationen, ohne ausdrückliche schriftliche
-            Einwilligung durch den Vermittler nicht selbst zu verwerten;
-          </Bullet>
-          <Bullet>
-            die Vertraulichen Informationen streng vertraulich zu behandeln und
-            nur im Zusammenhang mit dem Zweck zu verwenden;
-          </Bullet>
-          <Bullet>
-            die Vertraulichen Informationen ebenfalls durch angemessene
-            Geheimhaltungsmaßnahmen gegen den unbefugten Zugriff durch Dritte zu
-            sichern und bei der Verarbeitung der Vertraulichen Informationen die
-            gesetzlichen und vertraglichen Vorschriften zum Datenschutz
-            einzuhalten. Dies beinhaltet auch dem aktuellen Stand der Technik
-            angepasste technische Sicherheitsmaßnahmen (Art. 32 DS-GVO) und die
-            Verpflichtung der Mitarbeiter auf die Vertraulichkeit und die
-            Beachtung des Datenschutzes (Art. 28 Abs. 3 lit. b DS-GVO); Der
-            Vermittler behält sich das alleinige und uneingeschränkte Recht zur
-            Schutzrechtsanmeldung vor.
-          </Bullet>
-        </div>
-      ),
-    },
-    {
-      id: "5-2",
-      node: (
-        <div>
+          <SectionTitle title="§ 5 Schutzklausel bei schuldhaftem Nichtantritt (&#8222;Vertragsstrafe light&#8220;)" />
           <P>
-            Vertrauliche Informationen im Sinne dieser Vereinbarung sind
-            sämtliche Informationen (ob schriftlich, elektronisch, mündlich,
-            digital verkörpert oder in anderer Form), die von dem Vermittler an
-            den Auftraggeber oder einem mit dem Interessenten im Sinne der §§ 15
-            ff. AktG verbundenen Unternehmen zum vorgenannten Zweck offenbart
-            werden. Als Vertrauliche Informationen gelten insbesondere:
+            (1) Kommt infolge der Tätigkeit des Vermittlers ein Arbeitsvertrag
+            zustande und nimmt der Bewerber diesen an, verpflichtet sich der
+            Bewerber, den Arbeitsantritt ordnungsgemäß vorzubereiten und
+            wahrzunehmen.
           </P>
-          <div className="mt-[6pt] ml-3">
+          <P>
+            (2) Verletzt der Bewerber diese Verpflichtung schuldhaft,
+            insbesondere indem er:
+          </P>
+          <div className="mt-2 ml-6">
             <Bullet>
-              Geschäftsgeheimnisse, Produkte, Bewerbungsprozesse, Know-how,
-              Erfindungen, geschäftliche Beziehungen, Geschäftsstrategien,
-              Businesspläne, Finanzplanung, Personalangelegenheiten, digital
-              verkörperte Informationen (Daten);
+              vorsätzlich oder grob fahrlässig falsche Angaben gemacht hat
             </Bullet>
             <Bullet>
-              Jegliche Unterlagen und Informationen des Vermittlers, die
-              Gegenstand technischer und organisatorischer
-              Geheimhaltungsmaßnahmen sind und als vertraulich gekennzeichnet
-              oder nach der Art der Information oder den Umständen der
-              Übermittlung als vertraulich anzusehen sind;
+              nach Visumerteilung ohne wichtigen Grund nicht einreist
             </Bullet>
-            <Bullet>das Bestehen dieser Vereinbarung und ihr Inhalt.</Bullet>
             <Bullet>
-              Alle Unterlagen (Informationen über Arbeitgeber, Arbeitsverträge,
-              Vorabzustimmungen, alle behördliche Unterlagen etc.), die vom
-              Vermittler an Auftraggeber zur Verfügung gestellt worden sind
+              ohne wichtigen Grund den Arbeitsantritt endgültig ablehnt
+            </Bullet>
+            <Bullet>trotz verbindlicher Zusage nicht erscheint</Bullet>
+          </div>
+          <P>
+            so ist der Bewerber zur Zahlung einer Vertragsstrafe verpflichtet.
+          </P>
+          <P>
+            (3) Die Vertragsstrafe beträgt{" "}
+            <span className="font-bold text-[#c53030]">
+              50 % einer vereinbarten Bruttomonatsvergütung
+            </span>
+            ,{" "}
+            <span className="font-bold text-[#c53030]">
+              jedoch maximal 2.000 EUR
+            </span>
+            .
+          </P>
+          <P>(4) Ein wichtiger Grund liegt insbesondere vor bei:</P>
+          <div className="mt-2 ml-6">
+            <Bullet>nachweisbarer Erkrankung</Bullet>
+            <Bullet>behördlicher Visumablehnung</Bullet>
+            <Bullet>
+              wesentlicher nachträglicher Vertragsänderung durch den Arbeitgeber
             </Bullet>
           </div>
+          <P>
+            (5) Dem Bewerber bleibt ausdrücklich der Nachweis gestattet, dass
+            kein oder ein wesentlich geringerer Schaden entstanden ist.
+          </P>
+          <P>
+            (6) Ein weitergehender Schaden kann geltend gemacht werden; die
+            Vertragsstrafe wird angerechnet.
+          </P>
         </div>
       ),
     },
@@ -315,35 +284,61 @@ function buildVermittlungsvertragBlocks({
       id: "6",
       node: (
         <div>
-          <SectionTitle
-            n={6}
-            title="Schadens - / Aufwendungsersatz bei Abbruch"
-          />
+          <SectionTitle title="§ 6 Schutz vor Umgehung der Vermittlung (6 Monate)" />
           <P>
-            Für den Fall, dass die Auftraggeber / Bewerber trotz der Zusage der
-            Arbeitsgebers und Abschluss eines Ausbildungs- /Arbeitsvertrages -
-            egal aus welchem Grund, nicht zu dem in der Stellenanforderung
-            vereinbarten Termin, nach Deutschland einreist oder
-            Vermittlungsprozess abbricht und nicht hier die Arbeit aufnimmt, ist
-            der Vermittler ab Scheitern des Vermittlungsprozesses berechtigt,
-            die, bis dahin bei ihm anfallenden Verwaltungskosten als Schadens -
-            / Aufwendungsersatz geltend zu machen. Der Auftraggeber / Bewerber
-            stimmt dieser Aufrechnung zu.
+            (1) Der Bewerber ist berechtigt, sich eigenständig oder über Dritte
+            zu bewerben.
+          </P>
+          <P>
+            (2) Wird dem Bewerber durch den Vermittler ein konkreter Arbeitgeber
+            nachweislich benannt oder vorgestellt, verpflichtet sich der
+            Bewerber, für die Dauer von{" "}
+            <span className="font-bold">
+              6 Monaten ab nachweislicher Benennung
+            </span>{" "}
+            keinen Arbeitsvertrag mit diesem Arbeitgeber ohne Mitwirkung des
+            Vermittlers abzuschließen.
+          </P>
+          <P>
+            (3) Kommt innerhalb dieses Zeitraums dennoch ein Arbeitsvertrag
+            zustande, gilt die Vermittlung als durch den Vermittler erfolgt.
+          </P>
+          <P>
+            (4) Diese Regelung gilt ausschließlich für konkret benannte
+            Arbeitgeber und stellt kein allgemeines Wettbewerbsverbot dar.
+          </P>
+          <P>
+            (5) Dem Bewerber bleibt der Nachweis gestattet, dass der Vertrag
+            unabhängig von der Tätigkeit des Vermittlers zustande gekommen ist.
           </P>
         </div>
       ),
     },
     {
       id: "7",
+      forceNewPage: true,
       node: (
         <div>
-          <SectionTitle n={6} title="Datenschutz" />
+          <SectionTitle title="§ 7 Datenschutz (DSGVO)" />
           <P>
-            Personenbezogene Daten werden vertraulich behandelt und nicht an
-            Dritte weitergegeben. Mit der Weitergabe solcher personenbezogenen
-            Daten an Dritte, die im Rahmen der Verrichtung der
-            Vermittlungstätigkeit erhoben werden, ist der Auftraggeber
-            einverstanden.
+            (1) Die Verarbeitung personenbezogener Daten erfolgt gemäß Art. 6
+            Abs. 1 lit. b DSGVO zur Durchführung dieses Vertrages.
+          </P>
+          <P>(2) Eine Weitergabe erfolgt ausschließlich an:</P>
+          <div className="mt-2 ml-6">
+            <Bullet>potenzielle Arbeitgeber</Bullet>
+            <Bullet>zuständige Behörden</Bullet>
+            <Bullet>Anerkennungsstellen</Bullet>
+            <Bullet>Visumstellen</Bullet>
+          </div>
+          <P>
+            (3) Der Bewerber erhält eine gesonderte Datenschutzerklärung gemäß
+            Art. 13 DSGVO.
+          </P>
+          <P>
+            (4) Daten werden gelöscht, sobald sie für den Vertragszweck nicht
+            mehr erforderlich sind und keine gesetzlichen Aufbewahrungspflichten
+            bestehen.
           </P>
         </div>
       ),
@@ -352,22 +347,13 @@ function buildVermittlungsvertragBlocks({
       id: "8",
       node: (
         <div>
-          <SectionTitle
-            n={7}
-            title="Vertragsänderungen / Salvatorische Klausel"
-          />
+          <SectionTitle title="§ 8 Vertraulichkeit" />
           <P>
-            Änderungen und Ergänzungen dieses Vertrages bedürfen zu ihrer
-            Rechtsgültigkeit der Schriftform. Nebenabreden sind nicht getroffen.
+            (1) Arbeitgeberinformationen, Vertragsunterlagen und interne
+            Informationen sind vertraulich zu behandeln.
           </P>
-          <P>
-            Sollten einzelne Bestimmungen dieses Vertrages ganz oder teilweise
-            unwirksam oder undurchführbar sein oder werden, so berührt das den
-            Vertrag im Übrigen nicht. Anstelle der unwirksamen oder
-            undurchführbaren Bestimmung gilt eine solche als vereinbart, die dem
-            von den Parteien gewollten Zweck der unwirksamen oder
-            undurchführbaren Regelung am nächsten kommt.
-          </P>
+          <P>(2) Eine Weitergabe an Dritte ist unzulässig.</P>
+          <P>(3) Diese Verpflichtung gilt auch nach Vertragsende.</P>
         </div>
       ),
     },
@@ -375,10 +361,67 @@ function buildVermittlungsvertragBlocks({
       id: "9",
       node: (
         <div>
-          <SectionTitle n={8} title="Gerichtsstand" />
+          <SectionTitle title="§ 9 Haftung" />
           <P>
-            Der Gerichtsstand ist Namangan (Usbekistan) und Sigmaringen
-            (Deutschland).
+            (1) Der Vermittler haftet unbeschränkt bei Vorsatz und grober
+            Fahrlässigkeit.
+          </P>
+          <P>
+            (2) Bei einfacher Fahrlässigkeit haftet der Vermittler nur bei
+            Verletzung wesentlicher Vertragspflichten.
+          </P>
+          <P>
+            (3) Die Haftung für Schäden aus Verletzung von Leben, Körper oder
+            Gesundheit bleibt unberührt.
+          </P>
+        </div>
+      ),
+    },
+    {
+      id: "10",
+      node: (
+        <div>
+          <SectionTitle title="§ 10 Vertragsdauer und Kündigung" />
+          <P>(1) Der Vertrag wird auf unbestimmte Zeit geschlossen.</P>
+          <P>
+            (2) Beide Parteien können jederzeit ohne Angabe von Gründen
+            kündigen.
+          </P>
+          <P>(3) Ansprüche nach § 5 und § 6 bleiben unberührt.</P>
+        </div>
+      ),
+    },
+    {
+      id: "11",
+      node: (
+        <div>
+          <SectionTitle title="§ 11 Rechtswahl und Gerichtsstand" />
+          <P>(1) Es gilt das Recht der Bundesrepublik Deutschland.</P>
+          <P>
+            (2) Für Verbraucher gelten die gesetzlichen
+            Gerichtsstandsregelungen.
+          </P>
+          <P>(3) Gerichtsstand für Kaufleute ist Sigmaringen.</P>
+        </div>
+      ),
+    },
+    {
+      id: "12",
+      node: (
+        <div>
+          <SectionTitle title="§ 12 Schriftform" />
+          <P>Änderungen und Ergänzungen bedürfen der Textform.</P>
+        </div>
+      ),
+    },
+    {
+      id: "13",
+      node: (
+        <div>
+          <SectionTitle title="§ 13 Salvatorische Klausel" />
+          <P>
+            Sollten einzelne Bestimmungen unwirksam sein, bleibt der Vertrag im
+            Übrigen wirksam.
           </P>
         </div>
       ),
@@ -386,25 +429,15 @@ function buildVermittlungsvertragBlocks({
     {
       id: "signature",
       node: (
-        <div className="mt-[18pt]">
-          <div className="mt-[18pt] flex justify-between gap-12">
-            <div className="flex-1">
-              <div className="border-b border-slate-700 h-[22pt]" />
-              <div className="font-bold italic mt-[4pt]">Orif Akhmadaliev</div>
-              <div className="text-[10pt] mt-[2pt]">Vermittler</div>
-              <div className="text-[10pt] mt-[60pt] text-left w-full">
-                {candidateBirthPlace || "Geburtsort"} / {signatureDateLine}
-              </div>
-            </div>
-            <div className="flex-1">
-              <div className="border-b border-slate-700 h-[22pt]" />
-              <div className="font-bold italic mt-[4pt]">
-                {fullName || "Kandidat Name"}
-              </div>
-              <div className="text-[10pt] mt-[2pt]">
-                Auftraggeber / Bewerber
-              </div>
-            </div>
+        <div className="mt-10">
+          <div>
+            {signaturePlaceLine}, {signatureDateLine}
+          </div>
+          <div className="mt-6">
+            Unterschrift Vermittler: ____________________________
+          </div>
+          <div className="mt-4">
+            Unterschrift Bewerber: ____________________________
           </div>
         </div>
       ),
@@ -472,31 +505,73 @@ export default function VermittlungsvertragLivePreview({
   }, [viewportWidth, A4_WIDTH_PX]);
 
   const blocks = useMemo(
-    () =>
-      buildVermittlungsvertragBlocks({
-        candidateFirstName: String(form?.candidateFirstName || "").trim(),
-        candidateLastName: String(form?.candidateLastName || "").trim(),
-        candidateStreet: String(form?.candidateStreet || "").trim(),
-        candidateHouseNumber: String(form?.candidateHouseNumber || "").trim(),
-        candidatePLZ: String(form?.candidatePLZ || "").trim(),
-        candidateBirthPlace: String(form?.candidateBirthPlace || "").trim(),
-        candidateLand: String(form?.candidateLand || "").trim(),
-        contractDurationYears: form?.contractDurationYears || 2,
-        signatureCity: String(form?.signatureCity || "").trim(),
-        signatureDate: String(form?.signatureDate || "").trim(),
-      }),
+    () => {
+      const firstName = String(
+        form?.candidateFirstName || form?.firstName || "",
+      ).trim();
+      const lastName = String(
+        form?.candidateLastName || form?.lastName || "",
+      ).trim();
+      const candidateBirthDate = String(
+        form?.candidateBirthDate || form?.candidateBirthPlace || "",
+      ).trim();
+      const candidateNationality = String(
+        form?.candidateNationality || form?.candidateLand || "",
+      ).trim();
+      const street = String(form?.candidateStreet || "").trim();
+      const houseNumber = String(form?.candidateHouseNumber || "").trim();
+      const postalCode = String(form?.candidatePLZ || "").trim();
+      const country = String(form?.candidateLand || "").trim();
+      const composedAddress = [street, houseNumber]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+      const composedAddressWithPostal = [composedAddress, postalCode]
+        .filter(Boolean)
+        .join(", ")
+        .trim();
+      const candidateAddress =
+        [composedAddressWithPostal, country].filter(Boolean).join(", ").trim() ||
+        String(form?.candidateAddress || "").trim();
+
+      return buildVermittlungsvertragBlocks({
+        firstName,
+        lastName,
+        candidateBirthDate,
+        candidateNationality,
+        candidateAddress,
+        candidatePassportNr: String(
+          form?.candidatePassportNr || form?.passportNumber || form?.passportId || "",
+        ).trim(),
+        candidateCity: String(
+          form?.signatureCity || form?.candidateCity || "",
+        ).trim(),
+        pdfGeneratedDate: String(
+          form?.signatureDate || form?.pdfGeneratedDate || "",
+        ).trim(),
+      });
+    },
     [
       form?.candidateFirstName,
       form?.candidateLastName,
+      form?.firstName,
+      form?.lastName,
+      form?.candidateBirthDate,
+      form?.candidateBirthPlace,
+      form?.candidateNationality,
+      form?.candidateLand,
+      form?.candidateAddress,
       form?.candidateStreet,
       form?.candidateHouseNumber,
       form?.candidatePLZ,
-      form?.candidateBirthPlace,
-      form?.candidateLand,
-      form?.contractDurationYears,
+      form?.candidatePassportNr,
+      form?.passportNumber,
+      form?.passportId,
       form?.signatureCity,
       form?.signatureDate,
-    ]
+      form?.candidateCity,
+      form?.pdfGeneratedDate,
+    ],
   );
 
   const contentBottomPadPt = PAGE_MARGIN_PT;
@@ -548,7 +623,7 @@ export default function VermittlungsvertragLivePreview({
     if (!pages.length) pages.push([0]);
 
     setPageGroups((prev) =>
-      arePageIndexGroupsEqual(prev, pages) ? prev : pages
+      arePageIndexGroupsEqual(prev, pages) ? prev : pages,
     );
   }, [fontReadyTick, blocks, contentHeightPx]);
 

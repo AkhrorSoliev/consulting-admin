@@ -175,8 +175,11 @@ export default function Vermittlungsvertrag() {
   // No longer needed - contract duration is now calculated dynamically
 
   const candidateFullName = useMemo(() => {
-    return String(form.candidateName || "").trim();
-  }, [form.candidateName]);
+    return [form.candidateFirstName, form.candidateLastName]
+      .map((v) => String(v || "").trim())
+      .filter(Boolean)
+      .join(" ");
+  }, [form.candidateFirstName, form.candidateLastName]);
 
   async function handleDownloadPdf() {
     try {

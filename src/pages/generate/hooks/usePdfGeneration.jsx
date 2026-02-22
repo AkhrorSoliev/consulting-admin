@@ -130,11 +130,20 @@ export function usePdfGeneration(formCv, addressFields) {
     const firstName = String(formCv?.personalInfo?.name || "").trim();
     const lastName = String(formCv?.personalInfo?.lastName || "").trim();
     const birthPlace = String(formCv?.personalInfo?.birthPlace || "").trim();
+    const passportNumber = String(
+      formCv?.personalInfo?.passportNumber || formCv?.passportId || ""
+    ).trim();
     const street = String(addressFields?.street || "").trim();
     const houseNumber = String(addressFields?.houseNumber || "").trim();
     const postalCode = String(addressFields?.postalCode || "").trim();
     const city = String(addressFields?.city || "").trim();
     const country = String(addressFields?.country || "").trim();
+    const templateSignatureCity = String(
+      savedForm?.signatureCity || savedForm?.candidateCity || ""
+    ).trim();
+    const templateSignatureDate = String(
+      savedForm?.signatureDate || savedForm?.pdfGeneratedDate || ""
+    ).trim();
 
     const baseForm = {
       candidateFirstName: "",
@@ -159,8 +168,10 @@ export function usePdfGeneration(formCv, addressFields) {
       candidatePLZ: postalCode,
       candidateBirthPlace: birthPlace,
       candidateLand: country,
-      signatureCity: city,
-      signatureDate: todayDdMmYyyy(),
+      candidatePassportNr:
+        passportNumber || String(savedForm?.candidatePassportNr || "").trim(),
+      signatureCity: city || templateSignatureCity,
+      signatureDate: templateSignatureDate || todayDdMmYyyy(),
     };
 
     const fileBase =
