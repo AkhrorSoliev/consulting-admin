@@ -195,11 +195,26 @@ export function useDataExchange(id) {
     [outgoingDocs],
   );
 
+  const outgoingEntriesWithDefaults = useMemo(
+    () =>
+      outgoingEntries.map(([docId, docData]) => [
+        docId,
+        {
+          ...docData,
+          acceptUpload:
+            typeof docData?.acceptUpload === "boolean"
+              ? docData.acceptUpload
+              : true,
+        },
+      ]),
+    [outgoingEntries],
+  );
+
   return {
     loading,
     notFound,
     candidateName,
-    outgoingEntries,
+    outgoingEntries: outgoingEntriesWithDefaults,
     incomingDocs,
     uploadingDocs,
     deletingDocs,

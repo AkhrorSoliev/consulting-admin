@@ -130,6 +130,8 @@ import SprachsbestaetigungPdfDocument from "./contract/pdf/SprachsbestaetigungPd
 import EinwilligungserklaerungPdfDocument from "./contract/pdf/EinwilligungserklaerungPdfDocument";
 import FotoVideoRozilikPdfDocument from "./contract/pdf/FotoVideoRozilikPdfDocument";
 import PersonalfragebogenPdfDocument from "./contract/pdf/PersonalfragebogenPdfDocument";
+import MotivationLetterPdfDocument from "./generate/pdf/MotivationLetterPdfDocument";
+import MotivationLetterToggleCard from "./generate/components/MotivationLetterToggleCard";
 import {
   makeEmailTemplateId,
   subscribeToEmailTemplates,
@@ -151,6 +153,7 @@ import {
   fetchUrlAsImageDataUrlBestEffort,
 } from "./generate/utils";
 import { correctCommentWithAI, correctExperienceWithAI } from "../utils/openai";
+import { generateMotivationLetterText } from "../utils/motivationLetter";
 import { usePdfGeneration } from "./generate/hooks";
 import { useDocumentManagement } from "./generate/hooks";
 import { useFormNormalization } from "./generate/hooks";
@@ -1418,6 +1421,50 @@ function Generate() {
     return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
   }
 
+  async function generateAndUploadMotivationLetter() {
+    const firstName = String(formCv?.personalInfo?.name || "").trim();
+    const lastName = String(formCv?.personalInfo?.lastName || "").trim();
+    const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
+
+    const city =
+      String(addressFields?.city || "").trim() ||
+      String(
+        parseGermanAddress(String(formCv?.personalInfo?.address || ""))?.city ||
+          "",
+      ).trim();
+    const date = todayDdMmYyyy();
+
+    const letterText = await generateMotivationLetterText({
+      personalInfo: formCv?.personalInfo || {},
+      education: Array.isArray(formCv?.education) ? formCv.education : [],
+      experience: Array.isArray(formCv?.experience) ? formCv.experience : [],
+      skills:
+        formCv?.skills && typeof formCv.skills === "object"
+          ? formCv.skills
+          : {},
+    });
+
+    const safeFullName = fullName || "Bewerber";
+    const fileBase = `Motivationsschreiben ${safeFullName}`;
+    const safeFileName =
+      fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Motivationsschreiben";
+
+    const blob = await pdf(
+      <MotivationLetterPdfDocument
+        fullName={safeFullName}
+        city={city}
+        date={date}
+        letterText={letterText}
+      />,
+    ).toBlob();
+
+    const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {
+      type: "application/pdf",
+    });
+    const url = await uploadFileToFirebase(file, "outgoing");
+    return { url, fileName: `ConsultingUz ${safeFileName}.pdf` };
+  }
+
   async function handleToggleOutgoingDoc(template, nextEnabled, options = {}) {
     const tpl = template || {};
     const templateId = String(tpl.id || "").trim();
@@ -1427,7 +1474,6 @@ function Generate() {
     const forceRegenerate = Boolean(options?.forceRegenerate);
 
     const prev = getOutgoingDocState(templateId);
-    const nextMap = { ...(outgoingDocs || {}) };
 
     // If turning OFF: delete the document completely (both remote file and state)
     if (!nextEnabled) {
@@ -1457,6 +1503,12 @@ function Generate() {
           ...(current?.[templateId] || {}),
           enabled: true,
           updatedAt: Date.now(),
+          ...(templateId === "motivation_letter"
+            ? {
+                title: "Motivationsschreiben (Deutsch)",
+                acceptUpload: false,
+              }
+            : {}),
         };
         return next;
       });
@@ -1504,6 +1556,8 @@ function Generate() {
         generated = await generateAndUploadFotoVideoRozilik();
       } else if (templateId === "personalfragebogen") {
         generated = await generateAndUploadPersonalfragebogen();
+      } else if (templateId === "motivation_letter") {
+        generated = await generateAndUploadMotivationLetter();
       } else {
         throw new Error(`Unknown document template: ${templateId}`);
       }
@@ -1517,6 +1571,12 @@ function Generate() {
           fileName: String(generated?.fileName || "").trim() || null,
           uploadedAt: Date.now(),
           updatedAt: Date.now(),
+          ...(templateId === "motivation_letter"
+            ? {
+                title: "Motivationsschreiben (Deutsch)",
+                acceptUpload: false,
+              }
+            : {}),
         },
       }));
       if (persisted) {
@@ -7872,6 +7932,39 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                 </div>
 
                 <div className="space-y-2">
+                  {(() => {
+                    const motivationState =
+                      getOutgoingDocState("motivation_letter");
+                    const motivationBusy = Boolean(
+                      outgoingBusyById?.motivation_letter,
+                    );
+                    const motivationDisabled =
+                      motivationBusy ||
+                      !candidateCollection ||
+                      !candidateDocId ||
+                      Boolean(sendingStepValue);
+                    return (
+                      <MotivationLetterToggleCard
+                        checked={Boolean(motivationState?.enabled)}
+                        busy={motivationBusy}
+                        disabled={motivationDisabled}
+                        uploadUrl={String(motivationState?.url || "").trim()}
+                        onToggle={(nextEnabled) =>
+                          handleToggleOutgoingDoc(
+                            { id: "motivation_letter" },
+                            nextEnabled,
+                          )
+                        }
+                        onRegenerate={() =>
+                          handleToggleOutgoingDoc(
+                            { id: "motivation_letter" },
+                            true,
+                            { forceRegenerate: true },
+                          )
+                        }
+                      />
+                    );
+                  })()}
                   {DOCUMENT_TEMPLATES.filter(
                     (tpl) =>
                       ![
@@ -8209,7 +8302,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                         const tpl =
                           DOCUMENT_TEMPLATES.find((t) => t.id === docId) ||
                           null;
-                        const title = tpl?.title || docId;
+                        const title = String(v?.title || "").trim() || tpl?.title || docId;
                         const url = String(v?.url || "").trim();
                         const busy = Boolean(outgoingBusyById?.[docId]);
                         const disabled =

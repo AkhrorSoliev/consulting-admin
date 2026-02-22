@@ -2212,7 +2212,7 @@ exports.openaiProxy = onRequest(
             Authorization: `Bearer ${apiKey}`,
           },
           body: JSON.stringify({
-            model: model || "gpt-4o-mini",
+            model: model || "gpt-5.2-mini",
             messages,
             temperature: temperature ?? 0.3,
             max_tokens: max_tokens ?? 2000,

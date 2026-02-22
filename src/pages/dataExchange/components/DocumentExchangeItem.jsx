@@ -14,6 +14,8 @@ export default function DocumentExchangeItem({
   const docTitle = docData.title || docId;
   const docUrl = docData.url;
   const fileName = docData.fileName || `${docTitle}.pdf`;
+  const acceptUpload =
+    typeof docData?.acceptUpload === "boolean" ? docData.acceptUpload : true;
 
   return (
     <div className="border border-base-300 rounded-lg p-3 sm:p-4 bg-base-50">
@@ -35,7 +37,14 @@ export default function DocumentExchangeItem({
 
       <div className="divider my-2"></div>
 
-      {incomingDoc ? (
+      {!acceptUpload ? (
+        <div className="bg-info/10 border border-info/30 rounded-lg p-3">
+          <p className="text-sm text-base-content/80">
+            Bu hujjat faqat admin tomonidan yuborilgan nusxa. Kandidat uchun
+            yuklash yoki almashtirish yopiq.
+          </p>
+        </div>
+      ) : incomingDoc ? (
         <div className="bg-success/10 border border-success/30 rounded-lg p-3">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
             <div className="flex-1 min-w-0">
