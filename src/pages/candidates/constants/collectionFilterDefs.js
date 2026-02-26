@@ -60,8 +60,14 @@ export const FILTER_DEFS = [
       { value: "stage_1:rejected", label: "Stufe 1: abgelehnt" },
       { value: "stage_2:accepted", label: "Stufe 2: angenommen" },
       { value: "stage_2:rejected", label: "Stufe 2: abgelehnt" },
-      { value: "stage_2_result:accepted", label: "Stufe 2 Ergebnis: angenommen" },
-      { value: "stage_2_result:rejected", label: "Stufe 2 Ergebnis: abgelehnt" },
+      {
+        value: "stage_2_result:accepted",
+        label: "Stufe 2 Ergebnis: angenommen",
+      },
+      {
+        value: "stage_2_result:rejected",
+        label: "Stufe 2 Ergebnis: abgelehnt",
+      },
       { value: "stage_3:accepted", label: "Stufe 3: angenommen" },
       { value: "stage_3:rejected", label: "Stufe 3: abgelehnt" },
       { value: "stage_4:accepted", label: "Arbeitgeber: angenommen" },
