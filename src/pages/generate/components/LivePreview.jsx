@@ -53,6 +53,60 @@ function splitCommentLabelLine(line) {
   };
 }
 
+function softWrapTextLine(line, maxChars = 110) {
+  const raw = String(line ?? "");
+  if (!raw) return [""];
+  if (raw.length <= maxChars) return [raw];
+
+  const chunks = [];
+  let current = "";
+  const tokens = raw.split(/(\s+)/).filter((t) => t.length > 0);
+
+  const pushCurrent = () => {
+    if (current.length > 0) {
+      chunks.push(current);
+      current = "";
+    }
+  };
+
+  for (const token of tokens) {
+    const isSpace = /^\s+$/.test(token);
+    if (isSpace) {
+      if (!current) continue;
+      if ((current + token).length <= maxChars) {
+        current += token;
+      } else {
+        pushCurrent();
+      }
+      continue;
+    }
+
+    if (token.length > maxChars) {
+      pushCurrent();
+      for (let i = 0; i < token.length; i += maxChars) {
+        chunks.push(token.slice(i, i + maxChars));
+      }
+      continue;
+    }
+
+    if (!current) {
+      current = token;
+      continue;
+    }
+
+    if ((current + token).length <= maxChars) {
+      current += token;
+      continue;
+    }
+
+    pushCurrent();
+    current = token;
+  }
+
+  pushCurrent();
+  return chunks.length ? chunks : [raw];
+}
+
 function pad2(value) {
   return String(value).padStart(2, "0");
 }
@@ -96,8 +150,11 @@ export default function LivePreview({
 
   const viewportRef = useRef(null);
   const mainMeasureRef = useRef(null);
+  const commentHeaderMeasureRef = useRef(null);
+  const commentBodyMeasureRef = useRef(null);
   const [viewportWidth, setViewportWidth] = useState(0);
   const [mainPageGroups, setMainPageGroups] = useState(null);
+  const [commentPageGroups, setCommentPageGroups] = useState(null);
   const [fontReadyTick, setFontReadyTick] = useState(0);
   const [isPanning, setIsPanning] = useState(false);
   const [zoomFactor, setZoomFactor] = useState(1);
@@ -369,6 +426,35 @@ export default function LivePreview({
   const hasPcSkills = formCv.skills.pcSkills?.length > 0;
   const showSkillsSection =
     hasDrivingLicense || hasSoftSkills || hasLanguages || hasPcSkills;
+  const commentLineEntries = useMemo(
+    () =>
+      commentLines.flatMap((line, idx) => {
+        const wrapped = softWrapTextLine(line, 110);
+        return wrapped.map((part, chunkIdx) => ({
+          id: `comment-line-${idx}-${chunkIdx}`,
+          line: part,
+          idx,
+          isContinuation: chunkIdx > 0,
+          isLastChunk: chunkIdx === wrapped.length - 1,
+        }));
+      }),
+    [commentLines]
+  );
+
+  function renderCommentLine(entry) {
+    if (!entry) return null;
+    const { line, idx, isContinuation, isLastChunk } = entry;
+    const parts = isContinuation ? null : splitCommentLabelLine(line);
+    const suffix = isLastChunk && idx < commentLines.length - 1 ? "\n" : "";
+    if (!parts) return <>{line + suffix}</>;
+    return (
+      <>
+        <span className="font-bold">{parts.labelText}</span>
+        {parts.tailText}
+        {suffix}
+      </>
+    );
+  }
 
   const mainBlocks = useMemo(() => {
     const blocks = [];
@@ -839,6 +925,94 @@ export default function LivePreview({
       ? mainPageGroups
       : [mainBlocks.map((_, idx) => idx)];
   const mainPageCount = resolvedMainPageGroups.length || 1;
+  const resolvedCommentPageGroups =
+    !showComment
+      ? []
+      : Array.isArray(commentPageGroups) && commentPageGroups.length
+      ? commentPageGroups
+      : commentLineEntries.length
+      ? [commentLineEntries.map((_, idx) => idx)]
+      : [[]];
+
+  useLayoutEffect(() => {
+    if (!showComment) {
+      setCommentPageGroups(null);
+      return;
+    }
+
+    const bodyRoot = commentBodyMeasureRef.current;
+    const headerRoot = commentHeaderMeasureRef.current;
+    if (!bodyRoot || !headerRoot) return;
+
+    const nodes = Array.from(bodyRoot.querySelectorAll("[data-comment-line-block]"));
+    const sentinel = bodyRoot.querySelector("[data-comment-line-sentinel]");
+    if (!sentinel) {
+      setCommentPageGroups([[]]);
+      return;
+    }
+
+    const headerCss = window.getComputedStyle(headerRoot);
+    const headerMarginBottom =
+      Number.parseFloat(headerCss.marginBottom || "0") || 0;
+    const headerTotalHeight = (headerRoot.offsetHeight || 0) + headerMarginBottom;
+    const firstBodyTopGapPx = 10 * PT_TO_PX;
+    const nextBodyTopGapPx = 0;
+    const commentBottomPadPt = 72;
+    const firstPageAvailableHeight =
+      A4_HEIGHT_PX -
+      (44 + commentBottomPadPt) * PT_TO_PX -
+      headerTotalHeight -
+      firstBodyTopGapPx;
+    const nextPageAvailableHeight =
+      A4_HEIGHT_PX -
+      (44 + commentBottomPadPt) * PT_TO_PX -
+      nextBodyTopGapPx;
+    const safeFirstPageAvailableHeight = Math.max(40, firstPageAvailableHeight);
+    const safeNextPageAvailableHeight = Math.max(40, nextPageAvailableHeight);
+
+    if (!nodes.length) {
+      setCommentPageGroups([[]]);
+      return;
+    }
+
+    const tops = nodes.map((el) => el.offsetTop || 0);
+    const sentinelTop = sentinel.offsetTop || 0;
+    const occupied = nodes.map((_, i) => {
+      const nextTop = i < nodes.length - 1 ? tops[i + 1] : sentinelTop;
+      return Math.max(0, nextTop - tops[i]);
+    });
+
+    const pages = [];
+    let current = [];
+    let used = 0;
+    let currentPageLimit = safeFirstPageAvailableHeight;
+
+    for (let i = 0; i < nodes.length; i++) {
+      const h = occupied[i] || 0;
+      if (current.length > 0 && used + h > currentPageLimit) {
+        pages.push(current);
+        current = [];
+        used = 0;
+        currentPageLimit = safeNextPageAvailableHeight;
+      }
+      current.push(i);
+      used += h;
+    }
+
+    if (current.length) pages.push(current);
+    if (!pages.length) pages.push([]);
+
+    setCommentPageGroups((prev) =>
+      arePageIndexGroupsEqual(prev, pages) ? prev : pages
+    );
+  }, [
+    showComment,
+    commentLineEntries,
+    commentLines.length,
+    A4_HEIGHT_PX,
+    PT_TO_PX,
+    fontReadyTick,
+  ]);
 
   return (
     <section
@@ -1082,6 +1256,35 @@ export default function LivePreview({
                   <div data-main-sentinel />
                 </div>
               </div>
+
+              <div
+                className="bg-base-100 text-base-content text-[11pt] leading-normal box-border"
+                style={{
+                  fontFamily: "Inter, Helvetica, Arial, sans-serif",
+                  width: `${A4_WIDTH_PT}pt`,
+                  height: `${A4_HEIGHT_PT}pt`,
+                  padding: "44pt",
+                  paddingBottom: "72pt",
+                }}
+              >
+                <div ref={commentHeaderMeasureRef} className="mb-[18pt]">
+                  <div className="text-[24pt] font-bold leading-tight">
+                    Erst- und Zweitgesprächsfeedback
+                  </div>
+                  <div className="h-[2pt] bg-base-content/80 mt-[17pt] mb-[12pt] w-full" />
+                </div>
+                <div
+                  ref={commentBodyMeasureRef}
+                  className="mt-[10pt] text-[11pt] leading-normal whitespace-pre-wrap break-words"
+                >
+                  {commentLineEntries.map((entry) => (
+                    <div key={entry.id} data-comment-line-block>
+                      {renderCommentLine(entry)}
+                    </div>
+                  ))}
+                  <div data-comment-line-sentinel />
+                </div>
+              </div>
             </div>
 
             {/* Main pages (auto-paginated) */}
@@ -1098,7 +1301,7 @@ export default function LivePreview({
                   pageLabel={`A4-Seite ${pageIdx + 1}`}
                 >
                   <div
-                    className={`bg-base-100 shadow-2xl text-base-content text-[11pt] leading-[1.38] origin-top shrink-0 box-border ${
+                    className={`bg-base-100 shadow-2xl text-base-content text-[11pt] leading-[1.38] origin-top shrink-0 box-border overflow-hidden ${
                       showFooter ? "relative" : ""
                     }`}
                     style={{
@@ -1498,56 +1701,59 @@ export default function LivePreview({
               </>
             )}
 
-            {/* Page 2: Kommentar */}
-            {showComment && (
-              <ScaledA4 pageLabel={`A4-Seite ${mainPageCount + 1}`}>
-                <div
-                  className="bg-base-100 shadow-2xl text-base-content text-[11pt] leading-normal origin-top shrink-0 relative box-border"
-                  style={{
-                    fontFamily: "Inter, Helvetica, Arial, sans-serif",
-                    width: `${A4_WIDTH_PT}pt`,
-                    height: `${A4_HEIGHT_PT}pt`,
-                    padding: "44pt",
-                    paddingBottom: "72pt",
-                  }}
+            {/* Kommentar pages (auto-paginated, can be 1..N pages) */}
+            {showComment &&
+              resolvedCommentPageGroups.map((group, commentPageIdx) => (
+                <ScaledA4
+                  key={`comment-${commentPageIdx}`}
+                  pageLabel={`A4-Seite ${mainPageCount + commentPageIdx + 1}`}
                 >
-                  <div className="mb-[18pt]">
-                    <div className="text-[24pt] font-bold leading-tight">
-                      Erst- und Zweitgesprächsfeedback
-                    </div>
-                    <div className="h-[2pt] bg-base-content/80 mt-[17pt] mb-[12pt] w-full" />
-                  </div>
-                  <div className="mt-[10pt] text-[11pt] leading-normal whitespace-pre-wrap">
-                    {commentLines.map((line, idx) => {
-                      const parts = splitCommentLabelLine(line);
-                      const suffix = idx < commentLines.length - 1 ? "\n" : "";
-                      if (!parts) {
-                        return <span key={idx}>{line + suffix}</span>;
-                      }
-                      return (
-                        <span key={idx}>
-                          <span className="font-bold">{parts.labelText}</span>
-                          {parts.tailText}
-                          {suffix}
-                        </span>
-                      );
-                    })}
-                  </div>
-
-                  {/* Footer (match PDF) */}
-                  <div className="absolute left-[44pt] right-[44pt] bottom-[34pt]">
-                    {showCommentDate && (
-                      <div className="text-[10pt] text-right">
-                        Datum: {commentDate || "—"}
+                  <div
+                    className="bg-base-100 shadow-2xl text-base-content text-[11pt] leading-normal origin-top shrink-0 relative box-border overflow-hidden"
+                    style={{
+                      fontFamily: "Inter, Helvetica, Arial, sans-serif",
+                      width: `${A4_WIDTH_PT}pt`,
+                      height: `${A4_HEIGHT_PT}pt`,
+                      padding: "44pt",
+                      paddingBottom: "72pt",
+                    }}
+                  >
+                    {commentPageIdx === 0 && (
+                      <div className="mb-[18pt]">
+                        <div className="text-[24pt] font-bold leading-tight">
+                          Erst- und Zweitgesprächsfeedback
+                        </div>
+                        <div className="h-[2pt] bg-base-content/80 mt-[17pt] mb-[12pt] w-full" />
                       </div>
                     )}
-                    <div className="text-[9pt] text-center">
-                      {autoGeneratedNote}
+                    <div
+                      className={`text-[11pt] leading-normal whitespace-pre-wrap break-words ${
+                        commentPageIdx === 0 ? "mt-[10pt]" : ""
+                      }`}
+                    >
+                      {group.map((lineIdx) => {
+                        const item = commentLineEntries[lineIdx];
+                        if (!item) return null;
+                        return <div key={item.id}>{renderCommentLine(item)}</div>;
+                      })}
                     </div>
+
+                    {/* Footer (match PDF) */}
+                    {commentPageIdx === resolvedCommentPageGroups.length - 1 && (
+                      <div className="absolute left-[44pt] right-[44pt] bottom-[34pt]">
+                        {showCommentDate && (
+                          <div className="text-[10pt] text-right">
+                            Datum: {commentDate || "—"}
+                          </div>
+                        )}
+                        <div className="text-[9pt] text-center">
+                          {autoGeneratedNote}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
-              </ScaledA4>
-            )}
+                </ScaledA4>
+              ))}
           </div>
         </div>
       </div>
