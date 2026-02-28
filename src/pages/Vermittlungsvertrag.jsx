@@ -59,12 +59,18 @@ export default function Vermittlungsvertrag() {
   const [form, setForm] = useState(() => ({
     candidateFirstName: "",
     candidateLastName: "",
+    candidateBirthDate: "",
+    candidateNationality: "",
+    candidatePassportNr: "",
     candidateStreet: "",
     candidateHouseNumber: "",
     candidatePLZ: "",
     candidateBirthPlace: "",
     candidateLand: "",
     contractDurationYears: 2,
+    contractProtectionMonths: "6",
+    contractPenaltyPercent: "50",
+    contractPenaltyMaxEur: "2.000",
     signatureDate: todayDdMmYyyy(),
     signatureCity: "Taschkent",
   }));
@@ -283,7 +289,7 @@ export default function Vermittlungsvertrag() {
             <p className="text-sm opacity-70">
               Füllen Sie die erforderlichen Felder aus:{" "}
               <span className="font-semibold">Name</span>,{" "}
-              <span className="font-semibold">Vertragsdauer</span>,{" "}
+              <span className="font-semibold">Bewerberdaten</span>,{" "}
               <span className="font-semibold">Datum</span>.
             </p>
 
@@ -317,6 +323,18 @@ export default function Vermittlungsvertrag() {
                     setForm((p) => ({
                       ...p,
                       candidateLastName: e.target.value,
+                    }))
+                  }
+                />
+
+                <FormInput
+                  label="Geburtsdatum"
+                  type="date"
+                  value={toInputDate(form.candidateBirthDate)}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      candidateBirthDate: fromInputDate(e.target.value),
                     }))
                   }
                 />
@@ -367,7 +385,7 @@ export default function Vermittlungsvertrag() {
             <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
               <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
                 <span className="w-1 h-4 bg-primary rounded-full"></span>
-                Geburtsdaten
+                Weitere Bewerberdaten
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormInput
@@ -378,6 +396,28 @@ export default function Vermittlungsvertrag() {
                     setForm((p) => ({
                       ...p,
                       candidateBirthPlace: e.target.value,
+                    }))
+                  }
+                />
+                <FormInput
+                  label="Staatsangehörigkeit"
+                  placeholder="z.B. usbekisch"
+                  value={form.candidateNationality}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      candidateNationality: e.target.value,
+                    }))
+                  }
+                />
+                <FormInput
+                  label="Reisepass-Nr."
+                  placeholder="z.B. AA1234567"
+                  value={form.candidatePassportNr}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      candidatePassportNr: e.target.value,
                     }))
                   }
                 />
@@ -401,28 +441,74 @@ export default function Vermittlungsvertrag() {
                 <span className="w-1 h-4 bg-secondary rounded-full"></span>
                 Vertragsdetails
               </h3>
-              <FormInput
-                label="Vertragsdauer (Jahre)"
-                type="number"
-                min="1"
-                max="10"
-                placeholder="z.B. 2"
-                value={form.contractDurationYears}
-                onChange={(e) =>
-                  setForm((p) => ({
-                    ...p,
-                    contractDurationYears: parseInt(e.target.value) || 2,
-                  }))
-                }
-                helperText={
-                  <span className="text-xs opacity-70">
-                    Vertrag beginnt am{" "}
-                    <span className="font-semibold">heutigen Datum</span> und
-                    endet nach {form.contractDurationYears} Jahr
-                    {form.contractDurationYears !== 1 ? "en" : ""}.
-                  </span>
-                }
-              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <FormInput
+                  label="Vertragsdauer (Jahre)"
+                  type="number"
+                  min="1"
+                  max="10"
+                  placeholder="z.B. 2"
+                  value={form.contractDurationYears}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      contractDurationYears: parseInt(e.target.value) || 2,
+                    }))
+                  }
+                />
+                <FormInput
+                  label="Vertragsstrafe (%)"
+                  type="number"
+                  min="1"
+                  max="100"
+                  placeholder="z.B. 50"
+                  value={form.contractPenaltyPercent}
+                  onChange={(e) =>
+                    setForm((p) => ({
+                      ...p,
+                      contractPenaltyPercent: e.target.value,
+                    }))
+                  }
+                />
+                <div className="sm:col-span-2">
+                  <FormInput
+                    label="Umgehungsschutz (Monate)"
+                    type="number"
+                    min="1"
+                    max="24"
+                    placeholder="z.B. 6"
+                    value={form.contractProtectionMonths}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        contractProtectionMonths: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <FormInput
+                    label="Vertragsstrafe Maximum (EUR)"
+                    placeholder="z.B. 2.000"
+                    value={form.contractPenaltyMaxEur}
+                    onChange={(e) =>
+                      setForm((p) => ({
+                        ...p,
+                        contractPenaltyMaxEur: e.target.value,
+                      }))
+                    }
+                    helperText={
+                      <span className="text-xs opacity-70">
+                        Vorschau/PDF matni:{" "}
+                        <span className="font-semibold">
+                          „{form.contractPenaltyPercent || "50"} % ... jedoch
+                          maximal {form.contractPenaltyMaxEur || "2.000"} EUR“
+                        </span>
+                      </span>
+                    }
+                  />
+                </div>
+              </div>
             </div>
 
             <div className="divider divider-start font-bold text-base-content/80">

@@ -101,26 +101,50 @@ function safeName(n) {
   return v || "_____________________";
 }
 
-export default function VermittlungsvertragPdfDocument({ form }) {
+export default function VermittlungsvertragPdfDocument({ form, templateForm }) {
   ensureInterRegistered();
+
+  const candidateSource =
+    form?.candidate && typeof form.candidate === "object" ? form.candidate : form;
+  const pd = candidateSource?.persoenlicheDaten || {};
+  const personalInfo = candidateSource?.personalInfo || {};
 
   // Dynamic candidate data (primary keys + backward-compatible fallbacks)
   const firstName = String(
-    form?.candidateFirstName || form?.firstName || "",
+    pd?.name ||
+      personalInfo?.name ||
+      form?.candidateFirstName ||
+      form?.firstName ||
+      "",
   ).trim();
   const lastName = String(
-    form?.candidateLastName || form?.lastName || "",
+    pd?.nachname ||
+      personalInfo?.lastName ||
+      form?.candidateLastName ||
+      form?.lastName ||
+      "",
   ).trim();
   const candidateName =
     firstName && lastName ? `${firstName} ${lastName}` : safeName("");
 
-  const candidateBirthPrimary = String(form?.candidateBirthDate || "").trim();
-  const candidateBirthFallback = String(form?.candidateBirthPlace || "").trim();
   const candidateBirthDate =
-    candidateBirthPrimary || candidateBirthFallback || "__________";
+    String(
+      pd?.geburtsdatum ||
+        personalInfo?.birthDate ||
+        form?.candidateBirthDate ||
+        "",
+    ).trim() || "__________";
 
-  const nationalityPrimary = String(form?.candidateNationality || "").trim();
-  const nationalityFallback = String(form?.candidateLand || "").trim();
+  const nationalityPrimary = String(
+    pd?.staatsangehoerigkeit ||
+      pd?.land ||
+      personalInfo?.nationality ||
+      form?.candidateNationality ||
+      "",
+  ).trim();
+  const nationalityFallback = String(
+    form?.candidateLand || templateForm?.candidateLand || "",
+  ).trim();
   const candidateNationality =
     nationalityPrimary || nationalityFallback || "__________";
 
@@ -141,22 +165,76 @@ export default function VermittlungsvertragPdfDocument({ form }) {
     .join(", ")
     .trim();
   const candidateAddress =
+    String(pd?.adresse || personalInfo?.address || "").trim() ||
     composedAddressFull ||
     String(form?.candidateAddress || "").trim() ||
     "__________";
   const candidatePassportNr =
     String(
+      pd?.reisepassNummer ||
+        personalInfo?.passportNumber ||
+        candidateSource?.passportId ||
       form?.candidatePassportNr ||
-        form?.passportNumber ||
-        form?.passportId ||
-        "",
+      form?.passportNumber ||
+      form?.passportId ||
+      "",
     ).trim() || "__________";
   const signaturePlace =
-    String(form?.signatureCity || form?.candidateCity || "").trim() ||
+    String(
+      templateForm?.signatureCity ||
+        templateForm?.candidateCity ||
+        form?.signatureCity ||
+        form?.candidateCity ||
+        "",
+    ).trim() ||
     "__________";
   const signatureDate =
-    String(form?.signatureDate || form?.pdfGeneratedDate || "").trim() ||
+    String(
+      templateForm?.signatureDate ||
+        templateForm?.pdfGeneratedDate ||
+        form?.signatureDate ||
+        form?.pdfGeneratedDate ||
+        "",
+    ).trim() ||
     safeDate("");
+  const contractDurationYears = Math.max(
+    1,
+    Number.parseInt(
+      String(
+        form?.contractDurationYears ||
+          templateForm?.contractDurationYears ||
+          "2",
+      ).trim(),
+      10,
+    ) || 2,
+  );
+  const contractProtectionMonths = Math.max(
+    1,
+    Number.parseInt(
+      String(
+        form?.contractProtectionMonths ||
+          templateForm?.contractProtectionMonths ||
+          "6",
+      ).trim(),
+      10,
+    ) || 6,
+  );
+  const protectionMonthsLabel =
+    contractProtectionMonths === 1 ? "Monat" : "Monate";
+  const protectionMonthsDativeLabel =
+    contractProtectionMonths === 1 ? "Monat" : "Monaten";
+  const penaltyPercent =
+    String(
+      form?.contractPenaltyPercent ||
+        templateForm?.contractPenaltyPercent ||
+        "50",
+    ).trim() || "50";
+  const penaltyMaxEur =
+    String(
+      form?.contractPenaltyMaxEur ||
+        templateForm?.contractPenaltyMaxEur ||
+        "2.000",
+    ).trim() || "2.000";
 
   // Section title style (dark blue, bold)
   const sectionTitle = {
@@ -365,9 +443,9 @@ export default function VermittlungsvertragPdfDocument({ form }) {
         <Text style={s.p}>
           (3) Die Vertragsstrafe beträgt{" "}
           <Text style={redBold}>
-            50 % einer vereinbarten Bruttomonatsvergütung
+            {penaltyPercent} % einer vereinbarten Bruttomonatsvergütung
           </Text>
-          , <Text style={redBold}>jedoch maximal 2.000 EUR</Text>.
+          , <Text style={redBold}>jedoch maximal {penaltyMaxEur} EUR</Text>.
         </Text>
         <Text style={s.p}>
           (4) Ein wichtiger Grund liegt insbesondere vor bei:
@@ -398,7 +476,8 @@ export default function VermittlungsvertragPdfDocument({ form }) {
         </Text>
 
         <Text style={sectionTitle}>
-          § 6 Schutz vor Umgehung der Vermittlung (6 Monate)
+          § 6 Schutz vor Umgehung der Vermittlung ({contractProtectionMonths}{" "}
+          {protectionMonthsLabel})
         </Text>
         <Text style={s.p}>
           (1) Der Bewerber ist berechtigt, sich eigenständig oder über Dritte zu
@@ -408,7 +487,10 @@ export default function VermittlungsvertragPdfDocument({ form }) {
           (2) Wird dem Bewerber durch den Vermittler ein konkreter Arbeitgeber
           nachweislich benannt oder vorgestellt, verpflichtet sich der Bewerber,
           für die Dauer von{" "}
-          <Text style={s.bold}>6 Monaten ab nachweislicher Benennung</Text>{" "}
+          <Text style={s.bold}>
+            {contractProtectionMonths} {protectionMonthsDativeLabel} ab
+            nachweislicher Benennung
+          </Text>{" "}
           keinen Arbeitsvertrag mit diesem Arbeitgeber ohne Mitwirkung des
           Vermittlers abzuschließen.
         </Text>
@@ -488,7 +570,8 @@ export default function VermittlungsvertragPdfDocument({ form }) {
 
         <Text style={sectionTitle}>§ 10 Vertragsdauer und Kündigung</Text>
         <Text style={s.p}>
-          (1) Der Vertrag wird auf unbestimmte Zeit geschlossen.
+          (1) Der Vertrag wird für die Dauer von {contractDurationYears} Jahr
+          {contractDurationYears !== 1 ? "en" : ""} geschlossen.
         </Text>
         <Text style={s.p}>
           (2) Beide Parteien können jederzeit ohne Angabe von Gründen kündigen.
