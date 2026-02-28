@@ -129,13 +129,6 @@ export function usePdfGeneration(formCv, addressFields) {
 
     const firstName = String(formCv?.personalInfo?.name || "").trim();
     const lastName = String(formCv?.personalInfo?.lastName || "").trim();
-    const birthPlace = String(formCv?.personalInfo?.birthPlace || "").trim();
-    const passportNumber = String(
-      formCv?.personalInfo?.passportNumber || formCv?.passportId || ""
-    ).trim();
-    const street = String(addressFields?.street || "").trim();
-    const houseNumber = String(addressFields?.houseNumber || "").trim();
-    const postalCode = String(addressFields?.postalCode || "").trim();
     const city = String(addressFields?.city || "").trim();
     const country = String(addressFields?.country || "").trim();
     const templateSignatureCity = String(
@@ -145,31 +138,9 @@ export function usePdfGeneration(formCv, addressFields) {
       savedForm?.signatureDate || savedForm?.pdfGeneratedDate || ""
     ).trim();
 
-    const baseForm = {
-      candidateFirstName: "",
-      candidateLastName: "",
-      candidateStreet: "",
-      candidateHouseNumber: "",
-      candidatePLZ: "",
-      candidateBirthPlace: "",
-      candidateLand: "",
-      contractDurationYears: "2",
-      signatureDate: todayDdMmYyyy(),
-      signatureCity: "",
-    };
-
-    const merged = {
-      ...baseForm,
+    const signatureTemplate = {
       ...(savedForm ? savedForm : {}),
-      candidateFirstName: firstName,
-      candidateLastName: lastName,
-      candidateStreet: street,
-      candidateHouseNumber: houseNumber,
-      candidatePLZ: postalCode,
-      candidateBirthPlace: birthPlace,
-      candidateLand: country,
-      candidatePassportNr:
-        passportNumber || String(savedForm?.candidatePassportNr || "").trim(),
+      candidateLand: country || String(savedForm?.candidateLand || "").trim(),
       signatureCity: city || templateSignatureCity,
       signatureDate: templateSignatureDate || todayDdMmYyyy(),
     };
@@ -184,7 +155,10 @@ export function usePdfGeneration(formCv, addressFields) {
       fileBase.replace(/[\\/:*?"<>|]/g, "").trim() || "Vermittlungsvertrag";
 
     const blob = await pdf(
-      <VermittlungsvertragPdfDocument form={merged} />
+      <VermittlungsvertragPdfDocument
+        form={formCv}
+        templateForm={signatureTemplate}
+      />
     ).toBlob();
 
     const file = new File([blob], `ConsultingUz ${safeFileName}.pdf`, {

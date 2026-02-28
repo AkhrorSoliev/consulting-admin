@@ -43,6 +43,10 @@ function buildVermittlungsvertragBlocks({
   candidatePassportNr,
   candidateCity,
   pdfGeneratedDate,
+  contractDurationYears,
+  contractProtectionMonths,
+  contractPenaltyPercent,
+  contractPenaltyMaxEur,
 }) {
   const candidateNameLine =
     firstName && lastName
@@ -56,6 +60,21 @@ function buildVermittlungsvertragBlocks({
   const signaturePlaceLine = String(candidateCity || "").trim() || "__________";
   const signatureDateLine =
     String(pdfGeneratedDate || "").trim() || "____.__.____";
+  const durationYears = Math.max(
+    1,
+    Number.parseInt(String(contractDurationYears || "").trim(), 10) || 2,
+  );
+  const protectionMonths = Math.max(
+    1,
+    Number.parseInt(String(contractProtectionMonths || "").trim(), 10) || 6,
+  );
+  const protectionMonthsLabel =
+    protectionMonths === 1 ? "Monat" : "Monate";
+  const protectionMonthsDativeLabel =
+    protectionMonths === 1 ? "Monat" : "Monaten";
+  const penaltyPercent =
+    String(contractPenaltyPercent || "").trim() || "50";
+  const penaltyMaxEur = String(contractPenaltyMaxEur || "").trim() || "2.000";
 
   const SectionTitle = ({ title }) => (
     <div className="mt-[14pt] font-bold text-[#1a365d]">{title}</div>
@@ -253,11 +272,11 @@ function buildVermittlungsvertragBlocks({
           <P>
             (3) Die Vertragsstrafe beträgt{" "}
             <span className="font-bold text-[#c53030]">
-              50 % einer vereinbarten Bruttomonatsvergütung
+              {penaltyPercent} % einer vereinbarten Bruttomonatsvergütung
             </span>
             ,{" "}
             <span className="font-bold text-[#c53030]">
-              jedoch maximal 2.000 EUR
+              jedoch maximal {penaltyMaxEur} EUR
             </span>
             .
           </P>
@@ -284,7 +303,9 @@ function buildVermittlungsvertragBlocks({
       id: "6",
       node: (
         <div>
-          <SectionTitle title="§ 6 Schutz vor Umgehung der Vermittlung (6 Monate)" />
+          <SectionTitle
+            title={`§ 6 Schutz vor Umgehung der Vermittlung (${protectionMonths} ${protectionMonthsLabel})`}
+          />
           <P>
             (1) Der Bewerber ist berechtigt, sich eigenständig oder über Dritte
             zu bewerben.
@@ -294,7 +315,8 @@ function buildVermittlungsvertragBlocks({
             nachweislich benannt oder vorgestellt, verpflichtet sich der
             Bewerber, für die Dauer von{" "}
             <span className="font-bold">
-              6 Monaten ab nachweislicher Benennung
+              {protectionMonths} {protectionMonthsDativeLabel} ab
+              nachweislicher Benennung
             </span>{" "}
             keinen Arbeitsvertrag mit diesem Arbeitgeber ohne Mitwirkung des
             Vermittlers abzuschließen.
@@ -382,7 +404,10 @@ function buildVermittlungsvertragBlocks({
       node: (
         <div>
           <SectionTitle title="§ 10 Vertragsdauer und Kündigung" />
-          <P>(1) Der Vertrag wird auf unbestimmte Zeit geschlossen.</P>
+          <P>
+            (1) Der Vertrag wird für die Dauer von {durationYears} Jahr
+            {durationYears !== 1 ? "en" : ""} geschlossen.
+          </P>
           <P>
             (2) Beide Parteien können jederzeit ohne Angabe von Gründen
             kündigen.
@@ -549,6 +574,10 @@ export default function VermittlungsvertragLivePreview({
         pdfGeneratedDate: String(
           form?.signatureDate || form?.pdfGeneratedDate || "",
         ).trim(),
+        contractDurationYears: form?.contractDurationYears,
+        contractProtectionMonths: form?.contractProtectionMonths,
+        contractPenaltyPercent: form?.contractPenaltyPercent,
+        contractPenaltyMaxEur: form?.contractPenaltyMaxEur,
       });
     },
     [
@@ -571,6 +600,10 @@ export default function VermittlungsvertragLivePreview({
       form?.signatureDate,
       form?.candidateCity,
       form?.pdfGeneratedDate,
+      form?.contractDurationYears,
+      form?.contractProtectionMonths,
+      form?.contractPenaltyPercent,
+      form?.contractPenaltyMaxEur,
     ],
   );
 
