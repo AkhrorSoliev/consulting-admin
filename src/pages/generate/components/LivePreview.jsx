@@ -37,7 +37,7 @@ function splitCommentLabelLine(line) {
   const alt = labels.map(escapeRegExp).join("|");
   const re = new RegExp(
     `^(\\s*(?:\\d+\\.)?\\s*)(${alt})(\\s*:)?(\\s*)(.*)$`,
-    "i"
+    "i",
   );
   const m = raw.match(re);
   if (!m) return null;
@@ -223,8 +223,8 @@ export default function LivePreview({
       typeof pageScale === "number"
         ? pageScale
         : pageScale === "auto" || pageScale == null
-        ? null
-        : Number(pageScale);
+          ? null
+          : Number(pageScale);
 
     // Manual scale
     if (raw != null && Number.isFinite(raw)) {
@@ -247,11 +247,11 @@ export default function LivePreview({
     // zoomFactor is applied on top of safeScale: effective = safeScale * zoomFactor
     const min = Math.max(
       0.5,
-      MIN_EFFECTIVE_SCALE / Math.max(0.0001, safeScale)
+      MIN_EFFECTIVE_SCALE / Math.max(0.0001, safeScale),
     );
     const max = Math.min(
       4.5,
-      MAX_EFFECTIVE_SCALE / Math.max(0.0001, safeScale)
+      MAX_EFFECTIVE_SCALE / Math.max(0.0001, safeScale),
     );
     return { min, max };
   }, [safeScale]);
@@ -287,7 +287,7 @@ export default function LivePreview({
         Math.abs(z - 1) < 0.01
           ? Math.max(
               zoomBounds.min,
-              Math.min(zoomBounds.max, clickZoomMultiplier)
+              Math.min(zoomBounds.max, clickZoomMultiplier),
             )
           : 1;
       return next;
@@ -393,17 +393,17 @@ export default function LivePreview({
   const phone = String(formCv?.personalInfo?.phone || "").trim();
   const email = String(formCv?.personalInfo?.email || "").trim();
   const maritalStatus = String(
-    formCv?.personalInfo?.maritalStatus || ""
+    formCv?.personalInfo?.maritalStatus || "",
   ).trim();
   const noChildren = Boolean(formCv?.personalInfo?.noChildren);
   const childrenCount = String(
-    formCv?.personalInfo?.childrenCount || ""
+    formCv?.personalInfo?.childrenCount || "",
   ).trim();
   const childrenText = noChildren
     ? "Keine Kinder"
     : childrenCount
-    ? childrenCount
-    : "";
+      ? childrenCount
+      : "";
   const hasDrivingLicense = Boolean(formCv?.personalInfo?.hasDrivingLicense);
   const drivingType = String(formCv?.personalInfo?.drivingLicenseType || "")
     .trim()
@@ -438,7 +438,7 @@ export default function LivePreview({
           isLastChunk: chunkIdx === wrapped.length - 1,
         }));
       }),
-    [commentLines]
+    [commentLines],
   );
 
   function renderCommentLine(entry) {
@@ -696,7 +696,7 @@ export default function LivePreview({
                           {lang} — {level}
                         </span>
                       </div>
-                    )
+                    ),
                   )}
                 </div>
               </div>
@@ -916,7 +916,7 @@ export default function LivePreview({
     if (!pages.length) pages.push([0]);
 
     setMainPageGroups((prev) =>
-      arePageIndexGroupsEqual(prev, pages) ? prev : pages
+      arePageIndexGroupsEqual(prev, pages) ? prev : pages,
     );
   }, [fontReadyTick, mainBlocks, mainContentHeightPx]);
 
@@ -925,14 +925,13 @@ export default function LivePreview({
       ? mainPageGroups
       : [mainBlocks.map((_, idx) => idx)];
   const mainPageCount = resolvedMainPageGroups.length || 1;
-  const resolvedCommentPageGroups =
-    !showComment
-      ? []
-      : Array.isArray(commentPageGroups) && commentPageGroups.length
+  const resolvedCommentPageGroups = !showComment
+    ? []
+    : Array.isArray(commentPageGroups) && commentPageGroups.length
       ? commentPageGroups
       : commentLineEntries.length
-      ? [commentLineEntries.map((_, idx) => idx)]
-      : [[]];
+        ? [commentLineEntries.map((_, idx) => idx)]
+        : [[]];
 
   useLayoutEffect(() => {
     if (!showComment) {
@@ -944,7 +943,9 @@ export default function LivePreview({
     const headerRoot = commentHeaderMeasureRef.current;
     if (!bodyRoot || !headerRoot) return;
 
-    const nodes = Array.from(bodyRoot.querySelectorAll("[data-comment-line-block]"));
+    const nodes = Array.from(
+      bodyRoot.querySelectorAll("[data-comment-line-block]"),
+    );
     const sentinel = bodyRoot.querySelector("[data-comment-line-sentinel]");
     if (!sentinel) {
       setCommentPageGroups([[]]);
@@ -954,7 +955,8 @@ export default function LivePreview({
     const headerCss = window.getComputedStyle(headerRoot);
     const headerMarginBottom =
       Number.parseFloat(headerCss.marginBottom || "0") || 0;
-    const headerTotalHeight = (headerRoot.offsetHeight || 0) + headerMarginBottom;
+    const headerTotalHeight =
+      (headerRoot.offsetHeight || 0) + headerMarginBottom;
     const firstBodyTopGapPx = 10 * PT_TO_PX;
     const nextBodyTopGapPx = 0;
     const commentBottomPadPt = 72;
@@ -964,9 +966,7 @@ export default function LivePreview({
       headerTotalHeight -
       firstBodyTopGapPx;
     const nextPageAvailableHeight =
-      A4_HEIGHT_PX -
-      (44 + commentBottomPadPt) * PT_TO_PX -
-      nextBodyTopGapPx;
+      A4_HEIGHT_PX - (44 + commentBottomPadPt) * PT_TO_PX - nextBodyTopGapPx;
     const safeFirstPageAvailableHeight = Math.max(40, firstPageAvailableHeight);
     const safeNextPageAvailableHeight = Math.max(40, nextPageAvailableHeight);
 
@@ -1003,7 +1003,7 @@ export default function LivePreview({
     if (!pages.length) pages.push([]);
 
     setCommentPageGroups((prev) =>
-      arePageIndexGroupsEqual(prev, pages) ? prev : pages
+      arePageIndexGroupsEqual(prev, pages) ? prev : pages,
     );
   }, [
     showComment,
@@ -1322,13 +1322,11 @@ export default function LivePreview({
                     ))}
 
                     {/* Footer on the last page (when Kommentar page is hidden) */}
-                    {showFooter && (
+                    {showFooter && showCommentDate && (
                       <div className="absolute left-[44pt] right-[44pt] bottom-[34pt]">
-                        {showCommentDate && (
-                          <div className="text-[10pt] text-right">
-                            Datum: {commentDate || "—"}
-                          </div>
-                        )}
+                        <div className="text-[10pt] text-right">
+                          Datum: {commentDate || "—"}
+                        </div>
                         <div className="text-[9pt] text-center">
                           {autoGeneratedNote}
                         </div>
@@ -1536,7 +1534,7 @@ export default function LivePreview({
                                   <div className="font-bold">Sprachen</div>
                                   <div className="flex flex-col gap-[3pt] min-w-0">
                                     {Object.entries(
-                                      formCv.skills.languages
+                                      formCv.skills.languages,
                                     ).map(([lang, level]) => (
                                       <div
                                         key={lang}
@@ -1623,7 +1621,7 @@ export default function LivePreview({
                                               {url}
                                             </a>
                                           </div>
-                                        )
+                                        ),
                                       )}
                                     </div>
                                   </div>
@@ -1648,7 +1646,7 @@ export default function LivePreview({
                                               {url}
                                             </a>
                                           </div>
-                                        )
+                                        ),
                                       )}
                                     </div>
                                   </div>
@@ -1673,7 +1671,7 @@ export default function LivePreview({
                                               {url}
                                             </a>
                                           </div>
-                                        )
+                                        ),
                                       )}
                                     </div>
                                   </div>
@@ -1684,13 +1682,11 @@ export default function LivePreview({
                       </div>
                     </div>
                     {/* Footer on the last page (when Kommentar page is hidden) */}
-                    {!showComment && (
+                    {!showComment && showCommentDate && (
                       <div className="absolute left-[44pt] right-[44pt] bottom-[34pt] text-[#0f172a]">
-                        {showCommentDate && (
-                          <div className="text-[10pt] text-right">
-                            Datum: {commentDate || "—"}
-                          </div>
-                        )}
+                        <div className="text-[10pt] text-right">
+                          Datum: {commentDate || "—"}
+                        </div>
                         <div className="text-[9pt] text-center">
                           {autoGeneratedNote}
                         </div>
@@ -1734,23 +1730,24 @@ export default function LivePreview({
                       {group.map((lineIdx) => {
                         const item = commentLineEntries[lineIdx];
                         if (!item) return null;
-                        return <div key={item.id}>{renderCommentLine(item)}</div>;
+                        return (
+                          <div key={item.id}>{renderCommentLine(item)}</div>
+                        );
                       })}
                     </div>
 
                     {/* Footer (match PDF) */}
-                    {commentPageIdx === resolvedCommentPageGroups.length - 1 && (
-                      <div className="absolute left-[44pt] right-[44pt] bottom-[34pt]">
-                        {showCommentDate && (
+                    {commentPageIdx === resolvedCommentPageGroups.length - 1 &&
+                      showCommentDate && (
+                        <div className="absolute left-[44pt] right-[44pt] bottom-[34pt]">
                           <div className="text-[10pt] text-right">
                             Datum: {commentDate || "—"}
                           </div>
-                        )}
-                        <div className="text-[9pt] text-center">
-                          {autoGeneratedNote}
+                          <div className="text-[9pt] text-center">
+                            {autoGeneratedNote}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
                   </div>
                 </ScaledA4>
               ))}

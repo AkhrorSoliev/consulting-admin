@@ -393,6 +393,7 @@ function Generate() {
   const [showDocuments, setShowDocuments] = useState(false);
   const [showComment, setShowComment] = useState(true);
   const [showCommentDate, setShowCommentDate] = useState(true);
+  const [showBackgroundImage, setShowBackgroundImage] = useState(true);
   const [isGeneratingSoft, setIsGeneratingSoft] = useState(false);
   const [isGeneratingPc, setIsGeneratingPc] = useState(false);
   const [recentlyAdded, setRecentlyAdded] = useState({ soft: [], pc: [] });
@@ -916,10 +917,10 @@ function Generate() {
     const city = String(addressFields?.city || "").trim();
     const country = String(addressFields?.country || "").trim();
     const templateSignatureCity = String(
-      savedForm?.signatureCity || savedForm?.candidateCity || ""
+      savedForm?.signatureCity || savedForm?.candidateCity || "",
     ).trim();
     const templateSignatureDate = String(
-      savedForm?.signatureDate || savedForm?.pdfGeneratedDate || ""
+      savedForm?.signatureDate || savedForm?.pdfGeneratedDate || "",
     ).trim();
 
     const signatureTemplate = {
@@ -5247,6 +5248,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
           showDocuments={showDocuments}
           showComment={showComment}
           showCommentDate={showCommentDate}
+          showBackgroundImage={showBackgroundImage}
         />,
       ).toBlob();
       const url = URL.createObjectURL(blob);
@@ -5928,14 +5930,25 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                 >
                   Abbrechen
                 </button>
-                <button
-                  className="btn btn-sm btn-outline"
-                  onClick={handleDownloadPdf}
-                  disabled={loading || notFound || isDownloading}
-                >
-                  <FaDownload />{" "}
-                  {isDownloading ? "Wird geladen..." : "Herunterladen"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-1.5 cursor-pointer text-xs">
+                    <input
+                      type="checkbox"
+                      className="toggle toggle-xs toggle-primary"
+                      checked={showBackgroundImage}
+                      onChange={(e) => setShowBackgroundImage(e.target.checked)}
+                    />
+                    <span className="hidden sm:inline">Watermark</span>
+                  </label>
+                  <button
+                    className="btn btn-sm btn-outline"
+                    onClick={handleDownloadPdf}
+                    disabled={loading || notFound || isDownloading}
+                  >
+                    <FaDownload />{" "}
+                    {isDownloading ? "Wird geladen..." : "Herunterladen"}
+                  </button>
+                </div>
                 <button
                   className={[
                     "btn btn-sm",
@@ -8287,7 +8300,8 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                         const tpl =
                           DOCUMENT_TEMPLATES.find((t) => t.id === docId) ||
                           null;
-                        const title = String(v?.title || "").trim() || tpl?.title || docId;
+                        const title =
+                          String(v?.title || "").trim() || tpl?.title || docId;
                         const url = String(v?.url || "").trim();
                         const busy = Boolean(outgoingBusyById?.[docId]);
                         const disabled =
