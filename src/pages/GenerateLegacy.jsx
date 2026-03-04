@@ -5249,6 +5249,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
           showComment={showComment}
           showCommentDate={showCommentDate}
           showBackgroundImage={showBackgroundImage}
+          rating={rating}
         />,
       ).toBlob();
       const url = URL.createObjectURL(blob);
@@ -7835,6 +7836,7 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
                   showComment={showComment}
                   showCommentDate={showCommentDate}
                   onPhotoClick={openPhotoModal}
+                  rating={rating}
                 />
               )}
             </div>
