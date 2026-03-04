@@ -119,6 +119,57 @@ function formatDateDDMMYYYY(ms) {
   return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;
 }
 
+function renderStars(rating) {
+  if (rating === null || rating === undefined) return null;
+  const numericRating = Number(rating);
+  if (!Number.isFinite(numericRating) || numericRating <= 0) return null;
+
+  const stars = [];
+  const fullStars = Math.floor(numericRating);
+  const hasHalfStar = numericRating % 1 >= 0.5;
+  const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+
+  for (let i = 0; i < fullStars; i++) {
+    stars.push(
+      <span
+        key={`full-${i}`}
+        className="text-amber-500 text-[14pt] leading-none"
+      >
+        ★
+      </span>,
+    );
+  }
+
+  if (hasHalfStar) {
+    stars.push(
+      <span
+        key="half"
+        className="relative inline-flex w-[14pt] h-[14pt] leading-none align-middle"
+      >
+        <span className="absolute inset-0 text-gray-300 text-[14pt] leading-none">
+          ★
+        </span>
+        <span className="absolute inset-0 overflow-hidden w-[7pt]">
+          <span className="text-amber-500 text-[14pt] leading-none">★</span>
+        </span>
+      </span>,
+    );
+  }
+
+  for (let i = 0; i < emptyStars; i++) {
+    stars.push(
+      <span
+        key={`empty-${i}`}
+        className="text-gray-300 text-[14pt] leading-none"
+      >
+        ★
+      </span>,
+    );
+  }
+
+  return stars;
+}
+
 export default function LivePreview({
   formCv,
   commentMeta,
@@ -128,6 +179,7 @@ export default function LivePreview({
   onPhotoClick,
   containerClassName,
   showToolbar = true,
+  rating = null,
   // IMPORTANT: scaling must NEVER change layout. We only zoom the whole A4 canvas via transform: scale().
   // Use `pageScale` as:
   // - a number (0.5..1) to force a specific zoom level
@@ -1271,6 +1323,11 @@ export default function LivePreview({
                   <div className="text-[24pt] font-bold leading-tight">
                     Erst- und Zweitgesprächsfeedback
                   </div>
+                  {rating !== null && rating > 0 && (
+                    <div className="flex items-center gap-1 mt-2 mb-1">
+                      {renderStars(rating)}
+                    </div>
+                  )}
                   <div className="h-[2pt] bg-base-content/80 mt-[17pt] mb-[12pt] w-full" />
                 </div>
                 <div
@@ -1719,6 +1776,11 @@ export default function LivePreview({
                         <div className="text-[24pt] font-bold leading-tight">
                           Erst- und Zweitgesprächsfeedback
                         </div>
+                        {rating !== null && rating > 0 && (
+                          <div className="flex items-center gap-1 mt-2 mb-1">
+                            {renderStars(rating)}
+                          </div>
+                        )}
                         <div className="h-[2pt] bg-base-content/80 mt-[17pt] mb-[12pt] w-full" />
                       </div>
                     )}
