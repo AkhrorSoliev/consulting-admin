@@ -1,27 +1,13 @@
 const admin = require("firebase-admin");
 
-// Ensure Admin SDK is initialized exactly once, even if modules are imported independently.
+// Admin SDK is initialized in index.js — these helpers provide access
+// to the shared admin and db instances from extracted modules.
 function getAdmin() {
-  if (!admin.apps.length) {
-    admin.initializeApp();
-  }
   return admin;
 }
 
 function getDb() {
-  return getAdmin().firestore();
+  return admin.firestore();
 }
 
 module.exports = { getAdmin, getDb };
-
-
-
-
-
-
-
-
-
-
-
-
