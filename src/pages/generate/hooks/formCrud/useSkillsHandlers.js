@@ -118,12 +118,6 @@ export function useSkillsHandlers({ formCv, setFormCv, isLimitedAdmin }) {
         (_, i) => i !== rowIdx,
       );
       const newLanguages = Object.fromEntries(entries);
-      console.log("🗑️ Removing language row:", {
-        rowIdx,
-        oldLanguages: prev.skills.languages,
-        newLanguages,
-        isEmpty: Object.keys(newLanguages).length === 0,
-      });
       return {
         ...prev,
         skills: { ...prev.skills, languages: newLanguages },

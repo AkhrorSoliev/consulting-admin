@@ -5,50 +5,51 @@ export const PDF_BACKEND_URL =
 export const TEMPLATE_NAME = "erklaerung-zum-beschaeftigungsverhaeltnis.pdf";
 export const DEFAULTS_KEY = "erklaerung_beschaeftigung";
 
+// Multi-widget checkbox options - value is widget index (0, 1, 2, etc.)
 export const ERKLAERUNG_OPTIONS = [
-  { value: "zur Erteilung eines Aufenthaltstitels zum Zweck der Beschaeftigung", label: "zur Erteilung eines Aufenthaltstitels zum Zweck der Beschäftigung" },
-  { value: "zur Zustimmung der Aufnahme einer Beschaeftigung von Personen mit Duldung oder Aufenthaltsgestattung", label: "zur Zustimmung der Aufnahme einer Beschäftigung (Duldung/Aufenthaltsgestattung)" },
-  { value: "zur Zustimmung zu einer Aufenthaltserlaubnis, die die Beschaeftigung nicht erlaubt", label: "zur Zustimmung zu einer Aufenthaltserlaubnis (Beschäftigung nicht erlaubt)" },
-  { value: "zur Erteilung einer Vorabzustimmung der Bundesagentur fuer Arbeit", label: "zur Erteilung einer Vorabzustimmung der Bundesagentur für Arbeit" },
-  { value: "zur Erteilung einer Arbeitserlaubnis der Bundesagentur fuer Arbeit", label: "zur Erteilung einer Arbeitserlaubnis der Bundesagentur für Arbeit" },
+  { value: 0, label: "zur Erteilung eines Aufenthaltstitels zum Zweck der Beschäftigung" },
+  { value: 1, label: "zur Zustimmung der Aufnahme einer Beschäftigung (Duldung/Aufenthaltsgestattung)" },
+  { value: 2, label: "zur Zustimmung zu einer Aufenthaltserlaubnis (Beschäftigung nicht erlaubt)" },
+  { value: 3, label: "zur Erteilung einer Vorabzustimmung der Bundesagentur für Arbeit" },
+  { value: 4, label: "zur Erteilung einer Arbeitserlaubnis der Bundesagentur für Arbeit" },
 ];
 
 export const ANLASS_OPTIONS = [
-  { value: "Ersterteilung", label: "Ersterteilung" },
-  { value: "Verlaengerung", label: "Verlängerung" },
-  { value: "Arbeitgeberwechsel", label: "Arbeitgeberwechsel" },
+  { value: 0, label: "Ersterteilung" },
+  { value: 1, label: "Verlängerung" },
+  { value: 2, label: "Arbeitgeberwechsel" },
 ];
 
 export const GESCHLECHT_OPTIONS = [
-  { value: "maennlich", label: "männlich" },
-  { value: "weiblich", label: "weiblich" },
-  { value: "divers", label: "divers" },
+  { value: 0, label: "männlich" },
+  { value: 1, label: "weiblich" },
+  { value: 2, label: "divers" },
 ];
 
 export const JA_NEIN = [
-  { value: "ja", label: "Ja" },
-  { value: "nein", label: "Nein" },
+  { value: 0, label: "Ja" },
+  { value: 1, label: "Nein" },
 ];
 
 export const ARBEITSORT_OPTIONS = [
-  { value: "Arbeitsort entspricht dem Arbeitgeber-Sitz", label: "Entspricht dem Arbeitgeber-Sitz" },
-  { value: "Arbeitnehmerin oder Arbeitnehmer wird an wechselnden Arbeits-/Einsatzorten beschaeftigt", label: "Wechselnde Arbeits-/Einsatzorte" },
-  { value: "Der Arbeitsort befindet sich unter folgender Adresse", label: "Andere Adresse" },
+  { value: 0, label: "Entspricht dem Arbeitgeber-Sitz" },
+  { value: 1, label: "Wechselnde Arbeits-/Einsatzorte" },
+  { value: 2, label: "Andere Adresse" },
 ];
 
 export const ARBEITSZEIT_OPTIONS = [
-  { value: "Vollzeit", label: "Vollzeit" },
-  { value: "Teilzeit", label: "Teilzeit" },
-  { value: "Geringfuegige Beschaeftigung", label: "Geringfügige Beschäftigung" },
+  { value: 0, label: "Vollzeit" },
+  { value: 1, label: "Teilzeit" },
+  { value: 2, label: "Geringfügige Beschäftigung" },
 ];
 
 export const AUSLAND_OPTIONS = [
-  { value: "ja - bitte Nachweis vorlegen", label: "Ja (Nachweis vorlegen)" },
-  { value: "nein", label: "Nein" },
+  { value: 0, label: "Ja (Nachweis vorlegen)" },
+  { value: 1, label: "Nein" },
 ];
 
 export const AUSLAND_TEILWEISE_OPTIONS = [
-  { value: "ja - bitte Nachweis vorlegen", label: "Ja (Nachweis vorlegen)" },
-  { value: "nein", label: "Nein" },
-  { value: "teilweise - bitte Nachweis vorlegen", label: "Teilweise (Nachweis vorlegen)" },
+  { value: 0, label: "Ja (Nachweis vorlegen)" },
+  { value: 1, label: "Nein" },
+  { value: 2, label: "Teilweise (Nachweis vorlegen)" },
 ];

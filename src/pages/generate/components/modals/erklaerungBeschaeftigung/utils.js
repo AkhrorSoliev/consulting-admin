@@ -21,9 +21,9 @@ export const fromInputDate = (yyyyMmDd) => {
 export const mapGenderToForm = (gender) => {
   if (!gender) return "";
   const g = String(gender).toLowerCase().trim();
-  if (g === "männlich" || g === "male" || g === "m") return "maennlich";
-  if (g === "weiblich" || g === "female" || g === "w" || g === "f") return "weiblich";
-  if (g === "divers") return "divers";
+  if (g === "männlich" || g === "male" || g === "m") return 0;
+  if (g === "weiblich" || g === "female" || g === "w" || g === "f") return 1;
+  if (g === "divers") return 2;
   return "";
 };
 
@@ -100,11 +100,15 @@ export const createInitialForm = (candidateData) => ({
 });
 
 export const buildPdfPayload = (form) => {
-  const payload = { template: TEMPLATE_NAME, data: { textFields: {}, radioGroups: {}, checkboxes: {} } };
+  const payload = { template: TEMPLATE_NAME, data: { textFields: {}, checkboxes: {}, multiWidgetCheckboxes: {} } };
   Object.entries(form).forEach(([key, value]) => {
-    if (key.startsWith("txtf_")) payload.data.textFields[key] = value;
-    else if (key.startsWith("rbtn_") && value) payload.data.radioGroups[key] = value;
-    else if (key.startsWith("chbx_")) payload.data.checkboxes[key] = value;
+    if (key.startsWith("txtf_")) {
+      payload.data.textFields[key] = value;
+    } else if (key.startsWith("rbtn_") && value !== "" && value !== null && value !== undefined) {
+      payload.data.multiWidgetCheckboxes[key] = Number(value);
+    } else if (key.startsWith("chbx_")) {
+      payload.data.checkboxes[key] = value;
+    }
   });
   return payload;
 };

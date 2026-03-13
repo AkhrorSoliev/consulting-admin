@@ -15,7 +15,10 @@ export const RadioGroup = ({ name, label, options, value, onChange }) => (
 export const SelectField = ({ label, value, onChange, options, placeholder = "Bitte wählen..." }) => (
   <div className="form-control">
     <label className="label"><span className="label-text font-medium">{label}</span></label>
-    <select className="select select-bordered w-full" value={value} onChange={(e) => onChange(e.target.value)}>
+    <select className="select select-bordered w-full" value={value} onChange={(e) => {
+      const raw = e.target.value;
+      onChange(raw === "" ? "" : Number(raw));
+    }}>
       <option value="">{placeholder}</option>
       {options.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
     </select>

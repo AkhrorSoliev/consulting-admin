@@ -86,7 +86,7 @@ export default function OutgoingDocumentsCard({
               })
             }
           />
-          {DOCUMENT_TEMPLATES.filter((tpl) => !ERKLAERUNG_IDS.includes(tpl.id)).map(
+          {DOCUMENT_TEMPLATES.filter((tpl) => !ERKLAERUNG_IDS.includes(tpl.id) && !tpl.disabled && tpl.kind !== "fillable-pdf").map(
             (tpl) => {
               const st = getOutgoingDocState(tpl.id);
               const checked = Boolean(st?.enabled);

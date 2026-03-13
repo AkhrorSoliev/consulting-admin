@@ -104,7 +104,6 @@ export function useCollectionData() {
     const unsub = onSnapshot(
       q,
       (snap) => {
-        console.log(`\uD83D\uDCCA Loaded ${snap.docs.length} candidates from Firestore`);
         const list = snap.docs.map((d) => mapCandidate(d));
         setItems(list);
         setLoading(false);

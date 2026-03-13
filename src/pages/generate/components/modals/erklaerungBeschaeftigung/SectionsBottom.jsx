@@ -9,7 +9,7 @@ export default function SectionsBottom({ form, updateField }) {
       <Section title="G/H. Arbeitszeit">
         <RadioGroup name="rbtn_37_Arbeitszeit" label="37. Arbeitszeit" options={ARBEITSZEIT_OPTIONS} value={form.rbtn_37_Arbeitszeit} onChange={(v) => updateField("rbtn_37_Arbeitszeit", v)} />
         <FormInput label="Arbeitsstunden pro Woche" value={form.txtf_37_Arbeitsstunden_Woche} onChange={(e) => updateField("txtf_37_Arbeitsstunden_Woche", e.target.value)} />
-        <RadioGroup name="rbtn_38_Ueberstunden" label="38. Überstunden vorgesehen?" options={[{ value: "ja", label: "Ja" }, { value: "nein - weiter mit Abschnitt I.", label: "Nein" }]} value={form.rbtn_38_Ueberstunden} onChange={(v) => updateField("rbtn_38_Ueberstunden", v)} />
+        <RadioGroup name="rbtn_38_Ueberstunden" label="38. Überstunden vorgesehen?" options={[{ value: 0, label: "Ja" }, { value: 1, label: "Nein" }]} value={form.rbtn_38_Ueberstunden} onChange={(v) => updateField("rbtn_38_Ueberstunden", v)} />
         <FormInput label="39. Überstundenumfang" value={form.txtf_39_Ueberstundenumpfang} onChange={(e) => updateField("txtf_39_Ueberstundenumpfang", e.target.value)} />
         <FormInput label="40. Überstundenausgleich" value={form.txtf_40_Ueberstundenausgleich} onChange={(e) => updateField("txtf_40_Ueberstundenausgleich", e.target.value)} />
       </Section>
@@ -19,8 +19,8 @@ export default function SectionsBottom({ form, updateField }) {
       </Section>
 
       <Section title="J. Entgelt">
-        <RadioGroup name="rbtn_42_Arbeitgeber_tarifgebunden" label="42. Arbeitgeber tarifgebunden?" options={[{ value: "ja", label: "Ja" }, { value: "nein - weiter mit 46", label: "Nein" }]} value={form.rbtn_42_Arbeitgeber_tarifgebunden} onChange={(v) => updateField("rbtn_42_Arbeitgeber_tarifgebunden", v)} />
-        <RadioGroup name="rbtn_43_tarifliche_Arbeitsbedingungen" label="43. Tarifliche Arbeitsbedingungen?" options={[{ value: "ja", label: "Ja" }, { value: "nein - weiter mit 46", label: "Nein" }]} value={form.rbtn_43_tarifliche_Arbeitsbedingungen} onChange={(v) => updateField("rbtn_43_tarifliche_Arbeitsbedingungen", v)} />
+        <RadioGroup name="rbtn_42_Arbeitgeber_tarifgebunden" label="42. Arbeitgeber tarifgebunden?" options={[{ value: 0, label: "Ja" }, { value: 1, label: "Nein" }]} value={form.rbtn_42_Arbeitgeber_tarifgebunden} onChange={(v) => updateField("rbtn_42_Arbeitgeber_tarifgebunden", v)} />
+        <RadioGroup name="rbtn_43_tarifliche_Arbeitsbedingungen" label="43. Tarifliche Arbeitsbedingungen?" options={[{ value: 0, label: "Ja" }, { value: 1, label: "Nein" }]} value={form.rbtn_43_tarifliche_Arbeitsbedingungen} onChange={(v) => updateField("rbtn_43_tarifliche_Arbeitsbedingungen", v)} />
         <FormInput label="44. Tarifvertrag" value={form.txtf_44_Tarifvertrag} onChange={(e) => updateField("txtf_44_Tarifvertrag", e.target.value)} />
         <FormInput label="45. Entgeltgruppe" value={form.txtf_45_Entgeltgruppe} onChange={(e) => updateField("txtf_45_Entgeltgruppe", e.target.value)} />
         <CheckboxField label="46. Arbeitsentgelt" checked={form.chbx_46_Arbeitsentgelt} onChange={(v) => updateField("chbx_46_Arbeitsentgelt", v)} />
@@ -41,9 +41,9 @@ export default function SectionsBottom({ form, updateField }) {
       </Section>
 
       <Section title="K. Sozialversicherung">
-        <RadioGroup name="rbtn_52_besteht_Versicherungspflicht" label="52. Besteht Versicherungspflicht?" options={[{ value: "ja - weiter mit 54", label: "Ja" }, { value: "nein", label: "Nein" }]} value={form.rbtn_52_besteht_Versicherungspflicht} onChange={(v) => updateField("rbtn_52_besteht_Versicherungspflicht", v)} />
+        <RadioGroup name="rbtn_52_besteht_Versicherungspflicht" label="52. Besteht Versicherungspflicht?" options={[{ value: 0, label: "Ja" }, { value: 1, label: "Nein" }]} value={form.rbtn_52_besteht_Versicherungspflicht} onChange={(v) => updateField("rbtn_52_besteht_Versicherungspflicht", v)} />
         <FormInput label="53. Begründung" value={form.txtf_53_Begruendung_Versicherungspflicht} onChange={(e) => updateField("txtf_53_Begruendung_Versicherungspflicht", e.target.value)} />
-        <RadioGroup name="rbtn_54_Sozialversicherungspflicht_nicht" label="54. Sozialversicherungspflicht besteht nicht?" options={[{ value: "ja - bitte Nachweis vorlegen", label: "Ja (Nachweis vorlegen)" }, { value: "nein - weiter mit Abschnitt L.", label: "Nein" }]} value={form.rbtn_54_Sozialversicherungspflicht_nicht} onChange={(v) => updateField("rbtn_54_Sozialversicherungspflicht_nicht", v)} />
+        <RadioGroup name="rbtn_54_Sozialversicherungspflicht_nicht" label="54. Sozialversicherungspflicht besteht nicht?" options={[{ value: 0, label: "Ja (Nachweis vorlegen)" }, { value: 1, label: "Nein" }]} value={form.rbtn_54_Sozialversicherungspflicht_nicht} onChange={(v) => updateField("rbtn_54_Sozialversicherungspflicht_nicht", v)} />
         <FormInput label="55. Form des Nachweises" value={form.txtf_55_Form_Nachweiss} onChange={(e) => updateField("txtf_55_Form_Nachweiss", e.target.value)} />
       </Section>
 

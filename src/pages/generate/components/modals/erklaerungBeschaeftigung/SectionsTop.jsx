@@ -55,7 +55,7 @@ export default function SectionsTop({ form, updateField }) {
 
       <Section title="D. Angaben zur Beschäftigung">
         <FormInput label="21. Beginn der Beschäftigung" type="date" value={toInputDate(form.txtf_21_Beschaeftigungsverhaeltniss)} onChange={(e) => updateField("txtf_21_Beschaeftigungsverhaeltniss", fromInputDate(e.target.value))} />
-        <RadioGroup name="rbtn_22_Beschaeftigungsverhaeltniss" label="22. Beschäftigungsverhältnis" options={[{ value: "unbefristet", label: "Unbefristet" }, { value: "befristet", label: "Befristet" }]} value={form.rbtn_22_Beschaeftigungsverhaeltniss} onChange={(v) => updateField("rbtn_22_Beschaeftigungsverhaeltniss", v)} />
+        <RadioGroup name="rbtn_22_Beschaeftigungsverhaeltniss" label="22. Beschäftigungsverhältnis" options={[{ value: 0, label: "Unbefristet" }, { value: 1, label: "Befristet" }]} value={form.rbtn_22_Beschaeftigungsverhaeltniss} onChange={(v) => updateField("rbtn_22_Beschaeftigungsverhaeltniss", v)} />
         <FormInput label="Befristung bis" type="date" value={toInputDate(form.txtf_22_Beschaeftigungsverhaeltniss)} onChange={(e) => updateField("txtf_22_Beschaeftigungsverhaeltniss", fromInputDate(e.target.value))} />
         <RadioGroup name="rbtn_23_Dritte" label="23. Beschäftigung bei Dritten?" options={JA_NEIN} value={form.rbtn_23_Dritte} onChange={(v) => updateField("rbtn_23_Dritte", v)} />
         <SelectField label="24. Arbeitsort" value={form.rbtn_24_Arbeitsort} onChange={(v) => updateField("rbtn_24_Arbeitsort", v)} options={ARBEITSORT_OPTIONS} />
@@ -74,7 +74,7 @@ export default function SectionsTop({ form, updateField }) {
         <FormInput label="33. Anerkennungsnachweis" value={form.txtf_33_Anerkennungsnachweis} onChange={(e) => updateField("txtf_33_Anerkennungsnachweis", e.target.value)} />
         <CheckboxField label="34. Keine formale Ausbildung" checked={form.chbx_34_keine_Ausbildung} onChange={(v) => updateField("chbx_34_keine_Ausbildung", v)} />
         <FormInput label="34. Sonstige Qualifikationen" value={form.txtf_34_Qualifikationen} onChange={(e) => updateField("txtf_34_Qualifikationen", e.target.value)} />
-        <RadioGroup name="rbtn_35_Berufsausuebungserlaubnis" label="35. Berufsausübungserlaubnis erforderlich?" options={[{ value: "ja", label: "Ja" }, { value: "nein - weiter mit Abschnitt G.", label: "Nein" }]} value={form.rbtn_35_Berufsausuebungserlaubnis} onChange={(v) => updateField("rbtn_35_Berufsausuebungserlaubnis", v)} />
+        <RadioGroup name="rbtn_35_Berufsausuebungserlaubnis" label="35. Berufsausübungserlaubnis erforderlich?" options={[{ value: 0, label: "Ja" }, { value: 1, label: "Nein" }]} value={form.rbtn_35_Berufsausuebungserlaubnis} onChange={(v) => updateField("rbtn_35_Berufsausuebungserlaubnis", v)} />
         <FormInput label="36. Erforderliche Qualifikation" value={form.txtf_36_erforderliche_Qualifikation} onChange={(e) => updateField("txtf_36_erforderliche_Qualifikation", e.target.value)} />
       </Section>
     </>
