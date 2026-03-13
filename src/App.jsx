@@ -26,7 +26,27 @@ function App() {
     });
   }, [dispatch]);
 
-  return <>{authReady && <RouterProvider router={routes} />}</>;
+  if (!authReady) {
+    return (
+      <div className="min-h-screen bg-base-200">
+        <div className="navbar bg-base-100 shadow-sm px-4">
+          <div className="h-8 w-24 bg-base-300 rounded animate-pulse" />
+          <div className="flex-1" />
+          <div className="flex gap-2">
+            <div className="h-8 w-20 bg-base-300 rounded animate-pulse" />
+            <div className="h-8 w-20 bg-base-300 rounded animate-pulse" />
+            <div className="h-8 w-20 bg-base-300 rounded animate-pulse" />
+          </div>
+        </div>
+        <div className="p-6">
+          <div className="h-10 w-64 bg-base-300 rounded animate-pulse mb-4" />
+          <div className="h-64 bg-base-300 rounded animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
+  return <RouterProvider router={routes} />;
 }
 
 export default App;

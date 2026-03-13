@@ -90,7 +90,7 @@ function MainLayout() {
           <FaUserCircle className="text-xl" />
           <span className="font-medium">Profil</span>
         </Link>
-        {!loadingRole && (role === "super_admin" || role === "admin") && (
+        {(role === "super_admin" || role === "admin") && (
           <Link
             to="/settings"
             className="btn btn-ghost gap-2"
@@ -101,7 +101,7 @@ function MainLayout() {
             <span className="font-medium">Einstellungen</span>
           </Link>
         )}
-        {!loadingRole && (role === "super_admin" || role === "admin") && (
+        {(role === "super_admin" || role === "admin") && (
           <Link
             to="/candidates"
             className="btn btn-ghost gap-2"
