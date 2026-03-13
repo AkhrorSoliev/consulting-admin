@@ -1,232 +1,41 @@
-import { useState, useEffect } from "react";
-import { FaDownload, FaSave, FaTrash } from "react-icons/fa";
-import toast from "react-hot-toast";
-import { Link } from "react-router-dom";
-import { FaArrowLeft } from "react-icons/fa";
-import FormInput from "../components/FormInput";
-import {
-  getFillablePdfDefaults,
-  saveFillablePdfDefaults,
-  clearFillablePdfDefaults,
-} from "../utils/fillablePdfDefaults";
 import useUserRole from "../hooks/useUserRole";
+import useZusatzblattDForm from "./zusatzblattD/hooks/useZusatzblattDForm";
+import Toolbar from "./zusatzblattD/components/Toolbar";
+import SectionA from "./zusatzblattD/components/SectionA";
+import SectionB from "./zusatzblattD/components/SectionB";
+import SectionC from "./zusatzblattD/components/SectionC";
 
-const PDF_BACKEND_URL = import.meta.env.VITE_PDF_BACKEND_URL || "https://unsincerely-monarchal-alva.ngrok-free.dev";
-
-function todayDdMmYyyy() {
-  const d = new Date();
-  const dd = String(d.getDate()).padStart(2, "0");
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const yyyy = String(d.getFullYear());
-  return `${dd}.${mm}.${yyyy}`;
-}
-
-function toInputDate(ddMmYyyy) {
-  if (!ddMmYyyy) return "";
-  const parts = String(ddMmYyyy).split(".");
-  if (parts.length !== 3) return "";
-  const [dd, mm, yyyy] = parts;
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-function fromInputDate(yyyyMmDd) {
-  if (!yyyyMmDd) return "";
-  const parts = String(yyyyMmDd).split("-");
-  if (parts.length !== 3) return "";
-  const [yyyy, mm, dd] = parts;
-  return `${dd}.${mm}.${yyyy}`;
-}
+const formCard =
+  "card bg-base-100 shadow-2xl border border-base-300 rounded-2xl w-full max-w-4xl mx-auto";
 
 export default function ZusatzblattD() {
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [isSavingDefaults, setIsSavingDefaults] = useState(false);
-  const [isClearingDefaults, setIsClearingDefaults] = useState(false);
-  const [hasDefaults, setHasDefaults] = useState(false);
   const { role } = useUserRole();
   const canManageDefaults = role === "super_admin" || role === "admin";
 
-  const [form, setForm] = useState({
-    // Section A - Angaben zur Person
-    txtf_1_Vorname: "",
-    txtf_2_Nachname: "",
-    txtf_3_Wohnsitz: "",
-
-    // Section B - Kurzfristige Beschäftigung
-    rbtn_4_Arbeit_90_Tage: "",
-    rbtn_5_Arbeit_8_Monate: "",
-    rbtn_6_Erntehelfer: "",
-    rbtn_7_Arbeit_visumfrei: "",
-    rbtn_8_Unternehmen_beschaeftigt: "",
-    rbtn_9_Reisekosten: "",
-
-    // Section C - Unterschrift
-    txtf_10_Ort: "",
-    txtf_11_Datum: todayDdMmYyyy(),
-  });
-
-  useEffect(() => {
-    getFillablePdfDefaults("zusatzblatt_d")
-      .then((defaults) => {
-        if (defaults && typeof defaults === "object") {
-          setHasDefaults(Object.keys(defaults).some((k) => k !== "updatedAt" && defaults[k]));
-          setForm((prev) => {
-            const merged = { ...prev };
-            Object.keys(defaults).forEach((key) => {
-              if (key in merged && key !== "updatedAt") {
-                merged[key] = defaults[key];
-              }
-            });
-            return merged;
-          });
-        }
-      })
-      .catch((err) => console.error("Failed to load defaults:", err));
-  }, []);
-
-  async function handleSaveAsDefaults() {
-    setIsSavingDefaults(true);
-    try {
-      await saveFillablePdfDefaults("zusatzblatt_d", form);
-      setHasDefaults(true);
-      toast.success("Standardwerte gespeichert");
-    } catch (err) {
-      toast.error(err.message || "Fehler beim Speichern");
-    } finally {
-      setIsSavingDefaults(false);
-    }
-  }
-
-  async function handleClearDefaults() {
-    if (!window.confirm("Möchten Sie alle Standardwerte für dieses Template löschen?")) return;
-    setIsClearingDefaults(true);
-    try {
-      await clearFillablePdfDefaults("zusatzblatt_d");
-      setHasDefaults(false);
-      // Reset form to initial empty values
-      setForm((prev) => {
-        const reset = {};
-        Object.keys(prev).forEach((key) => {
-          if (key.startsWith("chbx_")) {
-            reset[key] = false;
-          } else if (key === "txtf_11_Datum") {
-            reset[key] = todayDdMmYyyy();
-          } else {
-            reset[key] = "";
-          }
-        });
-        return reset;
-      });
-      toast.success("Standardwerte gelöscht");
-    } catch (err) {
-      toast.error(err.message || "Fehler beim Löschen");
-    } finally {
-      setIsClearingDefaults(false);
-    }
-  }
-
-  async function handleDownloadPdf() {
-    try {
-      setIsDownloading(true);
-
-      const payload = {
-        template: "zusatzblatt_d_zum_formular_erklaerung_zum_beschaeftigungsverhaeltnis.pdf",
-        data: {
-          textFields: {},
-          radioGroups: {},
-          checkboxes: {},
-        },
-      };
-
-      Object.entries(form).forEach(([key, value]) => {
-        if (key.startsWith("txtf_")) {
-          payload.data.textFields[key] = value;
-        } else if (key.startsWith("rbtn_") && value) {
-          payload.data.radioGroups[key] = value;
-        } else if (key.startsWith("chbx_")) {
-          payload.data.checkboxes[key] = value;
-        }
-      });
-
-      const response = await fetch(`${PDF_BACKEND_URL}/generate-pdf`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "PDF generation failed");
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `Zusatzblatt_D_${form.txtf_2_Nachname || "Dokument"}.pdf`;
-      link.click();
-      URL.revokeObjectURL(url);
-      toast.success("PDF wurde erstellt.");
-    } catch (e) {
-      console.error("PDF error:", e);
-      toast.error(e.message || "Fehler beim Erstellen der PDF.");
-    } finally {
-      setIsDownloading(false);
-    }
-  }
-
-  const formCard = "card bg-base-100 shadow-2xl border border-base-300 rounded-2xl w-full max-w-4xl mx-auto";
+  const {
+    form,
+    setForm,
+    isDownloading,
+    isSavingDefaults,
+    isClearingDefaults,
+    hasDefaults,
+    handleSaveAsDefaults,
+    handleClearDefaults,
+    handleDownloadPdf,
+  } = useZusatzblattDForm();
 
   return (
     <div className="p-2 min-h-screen">
-      <div className="fixed inset-x-0 top-16 z-30 border-b border-base-300 bg-base-200/90 backdrop-blur print:hidden">
-        <div className="flex items-center justify-between gap-3 px-4 py-2 lg:px-6">
-          <div className="breadcrumbs text-sm">
-            <ul>
-              <li>
-                <Link to="/settings/documents" className="link flex items-center gap-2">
-                  <FaArrowLeft /> Zurück
-                </Link>
-              </li>
-              <li className="opacity-70">Zusatzblatt D</li>
-            </ul>
-          </div>
-          <div className="flex items-center gap-2">
-            {canManageDefaults && (
-              <>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-outline btn-secondary"
-                  onClick={handleSaveAsDefaults}
-                  disabled={isSavingDefaults}
-                >
-                  <FaSave className="w-3 h-3" />
-                  {isSavingDefaults ? "Speichern..." : "Als Standard speichern"}
-                </button>
-                {hasDefaults && (
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-outline btn-error"
-                    onClick={handleClearDefaults}
-                    disabled={isClearingDefaults}
-                  >
-                    <FaTrash className="w-3 h-3" />
-                    {isClearingDefaults ? "Löschen..." : "Standard löschen"}
-                  </button>
-                )}
-              </>
-            )}
-            <button
-              type="button"
-              className="btn btn-sm btn-primary"
-              onClick={handleDownloadPdf}
-              disabled={isDownloading}
-            >
-              <FaDownload />
-              {isDownloading ? "Wird erstellt..." : "PDF Herunterladen"}
-            </button>
-          </div>
-        </div>
-      </div>
+      <Toolbar
+        canManageDefaults={canManageDefaults}
+        isSavingDefaults={isSavingDefaults}
+        isClearingDefaults={isClearingDefaults}
+        isDownloading={isDownloading}
+        hasDefaults={hasDefaults}
+        onSaveDefaults={handleSaveAsDefaults}
+        onClearDefaults={handleClearDefaults}
+        onDownloadPdf={handleDownloadPdf}
+      />
 
       <div className="pt-16">
         <section className={formCard}>
@@ -240,178 +49,9 @@ export default function ZusatzblattD() {
               </p>
             </div>
 
-            {/* Section A - Angaben zur Person */}
-            <div className="divider divider-start font-bold text-base-content/80">
-              A. Angaben zur Arbeitnehmerin/zum Arbeitnehmer
-            </div>
-            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <FormInput
-                  label="1. Vorname(n)"
-                  value={form.txtf_1_Vorname}
-                  onChange={(e) => setForm((p) => ({ ...p, txtf_1_Vorname: e.target.value }))}
-                />
-                <FormInput
-                  label="2. Nachname"
-                  value={form.txtf_2_Nachname}
-                  onChange={(e) => setForm((p) => ({ ...p, txtf_2_Nachname: e.target.value }))}
-                />
-              </div>
-              <FormInput
-                label="3. Derzeitiger Wohnsitz"
-                value={form.txtf_3_Wohnsitz}
-                onChange={(e) => setForm((p) => ({ ...p, txtf_3_Wohnsitz: e.target.value }))}
-              />
-            </div>
-
-            {/* Section B - Kurzfristige Beschäftigung */}
-            <div className="divider divider-start font-bold text-base-content/80">
-              B. Angaben zur kurzfristigen Beschäftigung
-            </div>
-            <div className="bg-base-200/50 rounded-lg p-4 space-y-4">
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text whitespace-normal font-medium">4 Die Arbeitnehmerin/Der Arbeitnehmer arbeitet insgesamt (inklusive bisheriger Beschäftigungen und der hier beantragten Beschäftigung) in Deutschland nicht mehr als 90 Tage je Zeitraum von 180 Tagen.</span>
-                </label>
-                <div className="flex gap-4">
-                  {["ja", "nein"].map((opt) => (
-                    <label key={opt} className="label cursor-pointer gap-2">
-                      <input
-                        type="radio"
-                        name="rbtn_4_Arbeit_90_Tage"
-                        className="radio radio-primary"
-                        checked={form.rbtn_4_Arbeit_90_Tage === opt}
-                        onChange={() => setForm((p) => ({ ...p, rbtn_4_Arbeit_90_Tage: opt }))}
-                      />
-                      <span className="label-text whitespace-normal">{opt}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="form-control">
-                <label className="label flex-col items-start gap-1">
-                  <span className="label-text whitespace-normal font-medium">5 Die Arbeitnehmerin/Der Arbeitnehmer arbeitet insgesamt (inklusive bisheriger Beschäftigungen und der hier beantragten Beschäftigung) in Deutschland nicht mehr als acht Monate innerhalb eines Zeitraumes von zwölf Monaten.</span>
-                  <span className="label-text whitespace-normal text-xs opacity-70">Hinweis: Diese Frage ist auch zu beantworten, wenn Frage 4 mit Ja beantwortet wurde. Grund hierfür ist, dass die maximale Beschäftigungsdauer von acht Monaten innerhalb eines Zeitraumes von zwölf Monaten auch für Beschäftigungen nach Frage 4 gilt.</span>
-                </label>
-                <div className="flex gap-4">
-                  {["ja", "nein"].map((opt) => (
-                    <label key={opt} className="label cursor-pointer gap-2">
-                      <input
-                        type="radio"
-                        name="rbtn_5_Arbeit_8_Monate"
-                        className="radio radio-primary"
-                        checked={form.rbtn_5_Arbeit_8_Monate === opt}
-                        onChange={() => setForm((p) => ({ ...p, rbtn_5_Arbeit_8_Monate: opt }))}
-                      />
-                      <span className="label-text whitespace-nowrap">{opt}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text whitespace-normal font-medium">6 Handelt es sich um eine Beschäftigung als Erntehelferin/Erntehelfer in der Landwirtschaft?</span>
-                </label>
-                <div className="flex gap-4">
-                  {["ja", "nein"].map((opt) => (
-                    <label key={opt} className="label cursor-pointer gap-2">
-                      <input
-                        type="radio"
-                        name="rbtn_6_Erntehelfer"
-                        className="radio radio-primary"
-                        checked={form.rbtn_6_Erntehelfer === opt}
-                        onChange={() => setForm((p) => ({ ...p, rbtn_6_Erntehelfer: opt }))}
-                      />
-                      <span className="label-text whitespace-nowrap">{opt}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="form-control">
-                <label className="label flex-col items-start gap-1">
-                  <span className="label-text whitespace-normal font-medium">7 Die Arbeitnehmerin/Der Arbeitnehmer darf visumfrei zur Ausübung einer Beschäftigung einreisen (90 Tage je Zeitraum von 180 Tagen).</span>
-                  <span className="label-text whitespace-normal text-xs opacity-70">Hinweis: Staatsangehörige aus der Liste in Anhang II zur Verordnung (EU) 2018/1806 (sogenannte Positiv-Staater) können für 90 Tage innerhalb eines Zeitraums von 180 Tagen visumfrei einreisen.</span>
-                </label>
-                <div className="flex gap-4">
-                  {["ja", "nein"].map((opt) => (
-                    <label key={opt} className="label cursor-pointer gap-2">
-                      <input
-                        type="radio"
-                        name="rbtn_7_Arbeit_visumfrei"
-                        className="radio radio-primary"
-                        checked={form.rbtn_7_Arbeit_visumfrei === opt}
-                        onChange={() => setForm((p) => ({ ...p, rbtn_7_Arbeit_visumfrei: opt }))}
-                      />
-                      <span className="label-text whitespace-nowrap">{opt}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text whitespace-normal font-medium">8 Im Unternehmen werden in höchstens zehn Monaten innerhalb von zwölf Monaten Arbeitnehmerinnen und Arbeitnehmer auf Grundlage des § 15d BeschV beschäftigt.</span>
-                </label>
-                <div className="flex gap-4">
-                  {["ja", "nein"].map((opt) => (
-                    <label key={opt} className="label cursor-pointer gap-2">
-                      <input
-                        type="radio"
-                        name="rbtn_8_Unternehmen_beschaeftigt"
-                        className="radio radio-primary"
-                        checked={form.rbtn_8_Unternehmen_beschaeftigt === opt}
-                        onChange={() => setForm((p) => ({ ...p, rbtn_8_Unternehmen_beschaeftigt: opt }))}
-                      />
-                      <span className="label-text whitespace-nowrap">{opt}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="form-control">
-                <label className="label">
-                  <span className="label-text font-medium">9 Die erforderlichen Reisekosten für Hin- und Rückreise werden von dem Arbeitgeber übernommen.</span>
-                </label>
-                <div className="flex gap-4">
-                  {["ja", "nein"].map((opt) => (
-                    <label key={opt} className="label cursor-pointer gap-2">
-                      <input
-                        type="radio"
-                        name="rbtn_9_Reisekosten"
-                        className="radio radio-primary"
-                        checked={form.rbtn_9_Reisekosten === opt}
-                        onChange={() => setForm((p) => ({ ...p, rbtn_9_Reisekosten: opt }))}
-                      />
-                      <span className="label-text whitespace-nowrap">{opt}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Section C - Unterschrift */}
-            <div className="divider divider-start font-bold text-base-content/80">
-              C. Erklärung und Unterschrift
-            </div>
-            <p className="text-sm opacity-70">Die Richtigkeit der Angaben wird durch Datum und Unterschrift bestätigt.</p>
-            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <FormInput
-                  label="10. Ort"
-                  value={form.txtf_10_Ort}
-                  onChange={(e) => setForm((p) => ({ ...p, txtf_10_Ort: e.target.value }))}
-                />
-                <FormInput
-                  label="11. Datum"
-                  type="date"
-                  value={toInputDate(form.txtf_11_Datum)}
-                  onChange={(e) => setForm((p) => ({ ...p, txtf_11_Datum: fromInputDate(e.target.value) }))}
-                />
-              </div>
-            </div>
+            <SectionA form={form} setForm={setForm} />
+            <SectionB form={form} setForm={setForm} />
+            <SectionC form={form} setForm={setForm} />
           </div>
         </section>
       </div>

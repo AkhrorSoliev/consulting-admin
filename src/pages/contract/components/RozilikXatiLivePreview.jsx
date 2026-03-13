@@ -1,171 +1,22 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-
-function arePageIndexGroupsEqual(a, b) {
-  if (a === b) return true;
-  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length)
-    return false;
-  for (let i = 0; i < a.length; i++) {
-    const pa = a[i];
-    const pb = b[i];
-    if (!Array.isArray(pa) || !Array.isArray(pb) || pa.length !== pb.length)
-      return false;
-    for (let j = 0; j < pa.length; j++) {
-      if (pa[j] !== pb[j]) return false;
-    }
-  }
-  return true;
-}
-
-function escapeHtml(s) {
-  return String(s || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-function SafeInline({ children, className }) {
-  return (
-    <span
-      className={className}
-      dangerouslySetInnerHTML={{ __html: escapeHtml(children) }}
-    />
-  );
-}
-
-function buildRozilikXatiBlocks(form) {
-  const currentYear = new Date().getFullYear();
-
-  const nomzodIsm = String(form?.nomzodIsm || "").trim();
-  const nomzodFamilya = String(form?.nomzodFamilya || "").trim();
-  const nomzodJinsi = String(form?.nomzodJinsi || "").trim();
-  const nomzodTugilganSana = String(form?.nomzodTugilganSana || "").trim();
-  const nomzodManzil = String(form?.nomzodManzil || "").trim();
-  const nomzodOqishJoyi = String(form?.nomzodOqishJoyi || "").trim();
-  const nomzodTelefon = String(form?.nomzodTelefon || "").trim();
-  const joy = String(form?.joy || "").trim();
-  const sana = String(form?.sana || "").trim();
-
-  const hasValue = (v) => String(v || "").trim().length > 0;
-
-  const FormRow = ({ label, value }) => (
-    <div className="flex mt-[6pt]">
-      <div className="w-[140px] shrink-0">{label}:</div>
-      {hasValue(value) ? (
-        <div className="flex-1 min-h-[14pt]">
-          <SafeInline>{value}</SafeInline>
-        </div>
-      ) : (
-        <div className="flex-1 border-b border-slate-700 min-h-[14pt]" />
-      )}
-    </div>
-  );
-
-  const EmptyFormRow = ({ label }) => (
-    <div className="flex mt-[6pt]">
-      <div className="w-[140px] shrink-0">{label}:</div>
-      <div className="flex-1 border-b border-slate-700 min-h-[14pt]" />
-    </div>
-  );
-
-  return [
-    {
-      id: "header",
-      keepWithNext: true,
-      node: (
-        <div className="text-center mb-[20pt]">
-          <div className="text-[12pt] font-bold text-blue-600">
-            {currentYear}-yil iyun-avgust oylarida Germaniya Federativ Respublikasiga borishiga va ta'til vaqtida yordamchi ishlarda ishlashga rozilik xati
-          </div>
-        </div>
-      ),
-    },
-    {
-      id: "nomzod-section",
-      keepWithNext: true,
-      node: (
-        <div>
-          <div className="text-[11pt] font-bold italic mt-[16pt] mb-[8pt]">
-            NOMZOD HAQIDA MA'LUMOTLAR:
-          </div>
-          <FormRow label="Ismi" value={nomzodIsm} />
-          <FormRow label="Familyasi" value={nomzodFamilya} />
-          <FormRow label="Jinsi" value={nomzodJinsi} />
-          <FormRow label="Tug'ilgan sanasi" value={nomzodTugilganSana} />
-          <FormRow label="Manzili" value={nomzodManzil} />
-          <FormRow label="O'qish joyi" value={nomzodOqishJoyi} />
-          <FormRow label="Telefon raqami" value={nomzodTelefon} />
-        </div>
-      ),
-    },
-    {
-      id: "beruvchi-section",
-      node: (
-        <div>
-          <div className="text-[11pt] font-bold italic mt-[16pt] mb-[8pt]">
-            NOMZODGA ROZILIK XATI BERUVCHI SHAXS HAQIDA MA'LUMOTLAR:
-          </div>
-          <EmptyFormRow label="Rozilik xati beruvchi shaxs" />
-          <EmptyFormRow label="Ismi" />
-          <EmptyFormRow label="Familyasi" />
-          <EmptyFormRow label="Jinsi" />
-          <EmptyFormRow label="Tug'ilgan sanasi" />
-          <EmptyFormRow label="Manzili" />
-          <EmptyFormRow label="Ish joyi" />
-          <EmptyFormRow label="Telefon raqami" />
-        </div>
-      ),
-    },
-    {
-      id: "content",
-      node: (
-        <div>
-          <div className="text-[11pt] font-bold mt-[16pt] mb-[8pt]">
-            ROZILIK XATI MAZMUNI:
-          </div>
-          <div className="mt-[12pt] text-justify">
-            Yuqorida ma'lumotlari keltirilgan farzandimning {currentYear}-yil iyun-avgust oylarida Germaniya Federativ Respublikasiga borishiga va ta'til vaqtida yordamchi ishlarda ishlashiga roziman va uning salomatligi hamda xulqi uchun javobgarlikni o'z bo'ynimga olaman. Yuqorida keltirilgan ma'lumotlar to'g'riligiga kafolat beraman.
-          </div>
-        </div>
-      ),
-    },
-    {
-      id: "signatures",
-      node: (
-        <div className="flex justify-between mt-[40pt]">
-          <div className="w-[30%]">
-            <div className="border-b border-slate-700 h-[1px] mb-[4pt]" />
-            <div className="text-[10pt] text-center">
-              {hasValue(joy) && hasValue(sana) ? `${joy}, ${sana}` : "Joy, Sana"}
-            </div>
-          </div>
-          <div className="w-[30%]">
-            <div className="border-b border-slate-700 h-[1px] mb-[4pt]" />
-            <div className="text-[10pt] text-center">Imzo</div>
-          </div>
-          <div className="w-[30%]">
-            <div className="border-b border-slate-700 h-[1px] mb-[4pt]" />
-            <div className="text-[10pt] text-center">Ism, Familya</div>
-          </div>
-        </div>
-      ),
-    },
-  ];
-}
+import {
+  arePageIndexGroupsEqual,
+  A4_WIDTH_PT,
+  A4_HEIGHT_PT,
+  PT_TO_PX,
+  A4_WIDTH_PX,
+  A4_HEIGHT_PX,
+  PAGE_MARGIN_PT,
+} from "./rozilikXatiPreview/utils";
+import buildRozilikXatiBlocks from "./rozilikXatiPreview/buildRozilikXatiBlocks";
+import ScaledA4 from "./rozilikXatiPreview/ScaledA4";
+import MeasurementCanvas from "./rozilikXatiPreview/MeasurementCanvas";
 
 export default function RozilikXatiLivePreview({
   form,
   containerClassName,
   showToolbar = true,
 }) {
-  const A4_WIDTH_PT = 595;
-  const A4_HEIGHT_PT = 842;
-  const PT_TO_PX = 96 / 72;
-  const A4_WIDTH_PX = A4_WIDTH_PT * PT_TO_PX;
-  const A4_HEIGHT_PX = A4_HEIGHT_PT * PT_TO_PX;
-  const PAGE_MARGIN_PT = 72;
-
   const viewportRef = useRef(null);
   const measureRef = useRef(null);
   const [viewportWidth, setViewportWidth] = useState(0);
@@ -211,7 +62,7 @@ export default function RozilikXatiLivePreview({
     if (!available) return 1;
     const auto = available / A4_WIDTH_PX;
     return Math.min(1, Math.max(0.4, auto));
-  }, [viewportWidth, A4_WIDTH_PX]);
+  }, [viewportWidth]);
 
   const blocks = useMemo(() => buildRozilikXatiBlocks(form), [form]);
 
@@ -273,29 +124,6 @@ export default function RozilikXatiLivePreview({
       ? pageGroups
       : [blocks.map((_, idx) => idx)];
 
-  function ScaledA4({ children, pageLabel }) {
-    const scaledW = A4_WIDTH_PX * safeScale;
-    const scaledH = A4_HEIGHT_PX * safeScale;
-    return (
-      <div style={{ width: `${scaledW}px`, height: `${scaledH}px` }}>
-        <div
-          aria-label={pageLabel}
-          style={{
-            width: `${A4_WIDTH_PX}px`,
-            height: `${A4_HEIGHT_PX}px`,
-            position: "relative",
-            left: "50%",
-            top: 0,
-            transform: `translateX(-50%) scale(${safeScale})`,
-            transformOrigin: "top center",
-          }}
-        >
-          {children}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <section
       className={
@@ -320,38 +148,16 @@ export default function RozilikXatiLivePreview({
           className="flex-1 overflow-y-auto w-full bg-slate-100 overflow-x-hidden"
         >
           <div className="w-full flex flex-col gap-6 py-6 items-center">
-            {/* Hidden measurement canvas */}
-            <div
-              aria-hidden="true"
-              className="absolute -left-[99999px] top-0 h-0 overflow-hidden opacity-0 pointer-events-none"
-            >
-              <div
-                className="bg-white text-[#0f172a] text-[11pt] leading-[1.45] box-border"
-                style={{
-                  fontFamily: "Inter, Helvetica, Arial, sans-serif",
-                  width: `${A4_WIDTH_PT}pt`,
-                  padding: `${PAGE_MARGIN_PT}pt`,
-                  paddingBottom: `${contentBottomPadPt}pt`,
-                }}
-              >
-                <div
-                  ref={measureRef}
-                  style={{ position: "relative", width: "100%" }}
-                >
-                  {blocks.map((b) => (
-                    <div key={b.id} data-block className="pr-[6pt]">
-                      {b.node}
-                    </div>
-                  ))}
-                  <div data-sentinel />
-                </div>
-              </div>
-            </div>
+            <MeasurementCanvas
+              ref={measureRef}
+              blocks={blocks}
+              contentBottomPadPt={contentBottomPadPt}
+            />
 
             {resolvedGroups.map((group, pageIdx) => {
               const blocksForPage = group.map((i) => blocks[i]).filter(Boolean);
               return (
-                <ScaledA4 key={pageIdx} pageLabel={`A4-Seite ${pageIdx + 1}`}>
+                <ScaledA4 key={pageIdx} pageLabel={`A4-Seite ${pageIdx + 1}`} safeScale={safeScale}>
                   <div
                     className="bg-white shadow-2xl text-[#0f172a] text-[11pt] leading-[1.45] origin-top shrink-0 box-border"
                     style={{
