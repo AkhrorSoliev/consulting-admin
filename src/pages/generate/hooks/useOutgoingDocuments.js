@@ -1,13 +1,19 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import toast from "react-hot-toast";
-import { updateDocument } from "../../../utils";
+import { updateDocument, deleteUploadedFile } from "../../../utils";
+import { usePdfGeneration } from "./pdfGeneration";
+import { useOutgoingToggle } from "./useOutgoingToggle";
 
-export function useOutgoingDocuments(
+export function useOutgoingDocuments({
+  docCv,
+  formCv,
+  addressFields,
+  remoteMode,
   candidateCollection,
   candidateDocId,
-  remoteMode,
-  docCv
-) {
+  sendingStepValue,
+  askContinueWithoutPassport,
+}) {
   const [outgoingDocs, setOutgoingDocs] = useState(() => ({}));
   const [outgoingBusyById, setOutgoingBusyById] = useState(() => ({}));
   const [outgoingBulkBusy, setOutgoingBulkBusy] = useState(false);
@@ -47,9 +53,7 @@ export function useOutgoingDocuments(
   );
 
   const cloneOutgoingDocsState = useCallback((map) => {
-    if (!map || typeof map !== "object" || Array.isArray(map)) {
-      return {};
-    }
+    if (!map || typeof map !== "object" || Array.isArray(map)) return {};
     const cloned = {};
     for (const key of Object.keys(map)) {
       const value = map[key];
@@ -65,7 +69,6 @@ export function useOutgoingDocuments(
     async (updater) => {
       if (remoteMode) return false;
       if (!candidateCollection || !candidateDocId) return false;
-
       const prevStateRaw =
         outgoingDocsRef.current &&
         typeof outgoingDocsRef.current === "object" &&
@@ -73,17 +76,13 @@ export function useOutgoingDocuments(
           ? outgoingDocsRef.current
           : {};
       const prevSnapshot = cloneOutgoingDocsState(prevStateRaw);
-
       const nextCandidate =
         typeof updater === "function"
           ? updater(cloneOutgoingDocsState(prevSnapshot))
           : updater || {};
-
       const nextState = cloneOutgoingDocsState(nextCandidate);
-
       outgoingDocsRef.current = nextState;
       setOutgoingDocs(nextState);
-
       try {
         await updateDocument(candidateCollection, candidateDocId, {
           outgoingDocuments: nextState,
@@ -100,6 +99,56 @@ export function useOutgoingDocuments(
     [remoteMode, candidateCollection, candidateDocId, cloneOutgoingDocsState]
   );
 
+  const deleteOutgoingDocFromState = useCallback(
+    async (tplId) =>
+      persistOutgoingDocs((current) => {
+        const next = { ...current };
+        delete next[tplId];
+        return next;
+      }),
+    [persistOutgoingDocs]
+  );
+
+  const deleteOutgoingDocRemoteFirst = useCallback(
+    async (tplId, options = {}) => {
+      const safeId = String(tplId || "").trim();
+      if (!safeId) return { ok: false, remoteMissing: false };
+      const currentSnapshot =
+        options?.current && typeof options.current === "object"
+          ? options.current
+          : getOutgoingDocState(safeId);
+      const url = String(
+        options?.urlOverride ?? currentSnapshot?.url ?? ""
+      ).trim();
+      let remoteMissing = false;
+      if (url) {
+        try {
+          await deleteUploadedFile(url);
+        } catch (err) {
+          if (Number(err?.status) === 404) remoteMissing = true;
+          else throw err;
+        }
+      }
+      const persisted = await deleteOutgoingDocFromState(safeId);
+      return { ok: Boolean(persisted), remoteMissing };
+    },
+    [getOutgoingDocState, deleteOutgoingDocFromState]
+  );
+
+  const generators = usePdfGeneration(formCv, addressFields, docCv);
+
+  const handleToggleOutgoingDoc = useOutgoingToggle({
+    remoteMode,
+    formCv,
+    askContinueWithoutPassport,
+    outgoingBusyById,
+    setOutgoingBusyById,
+    getOutgoingDocState,
+    persistOutgoingDocs,
+    deleteOutgoingDocRemoteFirst,
+    generators,
+  });
+
   return {
     outgoingDocs,
     setOutgoingDocs,
@@ -113,5 +162,8 @@ export function useOutgoingDocuments(
     getOutgoingDocState,
     cloneOutgoingDocsState,
     persistOutgoingDocs,
+    deleteOutgoingDocFromState,
+    deleteOutgoingDocRemoteFirst,
+    handleToggleOutgoingDoc,
   };
 }

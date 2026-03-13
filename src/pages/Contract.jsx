@@ -1,17 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { FaDownload, FaSave } from "react-icons/fa";
+import { useMemo, useState } from "react";
 import { pdf } from "@react-pdf/renderer";
 import toast from "react-hot-toast";
-import { Link } from "react-router-dom";
-import { FaArrowLeft } from "react-icons/fa";
-import FormInput from "../components/FormInput";
-import { fromInputDate, toInputDate } from "../utils";
+import { useSelector } from "react-redux";
+import useUserRole from "../hooks/useUserRole";
+import ContractActionBar from "./contract/components/ContractActionBar";
+import ContractFormFields from "./contract/components/ContractFormFields";
+import ContractFormPricing from "./contract/components/ContractFormPricing";
 import ContractLivePreview from "./contract/components/ContractLivePreview";
 import BeratungsvertragPdfDocument from "./contract/pdf/BeratungsvertragPdfDocument";
-import { db } from "../firebase/config";
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
-import useUserRole from "../hooks/useUserRole";
-import { useSelector } from "react-redux";
+import useContractTemplate from "./contract/hooks/useContractTemplate";
 
 function todayDdMmYyyy() {
   try {
@@ -35,11 +32,8 @@ export default function Contract() {
     firstName: "",
     lastName: "",
     contractDate: todayDdMmYyyy(),
-    // Candidate city (Ort) for the passport page signature block
     candidateCity: "",
-    // PDF generation date (defaults to today; can be adjusted)
     pdfGeneratedDate: todayDdMmYyyy(),
-    // Pricing (Vergütung)
     feeTotalEur: "1200",
     feeAdvanceEur: "250",
     signatureCity: "",
@@ -47,129 +41,9 @@ export default function Contract() {
   }));
   const [isDownloading, setIsDownloading] = useState(false);
   const [passportImageDataUrl, setPassportImageDataUrl] = useState(null);
-  const [isLoadingTemplate, setIsLoadingTemplate] = useState(true);
-  const [isSavingTemplate, setIsSavingTemplate] = useState(false);
-  const [hasUnsavedTemplate, setHasUnsavedTemplate] = useState(false);
-  const lastSavedJsonRef = useRef("");
-  const didHydrateRef = useRef(false);
-  const saveInFlightRef = useRef(false);
 
-  const TEMPLATE_COLLECTION = "template_documents";
-  const TEMPLATE_ID = "beratungsvertrag";
-
-  async function loadTemplate() {
-    try {
-      setIsLoadingTemplate(true);
-      const ref = doc(db, TEMPLATE_COLLECTION, TEMPLATE_ID);
-      const snap = await getDoc(ref);
-      if (!snap.exists()) {
-        // No template saved yet, keep defaults.
-        const json = JSON.stringify(form);
-        lastSavedJsonRef.current = json;
-        setHasUnsavedTemplate(false);
-        didHydrateRef.current = true;
-        return;
-      }
-
-      const data = snap.data() || {};
-      const savedForm =
-        data &&
-        typeof data === "object" &&
-        data.form &&
-        typeof data.form === "object"
-          ? data.form
-          : null;
-
-      if (savedForm) {
-        setForm((prev) => {
-          const merged = { ...prev, ...savedForm };
-          const json = JSON.stringify(merged);
-          lastSavedJsonRef.current = json;
-          setHasUnsavedTemplate(false);
-          didHydrateRef.current = true;
-          return merged;
-        });
-      } else {
-        const json = JSON.stringify(form);
-        lastSavedJsonRef.current = json;
-        setHasUnsavedTemplate(false);
-        didHydrateRef.current = true;
-      }
-    } catch (e) {
-      toast.error("Fehler beim Laden der Vorlage.");
-      didHydrateRef.current = true;
-    } finally {
-      setIsLoadingTemplate(false);
-    }
-  }
-
-  async function saveTemplate({ silent = false } = {}) {
-    if (!canWriteTemplate) {
-      if (!silent) toast.error("Saqlash uchun admin huquqi kerak.");
-      return false;
-    }
-    if (saveInFlightRef.current) return false;
-    try {
-      saveInFlightRef.current = true;
-      setIsSavingTemplate(true);
-
-      const payload = {
-        templateId: TEMPLATE_ID,
-        collection: TEMPLATE_COLLECTION,
-        form: form,
-        updatedAt: serverTimestamp(),
-        updatedByUid: user?.uid || null,
-        updatedByEmail: user?.email || null,
-      };
-
-      await setDoc(doc(db, TEMPLATE_COLLECTION, TEMPLATE_ID), payload, {
-        merge: true,
-      });
-
-      lastSavedJsonRef.current = JSON.stringify(form);
-      setHasUnsavedTemplate(false);
-      if (!silent) toast.success("Template saqlandi.");
-      return true;
-    } catch (e) {
-      if (!silent) toast.error("Fehler beim Speichern der Vorlage.");
-      return false;
-    } finally {
-      saveInFlightRef.current = false;
-      setIsSavingTemplate(false);
-    }
-  }
-
-  useEffect(() => {
-    // hydrate from Firestore once
-    loadTemplate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (!didHydrateRef.current) return;
-    const json = JSON.stringify(form);
-    const isDirty = json !== lastSavedJsonRef.current;
-    setHasUnsavedTemplate(isDirty);
-  }, [form, canWriteTemplate]);
-
-  function parseMoneyEur(input) {
-    const raw = String(input || "").trim();
-    if (!raw) return null;
-    // digits-only (inputs are restricted to numbers)
-    const cleaned = raw.replace(/\D+/g, "");
-    if (!cleaned) return null;
-    const n = Number(cleaned);
-    return Number.isFinite(n) ? n : null;
-  }
-
-  const restEur = (() => {
-    const total = parseMoneyEur(form.feeTotalEur);
-    const adv = parseMoneyEur(form.feeAdvanceEur);
-    if (total == null || adv == null) return "";
-    const r = total - adv;
-    if (!Number.isFinite(r)) return "";
-    return String(Math.max(0, Math.trunc(r)));
-  })();
+  const { isLoadingTemplate, isSavingTemplate, hasUnsavedTemplate, saveTemplate } =
+    useContractTemplate({ form, setForm, canWriteTemplate, user });
 
   const clientFullName = useMemo(() => {
     const a = String(form.firstName || "").trim();
@@ -212,67 +86,15 @@ export default function Contract() {
 
   return (
     <div className="p-2 min-h-screen">
-      {/* Fixed action bar under the global navbar (hidden on print) */}
-      <div className="fixed inset-x-0 top-16 z-30 border-b border-base-300 bg-base-200/90 backdrop-blur print:hidden">
-        <div className="flex items-center justify-between gap-3 px-4 py-2 lg:px-6">
-          <div className="breadcrumbs text-sm">
-            <ul>
-              <li>
-                <Link
-                  to="/settings/documents"
-                  className="link flex items-center gap-2"
-                >
-                  <FaArrowLeft /> Zurück
-                </Link>
-              </li>
-              <li className="opacity-70">Beratungsvertrag</li>
-            </ul>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-base-content/60 hidden sm:inline">
-              {isLoadingTemplate
-                ? "Template yuklanmoqda..."
-                : isSavingTemplate
-                ? "Saqlanmoqda..."
-                : hasUnsavedTemplate
-                ? "O‘zgarish bor"
-                : "Saqlangan"}
-            </span>
-            <button
-              type="button"
-              className="btn btn-sm btn-primary"
-              onClick={() => saveTemplate({ silent: false })}
-              disabled={
-                isLoadingTemplate ||
-                isSavingTemplate ||
-                !hasUnsavedTemplate ||
-                !canWriteTemplate
-              }
-              title={
-                !canWriteTemplate
-                  ? "Saqlash uchun admin huquqi kerak"
-                  : isLoadingTemplate
-                  ? "Template yuklanmoqda..."
-                  : !hasUnsavedTemplate
-                  ? "O‘zgarish yo‘q"
-                  : "Saqlash"
-              }
-            >
-              <FaSave />
-              {isSavingTemplate ? "Saqlanmoqda..." : "Saqlash"}
-            </button>
-            <button
-              type="button"
-              className="btn btn-sm btn-outline"
-              onClick={handleDownloadPdf}
-              disabled={isDownloading}
-            >
-              <FaDownload />
-              {isDownloading ? "Wird geladen..." : "Herunterladen"}
-            </button>
-          </div>
-        </div>
-      </div>
+      <ContractActionBar
+        isLoadingTemplate={isLoadingTemplate}
+        isSavingTemplate={isSavingTemplate}
+        hasUnsavedTemplate={hasUnsavedTemplate}
+        canWriteTemplate={canWriteTemplate}
+        isDownloading={isDownloading}
+        onSave={saveTemplate}
+        onDownload={handleDownloadPdf}
+      />
 
       <div className={layoutClass}>
         <section className={formCard}>
@@ -286,222 +108,8 @@ export default function Contract() {
               aktualisiert sofort.
             </p>
 
-            <div className="divider divider-start font-bold text-base-content/80">
-              👤 Auftraggeber
-            </div>
-
-            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
-              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
-                <span className="w-1 h-4 bg-primary rounded-full"></span>
-                Persönliche Angaben
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormInput
-                  label="Vorname"
-                  placeholder="Vorname"
-                  value={form.firstName}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, firstName: e.target.value }))
-                  }
-                />
-                <FormInput
-                  label="Nachname"
-                  placeholder="Nachname"
-                  value={form.lastName}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, lastName: e.target.value }))
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
-              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
-                <span className="w-1 h-4 bg-primary rounded-full"></span>
-                Vertragsdaten
-              </h3>
-              <div className="space-y-4">
-                <FormInput
-                  label="Datum"
-                  type="date"
-                  placeholder="YYYY-MM-DD"
-                  value={toInputDate(form.contractDate)}
-                  onChange={(e) =>
-                    setForm((p) => ({
-                      ...p,
-                      contractDate: fromInputDate(e.target.value),
-                    }))
-                  }
-                  helperText={
-                    <span className="text-xs opacity-70">
-                      Im Vertrag als{" "}
-                      <span className="font-semibold">dd.mm.yyyy</span>{" "}
-                      verwendet.
-                    </span>
-                  }
-                />
-                <FormInput
-                  label="Ort (Unterschrift)"
-                  placeholder="z.B. Berlin"
-                  value={form.signatureCity}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, signatureCity: e.target.value }))
-                  }
-                  helperText={
-                    <span className="text-xs opacity-70">
-                      Wird unten als{" "}
-                      <span className="font-semibold">„Ort, Datum“</span>{" "}
-                      angezeigt.
-                    </span>
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
-              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
-                <span className="w-1 h-4 bg-secondary rounded-full"></span>
-                Kandidatendaten (Pass-Seite)
-              </h3>
-              <div className="space-y-4">
-                <FormInput
-                  label="Ort (Kandidat) — für Pass-Seite"
-                  placeholder="z.B. Tashkent"
-                  value={form.candidateCity}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, candidateCity: e.target.value }))
-                  }
-                  helperText={
-                    <span className="text-xs opacity-70">
-                      Wird unter dem Passbild als{" "}
-                      <span className="font-semibold">„Datum: Ort, Datum“</span>{" "}
-                      angezeigt.
-                    </span>
-                  }
-                />
-                <FormInput
-                  label="PDF generiert am"
-                  type="date"
-                  placeholder="YYYY-MM-DD"
-                  value={toInputDate(form.pdfGeneratedDate)}
-                  onChange={(e) =>
-                    setForm((p) => ({
-                      ...p,
-                      pdfGeneratedDate: fromInputDate(e.target.value),
-                    }))
-                  }
-                  helperText={
-                    <span className="text-xs opacity-70">
-                      Standard: heute. Wird unter dem Passbild angezeigt.
-                    </span>
-                  }
-                />
-              </div>
-            </div>
-
-            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
-              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
-                <span className="w-1 h-4 bg-accent rounded-full"></span>
-                PDF Einstellungen
-              </h3>
-              <FormInput
-                label="PDF link (test)"
-                placeholder="https://example.com/file.pdf"
-                value={form.pdfUrl}
-                onChange={(e) =>
-                  setForm((p) => ({ ...p, pdfUrl: e.target.value }))
-                }
-                helperText={
-                  <span className="text-xs opacity-70">
-                    Faqat PDF URL'ni qo'ying (console error matnini emas). CORS
-                    bo'lsa, proxy orqali aylanib o'tamiz.
-                    {String(form.pdfUrl || "").trim() ? (
-                      <>
-                        {" "}
-                        <a
-                          className="link"
-                          href={form.pdfUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Open
-                        </a>
-                      </>
-                    ) : null}
-                  </span>
-                }
-              />
-            </div>
-
-            <div className="divider divider-start font-bold text-base-content/80">
-              💰 Vergütung (Preis)
-            </div>
-
-            <div className="bg-base-200/50 rounded-lg p-4 space-y-3">
-              <h3 className="text-sm font-bold text-base-content flex items-center gap-2">
-                <span className="w-1 h-4 bg-success rounded-full"></span>
-                Honorar Details
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormInput
-                  label="Honorar gesamt (€)"
-                  placeholder="z.B. 1200"
-                  inputMode="numeric"
-                  pattern="\\d*"
-                  value={form.feeTotalEur}
-                  onChange={(e) =>
-                    setForm((p) => ({
-                      ...p,
-                      feeTotalEur: String(e.target.value || "").replace(
-                        /\D+/g,
-                        ""
-                      ),
-                    }))
-                  }
-                />
-                <FormInput
-                  label="Anzahlung (€)"
-                  placeholder="z.B. 250"
-                  inputMode="numeric"
-                  pattern="\\d*"
-                  value={form.feeAdvanceEur}
-                  onChange={(e) =>
-                    setForm((p) => ({
-                      ...p,
-                      feeAdvanceEur: String(e.target.value || "").replace(
-                        /\D+/g,
-                        ""
-                      ),
-                    }))
-                  }
-                />
-              </div>
-              <FormInput
-                label="Restbetrag (auto) (€)"
-                placeholder="—"
-                inputMode="numeric"
-                pattern="\\d*"
-                value={restEur}
-                readOnly
-                inputClassName="opacity-70"
-                helperText={
-                  <span className="text-xs opacity-70">
-                    Wird automatisch als{" "}
-                    <span className="font-semibold">Gesamt − Anzahlung</span>{" "}
-                    berechnet.
-                  </span>
-                }
-              />
-            </div>
-
-            <div className="divider" />
-            <div className="text-sm">
-              <div className="font-semibold mb-1">Tipp</div>
-              <div className="opacity-70">
-                Wenn Name leer bleibt, werden im Vertrag Platzhalter‑Linien
-                angezeigt.
-              </div>
-            </div>
+            <ContractFormFields form={form} setForm={setForm} />
+            <ContractFormPricing form={form} setForm={setForm} />
           </div>
         </section>
 
