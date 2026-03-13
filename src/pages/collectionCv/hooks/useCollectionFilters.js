@@ -14,7 +14,7 @@ export function useCollectionFilters(items) {
   const [ratingFilter, setRatingFilter] = useState("all");
   const [reactionFilter, setReactionFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 24;
+  const itemsPerPage = 10;
 
   const filters = useMemo(
     () => ({

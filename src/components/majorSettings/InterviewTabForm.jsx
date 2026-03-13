@@ -19,7 +19,7 @@ export default function InterviewTabForm({
   telegramLabel,
 }) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="form-control">
           <label className="label" htmlFor={`${idPrefix}-date`}>

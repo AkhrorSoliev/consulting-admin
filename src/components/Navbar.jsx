@@ -2,6 +2,7 @@ import { MdMenu, MdMenuOpen } from "react-icons/md";
 
 function Navbar({
   title = "Consulting Admin",
+  showSidebarToggle = false,
   isSidebarOpen,
   onToggleSidebar,
   children,
@@ -10,18 +11,21 @@ function Navbar({
     <header className="sticky top-0 z-40 border-b border-base-300 bg-base-100/90 backdrop-blur">
       <div className="flex h-16 items-center justify-between px-4 lg:px-6">
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            aria-label={isSidebarOpen ? "Sidebar schließen" : "Sidebar öffnen"}
-            onClick={onToggleSidebar}
-            className="btn btn-ghost btn-square"
-          >
-            {isSidebarOpen ? (
-              <MdMenuOpen className="text-2xl" />
-            ) : (
-              <MdMenu className="text-2xl" />
-            )}
-          </button>
+          {showSidebarToggle && (
+            <button
+              type="button"
+              aria-label={isSidebarOpen ? "Sidebar schließen" : "Sidebar öffnen"}
+              onClick={onToggleSidebar}
+              className="btn btn-ghost btn-square"
+              data-sidebar-toggle
+            >
+              {isSidebarOpen ? (
+                <MdMenuOpen className="text-2xl" />
+              ) : (
+                <MdMenu className="text-2xl" />
+              )}
+            </button>
+          )}
           <div>
             <p className="text-xs uppercase tracking-wide text-base-content/60">
               Dashboard

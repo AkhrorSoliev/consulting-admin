@@ -27,13 +27,13 @@ export default function MainLinksSection({
   const telegramLink = `https://t.me/consultinguz_admin_bot?start=${sanitizedMajorId}`;
 
   return (
-    <div className="rounded-lg border border-base-300 bg-base-200/30 p-4 space-y-3">
+    <div className="rounded-xl border border-base-300 bg-base-200/30 p-4 space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <div className="font-medium truncate">Asosiy linklar</div>
-          <div className="text-xs text-base-content/60 mt-1">
+          <h3 className="font-semibold text-sm uppercase tracking-wide text-base-content/70">Asosiy linklar</h3>
+          <p className="text-xs text-base-content/50 mt-0.5">
             Ariza to'ldirish uchun asosiy linklar
-          </div>
+          </p>
         </div>
         <input
           type="checkbox"

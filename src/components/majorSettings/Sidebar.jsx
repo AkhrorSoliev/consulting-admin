@@ -10,8 +10,8 @@ const tabs = [
 
 export default function Sidebar({ tab, setTab }) {
   return (
-    <aside className="w-56 shrink-0 border-r border-base-300 p-3">
-      <ul className="menu bg-base-100 rounded-box p-2 w-full gap-1">
+    <aside className="w-56 shrink-0 border-r border-base-300/50 bg-base-200/20 p-3">
+      <ul className="menu rounded-box p-2 w-full gap-1">
         {tabs.map(({ key, label, Icon }) => (
           <li key={key}>
             <button
