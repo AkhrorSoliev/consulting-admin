@@ -8,8 +8,6 @@ import { calculateAvgAge } from "./helpers";
  * @param {string} [filename] - Optional custom filename
  */
 export function exportStatsToExcel(statsDoc, kind = "live", filename) {
-  console.log("exportStatsToExcel called with:", { statsDoc, kind });
-
   if (!statsDoc) {
     throw new Error("Keine Statistikdaten zum Exportieren vorhanden.");
   }

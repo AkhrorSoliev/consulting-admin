@@ -125,13 +125,8 @@ export async function persistLanguages({
         ? cleanedLanguages
         : deleteField(),
     });
-    console.log(
-      hasLanguages
-        ? "✅ Languages map overwritten in Firebase"
-        : "✅ Languages field deleted from Firebase",
-    );
-  } catch (langErr) {
-    console.error("❌ Error updating languages field:", langErr);
+  } catch {
+    // Language field update failed silently
   }
 }
 

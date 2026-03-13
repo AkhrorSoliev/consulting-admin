@@ -62,7 +62,6 @@ export function useSaveCandidate({
   const [isSaving, setIsSaving] = useState(false);
 
   async function handleSave() {
-    console.log("💾 handleSave called");
     if (remoteMode) {
       toast.error(
         "Stellen Sie den Kandidaten zuerst im passenden Bereich (Major) wieder her. Danach können E-Mails versendet werden.",
@@ -71,9 +70,7 @@ export function useSaveCandidate({
     }
     const col = String(resolvedMajor?.collectionName || "").trim();
     const docId = String(id || "").trim();
-    console.log("📋 Save params:", { col, docId, remoteMode });
     if (!col || !docId) {
-      console.log("❌ Save aborted: missing col or docId");
       return;
     }
 

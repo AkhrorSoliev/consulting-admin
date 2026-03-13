@@ -93,19 +93,6 @@ export function useCandidateSnapshot({
           setRating(normalizeRating(data?.rating));
           setDocCv(data);
 
-          // Console'ga kandidat ma'lumotlarini chiqarish
-          console.log("=== KANDIDAT MA'LUMOTLARI ===");
-          console.log("To'liq ma'lumot:", data);
-          console.log("Shaxsiy ma'lumotlar:", data?.persoenlicheDaten);
-          console.log("Email Meta:", data?.emailMeta);
-          console.log("Kommentar Meta:", data?.commentarMeta);
-          console.log("Status:", data?.status);
-          console.log("Berufserfahrung:", data?.berufserfahrung);
-          console.log("Ausbildung:", data?.ausbildung);
-          console.log("Faehigkeiten:", data?.faehigkeiten);
-          console.log("Documents:", data?.documents);
-          console.log("===========================");
-
           const cMeta = data?.commentarMeta || {};
           lateSettersRef.current.setCommentMeta({
             updatedAt: cMeta?.updatedAt || null,
@@ -144,11 +131,7 @@ export function useCandidateSnapshot({
           // Only update form on initial load, not on subsequent Firestore updates
           if (!formInitializedRef.current) {
             const mapped = mapDocToForm(data);
-            console.log("🔄 Mapped form data:", mapped);
-            console.log("🎓 Mapped education:", mapped.education);
             const normalized = normalizeForm(mapped);
-            console.log("✨ Normalized form data:", normalized);
-            console.log("🎓 Normalized education:", normalized.education);
             setFormCv(normalized);
             setFormInitialized(true);
             formInitializedRef.current = true;

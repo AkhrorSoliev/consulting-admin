@@ -44,7 +44,10 @@ export default function ErklaerungBeschaeftigungModal({ open, onClose, candidate
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(buildPdfPayload(form)),
       });
-      if (!response.ok) throw new Error((await response.json()).error || "PDF generation failed");
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.error || `PDF generation failed (${response.status})`);
+      }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");

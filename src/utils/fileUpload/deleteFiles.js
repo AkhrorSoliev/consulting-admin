@@ -12,7 +12,7 @@ export async function deleteUploadedFile(fileUrl) {
     return deleteUploadedFileRemote(safeUrl);
   }
 
-  console.warn("deleteUploadedFile: Unknown URL format:", safeUrl);
+  // Unknown URL format — skip silently
 }
 
 // Delete multiple files (hybrid - works with both Firebase and json-api)

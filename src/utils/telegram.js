@@ -90,15 +90,6 @@ export async function sendTelegramMessage(
     const token = await user.getIdToken();
     const url = `${getFunctionsBaseUrl()}/sendTelegramMessage`;
 
-    // Log the message being sent for debugging
-    console.log("Sending Telegram message:", {
-      telegramId,
-      messageLength: message?.length,
-      parseMode,
-      keyboardButtons: keyboard?.length || 0,
-      messagePreview: message?.substring(0, 200),
-    });
-
     const response = await fetch(url, {
       method: "POST",
       headers: {

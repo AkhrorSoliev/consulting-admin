@@ -73,16 +73,6 @@ export function normalizeLanguages(formCv) {
   const cleanedLanguages = Object.fromEntries(languageEntries);
   const hasLanguages = languageEntries.length > 0;
 
-  console.log("🔍 Language deletion check:", {
-    languages: formCv.skills?.languages,
-    languageKeys: formCv.skills?.languages
-      ? Object.keys(formCv.skills.languages)
-      : [],
-    languageEntries,
-    cleanedLanguages,
-    hasLanguages,
-  });
-
   return { cleanedLanguages, hasLanguages };
 }
 

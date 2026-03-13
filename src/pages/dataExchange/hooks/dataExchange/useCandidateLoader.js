@@ -74,12 +74,7 @@ export function useCandidateLoader(id) {
       (nextAllowDelete) => {
         setAllowDelete(nextAllowDelete);
       },
-      (error) => {
-        console.log(
-          "[DataExchange] onSnapshot error (ignored):",
-          error.message,
-        );
-      },
+      () => {},
     );
     return () => unsubscribe();
   }, [id]);
