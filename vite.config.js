@@ -11,6 +11,16 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          firebase: ["firebase/app", "firebase/auth", "firebase/firestore", "firebase/functions", "firebase/storage"],
+          vendor: ["react", "react-dom", "react-router-dom", "redux", "react-redux"],
+        },
+      },
+    },
+  },
   server: {
     proxy: {
       // Dev-only helper to bypass CORS for pdf.js when the remote host doesn't send ACAO headers.
