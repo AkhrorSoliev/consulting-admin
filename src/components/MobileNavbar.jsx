@@ -1,5 +1,6 @@
 import { FaHome, FaUserCircle } from "react-icons/fa";
 import { FiUsers } from "react-icons/fi";
+import { IoStatsChart } from "react-icons/io5";
 import { MdSettings } from "react-icons/md";
 import { Link } from "react-router-dom";
 import { useUserRole } from "../hooks/useUserRole";
@@ -12,15 +13,20 @@ function MobileNavbar() {
         to="/"
         className="btn btn-ghost gap-2 sm:inline-flex"
         aria-label="Zur Startseite"
-        data-sidebar-toggle
       >
         <FaHome className="text-xl" />
+      </Link>
+      <Link
+        to="/statistics"
+        className="btn btn-ghost gap-2 sm:inline-flex"
+        aria-label="Statistiken"
+      >
+        <IoStatsChart className="text-xl" />
       </Link>
       <Link
         to="/profile"
         className="btn btn-ghost gap-2 sm:inline-flex"
         aria-label="Profil"
-        data-sidebar-toggle
       >
         <FaUserCircle className="text-xl" />
       </Link>
@@ -29,7 +35,6 @@ function MobileNavbar() {
           to="/settings"
           className="btn btn-ghost gap-2 sm:inline-flex"
           aria-label="Einstellungen"
-          data-sidebar-toggle
         >
           <MdSettings className="text-xl" />
         </Link>
@@ -39,7 +44,6 @@ function MobileNavbar() {
           to="/candidates"
           className="btn btn-ghost gap-2 sm:inline-flex"
           aria-label="Kandidaten"
-          data-sidebar-toggle
         >
           <FiUsers className="text-xl" />
         </Link>

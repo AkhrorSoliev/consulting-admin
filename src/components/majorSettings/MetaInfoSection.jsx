@@ -15,9 +15,9 @@ export default function MetaInfoSection({
   isLoading,
 }) {
   return (
-    <div className="rounded-lg border border-base-300 bg-base-200/20 p-4 space-y-4">
+    <div className="rounded-xl border border-base-300 bg-base-200/30 p-4 space-y-4">
       <div className="min-w-0">
-        <div className="font-medium truncate">Yo'nalish ma'lumotlari</div>
+        <h3 className="font-semibold text-sm uppercase tracking-wide text-base-content/70">Yo'nalish ma'lumotlari</h3>
       </div>
 
       {metaValidationError && (

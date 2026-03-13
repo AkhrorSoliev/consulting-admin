@@ -29,9 +29,9 @@ export default function LeadLinksSection({
   return (
     <>
       {/* Add lead */}
-      <div className="rounded-lg border border-base-300 bg-base-200/20 p-4 space-y-4">
+      <div className="rounded-xl border border-base-300 bg-base-200/30 p-4 space-y-4">
         <div className="min-w-0">
-          <div className="font-medium truncate">Lead linklar (qo'shimcha)</div>
+          <h3 className="font-semibold text-sm uppercase tracking-wide text-base-content/70">Lead linklar (qo'shimcha)</h3>
         </div>
         <div className="space-y-3">
           <div className="flex gap-2">
@@ -63,8 +63,8 @@ export default function LeadLinksSection({
       </div>
 
       {/* Lead links list */}
-      <div className="rounded-lg border border-base-300 bg-base-200/30 p-4 space-y-3">
-        <div className="font-medium">Barcha lead linklar</div>
+      <div className="rounded-xl border border-base-300 bg-base-200/30 p-4 space-y-3">
+        <h3 className="font-semibold text-sm uppercase tracking-wide text-base-content/70">Barcha lead linklar</h3>
         <div className="space-y-3">
           {leadLinks.length === 0 ? (
             <div className="text-sm opacity-70">Lead linklar yo'q.</div>

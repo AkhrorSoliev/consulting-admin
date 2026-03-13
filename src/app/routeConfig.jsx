@@ -1,6 +1,7 @@
 import { Navigate, Outlet } from "react-router-dom";
 import MainLayout from "../layouts/MainLayout";
 import Home from "../pages/Home";
+import Statistics from "../pages/Statistics";
 import CollectionCv from "../pages/CollectionCv";
 import { ProtectedRoutes } from "../components/ProtectedRoutes";
 import Create from "../pages/Create";
@@ -59,6 +60,7 @@ export function buildRoutes(user) {
       ),
       children: [
         { index: true, element: <Home /> },
+        { path: "statistics", element: <Statistics /> },
         { path: "profile", element: <Profile /> },
         { path: "documents/:templateId", element: <DocumentsLegacyRedirect /> },
         {

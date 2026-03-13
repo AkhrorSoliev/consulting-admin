@@ -1,10 +1,11 @@
-import { Outlet, useLocation, Link } from "react-router-dom";
+import { Outlet, Link, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
-import Sidebar from "../components/Sidebar";
 import Navbar from "../components/Navbar";
+import Sidebar from "../components/Sidebar";
 import ConfirmActionModal from "../components/ConfirmActionModal";
 import { FaHome, FaUserCircle } from "react-icons/fa";
 import { FiUsers } from "react-icons/fi";
+import { IoStatsChart } from "react-icons/io5";
 import {
   MdDarkMode,
   MdLightMode,
@@ -14,7 +15,6 @@ import {
 import { useLogout } from "../hooks/useLogut";
 import { useTheme } from "../hooks/useTheme";
 import useUserRole from "../hooks/useUserRole";
-import MobileNavbar from "../components/MobileNavbar";
 
 function MainLayout() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -26,10 +26,14 @@ function MainLayout() {
   const isDracula = theme === "dracula";
   const sidebarRef = useRef(null);
 
+  const isHome = location.pathname === "/";
+
+  // Close sidebar on route change
   useEffect(() => {
     setIsDrawerOpen(false);
   }, [location.pathname]);
 
+  // Close sidebar on outside click
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (!isDrawerOpen) return;
@@ -55,12 +59,13 @@ function MainLayout() {
   return (
     <div className="relative min-h-screen bg-base-200">
       <Navbar
+        showSidebarToggle={!isHome}
         isSidebarOpen={isDrawerOpen}
         onToggleSidebar={() => setIsDrawerOpen((prev) => !prev)}
       >
         <Link
           to="/"
-          className="btn btn-ghost gap-2 hidden sm:inline-flex"
+          className="btn btn-ghost gap-2"
           aria-label="Zur Startseite"
           data-sidebar-toggle
         >
@@ -68,8 +73,17 @@ function MainLayout() {
           <span className="font-medium">Home</span>
         </Link>
         <Link
+          to="/statistics"
+          className="btn btn-ghost gap-2"
+          aria-label="Statistiken"
+          data-sidebar-toggle
+        >
+          <IoStatsChart className="text-xl" />
+          <span className="font-medium">Statistiken</span>
+        </Link>
+        <Link
           to="/profile"
-          className="btn btn-ghost gap-2 hidden sm:inline-flex"
+          className="btn btn-ghost gap-2"
           aria-label="Profil"
           data-sidebar-toggle
         >
@@ -79,7 +93,7 @@ function MainLayout() {
         {!loadingRole && (role === "super_admin" || role === "admin") && (
           <Link
             to="/settings"
-            className="btn btn-ghost gap-2 hidden sm:inline-flex"
+            className="btn btn-ghost gap-2"
             aria-label="Einstellungen"
             data-sidebar-toggle
           >
@@ -90,7 +104,7 @@ function MainLayout() {
         {!loadingRole && (role === "super_admin" || role === "admin") && (
           <Link
             to="/candidates"
-            className="btn btn-ghost gap-2 hidden sm:inline-flex"
+            className="btn btn-ghost gap-2"
             aria-label="Kandidaten"
             data-sidebar-toggle
           >
@@ -124,12 +138,12 @@ function MainLayout() {
           ) : (
             <>
               <MdOutlineLogout className="text-xl" />
-              <span className="hidden sm:inline">Abmelden</span>
+              <span className="font-medium">Abmelden</span>
             </>
           )}
         </button>
       </Navbar>
-      <MobileNavbar />
+
       <main
         className={`p-4 md:p-6 min-h-screen ${
           isDracula ? "bg-base-200/30" : ""
@@ -138,20 +152,24 @@ function MainLayout() {
         <Outlet />
       </main>
 
-      {isDrawerOpen && (
-        <button
-          type="button"
-          aria-label="Overlay to close sidebar"
-          className="fixed inset-0 z-30 bg-black/30 backdrop-blur-[1px]"
-          onClick={() => setIsDrawerOpen(false)}
-        />
+      {/* Sidebar overlay + panel — only rendered when NOT on Home */}
+      {!isHome && (
+        <>
+          {isDrawerOpen && (
+            <button
+              type="button"
+              aria-label="Overlay to close sidebar"
+              className="fixed inset-0 z-30 bg-black/30 backdrop-blur-[1px]"
+              onClick={() => setIsDrawerOpen(false)}
+            />
+          )}
+          <Sidebar
+            ref={sidebarRef}
+            isOpen={isDrawerOpen}
+            onClose={() => setIsDrawerOpen(false)}
+          />
+        </>
       )}
-
-      <Sidebar
-        ref={sidebarRef}
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-      />
 
       <ConfirmActionModal
         open={showLogoutModal}

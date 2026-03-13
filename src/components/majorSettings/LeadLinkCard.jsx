@@ -15,7 +15,7 @@ export default function LeadLinkCard({
   onDelete,
 }) {
   return (
-    <div className="rounded-lg border border-base-300 bg-base-100 p-3 space-y-3">
+    <div className="rounded-xl border border-base-300 bg-base-100 p-3 space-y-3 shadow-sm">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <span className="font-semibold text-base truncate">

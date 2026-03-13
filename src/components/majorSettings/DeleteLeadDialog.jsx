@@ -17,7 +17,7 @@ export default function DeleteLeadDialog({
         }}
       />
       <div
-        className="relative w-full max-w-md rounded-box bg-base-100 text-base-content shadow-xl border border-base-300"
+        className="relative w-full max-w-md rounded-2xl bg-base-100 text-base-content shadow-2xl border border-base-300/50 overflow-hidden"
         role="dialog"
         aria-modal="true"
         aria-label="Leadni o'chirish"
@@ -25,11 +25,11 @@ export default function DeleteLeadDialog({
         onMouseDown={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <div className="p-4 border-b border-base-300 flex items-center justify-between gap-3">
-          <div className="font-semibold">Leadni o'chirish</div>
+        <div className="bg-neutral text-neutral-content px-4 py-3 rounded-t-box flex items-center justify-between gap-3">
+          <h3 className="font-semibold">Leadni o'chirish</h3>
           <button
             type="button"
-            className="btn btn-ghost btn-sm"
+            className="btn btn-ghost btn-sm btn-circle text-neutral-content hover:bg-neutral-content/10"
             onClick={onClose}
             disabled={isSavingLeads}
             aria-label="Yopish"
@@ -63,7 +63,6 @@ export default function DeleteLeadDialog({
               const id = deleteLead?.id;
               if (!id) return;
               await onConfirm(id);
-              onClose();
             }}
             disabled={isSavingLeads}
           >
