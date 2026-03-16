@@ -145,7 +145,7 @@ function CollectionCv() {
                   <th className="w-36 text-center">Erstellt</th>
                   <th className="w-32">Info</th>
                   <th className="w-24 text-center">Bewertung</th>
-                  {isSuperAdmin && <th className="w-24 text-center">Reaktion</th>}
+                  <th className="w-24 text-center">Reaktion</th>
                   {!isLimitedAdmin && <th className="w-12"></th>}
                 </tr>
               </thead>
@@ -278,34 +278,36 @@ function CollectionCv() {
                       </td>
 
                       {/* Reaktion */}
-                      {isSuperAdmin && (
-                        <td className="text-center" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center justify-center gap-1">
-                            <button
-                              type="button"
-                              className={`btn btn-xs btn-circle ${
-                                item.reaction === "like" ? "btn-success text-white" : "btn-ghost"
-                              }`}
-                              onClick={() => handleReaction(item.id, "like")}
-                              disabled={deletingId === item.id}
-                              title="Yoqdi"
-                            >
-                              <FaThumbsUp className="w-2.5 h-2.5" />
-                            </button>
-                            <button
-                              type="button"
-                              className={`btn btn-xs btn-circle ${
-                                item.reaction === "dislike" ? "btn-error text-white" : "btn-ghost"
-                              }`}
-                              onClick={() => handleReaction(item.id, "dislike")}
-                              disabled={deletingId === item.id}
-                              title="Yoqmadi"
-                            >
-                              <FaThumbsDown className="w-2.5 h-2.5" />
-                            </button>
-                          </div>
-                        </td>
-                      )}
+                      <td className="text-center" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-center gap-1">
+                          <button
+                            type="button"
+                            className={[
+                              "btn btn-xs btn-circle",
+                              item.reaction === "like" ? "btn-success text-white" : "btn-ghost",
+                              !isSuperAdmin ? "opacity-50 cursor-not-allowed" : "",
+                            ].join(" ")}
+                            onClick={() => handleReaction(item.id, "like")}
+                            disabled={deletingId === item.id || !isSuperAdmin}
+                            title={isSuperAdmin ? "Yoqdi" : "Faqat super_admin uchun"}
+                          >
+                            <FaThumbsUp className="w-2.5 h-2.5" />
+                          </button>
+                          <button
+                            type="button"
+                            className={[
+                              "btn btn-xs btn-circle",
+                              item.reaction === "dislike" ? "btn-error text-white" : "btn-ghost",
+                              !isSuperAdmin ? "opacity-50 cursor-not-allowed" : "",
+                            ].join(" ")}
+                            onClick={() => handleReaction(item.id, "dislike")}
+                            disabled={deletingId === item.id || !isSuperAdmin}
+                            title={isSuperAdmin ? "Yoqmadi" : "Faqat super_admin uchun"}
+                          >
+                            <FaThumbsDown className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                      </td>
 
                       {/* Delete */}
                       {!isLimitedAdmin && (
