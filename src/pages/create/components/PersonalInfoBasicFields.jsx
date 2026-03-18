@@ -58,11 +58,11 @@ export default function PersonalInfoBasicFields({
         </label>
         <div className="flex gap-6">
           <label className="cursor-pointer flex items-center gap-2">
-            <input type="radio" value="M\u00E4nnlich" className="radio radio-primary" {...register("personalInfo.gender", { required: "Bitte Geschlecht ausw\u00E4hlen" })} />
-            <span>M\u00E4nnlich</span>
+            <input type="radio" value="Männlich" className="radio radio-primary" {...register("personalInfo.gender", { required: "Bitte Geschlecht auswählen" })} />
+            <span>Männlich</span>
           </label>
           <label className="cursor-pointer flex items-center gap-2">
-            <input type="radio" value="Weiblich" className="radio radio-primary" {...register("personalInfo.gender", { required: "Bitte Geschlecht ausw\u00E4hlen" })} />
+            <input type="radio" value="Weiblich" className="radio radio-primary" {...register("personalInfo.gender", { required: "Bitte Geschlecht auswählen" })} />
             <span>Weiblich</span>
           </label>
         </div>
@@ -84,7 +84,7 @@ export default function PersonalInfoBasicFields({
                 aria-invalid={errors?.personalInfo?.birthDate ? "true" : "false"}
                 {...field}
               />
-              <p className="mt-1 text-xs text-base-content/70">Bitte w\u00E4hlen Sie Ihr Geburtsdatum aus.</p>
+              <p className="mt-1 text-xs text-base-content/70">Bitte wählen Sie Ihr Geburtsdatum aus.</p>
             </>
           )}
         />
@@ -97,19 +97,19 @@ export default function PersonalInfoBasicFields({
           <>
             <button type="button" onClick={() => setShowBirthPlacePicker(true)}
               className={`w-full h-12 px-4 rounded-lg border-2 text-left flex items-center justify-between transition-all active:scale-98 ${watchBirthPlace ? "border-success bg-success/5 text-base-content" : "border-base-300 bg-base-100 text-base-content/60"} ${errors?.personalInfo?.birthPlace ? "border-error" : ""}`}>
-              <span className="text-base">{watchBirthPlace || "Stadt w\u00E4hlen"}</span>
+              <span className="text-base">{watchBirthPlace || "Stadt wählen"}</span>
               <svg className="w-5 h-5 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
             </button>
             {errors?.personalInfo?.birthPlace && <p className="text-error text-sm mt-1">{errors.personalInfo.birthPlace.message}</p>}
           </>
         ) : (
-          <Controller control={control} name="personalInfo.birthPlace" rules={{ required: "Bitte Geburtsort ausw\u00E4hlen" }}
+          <Controller control={control} name="personalInfo.birthPlace" rules={{ required: "Bitte Geburtsort auswählen" }}
             render={({ field }) => (
               <>
                 <select id="personalInfo-birthPlace"
                   className={`select select-bordered w-full ${errors?.personalInfo?.birthPlace ? "select-error" : getSuccessClass(field.value, "personalInfo.birthPlace")}`}
                   aria-invalid={errors?.personalInfo?.birthPlace ? "true" : "false"} {...field}>
-                  <option value="">Bitte ausw\u00E4hlen</option>
+                  <option value="">Bitte auswählen</option>
                   {UZBEK_REGIONS.map((city) => <option key={city} value={city}>{city}</option>)}
                 </select>
                 {errors?.personalInfo?.birthPlace && <p className="text-error text-sm mt-1">{errors.personalInfo.birthPlace.message}</p>}
@@ -119,7 +119,7 @@ export default function PersonalInfoBasicFields({
         )}
       </RequiredField>
       <RequiredField>
-        <Controller control={control} name="personalInfo.maritalStatus" rules={{ required: "Bitte Familienstand ausw\u00E4hlen" }}
+        <Controller control={control} name="personalInfo.maritalStatus" rules={{ required: "Bitte Familienstand auswählen" }}
           render={({ field }) => (
             <>
               <label className="label" htmlFor="personalInfo-maritalStatus">
@@ -128,14 +128,14 @@ export default function PersonalInfoBasicFields({
               {isMobile ? (
                 <button type="button" onClick={() => setShowMaritalStatusPicker(true)}
                   className={`h-12 px-4 rounded-lg border-2 text-left flex items-center justify-between w-full transition-all active:scale-98 ${field.value ? "border-success bg-success/5 text-base-content" : "border-base-300 bg-base-100 text-base-content/60"} ${errors?.personalInfo?.maritalStatus ? "border-error" : ""}`}>
-                  <span className="text-sm">{field.value || "Bitte ausw\u00E4hlen"}</span>
+                  <span className="text-sm">{field.value || "Bitte auswählen"}</span>
                   <svg className="w-4 h-4 opacity-50 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                 </button>
               ) : (
                 <select id="personalInfo-maritalStatus"
                   className={`select select-bordered w-full ${errors?.personalInfo?.maritalStatus ? "select-error" : getSuccessClass("personalInfo.maritalStatus", field.value, "select")}`}
                   aria-invalid={errors?.personalInfo?.maritalStatus ? "true" : "false"} {...field}>
-                  <option value="">Bitte ausw\u00E4hlen</option>
+                  <option value="">Bitte auswählen</option>
                   <option value="ledig">ledig</option>
                   <option value="verheiratet">verheiratet</option>
                   <option value="geschieden">geschieden</option>
@@ -161,16 +161,16 @@ export default function PersonalInfoBasicFields({
                   const noKids = Boolean(watch("personalInfo.noChildren"));
                   if (noKids) return true;
                   const v = String(value || "").trim();
-                  if (!v) return "Bitte Kinderanzahl eingeben oder 'Keine Kinder' ausw\u00E4hlen.";
+                  if (!v) return "Bitte Kinderanzahl eingeben oder 'Keine Kinder' auswählen.";
                   const n = Number(v);
-                  if (Number.isNaN(n) || n < 0) return "Bitte eine g\u00FCltige Zahl eingeben.";
+                  if (Number.isNaN(n) || n < 0) return "Bitte eine gültige Zahl eingeben.";
                   return true;
                 },
                 setValueAs: (v) => { const s = String(v ?? "").trim(); if (!s) return ""; const num = Number(s); if (Number.isNaN(num)) return ""; return String(Math.max(0, Math.floor(num))); },
               })}
             />
             {errors?.personalInfo?.childrenCount ? <p className="text-error text-sm mt-1">{errors.personalInfo.childrenCount.message}</p> : null}
-            <p className="mt-1 text-xs text-base-content/70">Wenn Sie keine Kinder haben, w\u00E4hlen Sie bitte \u201EKeine Kinder\u201C.</p>
+            <p className="mt-1 text-xs text-base-content/70">Wenn Sie keine Kinder haben, wählen Sie bitte „Keine Kinder“.</p>
           </div>
           <div className="form-control">
             <label className="cursor-pointer flex items-center gap-2 mt-2 md:mt-0">

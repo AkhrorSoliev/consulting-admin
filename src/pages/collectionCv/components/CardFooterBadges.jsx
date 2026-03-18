@@ -47,7 +47,7 @@ function EmailBadge({ item, userPhotosCache }) {
     item.emailLastSentByPhoto || "";
 
   const emailTitle = item.emailSentCount > 0
-    ? `E-Mails gesendet: ${item.emailSentCount || 0}${item.emailLastSentAt ? ` \u2022 Zuletzt: ${formatCreatedAt(item.emailLastSentAt)}` : ""}${item.emailLastSentByName ? ` \u2022 Von: ${item.emailLastSentByName}` : ""}`
+    ? `E-Mails gesendet: ${item.emailSentCount || 0}${item.emailLastSentAt ? ` • Zuletzt: ${formatCreatedAt(item.emailLastSentAt)}` : ""}${item.emailLastSentByName ? ` • Von: ${item.emailLastSentByName}` : ""}`
     : "E-Mails gesendet: 0";
 
   return (
@@ -66,7 +66,7 @@ function CommentBadge({ item, userPhotosCache }) {
     item.commentUpdatedByPhoto || "";
 
   const commentTitle = item.commentUpdatedAt
-    ? `Kommentar aktualisiert: ${formatCreatedAt(item.commentUpdatedAt)}${item.commentUpdatedByName ? ` \u2022 Von: ${item.commentUpdatedByName}` : ""}`
+    ? `Kommentar aktualisiert: ${formatCreatedAt(item.commentUpdatedAt)}${item.commentUpdatedByName ? ` • Von: ${item.commentUpdatedByName}` : ""}`
     : "Kommentar vorhanden";
 
   return (
@@ -89,7 +89,7 @@ function ReactionButtons({ item, deletingId, isSuperAdmin, onReaction }) {
           !isSuperAdmin ? "opacity-50 cursor-not-allowed" : "",
         ].join(" ")}
         onClick={(e) => { e.stopPropagation(); onReaction(item.id, "like"); }}
-        title={isSuperAdmin ? "Gef\u00e4llt mir" : "Faqat super_admin uchun"}
+        title={isSuperAdmin ? "Gefällt mir" : "Faqat super_admin uchun"}
         disabled={deletingId === item.id || !isSuperAdmin}
       >
         <FaThumbsUp className="w-3.5 h-3.5" />
@@ -102,7 +102,7 @@ function ReactionButtons({ item, deletingId, isSuperAdmin, onReaction }) {
           !isSuperAdmin ? "opacity-50 cursor-not-allowed" : "",
         ].join(" ")}
         onClick={(e) => { e.stopPropagation(); onReaction(item.id, "dislike"); }}
-        title={isSuperAdmin ? "Gef\u00e4llt mir nicht" : "Faqat super_admin uchun"}
+        title={isSuperAdmin ? "Gefällt mir nicht" : "Faqat super_admin uchun"}
         disabled={deletingId === item.id || !isSuperAdmin}
       >
         <FaThumbsDown className="w-3.5 h-3.5" />

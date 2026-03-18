@@ -94,13 +94,13 @@ export default function useCreateFormState() {
   const [isInputFocused, setIsInputFocused] = useState(false);
   const STEPS = useMemo(
     () => [
-      { key: "personal", label: "Pers\u00F6nliche Daten" },
+      { key: "personal", label: "Persönliche Daten" },
       { key: "experience", label: "Berufserfahrung" },
       { key: "education", label: "Ausbildung" },
       { key: "languages", label: "Sprachen" },
-      { key: "skills", label: "F\u00E4higkeiten" },
+      { key: "skills", label: "Fähigkeiten" },
       { key: "documents", label: "Dokumente" },
-      { key: "confirm", label: "Best\u00E4tigen" },
+      { key: "confirm", label: "Bestätigen" },
     ],
     [],
   );

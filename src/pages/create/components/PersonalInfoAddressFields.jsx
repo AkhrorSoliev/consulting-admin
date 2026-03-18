@@ -26,12 +26,12 @@ export default function PersonalInfoAddressFields({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
           <div>
             <label className="label" htmlFor="personalInfo-addressStreet">
-              <RequiredLabel className={`label-text ${REQUIRED_STAR_CLASS}`}>Stra\u00DFe</RequiredLabel>
+              <RequiredLabel className={`label-text ${REQUIRED_STAR_CLASS}`}>Straße</RequiredLabel>
             </label>
-            <input id="personalInfo-addressStreet" type="text" placeholder="z.B. Musterstra\u00DFe"
+            <input id="personalInfo-addressStreet" type="text" placeholder="z.B. Musterstraße"
               className={`input input-bordered w-full ${errors?.personalInfo?.addressStreet ? "input-error" : getSuccessClass("personalInfo.addressStreet", addressStreet, "input")}`}
               aria-invalid={errors?.personalInfo?.addressStreet ? "true" : "false"}
-              {...register("personalInfo.addressStreet", { required: "Stra\u00DFe ist erforderlich", setValueAs: (v) => String(v || "").trim() })}
+              {...register("personalInfo.addressStreet", { required: "Straße ist erforderlich", setValueAs: (v) => String(v || "").trim() })}
             />
             {errors?.personalInfo?.addressStreet ? <p className="text-error text-sm mt-1">{errors.personalInfo.addressStreet.message}</p> : null}
           </div>
@@ -54,19 +54,19 @@ export default function PersonalInfoAddressFields({
               <>
                 <button type="button" onClick={() => setShowCityPicker(true)}
                   className={`w-full h-12 px-4 rounded-lg border-2 text-left flex items-center justify-between transition-all active:scale-98 ${addressCity ? "border-success bg-success/5 text-base-content" : "border-base-300 bg-base-100 text-base-content/60"} ${errors?.personalInfo?.addressCity ? "border-error" : ""}`}>
-                  <span className="text-base">{addressCity || "Stadt w\u00E4hlen"}</span>
+                  <span className="text-base">{addressCity || "Stadt wählen"}</span>
                   <svg className="w-5 h-5 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                 </button>
                 {errors?.personalInfo?.addressCity && <p className="text-error text-sm mt-1">{errors.personalInfo.addressCity.message}</p>}
               </>
             ) : (
-              <Controller control={control} name="personalInfo.addressCity" rules={{ required: "Bitte Ort ausw\u00E4hlen" }}
+              <Controller control={control} name="personalInfo.addressCity" rules={{ required: "Bitte Ort auswählen" }}
                 render={({ field }) => (
                   <>
                     <select id="personalInfo-addressCity"
                       className={`select select-bordered w-full ${errors?.personalInfo?.addressCity ? "select-error" : getSuccessClass(field.value, "personalInfo.addressCity")}`}
                       aria-invalid={errors?.personalInfo?.addressCity ? "true" : "false"} {...field}>
-                      <option value="">Bitte ausw\u00E4hlen</option>
+                      <option value="">Bitte auswählen</option>
                       {UZBEK_REGIONS.map((city) => <option key={city} value={city}>{city}</option>)}
                     </select>
                     {errors?.personalInfo?.addressCity && <p className="text-error text-sm mt-1">{errors.personalInfo.addressCity.message}</p>}
@@ -83,22 +83,22 @@ export default function PersonalInfoAddressFields({
               <>
                 <button type="button" onClick={() => setShowCountryPicker(true)}
                   className={`w-full h-12 px-4 rounded-lg border-2 text-left flex items-center justify-between transition-all active:scale-98 ${addressCountry ? "border-success bg-success/5 text-base-content" : "border-base-300 bg-base-100 text-base-content/60"} ${errors?.personalInfo?.addressCountry ? "border-error" : ""}`}>
-                  <span className="text-base">{addressCountry || "Land ausw\u00E4hlen"}</span>
+                  <span className="text-base">{addressCountry || "Land auswählen"}</span>
                   <svg className="w-5 h-5 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                 </button>
                 {errors?.personalInfo?.addressCountry && <p className="text-error text-sm mt-1">{errors.personalInfo.addressCountry.message}</p>}
               </>
             ) : (
-              <Controller control={control} name="personalInfo.addressCountry" rules={{ required: "Bitte Land ausw\u00E4hlen" }}
+              <Controller control={control} name="personalInfo.addressCountry" rules={{ required: "Bitte Land auswählen" }}
                 render={({ field }) => (
                   <>
                     <select id="personalInfo-addressCountry"
                       className={`select select-bordered w-full ${errors?.personalInfo?.addressCountry ? "select-error" : getSuccessClass(field.value, "personalInfo.addressCountry")}`}
                       aria-invalid={errors?.personalInfo?.addressCountry ? "true" : "false"} {...field}>
-                      <option value="">Bitte ausw\u00E4hlen</option>
+                      <option value="">Bitte auswählen</option>
                       {countries
                         .sort((a, b) => {
-                          const priority = ["Usbekistan", "Deutschland", "Russland", "S\u00FCdkorea"];
+                          const priority = ["Usbekistan", "Deutschland", "Russland", "Südkorea"];
                           const aI = priority.indexOf(a.deu); const bI = priority.indexOf(b.deu);
                           if (aI !== -1 && bI !== -1) return aI - bI;
                           if (aI !== -1) return -1; if (bI !== -1) return 1;

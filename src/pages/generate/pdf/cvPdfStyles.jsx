@@ -15,9 +15,9 @@ function pad2(value) {
 
 export function formatDateDDMMYYYY(ms) {
   const n = typeof ms === "number" ? ms : Number(ms);
-  if (!Number.isFinite(n)) return "\u2014";
+  if (!Number.isFinite(n)) return "—";
   const d = new Date(n);
-  if (Number.isNaN(d.getTime())) return "\u2014";
+  if (Number.isNaN(d.getTime())) return "—";
   return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;
 }
 
@@ -30,12 +30,12 @@ export function splitCommentLabelLine(line) {
   if (!raw.trim()) return null;
 
   const labels = [
-    "Eingesch\u00e4tzte Sprachniveau",
+    "Eingeschätzte Sprachniveau",
     "Erfahrung in diesem Bereich",
     "Langfristige Ziele in Deutschland",
     "Auslandserfahrungen",
     "Familie/Kinder",
-    "Weitere Gespr\u00e4chsnotizen",
+    "Weitere Gesprächsnotizen",
   ];
   const alt = labels.map(escapeRegExp).join("|");
   const re = new RegExp(
@@ -69,7 +69,7 @@ export function renderPdfStars(rating) {
   for (let i = 0; i < fullStars; i++) {
     stars.push(
       <Text key={`full-${i}`} style={{ color: "#f59e0b", fontSize: 14, lineHeight: 1 }}>
-        \u2605
+        ★
       </Text>,
     );
   }
@@ -81,10 +81,10 @@ export function renderPdfStars(rating) {
         style={{ width: 14, height: 14, position: "relative", flexDirection: "row", alignItems: "center" }}
       >
         <Text style={{ color: "#d1d5db", fontSize: 14, lineHeight: 1, position: "absolute", left: 0, top: 0 }}>
-          \u2605
+          ★
         </Text>
         <View style={{ overflow: "hidden", width: 7, height: 14, position: "absolute", left: 0, top: 0 }}>
-          <Text style={{ color: "#f59e0b", fontSize: 14, lineHeight: 1 }}>\u2605</Text>
+          <Text style={{ color: "#f59e0b", fontSize: 14, lineHeight: 1 }}>★</Text>
         </View>
       </View>,
     );
@@ -93,7 +93,7 @@ export function renderPdfStars(rating) {
   for (let i = 0; i < emptyStars; i++) {
     stars.push(
       <Text key={`empty-${i}`} style={{ color: "#d1d5db", fontSize: 14, lineHeight: 1 }}>
-        \u2605
+        ★
       </Text>,
     );
   }

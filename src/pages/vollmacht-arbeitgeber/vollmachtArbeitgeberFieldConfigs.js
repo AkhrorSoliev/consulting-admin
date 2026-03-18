@@ -32,8 +32,8 @@ export const candidateBirthFields = [
 export const candidateAddressFields = [
   {
     key: "candidateStreet",
-    label: "Stra\u00DFe",
-    placeholder: "z.B. Musterstra\u00DFe",
+    label: "Straße",
+    placeholder: "z.B. Musterstraße",
   },
   {
     key: "candidateHouseNumber",
@@ -87,7 +87,7 @@ export const employerBasicFields = [
   },
   {
     key: "employerStreet",
-    label: "Stra\u00DFe (Ko\u2018cha)",
+    label: "Straße (Ko‘cha)",
     placeholder: "z.B.: Bergkirchener Str.",
   },
   {
@@ -125,8 +125,8 @@ export const employerRepresentativeFields = [
   },
   {
     key: "employerRepStreet",
-    label: "Stra\u00DFe (Ko\u2018cha)",
-    placeholder: "z.B.: Musterstra\u00DFe",
+    label: "Straße (Ko‘cha)",
+    placeholder: "z.B.: Musterstraße",
   },
   {
     key: "employerRepHouseNumber",
@@ -174,11 +174,11 @@ export const dynamicFields = [
     key: "employerDesignation",
     label: "Bezeichnung des Arbeitgebers",
     placeholder: "z.B. Musterfirma GmbH",
-    helperText: 'Wird im Text "Hiermit bevollm\u00E4chtige ich [...]" verwendet',
+    helperText: 'Wird im Text "Hiermit bevollmächtige ich [...]" verwendet',
   },
   {
     key: "employerRepFullName",
-    label: "Name der bevollm\u00E4chtigten Person",
+    label: "Name der bevollmächtigten Person",
     placeholder: "z.B. Hans Schmidt",
     helperText: 'Wird im Text "vertreten durch [...]" verwendet',
   },

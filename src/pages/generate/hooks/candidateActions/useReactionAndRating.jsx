@@ -44,9 +44,9 @@ export function useReactionAndRating({
 
       toast.success(
         newReaction === "like"
-          ? "\ud83d\udc4d Gef\u00e4llt mir"
+          ? "👍 Gefällt mir"
           : newReaction === "dislike"
-            ? "\ud83d\udc4e Gef\u00e4llt mir nicht"
+            ? "👎 Gefällt mir nicht"
             : "Reaktion entfernt",
       );
     } catch (err) {

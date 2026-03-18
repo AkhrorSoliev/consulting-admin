@@ -10,7 +10,7 @@ export default function ThankYouCard() {
         Vielen Dank!
       </h2>
       <p>
-        Ihre Bewerbung wurde erfolgreich abgeschlossen. Vielen Dank f{"\u00FC"}r Ihre Bewerbung
+        Ihre Bewerbung wurde erfolgreich abgeschlossen. Vielen Dank f{"ü"}r Ihre Bewerbung
       </p>
       <div className="w-full pt-4">
         <div className="rounded-2xl border border-base-300 bg-base-100 p-4 text-left shadow-sm">
@@ -27,7 +27,7 @@ export default function ThankYouCard() {
             <a
               href="https://www.dafzentrum.uz" target="_blank" rel="noopener noreferrer"
               className="group flex items-center gap-3 rounded-xl border border-base-300 bg-base-100 px-4 py-3 hover:bg-base-200/60"
-              aria-label="DaF Sprachzentrum Website \u00F6ffnen"
+              aria-label="DaF Sprachzentrum Website öffnen"
             >
               <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <FaGlobe className="text-base" />
@@ -41,7 +41,7 @@ export default function ThankYouCard() {
             <a
               href="https://t.me/dafsprachzentrum" target="_blank" rel="noopener noreferrer"
               className="group flex items-center gap-3 rounded-xl border border-base-300 bg-base-100 px-4 py-3 hover:bg-base-200/60"
-              aria-label="DaF Sprachzentrum Telegram-Kanal \u00F6ffnen"
+              aria-label="DaF Sprachzentrum Telegram-Kanal öffnen"
             >
               <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#229ED9]/10 text-[#229ED9]">
                 <FaTelegramPlane className="text-base" />

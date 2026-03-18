@@ -5,12 +5,12 @@ import MobileBottomSheet from "./MobileBottomSheet";
 
 export default function DrivingLicenseMultiSelect({
   id,
-  label = "F\u00FChrerschein-Klassen (mehrere m\u00F6glich)",
+  label = "Führerschein-Klassen (mehrere möglich)",
   options = [],
   value,
   onChange,
   error,
-  placeholder = "Bitte ausw\u00E4hlen",
+  placeholder = "Bitte auswählen",
 }) {
   const isMobile = useIsMobileSelect();
 
@@ -127,7 +127,7 @@ export default function DrivingLicenseMultiSelect({
         >
           {displayValue}
         </span>
-        <span className="text-base-content/60">{"\u25BE"}</span>
+        <span className="text-base-content/60">{"▾"}</span>
       </button>
 
       {/* Desktop popover */}

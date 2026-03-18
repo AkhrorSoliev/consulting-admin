@@ -53,7 +53,7 @@ export default function useStepValidation({
             "personalInfo.birthPlace": "Geburtsort", "personalInfo.maritalStatus": "Familienstand",
             "personalInfo.childrenCount": "Kinder", "personalInfo.phone": "Telefonnummer",
             "personalInfo.email": "E-Mail", "personalInfo.passportNumber": "Passnummer",
-            "personalInfo.photo": "Foto", "personalInfo.addressStreet": "Stra\u00DFe",
+            "personalInfo.photo": "Foto", "personalInfo.addressStreet": "Straße",
             "personalInfo.addressHouseNumber": "Hausnummer",
             "personalInfo.addressPostalCode": "PLZ (Postleitzahl)",
             "personalInfo.addressCity": "Ort", "personalInfo.addressCountry": "Land",
@@ -61,10 +61,10 @@ export default function useStepValidation({
           if (missing.length === 1) {
             toast.error(`Fehlend: ${labelMap[missing[0]] || missing[0]}`);
           } else {
-            toast.error("Sie haben mehrere Pflichtfelder nicht ausgef\u00FCllt.");
+            toast.error("Sie haben mehrere Pflichtfelder nicht ausgefüllt.");
           }
         } else {
-          toast.error("Bitte f\u00FCllen Sie alle Pflichtfelder aus.");
+          toast.error("Bitte füllen Sie alle Pflichtfelder aus.");
         }
         return false;
       }

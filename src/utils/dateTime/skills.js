@@ -10,13 +10,13 @@ export function generateSkills(cv, kind) {
 
   const softPoolBase = [
     "Teamarbeit",
-    "Kommunikationsf\u00E4higkeit",
-    "Probleml\u00F6sungsf\u00E4higkeit",
+    "Kommunikationsfähigkeit",
+    "Problemlösungsfähigkeit",
     "Zeitmanagement",
     "Selbstorganisation",
     "Verantwortungsbewusstsein",
-    "Flexibilit\u00E4t",
-    "Konfliktl\u00F6sung",
+    "Flexibilität",
+    "Konfliktlösung",
     "Stressresistenz",
     "Kundenorientierung",
   ];
@@ -47,7 +47,7 @@ export function generateSkills(cv, kind) {
       lowerIncludes(exp.position, "teacher") ||
       lowerIncludes(exp.position, "o'qit")
     ) {
-      contextSoft.push("Pr\u00E4sentationsf\u00E4higkeit");
+      contextSoft.push("Präsentationsfähigkeit");
       contextPc.push("PowerPoint");
     }
     if (Array.isArray(exp.responsibilities)) {
@@ -76,10 +76,10 @@ export function generateSkills(cv, kind) {
       contextSoft.push("Analytisches Denken");
     }
     if (
-      lowerIncludes(edu.institution, "universit\u00E4t") ||
+      lowerIncludes(edu.institution, "universität") ||
       lowerIncludes(edu.institution, "universitet")
     ) {
-      contextSoft.push("Selbstst\u00E4ndiges Lernen");
+      contextSoft.push("Selbstständiges Lernen");
     }
   });
 

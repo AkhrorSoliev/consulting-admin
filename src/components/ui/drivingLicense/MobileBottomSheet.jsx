@@ -11,19 +11,19 @@ export default function MobileBottomSheet({
       className="fixed inset-0 z-[999] bg-base-content/40 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
-      aria-label="F\u00FChrerschein-Klassen"
+      aria-label="Führerschein-Klassen"
     >
       <div className="fixed inset-x-0 bottom-0 max-h-[85vh] bg-base-100 rounded-t-2xl shadow-2xl flex flex-col">
         <div className="flex items-center justify-between px-4 py-3 border-b border-base-200">
-          <div className="text-base font-semibold">F\u00FChrerschein-Klassen</div>
+          <div className="text-base font-semibold">Führerschein-Klassen</div>
           <button
             ref={mobileCloseBtnRef}
             type="button"
             className="btn btn-ghost btn-square min-h-11 h-11 w-11"
-            aria-label="Schlie\u00DFen"
+            aria-label="Schließen"
             onClick={() => close()}
           >
-            \u2715
+            ✕
           </button>
         </div>
 
@@ -43,7 +43,7 @@ export default function MobileBottomSheet({
                     className="checkbox checkbox-primary"
                     checked={checked}
                     onChange={() => toggleOption(opt)}
-                    aria-label={`${upper} ausw\u00E4hlen`}
+                    aria-label={`${upper} auswählen`}
                   />
                 </label>
               );

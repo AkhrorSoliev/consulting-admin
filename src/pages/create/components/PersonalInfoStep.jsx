@@ -57,7 +57,7 @@ export default function PersonalInfoStep({
       <div className="divider mt-0">
         <span className="mx-auto inline-flex items-center gap-2">
           <FaUser className="opacity-70" aria-hidden="true" />
-          <span>Pers\u00F6nliche Daten</span>
+          <span>Persönliche Daten</span>
         </span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

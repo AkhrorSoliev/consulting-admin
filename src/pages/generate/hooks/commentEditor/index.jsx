@@ -51,7 +51,7 @@ export function useCommentEditor({
   const canSaveComment = commentChanged && !isSaving && !loading && !notFound;
   const showCommentPreview = !isCommentEditorOpen;
   const commentActionLabel = !isCommentEditorOpen
-    ? "Hinzuf\u00fcgen"
+    ? "Hinzufügen"
     : "Abbrechen";
   const showLimitedCommentSaveButton =
     isLimitedAdmin &&

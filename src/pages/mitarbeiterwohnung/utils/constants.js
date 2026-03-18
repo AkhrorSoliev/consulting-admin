@@ -8,7 +8,7 @@ export const initialFormState = {
   firmaName: "Erlebnispark Tripsdrill GmbH & Co.KG",
   abteilung: "Human Resources",
   kontaktPerson: "Nupel Kara",
-  strasse: "Erlebnispark-Tripsdrill-Stra\u00dfe 1",
+  strasse: "Erlebnispark-Tripsdrill-Straße 1",
   plz: "74389",
   ort: "Cleebronn",
   telefon: "",

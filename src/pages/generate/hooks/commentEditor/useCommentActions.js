@@ -43,11 +43,11 @@ export function useCommentActions({
 
   function handleClearComment() {
     if (!isSuperAdmin) {
-      toast.error("Sie haben keine Berechtigung, den Kommentar zu l\u00f6schen.");
+      toast.error("Sie haben keine Berechtigung, den Kommentar zu löschen.");
       return;
     }
     const ok = window.confirm(
-      "Kommentar wirklich l\u00f6schen?\n\nHinweis: Diese \u00c4nderung wird erst in Firestore gespeichert, wenn Sie auf \u201eSpeichern\u201c klicken.",
+      "Kommentar wirklich löschen?\n\nHinweis: Diese Änderung wird erst in Firestore gespeichert, wenn Sie auf „Speichern“ klicken.",
     );
     if (!ok) return;
     setCommentHtml("");

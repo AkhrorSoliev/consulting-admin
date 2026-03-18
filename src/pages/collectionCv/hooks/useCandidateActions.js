@@ -119,8 +119,8 @@ export function useCandidateActions({ resolvedMajor, items, filteredItems, title
       const newReaction = currentItem?.reaction === reactionType ? null : reactionType;
       await updateDoc(candidateRef, { reaction: newReaction, reactionUpdatedAt: Date.now() });
       toast.success(
-        newReaction === "like" ? "\uD83D\uDC4D Gef\u00e4llt mir"
-          : newReaction === "dislike" ? "\uD83D\uDC4E Gef\u00e4llt mir nicht"
+        newReaction === "like" ? "👍 Gefällt mir"
+          : newReaction === "dislike" ? "👎 Gefällt mir nicht"
           : "Reaktion entfernt",
       );
     } catch (err) {

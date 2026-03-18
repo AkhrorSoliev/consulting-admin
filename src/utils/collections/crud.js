@@ -33,7 +33,7 @@ export async function createCollection(name, createdBy) {
       ),
     );
     if (!dupSnap.empty) {
-      toast.error(`\u201E${normalizedName}\u201C ist bereits vorhanden.`);
+      toast.error(`„${normalizedName}“ ist bereits vorhanden.`);
       return { created: false, reason: "exists" };
     }
 
@@ -59,7 +59,7 @@ export async function createCollection(name, createdBy) {
     }
 
     toast.success(
-      `\u201E${rawTitle || normalizedName}\u201C wurde zur Meta-Liste hinzugef\u00FCgt!`,
+      `„${rawTitle || normalizedName}“ wurde zur Meta-Liste hinzugefügt!`,
     );
     return {
       created: true,
@@ -132,16 +132,16 @@ export async function deleteCollectionByName(name, options = {}) {
       );
       await Promise.all(deletePromises);
       toast.success(
-        `Sammlung \u201E${colName}\u201C und ${candidatesCount} Kandidaten wurden gel\u00F6scht!`,
+        `Sammlung „${colName}“ und ${candidatesCount} Kandidaten wurden gelöscht!`,
       );
     } else {
       if (candidatesCount > 0) {
         toast.info(
-          `Sammlung \u201E${colName}\u201C wurde deaktiviert. ${candidatesCount} Kandidaten bleiben erhalten.`,
+          `Sammlung „${colName}“ wurde deaktiviert. ${candidatesCount} Kandidaten bleiben erhalten.`,
           { duration: 5000 },
         );
       } else {
-        toast.success(`Sammlung \u201E${colName}\u201C wurde gel\u00F6scht!`);
+        toast.success(`Sammlung „${colName}“ wurde gelöscht!`);
       }
     }
 
