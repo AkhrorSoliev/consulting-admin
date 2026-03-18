@@ -5,10 +5,10 @@ function sanitizeMajorId(major) {
   const majorId =
     major?.linkId || major?.uuid || major?.id || major?.collectionName || major;
   return String(majorId)
-    .replace(/\u00df/g, "ss")
-    .replace(/\u00fc/g, "ue")
-    .replace(/\u00f6/g, "oe")
-    .replace(/\u00e4/g, "ae");
+    .replace(/ß/g, "ss")
+    .replace(/ü/g, "ue")
+    .replace(/ö/g, "oe")
+    .replace(/ä/g, "ae");
 }
 
 export default function LeadLinksSection({

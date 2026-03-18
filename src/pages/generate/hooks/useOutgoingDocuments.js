@@ -149,6 +149,47 @@ export function useOutgoingDocuments({
     generators,
   });
 
+  const handleDeleteOutgoingDoc = useCallback(
+    async (tplId) => {
+      const safeId = String(tplId || "").trim();
+      if (!safeId || !candidateCollection || !candidateDocId) return;
+      setOutgoingBusyById((prev) => ({ ...prev, [safeId]: true }));
+      try {
+        const { ok, remoteMissing } = await deleteOutgoingDocRemoteFirst(safeId);
+        if (ok && remoteMissing) toast("Remote-Datei nicht gefunden, Eintrag wurde entfernt.");
+        else if (ok) toast.success("Link erfolgreich gelöscht.");
+        else toast.error("Fehler beim Löschen des Links.");
+      } catch {
+        toast.error("Fehler beim Löschen des Links.");
+      } finally {
+        setOutgoingBusyById((prev) => ({ ...prev, [safeId]: false }));
+      }
+    },
+    [candidateCollection, candidateDocId, deleteOutgoingDocRemoteFirst],
+  );
+
+  const handleDeleteAllOutgoingDocs = useCallback(
+    async () => {
+      if (!candidateCollection || !candidateDocId) return;
+      const entries = Object.entries(outgoingDocsRef.current || {}).filter(
+        ([, v]) => v && typeof v === "object" && String(v?.url || "").trim(),
+      );
+      if (!entries.length) return;
+      setOutgoingBulkBusy(true);
+      try {
+        for (const [tplId] of entries) {
+          await deleteOutgoingDocRemoteFirst(tplId);
+        }
+        toast.success("Alle Links erfolgreich gelöscht.");
+      } catch {
+        toast.error("Fehler beim Löschen der Links.");
+      } finally {
+        setOutgoingBulkBusy(false);
+      }
+    },
+    [candidateCollection, candidateDocId, deleteOutgoingDocRemoteFirst],
+  );
+
   return {
     outgoingDocs,
     setOutgoingDocs,
@@ -165,5 +206,7 @@ export function useOutgoingDocuments({
     deleteOutgoingDocFromState,
     deleteOutgoingDocRemoteFirst,
     handleToggleOutgoingDoc,
+    handleDeleteOutgoingDoc,
+    handleDeleteAllOutgoingDocs,
   };
 }

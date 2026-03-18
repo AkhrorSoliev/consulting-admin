@@ -47,11 +47,11 @@ export default function CandidateFormSection({
   return (
     <>
       <div className="divider divider-start font-bold text-base-content/80">
-        {"\uD83D\uDC64"} Vollmachtgeber (Kandidat)
+        {"👤"} Vollmachtgeber (Kandidat)
       </div>
 
       <FieldGroup
-        title="Pers\u00F6nliche Angaben"
+        title="Persönliche Angaben"
         gridClass="grid grid-cols-1 sm:grid-cols-2 gap-4"
       >
         {rf(candidateNameFields)}

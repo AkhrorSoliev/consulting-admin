@@ -85,12 +85,12 @@ export default function StageAndStatusSection({
                   !candidateDocId ||
                   Boolean(sendingStepValue)
                 }
-                title="Alle gesendeten Links l\u00f6schen"
+                title="Alle gesendeten Links löschen"
               >
                 {outgoingBulkBusy ? (
                   <span className="loading loading-spinner loading-xs" />
                 ) : null}
-                <span>Alle l\u00f6schen</span>
+                <span>Alle löschen</span>
               </button>
             </div>
 

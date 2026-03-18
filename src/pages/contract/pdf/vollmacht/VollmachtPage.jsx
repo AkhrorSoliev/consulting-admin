@@ -12,7 +12,7 @@ export default function VollmachtPage({ form }) {
     <Page size="A4" style={s.page}>
       <Text style={s.title}>Vollmacht</Text>
 
-      <Text style={s.p}>Hiermit bevollm\u00E4chtige ich</Text>
+      <Text style={s.p}>Hiermit bevollmächtige ich</Text>
 
       <View style={{ marginLeft: 20, marginTop: 8 }}>
         <View style={s.formRow}>
@@ -50,7 +50,7 @@ export default function VollmachtPage({ form }) {
       </Text>
 
       <Text style={[s.p, { marginTop: 12 }]}>
-        mich zu unterst\u00FCtzen und zu vertreten in der Angelegenheit Erlangung
+        mich zu unterstützen und zu vertreten in der Angelegenheit Erlangung
         und Antritt einer Fachkraft in Deutschland.
       </Text>
 
@@ -60,23 +60,23 @@ export default function VollmachtPage({ form }) {
 
       <View style={s.list}>
         <View style={s.liRow}>
-          <Text style={s.liDash}>{"\u2022"}</Text>
+          <Text style={s.liDash}>{"•"}</Text>
           <Text>
-            die Vertretung bei allen erforderlichen Ma\u00DFnahmen gegen\u00FCber
-            Beh\u00F6rden und Intuitionen, um eine Fachkraft in Deutschland
-            antreten zu k\u00F6nnen,
+            die Vertretung bei allen erforderlichen Maßnahmen gegenüber
+            Behörden und Intuitionen, um eine Fachkraft in Deutschland
+            antreten zu können,
           </Text>
         </View>
         <View style={s.liRow}>
-          <Text style={s.liDash}>{"\u2022"}</Text>
-          <Text>die Einholung von beglaubigten \u00DCbersetzungen,</Text>
+          <Text style={s.liDash}>{"•"}</Text>
+          <Text>die Einholung von beglaubigten Übersetzungen,</Text>
         </View>
         <View style={s.liRow}>
-          <Text style={s.liDash}>{"\u2022"}</Text>
+          <Text style={s.liDash}>{"•"}</Text>
           <Text>
-            die Versendung und Entgegennahme von Schriftst\u00FCcken sowie die
-            Abgabe und Entgegennahme von m\u00FCndlichen Erkl\u00E4rungen im Rahmen der
-            vorgenannten T\u00E4tigkeiten ist ausdr\u00FCcklich eingeschlossen.
+            die Versendung und Entgegennahme von Schriftstücken sowie die
+            Abgabe und Entgegennahme von mündlichen Erklärungen im Rahmen der
+            vorgenannten Tätigkeiten ist ausdrücklich eingeschlossen.
           </Text>
         </View>
       </View>

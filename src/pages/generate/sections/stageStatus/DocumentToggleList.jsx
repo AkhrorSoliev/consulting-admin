@@ -67,7 +67,7 @@ export default function DocumentToggleList({
                 <Link
                   to={tpl.to}
                   className="link link-hover font-semibold truncate inline-flex items-center gap-2"
-                  title="Vorlage \u00f6ffnen"
+                  title="Vorlage öffnen"
                 >
                   <span className="truncate">{tpl.title}</span>
                   <FaExternalLinkAlt className="opacity-70" />
@@ -160,7 +160,7 @@ export default function DocumentToggleList({
         );
       })}
       {DOCUMENT_TEMPLATES.length === 0 ? (
-        <div className="text-sm opacity-70">Derzeit keine Vorlagen verf\u00fcgbar.</div>
+        <div className="text-sm opacity-70">Derzeit keine Vorlagen verfügbar.</div>
       ) : null}
     </div>
   );

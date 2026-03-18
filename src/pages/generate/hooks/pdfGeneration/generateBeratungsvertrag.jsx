@@ -47,6 +47,7 @@ export function buildGenerateAndUploadBeratungsvertrag(formCv, addressFields) {
       ...(savedForm ? savedForm : {}),
       firstName,
       lastName,
+      contractDate: todayDdMmYyyy(),
       candidateCity: city,
       signatureCity: city,
       pdfGeneratedDate: todayDdMmYyyy(),

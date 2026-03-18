@@ -33,7 +33,7 @@ export default function SprachsbestaetigungPage({ form }) {
         <Text style={s.headerCompany}>{firmaName || "Firmenname"}</Text>
         <Text style={s.headerText}>{abteilung || "Abteilung"}</Text>
         <Text style={s.headerText}>{kontaktPerson || "Kontaktperson"}</Text>
-        <Text style={s.headerText}>{strasse || "Stra\u00DFe"}</Text>
+        <Text style={s.headerText}>{strasse || "Straße"}</Text>
         <Text style={s.headerText}>{addressLine || "PLZ Ort"}</Text>
         {telefon && <Text style={s.headerText}>Telefon: {telefon}</Text>}
         {email && (
@@ -53,7 +53,7 @@ export default function SprachsbestaetigungPage({ form }) {
       <Text style={s.dateRow}>Datum: {datum || "DD.MM.YYYY"}</Text>
 
       {/* Title */}
-      <Text style={s.title}>Best\u00E4tigung Deutschkenntnisse</Text>
+      <Text style={s.title}>Bestätigung Deutschkenntnisse</Text>
 
       {/* Salutation */}
       <Text style={s.salutation}>
@@ -62,16 +62,16 @@ export default function SprachsbestaetigungPage({ form }) {
 
       {/* Body paragraphs */}
       <Text style={s.paragraph}>
-        Wir haben mit Ihnen ein ausf\u00FChrliches Online-Vorstellungsgespr\u00E4ch auf Deutsch gef\u00FChrt.
+        Wir haben mit Ihnen ein ausführliches Online-Vorstellungsgespräch auf Deutsch geführt.
       </Text>
 
       <Text style={s.paragraph}>
-        Gerne best\u00E4tigen wir Ihnen, dass Ihre Sprachkenntnisse mehr als ausreichend f\u00FCr das{" "}
+        Gerne bestätigen wir Ihnen, dass Ihre Sprachkenntnisse mehr als ausreichend für das{" "}
         {praktikumsart || "Weiterbildungspraktikum"} im {firmaName || "Firmenname"} sind.
       </Text>
 
       {/* Closing */}
-      <Text style={s.closing}>Mit herzlichen Gr\u00FC\u00DFen</Text>
+      <Text style={s.closing}>Mit herzlichen Grüßen</Text>
 
       {/* Signature */}
       <View style={s.signatureSection}>

@@ -44,7 +44,7 @@ export function useSendDocLink({ id, formCv, docCv }) {
       if (candidateEmail) {
         try {
           const emailSubject = "Dokument-Upload-Link";
-          const emailMessage = `${customMessage}\n\n\ud83d\udd17 Link: ${dataExchangeUrl}`;
+          const emailMessage = `${customMessage}\n\n🔗 Link: ${dataExchangeUrl}`;
           const emailHtml = `
             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
               <h2 style="color: #333;">Dokument-Upload</h2>
@@ -81,13 +81,13 @@ export function useSendDocLink({ id, formCv, docCv }) {
         try {
           const telegramMessage = `${customMessage}
 
-\ud83d\udd17: ${dataExchangeUrl}
+🔗: ${dataExchangeUrl}
 
-\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
-\u2757 Agar biror muammo bo'lsa,
-\ud83d\udc49 @sh_yodgorov bilan bog'laning.
+━━━━━━━━━━━━━━━
+❗ Agar biror muammo bo'lsa,
+👉 @sh_yodgorov bilan bog'laning.
 
-\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501
+━━━━━━━━━━━━━━━
 Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
 
           await sendEmailViaTelegram({
@@ -98,8 +98,8 @@ Ushbu bot va @consulting_uzb kanalida qolishingizni so'raymiz.`;
 
           telegramSent = true;
         } catch (error) {
-          console.error("Fehler beim Senden \u00fcber Telegram:", error);
-          toast.error("Fehler beim Senden \u00fcber Telegram.");
+          console.error("Fehler beim Senden über Telegram:", error);
+          toast.error("Fehler beim Senden über Telegram.");
         }
       }
 

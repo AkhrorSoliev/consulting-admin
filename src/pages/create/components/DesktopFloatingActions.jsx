@@ -9,7 +9,7 @@ export default function DesktopFloatingActions({ setIsGuideOpen, TELEGRAM_SUPPOR
       <button
         type="button"
         className="btn btn-primary btn-circle shadow-lg"
-        aria-label="Video-Guide \u00F6ffnen"
+        aria-label="Video-Guide öffnen"
         onClick={() => setIsGuideOpen(true)}
       >
         <FaVideo className="text-xl" />

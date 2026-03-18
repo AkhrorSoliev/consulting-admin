@@ -71,7 +71,7 @@ export function useEmailCheck({
           setEnteredEmail(email);
           setError("personalInfo.email", {
             type: "remoteExists",
-            message: `Diese E-Mail ist bereits f\u00FCr \u201E${major}\u201C registriert.`,
+            message: `Diese E-Mail ist bereits für „${major}“ registriert.`,
           });
           if (lastEmailExistsModalRef.current !== email) {
             setIsEmailModalOpen(true);

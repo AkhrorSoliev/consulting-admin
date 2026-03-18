@@ -31,10 +31,10 @@ export default function PersonalInfoContactFields({
           validate: (v) => {
             const raw = String(v || "").trim();
             const firstSpace = raw.indexOf(" ");
-            if (firstSpace < 0) return "Bitte Telefonnummer vollst\u00E4ndig eingeben.";
+            if (firstSpace < 0) return "Bitte Telefonnummer vollständig eingeben.";
             const body = raw.slice(firstSpace + 1);
             const digits = String(body || "").replace(/[^\d]/g, "");
-            if (digits.length !== 9) return "Bitte Telefonnummer vollst\u00E4ndig eingeben.";
+            if (digits.length !== 9) return "Bitte Telefonnummer vollständig eingeben.";
             return true;
           },
         }}
@@ -53,7 +53,7 @@ export default function PersonalInfoContactFields({
                 required value={field.value} onChange={field.onChange}
                 error={errors?.personalInfo?.phone?.message}
                 inputClassName={errors?.personalInfo?.phone ? "" : getLiveInputClass("personalInfo.phone", field.value, isPhoneComplete)}
-                helperText={<>Beispiel: +998 90 123 45 67{phoneWarn ? <><br /><span className="text-warning">Telefonnummer unvollst\u00E4ndig ({phoneDigits.length}/9 Ziffern)</span></> : null}</>}
+                helperText={<>Beispiel: +998 90 123 45 67{phoneWarn ? <><br /><span className="text-warning">Telefonnummer unvollständig ({phoneDigits.length}/9 Ziffern)</span></> : null}</>}
               />
             </RequiredField>
           );
@@ -63,7 +63,7 @@ export default function PersonalInfoContactFields({
         <Controller
           control={control}
           name="personalInfo.email"
-          rules={{ required: "E-Mail ist erforderlich", pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "Bitte g\u00FCltige E-Mail eingeben" } }}
+          rules={{ required: "E-Mail ist erforderlich", pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "Bitte gültige E-Mail eingeben" } }}
           render={({ field }) => {
             const st = getFieldState("personalInfo.email");
             const touched = Boolean(st?.isTouched || st?.isDirty);
@@ -82,9 +82,9 @@ export default function PersonalInfoContactFields({
                   aria-busy={isEmailChecking ? "true" : "false"}
                   rightElement={
                     isEmailChecking ? <span className="loading loading-spinner loading-sm text-base-content/60 pointer-events-none" aria-hidden="true" />
-                    : showEmailSuccess ? <span className="text-success text-xl pointer-events-none" aria-hidden="true">{"\u2713"}</span> : null
+                    : showEmailSuccess ? <span className="text-success text-xl pointer-events-none" aria-hidden="true">{"✓"}</span> : null
                   }
-                  helperText={<>Bitte geben Sie eine E-Mail ein, die Sie regelm\u00E4\u00DFig nutzen.{emailWarn ? <><br /><span className="text-warning">Bitte g\u00FCltige E-Mail eingeben.</span></> : null}</>}
+                  helperText={<>Bitte geben Sie eine E-Mail ein, die Sie regelmäßig nutzen.{emailWarn ? <><br /><span className="text-warning">Bitte gültige E-Mail eingeben.</span></> : null}</>}
                   type="email"
                   inputClassName={errors?.personalInfo?.email ? "input-error" : getLiveInputClass("personalInfo.email", field.value, isEmailValid)}
                   aria-invalid={errors?.personalInfo?.email ? "true" : "false"}
@@ -120,9 +120,9 @@ export default function PersonalInfoContactFields({
                   aria-busy={isPassportChecking ? "true" : "false"}
                   rightElement={
                     isPassportChecking ? <span className="loading loading-spinner loading-sm text-base-content/60 pointer-events-none" aria-hidden="true" />
-                    : showPassportSuccess ? <span className="text-success text-xl pointer-events-none" aria-hidden="true">{"\u2713"}</span> : null
+                    : showPassportSuccess ? <span className="text-success text-xl pointer-events-none" aria-hidden="true">{"✓"}</span> : null
                   }
-                  helperText={<>Beispiel: AA 0000000{warn ? <><br /><span className="text-warning">Bitte vollst\u00E4ndig eingeben (AA 0000000).</span></> : null}</>}
+                  helperText={<>Beispiel: AA 0000000{warn ? <><br /><span className="text-warning">Bitte vollständig eingeben (AA 0000000).</span></> : null}</>}
                   inputClassName={errors?.personalInfo?.passportNumber ? "input-error" : getLiveInputClass("personalInfo.passportNumber", raw, isPassportNumberValid)}
                   aria-invalid={errors?.personalInfo?.passportNumber ? "true" : "false"}
                   name={field.name} value={field.value} onBlur={field.onBlur}

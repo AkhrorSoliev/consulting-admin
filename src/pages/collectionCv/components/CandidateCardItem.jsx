@@ -34,7 +34,7 @@ export default function CandidateCardItem({
             className="btn btn-ghost btn-circle btn-sm text-error/70 hover:text-error hover:bg-error/10"
             onClick={(e) => { e.stopPropagation(); onDelete(item); }}
             disabled={deletingId === item.id}
-            title="L\u00f6schen"
+            title="Löschen"
             type="button"
           >
             {deletingId === item.id ? (
@@ -71,7 +71,7 @@ function CandidateMeta({ item }) {
       ) : null}
       <span>{formatCreatedAt(item.createdAt)}</span>
       {item.telegramId ? (
-        <span className="inline-flex items-center gap-1 text-[#0088cc]" title="\u00dcber Telegram registriert">
+        <span className="inline-flex items-center gap-1 text-[#0088cc]" title="Über Telegram registriert">
           <FaTelegram className="w-3 h-3" />
         </span>
       ) : null}

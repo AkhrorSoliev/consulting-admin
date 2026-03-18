@@ -71,7 +71,7 @@ export function usePassportCheck({
           setEnteredPassport(passport);
           setError("personalInfo.passportNumber", {
             type: "remoteExists",
-            message: `Diese Passnummer ist bereits f\u00FCr \u201E${major}\u201C registriert.`,
+            message: `Diese Passnummer ist bereits für „${major}“ registriert.`,
           });
           if (lastPassportExistsModalRef.current !== passport) {
             setIsPassportModalOpen(true);

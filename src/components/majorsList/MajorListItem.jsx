@@ -48,7 +48,7 @@ export default function MajorListItem({
               : `Kandidaten: ${count ?? 0}`
           }
         >
-          {isCountLoading ? "\u2026" : (count ?? 0)}
+          {isCountLoading ? "…" : (count ?? 0)}
         </span>
         <Link
           to={`collectionCv/${linkId}`}
@@ -73,7 +73,7 @@ export default function MajorListItem({
             type="button"
             className="btn btn-sm btn-outline btn-error"
             onClick={() => onDelete(major)}
-            aria-label={`\u201E${title}\u201C yo\u2018nalishini o\u2018chirish`}
+            aria-label={`„${title}“ yo‘nalishini o‘chirish`}
             title="Yo'nalishni o'chirish"
           >
             <FaTrash />
@@ -82,7 +82,7 @@ export default function MajorListItem({
             type="button"
             className="btn btn-sm btn-outline"
             onClick={() => onOpenSettings({ major, key: majorKey })}
-            aria-label={`Einstellungen f\u00FCr \u201E${title}\u201C \u00F6ffnen`}
+            aria-label={`Einstellungen für „${title}“ öffnen`}
             title="Einstellungen"
           >
             <FaCog />

@@ -19,7 +19,7 @@ export default function PersonalInfoPhotoField({
     const file = e.target.files?.[0];
     if (!file) { setPhotoSizeError(false); return; }
     if (file.size > MAX_PHOTO_BYTES) {
-      toast.error("Foto darf maximal 250 KB gro\u00DF sein.");
+      toast.error("Foto darf maximal 250 KB groß sein.");
       setPhotoSizeError(true);
       try { e.target.value = ""; } catch { /* ignore */ }
       setValue("personalInfo.photo", "", { shouldDirty: true, shouldValidate: true });
@@ -42,7 +42,7 @@ export default function PersonalInfoPhotoField({
           Ihr eigenes Foto(JPEG/PNG)
         </RequiredLabel>
         <span className="label-text-alt text-xs text-base-content/70">
-          Eigenes 3\u00D74\u2011Passfoto. Bis 250 KB
+          Eigenes 3×4‑Passfoto. Bis 250 KB
         </span>
       </label>
       <input type="hidden" {...register("personalInfo.photo", { required: "Foto ist erforderlich" })} />
@@ -53,7 +53,7 @@ export default function PersonalInfoPhotoField({
       />
       {photoSizeError ? (
         <p className="text-error text-sm mt-1">
-          Foto ist zu gro\u00DF. Komprimieren:{" "}
+          Foto ist zu groß. Komprimieren:{" "}
           <a className="link link-primary" href="https://imagecompressor.com/" target="_blank" rel="noopener noreferrer">imagecompressor.com</a>
         </p>
       ) : null}

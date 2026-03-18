@@ -40,7 +40,7 @@ export default function useFormSubmission({
         setDiplomaError, setLangCertTypeError, setPassportError,
       });
       const errLabels = {
-        captcha: "reCAPTCHA", majorLoading: "Berufsfeld l\u00E4dt",
+        captcha: "reCAPTCHA", majorLoading: "Berufsfeld lädt",
         education: "Ausbildung", experience: "Berufserfahrung",
         language: "Sprache", diploma: "Diplom/Zeugnis",
         langCert: "Sprachzertifikat", langCertType: "Zertifikat-Typ",
@@ -110,18 +110,18 @@ export default function useFormSubmission({
         if (res.status === 409 && String(json?.error || "") === "email-exists") {
           const m = String(json?.existing?.major || "Unbekannt");
           setExistingMajor(m); setEnteredEmail(String(json?.existing?.email || email).trim());
-          setError("personalInfo.email", { type: "remoteExists", message: `Diese E-Mail ist bereits f\u00FCr \u201E${m}\u201C registriert.` });
+          setError("personalInfo.email", { type: "remoteExists", message: `Diese E-Mail ist bereits für „${m}“ registriert.` });
           setIsEmailModalOpen(true); return;
         }
         if (res.status === 409 && String(json?.error || "") === "passport-exists") {
           const m = String(json?.existing?.major || "Unbekannt");
           setExistingPassportMajor(m); setEnteredPassport(String(json?.existing?.passportId || passportNumber).trim());
-          setError("personalInfo.passportNumber", { type: "remoteExists", message: `Diese Passnummer ist bereits f\u00FCr \u201E${m}\u201C registriert.` });
+          setError("personalInfo.passportNumber", { type: "remoteExists", message: `Diese Passnummer ist bereits für „${m}“ registriert.` });
           setIsPassportModalOpen(true); return;
         }
         if (res.status === 409 && String(json?.error || "") === "telegram-exists") {
           const m = String(json?.existing?.major || "Unbekannt");
-          toast.error(`Diese Telegram-ID ist bereits f\u00FCr \u201E${m}\u201C registriert. Bitte kontaktieren Sie den Support.`, { duration: 8000 });
+          toast.error(`Diese Telegram-ID ist bereits für „${m}“ registriert. Bitte kontaktieren Sie den Support.`, { duration: 8000 });
           return;
         }
         if (!res.ok || !json?.ok) {

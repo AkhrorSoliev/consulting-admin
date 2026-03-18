@@ -42,6 +42,7 @@ export async function generateAndUploadBeratungsvertrag(
     ...(savedForm ? savedForm : {}),
     firstName,
     lastName,
+    contractDate: todayDdMmYyyy(),
     candidateCity: city,
     signatureCity: city,
     pdfGeneratedDate: todayDdMmYyyy(),
@@ -109,15 +110,11 @@ export async function generateAndUploadVermittlungsvertrag(
   const templateSignatureCity = String(
     savedForm?.signatureCity || savedForm?.candidateCity || "",
   ).trim();
-  const templateSignatureDate = String(
-    savedForm?.signatureDate || savedForm?.pdfGeneratedDate || "",
-  ).trim();
-
   const signatureTemplate = {
     ...(savedForm ? savedForm : {}),
     candidateLand: country || String(savedForm?.candidateLand || "").trim(),
     signatureCity: city || templateSignatureCity,
-    signatureDate: templateSignatureDate || todayDdMmYyyy(),
+    signatureDate: todayDdMmYyyy(),
   };
 
   const fileBase =

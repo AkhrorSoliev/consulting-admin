@@ -30,7 +30,7 @@ export default function MitarbeiterwohnungPage({ form }) {
         <Text style={s.headerCompany}>{firmaName || "Firmenname"}</Text>
         <Text style={s.headerText}>{abteilung || "Abteilung"}</Text>
         <Text style={s.headerText}>{kontaktPerson || "Kontaktperson"}</Text>
-        <Text style={s.headerText}>{strasse || "Stra\u00DFe"}</Text>
+        <Text style={s.headerText}>{strasse || "Straße"}</Text>
         <Text style={s.headerText}>{addressLine || "PLZ Ort"}</Text>
         {telefon && <Text style={s.headerText}>Telefon: {telefon}</Text>}
         {email && (
@@ -51,7 +51,7 @@ export default function MitarbeiterwohnungPage({ form }) {
 
       {/* Title */}
       <Text style={s.title}>
-        Best\u00E4tigung \u00FCber die Bereitstellung einer Mitarbeiterwohnung
+        Bestätigung über die Bereitstellung einer Mitarbeiterwohnung
       </Text>
 
       {/* Salutation */}
@@ -61,19 +61,19 @@ export default function MitarbeiterwohnungPage({ form }) {
 
       {/* Body paragraphs */}
       <Text style={s.paragraph}>
-        Gerne best\u00E4tigen wir hiermit, dass Sie eine Unterkunft durch den{" "}
-        {firmaName || "Firmenname"} w\u00E4hrend ihrer {praktikumsart || "Praktikums"}{" "}
-        bei uns zur Verf\u00FCgung gestellt bekommen.
+        Gerne bestätigen wir hiermit, dass Sie eine Unterkunft durch den{" "}
+        {firmaName || "Firmenname"} während ihrer {praktikumsart || "Praktikums"}{" "}
+        bei uns zur Verfügung gestellt bekommen.
       </Text>
 
       <Text style={s.paragraph}>
-        Wir freuen uns sehr, dass Sie f\u00FCr {firmaName || "Firmenname"} entschieden
-        haben und hoffen Sie bald in unseren Reihen begr\u00FC\u00DFen zu d\u00FCrfen.
+        Wir freuen uns sehr, dass Sie für {firmaName || "Firmenname"} entschieden
+        haben und hoffen Sie bald in unseren Reihen begrüßen zu dürfen.
       </Text>
 
       {/* Closing */}
       <Text style={s.closing}>
-        Mit freundlichen Gr\u00FC\u00DFen aus {grussOrt || "Ort"}
+        Mit freundlichen Grüßen aus {grussOrt || "Ort"}
       </Text>
 
       {/* Signature */}

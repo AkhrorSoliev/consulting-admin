@@ -22,7 +22,7 @@ const LABEL_MAP = {
   "personalInfo.email": "E-Mail",
   "personalInfo.passportNumber": "Passnummer",
   "personalInfo.photo": "Foto",
-  "personalInfo.addressStreet": "Stra\u00DFe",
+  "personalInfo.addressStreet": "Straße",
   "personalInfo.addressHouseNumber": "Hausnummer",
   "personalInfo.addressPostalCode": "PLZ (Postleitzahl)",
   "personalInfo.addressCity": "Ort",
@@ -48,11 +48,11 @@ export default function useOnInvalid({ setFocus }) {
       if (missing.length === 1) {
         toast.error(`Fehlend: ${LABEL_MAP[missing[0]] || missing[0]}`);
       } else {
-        toast.error("Sie haben mehrere Pflichtfelder nicht ausgef\u00FCllt.");
+        toast.error("Sie haben mehrere Pflichtfelder nicht ausgefüllt.");
       }
       try { setFocus(missing[0]); } catch { /* ignore */ }
       return;
     }
-    toast.error("Bitte f\u00FCllen Sie alle Pflichtfelder aus.");
+    toast.error("Bitte füllen Sie alle Pflichtfelder aus.");
   }, [setFocus]);
 }

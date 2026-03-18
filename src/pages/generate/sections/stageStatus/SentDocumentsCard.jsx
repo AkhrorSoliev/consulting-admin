@@ -92,7 +92,7 @@ export default function SentDocumentsCard({
               disabled={!candidateDocId}
             >
               <FaExternalLinkAlt className="text-xs" />
-              {"\u00d6ffnen"}
+              {"Öffnen"}
             </button>
           </div>
         </div>
@@ -145,7 +145,7 @@ export default function SentDocumentsCard({
                         className="btn btn-sm btn-outline btn-error"
                         onClick={() => onDeleteOutgoingDoc(docId)}
                         disabled={disabled}
-                        title="Link l\u00f6schen (Remote und Firestore)"
+                        title="Link löschen (Remote und Firestore)"
                       >
                         {busy ? (
                           <span className="loading loading-spinner loading-sm" />

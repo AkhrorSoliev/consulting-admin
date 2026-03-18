@@ -120,7 +120,7 @@ function ExperienceItemForm({
           display="list"
           inputMode="textarea"
           placeholder={
-            "z.B.\n\u2013 Unterst\u00fctzung bei t\u00e4glichen Arbeitsabl\u00e4ufen\n\u2013 Mitarbeit im Team\n\u2013 Einhaltung von Arbeits- und Sicherheitsregeln"
+            "z.B.\n– Unterstützung bei täglichen Arbeitsabläufen\n– Mitarbeit im Team\n– Einhaltung von Arbeits- und Sicherheitsregeln"
           }
           onAdd={(val) => onAddResponsibility(idx, val)}
           onRemove={(tagIdx) => onRemoveResponsibility(idx, tagIdx)}
