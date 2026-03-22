@@ -100,6 +100,21 @@ export function useCandidateSnapshot({
             updatedByPhoto: cMeta?.updatedByPhoto || "",
             updatedByUid: cMeta?.updatedByUid || "",
           });
+
+          // Fetch avatar from users collection if comment photo is missing
+          if (cMeta?.updatedByUid && !cMeta?.updatedByPhoto) {
+            getUserFromFirestore(cMeta.updatedByUid)
+              .then((userData) => {
+                if (userData && (userData.avatar || userData.photoURL)) {
+                  lateSettersRef.current.setCommentMeta((prev) => ({
+                    ...prev,
+                    updatedByPhoto: userData.avatar || userData.photoURL,
+                  }));
+                }
+              })
+              .catch(() => {});
+          }
+
           const eMeta = data?.emailMeta || {};
           lateSettersRef.current.setEmailMeta({
             count: eMeta?.count || 0,
