@@ -76,6 +76,7 @@ export default function StepperAndModals({
             openCustomEmailModal={openCustomEmailModal}
             onResetStage={resetSingleStage}
             hasLeadershipInterview={Boolean(docCv?.stageMeta?.stage_2?.sentWithLeadership)}
+            stageMeta={docCv?.stageMeta}
           />
 
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">

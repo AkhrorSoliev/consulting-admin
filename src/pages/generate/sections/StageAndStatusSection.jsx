@@ -60,6 +60,7 @@ export default function StageAndStatusSection({
         openCustomEmailModal={onOpenCustomEmailModal}
         onResetStage={onResetStage}
         hasLeadershipInterview={Boolean(docCv?.stageMeta?.stage_2?.sentWithLeadership)}
+        stageMeta={docCv?.stageMeta}
       />
 
       <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">

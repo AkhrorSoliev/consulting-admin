@@ -1,11 +1,21 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
+import { deleteField } from "firebase/firestore";
 import {
   CANDIDATE_STATUS_DEFAULT,
+  CANDIDATE_STATUS_OPTIONS,
   getCandidateStatus,
   normalizeCandidateStatusValue,
 } from "../../../../constants/candidateStatus";
 import { updateDocument } from "../../../../utils";
+
+function getStagesFromInclusive(stageValue) {
+  const idx = CANDIDATE_STATUS_OPTIONS.findIndex(
+    (s) => s.value === stageValue,
+  );
+  if (idx === -1) return [];
+  return CANDIDATE_STATUS_OPTIONS.slice(idx).map((s) => s.value);
+}
 
 /**
  * Sub-hook: status persistence, save, and reset logic.
@@ -90,7 +100,7 @@ export function useStatusPersistence({
     try {
       const now = Date.now();
       const statusMeta = getCandidateStatus(CANDIDATE_STATUS_DEFAULT);
-      await updateDocument(col, docId, {
+      const updatePayload = {
         status: {
           value: CANDIDATE_STATUS_DEFAULT,
           label: statusMeta.label,
@@ -106,10 +116,17 @@ export function useStatusPersistence({
           resetAt: now,
           resetBy: user?.email || user?.uid || "admin",
         },
-      });
+        stageMeta: deleteField(),
+      };
+      await updateDocument(col, docId, updatePayload);
       setStatusValue(CANDIDATE_STATUS_DEFAULT);
       setStatusUpdatedAt(now);
       setStatusUpdatedBy(user?.email || user?.uid || "admin");
+      setDocCv((prev) => {
+        if (!prev) return prev;
+        const { stageMeta: _omit, ...rest } = prev;
+        return rest;
+      });
       toast.success("Stufen wurden zurückgesetzt.");
     } catch (e) {
       toast.error("Fehler beim Zurücksetzen der Stufen.");
@@ -141,38 +158,24 @@ export function useStatusPersistence({
         },
       };
 
-      const hasLeadershipInterview = Boolean(
-        docCv?.stageMeta?.stage_2?.sentWithLeadership,
-      );
-      if (hasLeadershipInterview) {
-        if (stageValue === "stage_2" || stageValue === "stage_1") {
-          updatePayload["stageMeta.stage_2.sentWithLeadership"] = false;
-        }
-      }
+      const stagesToClear = getStagesFromInclusive(stageValue);
+      stagesToClear.forEach((s) => {
+        updatePayload[`stageMeta.${s}`] = deleteField();
+      });
 
       await updateDocument(col, docId, updatePayload);
       setStatusValue(stageValue);
       setStatusUpdatedAt(now);
       setStatusUpdatedBy(user?.email || user?.uid || "admin");
 
-      if (
-        hasLeadershipInterview &&
-        (stageValue === "stage_2" || stageValue === "stage_1")
-      ) {
-        setDocCv((prev) => {
-          if (!prev) return prev;
-          return {
-            ...prev,
-            stageMeta: {
-              ...prev.stageMeta,
-              stage_2: {
-                ...prev.stageMeta?.stage_2,
-                sentWithLeadership: false,
-              },
-            },
-          };
+      setDocCv((prev) => {
+        if (!prev) return prev;
+        const nextStageMeta = { ...(prev.stageMeta || {}) };
+        stagesToClear.forEach((s) => {
+          delete nextStageMeta[s];
         });
-      }
+        return { ...prev, stageMeta: nextStageMeta };
+      });
 
       toast.success(`Stufe "${sMeta.label}" wurde zurückgesetzt.`);
     } catch (e) {

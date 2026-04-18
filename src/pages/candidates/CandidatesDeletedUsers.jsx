@@ -24,7 +24,7 @@ export default function CandidatesDeletedUsers() {
     loading, items, query, setQuery, filtered,
     currentPage, setCurrentPage, totalPages, paginatedItems,
     majors, leadStats, load,
-    selectedKeys, setSelectedKeys, toggleSelect, clearSelection,
+    selectedKeys, toggleSelect, clearSelection,
   } = useDeletedUsers(isPrivileged);
 
   const [exporting, setExporting] = useState(false);
@@ -33,9 +33,9 @@ export default function CandidatesDeletedUsers() {
     restoringKey, deletingKey,
     confirmState, setConfirmState,
     majorModalOpen, majorModalKey, setMajorModalKey,
-    closeMajorModal, pendingRecord,
-    restore, confirmRestoreFromModal,
-    hardDelete, handleBulkDelete,
+    closeMajorModal,
+    restoreToOriginal, restore, confirmRestoreFromModal,
+    deleteForever, handleBulkDelete,
     confirmModalAction,
   } = useDeletedUserActions({ isPrivileged, items, load, clearSelection });
 
@@ -115,16 +115,18 @@ export default function CandidatesDeletedUsers() {
       ) : (
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {paginatedItems.map((record) => (
+            {paginatedItems.map((record, idx) => (
               <DeletedUserCard
                 key={record.id}
                 record={record}
+                idx={idx}
                 restoringKey={restoringKey}
                 deletingKey={deletingKey}
-                selectedKeys={selectedKeys}
-                toggleSelect={toggleSelect}
+                checked={selectedKeys.includes(String(record.id))}
+                onToggleSelect={toggleSelect}
+                onRestoreOriginal={restoreToOriginal}
                 onRestore={restore}
-                onHardDelete={hardDelete}
+                onDelete={deleteForever}
               />
             ))}
           </div>

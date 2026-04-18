@@ -16,6 +16,7 @@ function CandidateStatusStepper({
   openCustomEmailModal,
   onResetStage,
   hasLeadershipInterview = false,
+  stageMeta = null,
 }) {
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [pendingResetStage, setPendingResetStage] = useState(null);
@@ -31,6 +32,9 @@ function CandidateStatusStepper({
     0,
     steps.findIndex((s) => s.value === currentValue)
   );
+
+  const isStageDecided = (value) =>
+    stageMeta?.[value]?.decision === "accepted";
 
   const handleResetStageClick = (stageValue) => {
     setPendingResetStage(stageValue);
@@ -66,8 +70,9 @@ function CandidateStatusStepper({
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {steps.map((step, idx) => {
-            const isCurrent = step.value === currentValue;
-            const isCompleted = idx < currentIndex;
+            const decided = isStageDecided(step.value);
+            const isCompleted = idx < currentIndex || decided;
+            const isCurrent = !isCompleted && step.value === currentValue;
             const isSending = sendingValue === step.value;
             const borderClass = isCurrent
               ? "border-warning bg-warning/5 shadow-lg"
