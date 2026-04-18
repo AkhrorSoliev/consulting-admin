@@ -1,58 +1,112 @@
-# React + Vite
+# Consulting Admin
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules..
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)](https://vite.dev/)
+[![Firebase](https://img.shields.io/badge/Firebase-12-FFCA28?logo=firebase&logoColor=black)](https://firebase.google.com/)
+[![Tailwind](https://img.shields.io/badge/Tailwind-4-38B2AC?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
 
-Currently, two official plugins are available:
+> Admin dashboard for an international employment consultancy placing candidates from Uzbekistan into skilled jobs in Germany. Manages the full candidate lifecycle — registration, internal interviews, document generation, and employer placement.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## What it does
 
-## React Compiler
+- **Candidate pipeline** — public registration link → internal review → employer interview → placement, tracked across 4 stages with automated emails.
+- **Document generation** — 17 German legal document templates (Beratungsvertrag, Vermittlungsvertrag, Vollmacht, Zusatzblatt A–D, etc.) with live PDF preview and email delivery.
+- **Two-way document exchange** — candidates upload signed documents back via unique link.
+- **Real-time statistics** — live + historical metrics across all job fields (Berufsfelder).
+- **Role-based administration** — `super_admin` / `admin` / `limited_admin` with granular permissions.
+- **Telegram integration** — bot-generated personalized registration links, one-time group invites, auto-remove on placement.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Tech stack
 
-## Expanding the ESLint configuration
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, React Router v7, Redux Toolkit, Vite 7 |
+| Styling | Tailwind CSS v4, DaisyUI 5 (themes: `winter` / `dracula`) |
+| Backend | Firebase Cloud Functions v2 (Node 20), Firestore, Auth, Cloud Storage |
+| PDF backend | Express service with `pdf-lib` (fillable PDF templates) |
+| Client PDF | `@react-pdf/renderer` for generated contracts, `pdfjs-dist` for fillable forms |
+| Forms | React Hook Form, TipTap rich text editor |
+| Integrations | Telegram Bot API, Brevo (email), reCAPTCHA v2, OpenAI (proxied) |
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project)
+## Quick start
 
-## Telegram one-time invite links (admin-only)
+### Prerequisites
 
-This project supports generating **one-time** Telegram group invite links via Firebase Cloud Functions.
+- Node.js 20+
+- Firebase CLI (`npm i -g firebase-tools`)
+- Firebase project access
 
-### Firestore structure
-
-Collection: `telegram_groups`
-
-- docId (auto or custom)
-  - `name`: string
-  - `chat_id`: string (e.g. `-1001234567890`)
-  - `active`: boolean
-  - `createdAt`: timestamp
-
-### Backend endpoint
-
-- **POST** `generateInvite`
-  - Body: `{ "groupId": "..." }`
-  - Auth: Firebase ID token required (header `Authorization: Bearer <idToken>`)
-  - Role: `admin` or `super_admin`
-  - Response: `{ ok: true, invite_link, expire_date }`
-
-Invite link parameters:
-
-- `member_limit = 1`
-- `expire_date = now + 1 hour`
-
-### Secret: Telegram bot token
-
-Never commit bot tokens to code or frontend.
-
-Configure via Firebase Functions secrets:
+### Install
 
 ```bash
-firebase functions:secrets:set TELEGRAM_BOT_TOKEN
-firebase deploy --only functions
+# Root (frontend)
+npm install
+
+# Cloud Functions
+cd functions && npm install && cd ..
+
+# PDF backend
+cd backend && npm install && cd ..
 ```
 
-### Admin UI
+### Configure
 
-Settings → **Telegram Groups** page allows super admins to add/remove groups (stored in Firestore).
+Create `.env.local` in the repo root. See [docs/reference/environment-variables.md](docs/reference/environment-variables.md) for the full list of keys.
+
+Set server-side secrets for Cloud Functions:
+
+```bash
+cd functions
+firebase functions:secrets:set TELEGRAM_BOT_TOKEN
+firebase functions:secrets:set RECAPTCHA_SECRET_KEY
+firebase functions:secrets:set OPENAI_API_KEY
+```
+
+### Run
+
+```bash
+npm run dev                      # frontend at http://localhost:5173
+cd backend && npm run dev        # PDF backend at http://localhost:3001
+cd functions && npm run serve    # (optional) Functions emulator
+```
+
+### Build
+
+```bash
+npm run build    # output in dist/
+```
+
+## Documentation
+
+Full documentation lives in [`docs/`](docs/) and is organized by the [Diátaxis framework](https://diataxis.fr/):
+
+| Type | When to read |
+|---|---|
+| 📚 [Tutorials](docs/tutorials/) | You're new — step-by-step walkthroughs |
+| 🔧 [How-to guides](docs/how-to/) | You have a specific task to accomplish |
+| 📖 [Reference](docs/reference/) | You need precise technical facts |
+| 💡 [Explanation](docs/explanation/) | You want to understand why |
+
+Start at [docs/README.md](docs/README.md) for the full index.
+
+> [!IMPORTANT]
+> If code and docs disagree, code is authoritative. When you refactor, update the affected docs in the same PR.
+
+## Project layout
+
+```
+consulting-admin/
+├── src/                  # React frontend (SPA)
+├── functions/            # Firebase Cloud Functions (Node 20)
+├── backend/              # Express PDF-fill backend
+├── docs/                 # All documentation (see above)
+├── firestore.rules       # Firestore security rules
+├── storage.rules         # Cloud Storage security rules
+└── firebase.json         # Firebase config
+```
+
+See [docs/reference/project-structure.md](docs/reference/project-structure.md) for detail.
+
+## License
+
+Private. All rights reserved.
