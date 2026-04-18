@@ -38,7 +38,10 @@ function CandidateStatusStepper({
   const isStageDecided = (value) =>
     stageMeta?.[value]?.decision === "accepted";
 
-  const completedCount = steps.filter((s) => isStageDecided(s.value)).length;
+  const completedCount = steps.filter((s, idx) => {
+    const decided = isStageDecided(s.value);
+    return idx < currentIndex || decided;
+  }).length;
 
   const handleResetStageClick = (stageValue) => {
     setPendingResetStage(stageValue);
