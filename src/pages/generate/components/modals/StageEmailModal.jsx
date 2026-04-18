@@ -5,6 +5,7 @@ import DecisionCards from "./stageEmail/DecisionCards";
 import ExampleSelector from "./stageEmail/ExampleSelector";
 import AdditionalInfoPanel from "./stageEmail/AdditionalInfoPanel";
 import EmailPreview from "./stageEmail/EmailPreview";
+import DecisionNoteField from "./stageEmail/DecisionNoteField";
 
 export default function StageEmailModal({
   open,
@@ -28,6 +29,8 @@ export default function StageEmailModal({
   selectedExample,
   setSelectedExample,
   hasTelegramId = false,
+  decisionNote = "",
+  setDecisionNote,
 }) {
   if (!open) return null;
 
@@ -102,6 +105,12 @@ export default function StageEmailModal({
                   autoTelegramGroupLabel={autoTelegramGroupLabel}
                 />
               )}
+
+              <DecisionNoteField
+                decision={decision}
+                decisionNote={decisionNote}
+                setDecisionNote={setDecisionNote}
+              />
 
               {emailPreview ? (
                 <CollapsibleSection

@@ -3,8 +3,8 @@ import {
   CANDIDATE_STATUS_OPTIONS,
   CANDIDATE_STATUS_DEFAULT,
 } from "../constants/candidateStatus";
-import CandidateStatusBadge from "./CandidateStatusBadge";
 import ConfirmActionModal from "./ConfirmActionModal";
+import StageTimelineRow from "./candidateStatusStepper/StageTimelineRow";
 import { FaUndo, FaEnvelope, FaRedoAlt } from "react-icons/fa";
 
 function CandidateStatusStepper({
@@ -17,11 +17,13 @@ function CandidateStatusStepper({
   onResetStage,
   hasLeadershipInterview = false,
   stageMeta = null,
+  plannedLeadership = false,
+  onToggleLeadership,
 }) {
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
   const [pendingResetStage, setPendingResetStage] = useState(null);
+  const [isResetAllModalOpen, setIsResetAllModalOpen] = useState(false);
 
-  // Filter out stage_2_result if no leadership interview was set
   const steps = CANDIDATE_STATUS_OPTIONS.filter((step) => {
     if (step.value === "stage_2_result" && !hasLeadershipInterview) {
       return false;
@@ -30,11 +32,13 @@ function CandidateStatusStepper({
   });
   const currentIndex = Math.max(
     0,
-    steps.findIndex((s) => s.value === currentValue)
+    steps.findIndex((s) => s.value === currentValue),
   );
 
   const isStageDecided = (value) =>
     stageMeta?.[value]?.decision === "accepted";
+
+  const completedCount = steps.filter((s) => isStageDecided(s.value)).length;
 
   const handleResetStageClick = (stageValue) => {
     setPendingResetStage(stageValue);
@@ -42,9 +46,7 @@ function CandidateStatusStepper({
   };
 
   const handleConfirmReset = () => {
-    if (pendingResetStage) {
-      onResetStage?.(pendingResetStage);
-    }
+    if (pendingResetStage) onResetStage?.(pendingResetStage);
     setIsResetModalOpen(false);
     setPendingResetStage(null);
   };
@@ -59,87 +61,41 @@ function CandidateStatusStepper({
   return (
     <div className="card bg-base-100 border border-base-300 shadow-xl">
       <div className="card-body p-4 sm:p-6">
-        <div className="flex flex-col gap-1 sm:gap-2 mb-3 sm:mb-4">
-          <h3 className="text-lg sm:text-xl font-bold">Kandidatenstufen</h3>
-          <p className="text-xs sm:text-sm text-base-content/70">
-            Senden Sie für jede Stufe eine E-Mail. Beim Senden wählen Sie
-            „Annehmen/Ablehnen". Bei Annahme wird die nächste Stufe
-            freigeschaltet.
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4 sm:mb-5">
+          <div>
+            <h3 className="text-lg sm:text-xl font-bold">Kandidatenstufen</h3>
+            <p className="text-xs sm:text-sm text-base-content/70">
+              Für jede Stufe E-Mail senden und entscheiden. Bei Annahme wird
+              die nächste Stufe freigeschaltet.
+            </p>
+          </div>
+          <div className="shrink-0 text-xs sm:text-sm px-3 py-1.5 rounded-full bg-base-200 font-medium">
+            {completedCount}/{steps.length} bosqich tugallandi
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="flex flex-col">
           {steps.map((step, idx) => {
             const decided = isStageDecided(step.value);
             const isCompleted = idx < currentIndex || decided;
             const isCurrent = !isCompleted && step.value === currentValue;
             const isSending = sendingValue === step.value;
-            const borderClass = isCurrent
-              ? "border-warning bg-warning/5 shadow-lg"
-              : isCompleted
-              ? "border-success bg-success/5"
-              : "border-base-300 bg-base-100 opacity-60";
-            const badgeClass = isCurrent
-              ? "bg-warning text-warning-content"
-              : isCompleted
-              ? "bg-success text-success-content"
-              : "bg-base-300 text-base-content";
-            const btnClass = isCurrent ? "btn-warning" : "btn-outline";
             return (
-              <div
+              <StageTimelineRow
                 key={step.value}
-                className={`relative rounded-lg sm:rounded-xl border-2 p-3 sm:p-4 transition-all duration-200 ${borderClass}`}
-              >
-                <div
-                  className={`absolute -top-2 -left-2 sm:-top-3 sm:-left-3 w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm ${badgeClass}`}
-                >
-                  {idx + 1}
-                </div>
-
-                <div className="flex flex-col gap-2 sm:gap-3 mt-1 sm:mt-2">
-                  <div className="flex justify-center">
-                    <CandidateStatusBadge value={step.value} />
-                  </div>
-
-                  <button
-                    className={`btn btn-xs sm:btn-sm w-full ${btnClass}`}
-                    onClick={() => onSendEmail?.(step.value)}
-                    disabled={disabled || !isCurrent || isSending}
-                  >
-                    {isSending ? (
-                      <span className="loading loading-spinner loading-xs sm:loading-sm" />
-                    ) : (
-                      <FaEnvelope className="text-xs sm:text-sm" />
-                    )}
-                    <span className="text-xs sm:text-sm ml-1">E-Mail</span>
-                  </button>
-
-                  {isCompleted && (
-                    <>
-                      <div className="text-[10px] sm:text-xs text-success text-center font-medium">
-                        ✓ Abgeschlossen
-                      </div>
-                      <button
-                        className="btn btn-xs sm:btn-sm w-full btn-outline btn-info"
-                        onClick={() => handleResetStageClick(step.value)}
-                        disabled={disabled || isSending}
-                        title={`${step.label} wiederholen`}
-                      >
-                        <FaRedoAlt className="text-xs sm:text-sm" />
-                        <span className="text-xs sm:text-sm ml-1">
-                          Wiederholen
-                        </span>
-                      </button>
-                    </>
-                  )}
-
-                  {!isCurrent && !isCompleted && (
-                    <div className="text-[10px] sm:text-xs text-base-content/60 text-center">
-                      Noch nicht verfügbar
-                    </div>
-                  )}
-                </div>
-              </div>
+                step={step}
+                idx={idx}
+                isLast={idx === steps.length - 1}
+                isCurrent={isCurrent}
+                isCompleted={isCompleted}
+                isSending={isSending}
+                disabled={disabled}
+                meta={stageMeta?.[step.value] || null}
+                onSendEmail={onSendEmail}
+                onResetStage={handleResetStageClick}
+                plannedLeadership={plannedLeadership}
+                onToggleLeadership={onToggleLeadership}
+              />
             );
           })}
         </div>
@@ -149,16 +105,16 @@ function CandidateStatusStepper({
         <div className="flex flex-col sm:flex-row gap-2 justify-end">
           <button
             type="button"
-            className="btn btn-xs sm:btn-sm btn-outline btn-secondary"
-            onClick={resetStages}
+            className="btn btn-xs sm:btn-sm btn-outline btn-error"
+            onClick={() => setIsResetAllModalOpen(true)}
             disabled={Boolean(sendingValue)}
-            title="Kandidatenstufen auf Anfang (Stufe 1) zurücksetzen und E-Mail-Zähler auf 0 setzen"
+            title="Alle Stufen auf Anfang (Stufe 1) zurücksetzen und E-Mail-Zähler auf 0 setzen"
           >
             <FaUndo className="text-xs sm:text-sm" />
             <span className="hidden sm:inline text-xs sm:text-sm ml-1">
-              Stufen zurücksetzen
+              Alle Stufen zurücksetzen
             </span>
-            <span className="sm:hidden text-xs ml-1">Zurücksetzen</span>
+            <span className="sm:hidden text-xs ml-1">Alle zurücksetzen</span>
           </button>
           <button
             type="button"
@@ -182,12 +138,27 @@ function CandidateStatusStepper({
         title="Stufe wiederholen"
         message={`Möchten Sie die Stufe "${
           pendingStageMeta?.label || ""
-        }" wirklich wiederholen? Die aktuelle Stufe wird auf "${
-          pendingStageMeta?.label || ""
-        }" zurückgesetzt.`}
+        }" wirklich wiederholen? Alle Daten dieser und der nachfolgenden Stufen werden zurückgesetzt.`}
         confirmLabel="Wiederholen"
         confirmVariant="warning"
         confirmIcon={<FaRedoAlt />}
+      />
+
+      <ConfirmActionModal
+        open={isResetAllModalOpen}
+        onClose={() => setIsResetAllModalOpen(false)}
+        onConfirm={() => {
+          setIsResetAllModalOpen(false);
+          resetStages?.();
+        }}
+        title="Alle Stufen zurücksetzen"
+        message={
+          "Barcha bosqichlar 1-bosqichga qaytariladi. Email hisoblagichi va barcha qarorlar (stageMeta) o'chiriladi. Bu amalni bekor qilib bo'lmaydi."
+        }
+        confirmLabel="Zurücksetzen"
+        confirmVariant="btn-error"
+        confirmIcon={<FaUndo />}
+        seconds={3}
       />
     </div>
   );

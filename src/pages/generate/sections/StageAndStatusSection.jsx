@@ -18,6 +18,7 @@ export default function StageAndStatusSection({
   onResetStages,
   onOpenCustomEmailModal,
   onResetStage,
+  onToggleLeadership,
   docCv,
   outgoingBulkBusy,
   outgoingAnyBusy,
@@ -59,7 +60,15 @@ export default function StageAndStatusSection({
         resetStages={onResetStages}
         openCustomEmailModal={onOpenCustomEmailModal}
         onResetStage={onResetStage}
-        hasLeadershipInterview={Boolean(docCv?.stageMeta?.stage_2?.sentWithLeadership)}
+        hasLeadershipInterview={Boolean(
+          docCv?.stageMeta?.stage_2?.plannedLeadership ||
+            docCv?.stageMeta?.stage_2?.sentWithLeadership,
+        )}
+        plannedLeadership={Boolean(
+          docCv?.stageMeta?.stage_2?.plannedLeadership ||
+            docCv?.stageMeta?.stage_2?.sentWithLeadership,
+        )}
+        onToggleLeadership={onToggleLeadership}
         stageMeta={docCv?.stageMeta}
       />
 

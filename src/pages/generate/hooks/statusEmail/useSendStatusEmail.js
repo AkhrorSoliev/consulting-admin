@@ -4,7 +4,11 @@ import {
 } from "../../../../utils/statusEmail";
 import { sendBrevoEmail } from "../../../../utils/brevo";
 import { createEmptyStageInfo, getTelegramGroupIdForStage } from "../../utils";
-import { normalizeStageFormInfo, getNextStepValue } from "./helpers";
+import {
+  normalizeStageFormInfo,
+  getNextStepValue,
+  stageRequiresAdditionalInfo,
+} from "./helpers";
 import {
   trySendViaTelegram,
   tryTrackTelegramInvite,
@@ -57,20 +61,18 @@ export function makeSendStatusEmail({
       const normalizedDecision =
         decisionRaw === "rejected" ? "rejected" : "accepted";
       const emailSentAt = Date.now();
+      const needsInfo = stageRequiresAdditionalInfo(stepValue, selectedExample);
       const info =
-        normalizedDecision === "accepted"
-          ? stepValue === "stage_2" && selectedExample !== "example2"
-            ? createEmptyStageInfo()
-            : normalizeStageFormInfo(additionalInfo)
+        normalizedDecision === "accepted" && needsInfo
+          ? normalizeStageFormInfo(additionalInfo)
           : createEmptyStageInfo();
 
       const tgGroupId = getTelegramGroupIdForStage(metaInfo, stepValue);
 
-      // Validate required fields for accepted stages
-      if (
-        normalizedDecision === "accepted" &&
-        (stepValue !== "stage_2" || selectedExample === "example2")
-      ) {
+      // Validate required fields for accepted stages that actually schedule
+      // a meeting (date+link/location). stage_2_result va stage_2 example1 —
+      // faqat natija xabari, validatsiya o'tkazib yuboriladi.
+      if (normalizedDecision === "accepted" && needsInfo) {
         const hasLink =
           Boolean(info.link) ||
           (Boolean(info?.useGeneratedLink) && Boolean(tgGroupId));
@@ -123,7 +125,8 @@ export function makeSendStatusEmail({
 
       await tryStoreEmailMeta({
         col, docId, user, emailSentAt, stepValue,
-        normalizedDecision, selectedExample, emailMeta, setEmailMeta,
+        normalizedDecision, selectedExample, decisionNote,
+        emailMeta, setEmailMeta,
       });
 
       if (normalizedDecision === "accepted") {

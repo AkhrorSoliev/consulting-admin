@@ -1,21 +1,12 @@
 import { useState } from "react";
 import toast from "react-hot-toast";
-import { deleteField } from "firebase/firestore";
 import {
   CANDIDATE_STATUS_DEFAULT,
-  CANDIDATE_STATUS_OPTIONS,
   getCandidateStatus,
   normalizeCandidateStatusValue,
 } from "../../../../constants/candidateStatus";
 import { updateDocument } from "../../../../utils";
-
-function getStagesFromInclusive(stageValue) {
-  const idx = CANDIDATE_STATUS_OPTIONS.findIndex(
-    (s) => s.value === stageValue,
-  );
-  if (idx === -1) return [];
-  return CANDIDATE_STATUS_OPTIONS.slice(idx).map((s) => s.value);
-}
+import { createStageMetaActions } from "./stageMetaActions";
 
 /**
  * Sub-hook: status persistence, save, and reset logic.
@@ -79,109 +70,19 @@ export function useStatusPersistence({
     await persistStatus(statusValue, { silent: false });
   }
 
-  async function resetCandidateStages() {
-    if (isLimitedAdmin) {
-      toast.error("Sie haben keine Berechtigung, die Stufen zurückzusetzen.");
-      return;
-    }
-    if (sendingEmailLockRef.current || sendingStepValue) {
-      toast("E-Mail-Vorgang läuft, bitte warten...");
-      return;
-    }
-    const col = String(resolvedMajor?.collectionName || "").trim();
-    const docId = String(id || "").trim();
-    if (!col || !docId) return;
-
-    const ok = window.confirm(
-      "Kandidatenstufen auf Anfang (Stufe 1) zurücksetzen?\n\nHinweis: Der E-Mail-Zähler wird ebenfalls auf 0 gesetzt.",
-    );
-    if (!ok) return;
-
-    try {
-      const now = Date.now();
-      const statusMeta = getCandidateStatus(CANDIDATE_STATUS_DEFAULT);
-      const updatePayload = {
-        status: {
-          value: CANDIDATE_STATUS_DEFAULT,
-          label: statusMeta.label,
-          updatedAt: now,
-          updatedBy: user?.email || user?.uid || "admin",
-        },
-        emailMeta: {
-          count: 0,
-          lastSentAt: null,
-          lastSentBy: null,
-          lastSentType: null,
-          lastSentStage: null,
-          resetAt: now,
-          resetBy: user?.email || user?.uid || "admin",
-        },
-        stageMeta: deleteField(),
-      };
-      await updateDocument(col, docId, updatePayload);
-      setStatusValue(CANDIDATE_STATUS_DEFAULT);
-      setStatusUpdatedAt(now);
-      setStatusUpdatedBy(user?.email || user?.uid || "admin");
-      setDocCv((prev) => {
-        if (!prev) return prev;
-        const { stageMeta: _omit, ...rest } = prev;
-        return rest;
-      });
-      toast.success("Stufen wurden zurückgesetzt.");
-    } catch (e) {
-      toast.error("Fehler beim Zurücksetzen der Stufen.");
-    }
-  }
-
-  async function resetSingleStage(stageValue) {
-    if (isLimitedAdmin) {
-      toast.error("Sie haben keine Berechtigung, die Stufe zurückzusetzen.");
-      return;
-    }
-    if (sendingEmailLockRef.current || sendingStepValue) {
-      toast("E-Mail-Vorgang läuft, bitte warten...");
-      return;
-    }
-    const col = String(resolvedMajor?.collectionName || "").trim();
-    const docId = String(id || "").trim();
-    if (!col || !docId) return;
-
-    try {
-      const now = Date.now();
-      const sMeta = getCandidateStatus(stageValue);
-      const updatePayload = {
-        status: {
-          value: stageValue,
-          label: sMeta.label,
-          updatedAt: now,
-          updatedBy: user?.email || user?.uid || "admin",
-        },
-      };
-
-      const stagesToClear = getStagesFromInclusive(stageValue);
-      stagesToClear.forEach((s) => {
-        updatePayload[`stageMeta.${s}`] = deleteField();
-      });
-
-      await updateDocument(col, docId, updatePayload);
-      setStatusValue(stageValue);
-      setStatusUpdatedAt(now);
-      setStatusUpdatedBy(user?.email || user?.uid || "admin");
-
-      setDocCv((prev) => {
-        if (!prev) return prev;
-        const nextStageMeta = { ...(prev.stageMeta || {}) };
-        stagesToClear.forEach((s) => {
-          delete nextStageMeta[s];
-        });
-        return { ...prev, stageMeta: nextStageMeta };
-      });
-
-      toast.success(`Stufe "${sMeta.label}" wurde zurückgesetzt.`);
-    } catch (e) {
-      toast.error("Fehler beim Zurücksetzen der Stufe.");
-    }
-  }
+  const { resetCandidateStages, resetSingleStage, setLeadershipPlanned } =
+    createStageMetaActions({
+      id,
+      resolvedMajor,
+      isLimitedAdmin,
+      user,
+      sendingEmailLockRef,
+      sendingStepValue,
+      setDocCv,
+      setStatusValue,
+      setStatusUpdatedAt,
+      setStatusUpdatedBy,
+    });
 
   return {
     statusValue,
@@ -195,5 +96,6 @@ export function useStatusPersistence({
     handleStatusSave,
     resetCandidateStages,
     resetSingleStage,
+    setLeadershipPlanned,
   };
 }

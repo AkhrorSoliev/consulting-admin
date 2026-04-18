@@ -8,7 +8,10 @@ import {
   toCopyOverridesFromTemplateDoc,
 } from "../../../../utils/emailTemplates";
 import { createEmptyStageInfo, getTelegramGroupIdForStage } from "../../utils";
-import { normalizeStageFormInfo } from "./helpers";
+import {
+  normalizeStageFormInfo,
+  stageRequiresAdditionalInfo,
+} from "./helpers";
 
 /**
  * Memo that computes the stage email preview for the modal.
@@ -22,6 +25,7 @@ export function useStageEmailPreview({
   emailTemplatesMap,
   telegramGroupNameById,
   selectedExample,
+  decisionNote = "",
 }) {
   return useMemo(() => {
     if (!pendingStageStep) return null;
@@ -29,10 +33,9 @@ export function useStageEmailPreview({
     const normalizedDecision =
       stageDecision === "rejected" ? "rejected" : "accepted";
     const info =
-      normalizedDecision === "accepted"
-        ? pendingStageStep === "stage_2" && selectedExample !== "example2"
-          ? createEmptyStageInfo()
-          : normalizeStageFormInfo(stageAdditionalInfoForm)
+      normalizedDecision === "accepted" &&
+      stageRequiresAdditionalInfo(pendingStageStep, selectedExample)
+        ? normalizeStageFormInfo(stageAdditionalInfoForm)
         : createEmptyStageInfo();
     try {
       const telegramGroupIdForStage = getTelegramGroupIdForStage(
@@ -41,7 +44,7 @@ export function useStageEmailPreview({
       );
       if (
         normalizedDecision === "accepted" &&
-        (pendingStageStep !== "stage_2" || selectedExample === "example2") &&
+        stageRequiresAdditionalInfo(pendingStageStep, selectedExample) &&
         Boolean(info?.useGeneratedLink) &&
         telegramGroupIdForStage
       ) {
@@ -85,7 +88,7 @@ export function useStageEmailPreview({
           firstName: formCv.personalInfo.name,
           lastName: formCv.personalInfo.lastName,
           stageDecision: normalizedDecision,
-          decisionNote: "",
+          decisionNote: String(decisionNote || ""),
           additionalInfo: info,
           copyOverrides: finalCopyOverrides,
         });
@@ -110,5 +113,6 @@ export function useStageEmailPreview({
     emailTemplatesMap,
     telegramGroupNameById,
     selectedExample,
+    decisionNote,
   ]);
 }
