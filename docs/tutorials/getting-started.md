@@ -49,19 +49,19 @@ cd backend && npm install && cd ..
 Create `.env.local` in the repo root with the frontend keys. The canonical list is in [../reference/environment-variables.md](../reference/environment-variables.md); a minimal working set is:
 
 ```bash
-VITE_FIREBASE_API_KEY=...
-VITE_FIREBASE_AUTH_DOMAIN=consulting-bdb74.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=consulting-bdb74
-VITE_FIREBASE_STORAGE_BUCKET=consulting-bdb74.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=...
-VITE_FIREBASE_APP_ID=...
-VITE_FUNCTIONS_BASE=https://us-central1-consulting-bdb74.cloudfunctions.net
+VITE_FIREBASE_API_KEY=<your-firebase-api-key>
+VITE_FIREBASE_AUTH_DOMAIN=<your-project-id>.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=<your-project-id>
+VITE_FIREBASE_STORAGE_BUCKET=<your-project-id>.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=<your-sender-id>
+VITE_FIREBASE_APP_ID=<your-app-id>
+VITE_FUNCTIONS_BASE=https://us-central1-<your-project-id>.cloudfunctions.net
 VITE_RECAPTCHA_SITE_KEY=6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI
 VITE_PDF_BACKEND_URL=http://localhost:3001
 ```
 
 > [!TIP]
-> The `VITE_RECAPTCHA_SITE_KEY` above is Google's public test key — it always passes on `localhost`. Use the real key only in production.
+> Get the actual values from the Firebase Console → Project Settings → General, or ask a team lead for the current `.env.local`. The `VITE_RECAPTCHA_SITE_KEY` above is Google's public test key — it always passes on `localhost`. Use the real key only in production.
 
 Log into Firebase:
 
