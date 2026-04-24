@@ -6,7 +6,11 @@ import {
   getTelegramGroupIdForStage,
   toDateTimeLocalString,
 } from "../../utils";
-import { normalizeStageFormInfo, getStageAdditionalInfo } from "./helpers";
+import {
+  normalizeStageFormInfo,
+  getStageAdditionalInfo,
+  stageRequiresAdditionalInfo,
+} from "./helpers";
 
 /**
  * Sub-hook: stage email modal state and handlers (no preview).
@@ -18,6 +22,7 @@ export function useStageEmailModal({
   statusValue,
   ensureTelegramGroupName,
   sendStatusEmail,
+  plannedLeadership = false,
 }) {
   const [isStageEmailModalOpen, setIsStageEmailModalOpen] = useState(false);
   const [pendingStageStep, setPendingStageStep] = useState(null);
@@ -25,6 +30,7 @@ export function useStageEmailModal({
   const [stageAdditionalInfoForm, setStageAdditionalInfoForm] =
     useState(createEmptyStageInfo);
   const [selectedExample, setSelectedExample] = useState("example1");
+  const [decisionNote, setDecisionNote] = useState("");
 
   // Clear extra info when switching to rejection
   useEffect(() => {
@@ -32,6 +38,11 @@ export function useStageEmailModal({
       setStageAdditionalInfoForm(createEmptyStageInfo());
     }
   }, [stageDecision]);
+
+  // Reset decision note when stage changes
+  useEffect(() => {
+    setDecisionNote("");
+  }, [pendingStageStep]);
 
   // Reset selected example when stage changes
   useEffect(() => {
@@ -43,9 +54,11 @@ export function useStageEmailModal({
             metaInfo?.interviewLeadership?.locationName ||
             metaInfo?.interviewLeadership?.locationUrl),
       );
-      setSelectedExample(hasLeadershipMeta ? "example2" : "example1");
+      setSelectedExample(
+        plannedLeadership || hasLeadershipMeta ? "example2" : "example1",
+      );
     }
-  }, [pendingStageStep, metaInfo?.interviewLeadership]);
+  }, [pendingStageStep, metaInfo?.interviewLeadership, plannedLeadership]);
 
   function handleSendStatusEmail(stepValue) {
     if (isLimitedAdmin) {
@@ -111,13 +124,13 @@ export function useStageEmailModal({
       setIsStageEmailModalOpen(false);
       return;
     }
-    const info =
-      pendingStageStep === "stage_2" && selectedExample !== "example2"
-        ? createEmptyStageInfo()
-        : normalizeStageFormInfo(stageAdditionalInfoForm);
+    const info = stageRequiresAdditionalInfo(pendingStageStep, selectedExample)
+      ? normalizeStageFormInfo(stageAdditionalInfoForm)
+      : createEmptyStageInfo();
     await sendStatusEmail(pendingStageStep, {
       stageDecision,
       additionalInfo: info,
+      decisionNote: String(decisionNote || "").trim(),
     });
   }
 
@@ -132,6 +145,8 @@ export function useStageEmailModal({
     setStageAdditionalInfoForm,
     selectedExample,
     setSelectedExample,
+    decisionNote,
+    setDecisionNote,
     handleSendStatusEmail,
     closeStageEmailModal,
     handleStageEmailSubmit,

@@ -62,7 +62,8 @@ export async function tryTrackTelegramInvite(info, telegramGroupIdForStage) {
  */
 export async function tryStoreEmailMeta({
   col, docId, user, emailSentAt, stepValue,
-  normalizedDecision, selectedExample, emailMeta, setEmailMeta,
+  normalizedDecision, selectedExample, decisionNote,
+  emailMeta, setEmailMeta,
 }) {
   try {
     let userData = null;
@@ -88,7 +89,7 @@ export async function tryStoreEmailMeta({
       [`${stageBase}.decision`]: normalizedDecision,
       [`${stageBase}.decidedAt`]: emailSentAt,
       [`${stageBase}.decidedBy`]: user?.email || user?.uid || "admin",
-      [`${stageBase}.decisionNote`]: "",
+      [`${stageBase}.decisionNote`]: String(decisionNote || "").trim(),
     };
     if (stepValue === "stage_2" && selectedExample === "example2") {
       updatePayload[`${stageBase}.sentWithLeadership`] = true;

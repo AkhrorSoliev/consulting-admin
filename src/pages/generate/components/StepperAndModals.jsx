@@ -14,7 +14,8 @@ export default function StepperAndModals({
   emailMeta, emailMetaAvatarFromUsers,
   // Stepper
   statusValue, handleSendStatusEmail, sendingStepValue,
-  resetCandidateStages, openCustomEmailModal, resetSingleStage, docCv,
+  resetCandidateStages, openCustomEmailModal, resetSingleStage,
+  setLeadershipPlanned, docCv,
   // Outgoing documents
   outgoingBulkBusy, outgoingAnyBusy, outgoingEntries,
   candidateCollection, candidateDocId,
@@ -33,7 +34,8 @@ export default function StepperAndModals({
   isStageEmailModalOpen, closeStageEmailModal, pendingStageStep,
   stageDecision, setStageDecision, handleStageEmailSubmit,
   stageAdditionalInfoForm, setStageAdditionalInfoForm,
-  selectedExample, setSelectedExample, stageEmailPreview,
+  selectedExample, setSelectedExample,
+  decisionNote, setDecisionNote, stageEmailPreview,
   metaInfo, metaLoading, telegramGroupNameById,
   // Custom email modal
   isCustomEmailModalOpen, closeCustomEmailModal, handleCustomEmailSubmit,
@@ -75,7 +77,16 @@ export default function StepperAndModals({
             resetStages={resetCandidateStages}
             openCustomEmailModal={openCustomEmailModal}
             onResetStage={resetSingleStage}
-            hasLeadershipInterview={Boolean(docCv?.stageMeta?.stage_2?.sentWithLeadership)}
+            hasLeadershipInterview={Boolean(
+              docCv?.stageMeta?.stage_2?.plannedLeadership ||
+                docCv?.stageMeta?.stage_2?.sentWithLeadership,
+            )}
+            plannedLeadership={Boolean(
+              docCv?.stageMeta?.stage_2?.plannedLeadership ||
+                docCv?.stageMeta?.stage_2?.sentWithLeadership,
+            )}
+            onToggleLeadership={setLeadershipPlanned}
+            stageMeta={docCv?.stageMeta}
           />
 
           <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -134,6 +145,8 @@ export default function StepperAndModals({
         setStageAdditionalInfoForm={setStageAdditionalInfoForm}
         selectedExample={selectedExample}
         setSelectedExample={setSelectedExample}
+        decisionNote={decisionNote}
+        setDecisionNote={setDecisionNote}
         stageEmailPreview={stageEmailPreview}
         metaInfo={metaInfo}
         metaLoading={metaLoading}

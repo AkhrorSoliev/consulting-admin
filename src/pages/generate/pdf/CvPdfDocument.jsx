@@ -71,9 +71,7 @@ export const CvPdfDocument = ({
   const skills = form?.skills || {};
   const documents = form?.documents || {};
   const commentPlain = commentHtmlToPlainText(form?.commentar);
-  const commentDate = form?.commentarMeta?.updatedAt
-    ? formatDateDDMMYYYY(form.commentarMeta.updatedAt)
-    : "";
+  const commentDate = formatDateDDMMYYYY(Date.now());
 
   return (
     <Document>

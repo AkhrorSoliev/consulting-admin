@@ -111,6 +111,18 @@ export function normalizeStageFormInfo(raw) {
 }
 
 /**
+ * Whether the stage's accepted-email needs date/time/link/location fields.
+ * stage_2_result va stage_2 example1 — bular faqat natija xabari, suhbat
+ * rejalashtirmaydi, shuning uchun qo'shimcha ma'lumot talab qilmaydi.
+ */
+export function stageRequiresAdditionalInfo(stage, selectedExample) {
+  const s = String(stage || "").trim();
+  if (s === "stage_2_result") return false;
+  if (s === "stage_2" && selectedExample !== "example2") return false;
+  return true;
+}
+
+/**
  * Given a step value, return the next step value in the pipeline.
  */
 export function getNextStepValue(value, options = {}) {

@@ -48,6 +48,8 @@ export default function GenerateModalsHost({
         examples={stageEmail.examples}
         selectedExample={stageEmail.selectedExample}
         setSelectedExample={stageEmail.setSelectedExample}
+        decisionNote={stageEmail.decisionNote}
+        setDecisionNote={stageEmail.setDecisionNote}
         hasTelegramId={stageEmail.hasTelegramId}
       />
 

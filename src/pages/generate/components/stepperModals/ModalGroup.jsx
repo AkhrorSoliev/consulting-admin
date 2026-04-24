@@ -8,6 +8,7 @@ import ZusatzblattBModal from "../modals/ZusatzblattBModal";
 import ZusatzblattCModal from "../modals/ZusatzblattCModal";
 import ZusatzblattDModal from "../modals/ZusatzblattDModal";
 import { getTelegramGroupIdForStage } from "../../utils";
+import { stageRequiresAdditionalInfo } from "../../hooks/statusEmail/helpers";
 
 export default function ModalGroup({
   // Photo modal
@@ -26,6 +27,8 @@ export default function ModalGroup({
   setStageAdditionalInfoForm,
   selectedExample,
   setSelectedExample,
+  decisionNote,
+  setDecisionNote,
   stageEmailPreview,
   metaInfo,
   metaLoading,
@@ -86,8 +89,8 @@ export default function ModalGroup({
         onClose={closeStageEmailModal}
         title="Status-E-Mail senden"
         subtitle={
-          pendingStageStep === "stage_2"
-            ? "In der Stufe-2-E-Mail werden Link und Datum/Uhrzeit nicht gesendet."
+          pendingStageStep === "stage_2" || pendingStageStep === "stage_2_result"
+            ? "In dieser Stufe werden Link und Datum/Uhrzeit nicht gesendet."
             : isLimitedAdmin
               ? "Sie haben keine Berechtigung, E-Mails zu senden."
               : metaLoading
@@ -103,7 +106,7 @@ export default function ModalGroup({
         showAdditionalInfoEditor={
           !isLimitedAdmin &&
           stageDecision === "accepted" &&
-          (pendingStageStep !== "stage_2" || selectedExample === "example2")
+          stageRequiresAdditionalInfo(pendingStageStep, selectedExample)
         }
         additionalInfoForm={stageAdditionalInfoForm}
         setAdditionalInfoForm={setStageAdditionalInfoForm}
@@ -116,6 +119,8 @@ export default function ModalGroup({
         selectedExample={selectedExample}
         setSelectedExample={setSelectedExample}
         hasTelegramId={Boolean(docCv?.telegramId)}
+        decisionNote={decisionNote}
+        setDecisionNote={setDecisionNote}
       />
 
       <CustomEmailModal

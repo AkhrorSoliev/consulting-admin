@@ -38,6 +38,10 @@ export function useStatusEmail({
     id, isLimitedAdmin, metaInfo,
     statusValue: persistence.statusValue,
     ensureTelegramGroupName,
+    plannedLeadership: Boolean(
+      docCv?.stageMeta?.stage_2?.plannedLeadership ||
+        docCv?.stageMeta?.stage_2?.sentWithLeadership,
+    ),
     // sendStatusEmail is wired below after creation
     sendStatusEmail: (...args) => sendStatusEmailFn.current(...args),
   });
@@ -94,6 +98,7 @@ export function useStatusEmail({
     stageAdditionalInfoForm: stageModal.stageAdditionalInfoForm,
     formCv, metaInfo, emailTemplatesMap, telegramGroupNameById,
     selectedExample: stageModal.selectedExample,
+    decisionNote: stageModal.decisionNote,
   });
 
   return {
@@ -107,6 +112,7 @@ export function useStatusEmail({
     normalizeStageFormInfo,
     resetCandidateStages: persistence.resetCandidateStages,
     resetSingleStage: persistence.resetSingleStage,
+    setLeadershipPlanned: persistence.setLeadershipPlanned,
     handleCustomEmailSubmit: customModal.handleCustomEmailSubmit,
 
     // state
@@ -125,6 +131,8 @@ export function useStatusEmail({
     stageEmailPreview,
     selectedExample: stageModal.selectedExample,
     setSelectedExample: stageModal.setSelectedExample,
+    decisionNote: stageModal.decisionNote,
+    setDecisionNote: stageModal.setDecisionNote,
     emailMeta, setEmailMeta,
     customEmailForm: customModal.customEmailForm,
     setCustomEmailForm: customModal.setCustomEmailForm,
