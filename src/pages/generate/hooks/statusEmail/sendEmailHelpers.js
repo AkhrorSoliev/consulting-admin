@@ -7,10 +7,26 @@ import { sendStatusViaTelegram } from "../../../../utils/telegram";
 import { removeUserFromTelegramGroups } from "../../../../utils/removeFromTelegramGroups";
 import { updateDocument, getUserFromFirestore } from "../../../../utils";
 
+const TELEGRAM_UNREACHABLE_PATTERNS = [
+  "user is deactivated",
+  "bot was blocked by the user",
+  "chat not found",
+  "user not found",
+  "peer_id_invalid",
+];
+
+function isTelegramUnreachableError(errorMsg) {
+  const lower = String(errorMsg || "").toLowerCase();
+  return TELEGRAM_UNREACHABLE_PATTERNS.some((p) => lower.includes(p));
+}
+
 /**
  * Attempt to also deliver the status email via Telegram.
+ * If the candidate's Telegram account is unreachable (deactivated,
+ * blocked, or chat not found), clear the stored telegramId so we
+ * don't keep retrying on every future stage email.
  */
-export async function trySendViaTelegram(docCv, params) {
+export async function trySendViaTelegram(docCv, params, { col, docId } = {}) {
   const candidateTelegramId = docCv?.telegramId;
   if (!candidateTelegramId) return;
   try {
@@ -30,6 +46,22 @@ export async function trySendViaTelegram(docCv, params) {
   } catch (telegramError) {
     console.error("Telegram send error:", telegramError);
     const errorMsg = telegramError?.message || String(telegramError);
+
+    if (isTelegramUnreachableError(errorMsg)) {
+      toast(
+        "E-Mail gesendet. Telegram: Konto deaktiviert oder Bot blockiert — Telegram-ID wurde entfernt.",
+        { icon: "ℹ️", duration: 6000 },
+      );
+      if (col && docId) {
+        try {
+          await updateDocument(col, docId, { telegramId: null });
+        } catch (_) {
+          // best-effort cleanup
+        }
+      }
+      return;
+    }
+
     toast.error(
       `E-Mail wurde gesendet, aber Telegram-Nachricht konnte nicht gesendet werden. Fehler: ${errorMsg}`,
     );

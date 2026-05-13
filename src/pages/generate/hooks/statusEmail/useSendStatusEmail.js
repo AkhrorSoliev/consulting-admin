@@ -116,10 +116,14 @@ export function makeSendStatusEmail({
         throw new Error("E-Mail wurde nicht gesendet (success=false).");
       }
 
-      await trySendViaTelegram(docCv, {
-        stepValue, formCv, normalizedDecision, decisionNote,
-        info, finalCopyOverrides, dataExchangeLink, channelInviteLink,
-      });
+      await trySendViaTelegram(
+        docCv,
+        {
+          stepValue, formCv, normalizedDecision, decisionNote,
+          info, finalCopyOverrides, dataExchangeLink, channelInviteLink,
+        },
+        { col, docId },
+      );
       tryTrackTelegramInvite(info, tgGroupId);
       toast.success("Status-E-Mail wurde gesendet.");
 
