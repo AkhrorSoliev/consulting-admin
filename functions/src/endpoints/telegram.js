@@ -720,14 +720,28 @@ exports.sendTelegramMessage = onRequest(
         await bot.telegram.sendMessage(telegramId, message, options);
         return res.status(200).json({ ok: true, sent: true });
       } catch (sendError) {
-        logger.error("Failed to send Telegram message", {
-          telegramId,
-          error: String(sendError?.message || sendError),
-        });
-        return res.status(500).json({
+        const detail = String(sendError?.message || sendError);
+        const lower = detail.toLowerCase();
+        const isExpectedUnreachable =
+          lower.includes("user is deactivated") ||
+          lower.includes("bot was blocked by the user") ||
+          lower.includes("chat not found") ||
+          lower.includes("user not found") ||
+          lower.includes("peer_id_invalid");
+
+        if (!isExpectedUnreachable) {
+          logger.error("Failed to send Telegram message", {
+            telegramId,
+            error: detail,
+          });
+        }
+        // For expected unreachable users return 200 + ok:false so
+        // the browser does not log this as a network error. The
+        // frontend inspects `ok` and surfaces an info toast.
+        return res.status(isExpectedUnreachable ? 200 : 500).json({
           ok: false,
           error: "send-failed",
-          details: String(sendError?.message || sendError),
+          details: detail,
         });
       }
     } catch (err) {

@@ -44,7 +44,6 @@ export async function trySendViaTelegram(docCv, params, { col, docId } = {}) {
     });
     toast.success("Nachricht auch per Telegram gesendet! \u{1F4F1}");
   } catch (telegramError) {
-    console.error("Telegram send error:", telegramError);
     const errorMsg = telegramError?.message || String(telegramError);
 
     if (isTelegramUnreachableError(errorMsg)) {
@@ -62,6 +61,7 @@ export async function trySendViaTelegram(docCv, params, { col, docId } = {}) {
       return;
     }
 
+    console.error("Telegram send error:", telegramError);
     toast.error(
       `E-Mail wurde gesendet, aber Telegram-Nachricht konnte nicht gesendet werden. Fehler: ${errorMsg}`,
     );

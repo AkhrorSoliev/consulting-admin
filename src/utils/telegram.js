@@ -104,24 +104,35 @@ export async function sendTelegramMessage(
       }),
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error("Telegram API Error:", {
-        status: response.status,
-        errorData,
-        telegramId,
-        messageLength: message?.length,
-        parseMode,
-        hasKeyboard: !!keyboard,
-      });
-      console.error("Full error details:", JSON.stringify(errorData, null, 2));
-      console.error("Message preview:", message?.substring(0, 500));
-      throw new Error(
-        errorData.details || errorData.error || `HTTP ${response.status}`
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok || data?.ok === false) {
+      const detail = String(
+        data.details || data.error || `HTTP ${response.status}`,
       );
+      const lower = detail.toLowerCase();
+      const isExpectedUnreachable =
+        lower.includes("user is deactivated") ||
+        lower.includes("bot was blocked by the user") ||
+        lower.includes("chat not found") ||
+        lower.includes("user not found") ||
+        lower.includes("peer_id_invalid");
+
+      if (!isExpectedUnreachable) {
+        console.error("Telegram API Error:", {
+          status: response.status,
+          errorData: data,
+          telegramId,
+          messageLength: message?.length,
+          parseMode,
+          hasKeyboard: !!keyboard,
+        });
+        console.error("Full error details:", JSON.stringify(data, null, 2));
+        console.error("Message preview:", message?.substring(0, 500));
+      }
+      throw new Error(detail);
     }
 
-    const data = await response.json();
     return data;
   } catch (error) {
     throw error;
