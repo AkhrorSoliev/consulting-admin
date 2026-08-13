@@ -8,6 +8,12 @@
  * Collections are discovered from the `meta` collection, so newly created
  * Berufsfelder are picked up without editing this file.
  *
+ * Credentials, in order of preference:
+ *   1. serviceAccountKey.json in the project root
+ *   2. GOOGLE_APPLICATION_CREDENTIALS pointing at a key file
+ *   3. Application Default Credentials (`gcloud auth application-default login`),
+ *      in which case FIREBASE_PROJECT_ID must name the target project
+ *
  * Usage:
  *   node scripts/backfill-cv-index.cjs [--dry-run] [--collection=NAME] [--batch-size=N] [--prune]
  *
@@ -19,22 +25,53 @@
  */
 
 const admin = require("firebase-admin");
+const fs = require("fs");
 const path = require("path");
 
-const serviceAccountPath = path.join(__dirname, "..", "..", "serviceAccountKey.json");
-let serviceAccount;
+const REPO_ROOT = path.join(__dirname, "..", "..");
 
-try {
-  serviceAccount = require(serviceAccountPath);
-} catch {
-  console.error("❌ Error: serviceAccountKey.json not found");
-  console.error("Please place your Firebase service account key in the project root");
-  process.exit(1);
+/** Read the target project from .firebaserc so ADC never writes to the wrong project. */
+function defaultProjectId() {
+  if (process.env.FIREBASE_PROJECT_ID) return process.env.FIREBASE_PROJECT_ID;
+  try {
+    const rc = JSON.parse(fs.readFileSync(path.join(REPO_ROOT, ".firebaserc"), "utf8"));
+    return rc?.projects?.default || "";
+  } catch {
+    return "";
+  }
 }
 
-if (!admin.apps.length) {
-  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+function initAdmin() {
+  const keyPath = path.join(REPO_ROOT, "serviceAccountKey.json");
+  if (fs.existsSync(keyPath)) {
+    const serviceAccount = require(keyPath);
+    admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+    return serviceAccount.project_id;
+  }
+
+  const projectId = defaultProjectId();
+  if (!projectId) {
+    console.error("❌ Error: no credentials and no project id.");
+    console.error("   Place serviceAccountKey.json in the project root, or run");
+    console.error("   `gcloud auth application-default login` and set FIREBASE_PROJECT_ID.");
+    process.exit(1);
+  }
+
+  try {
+    admin.initializeApp({
+      credential: admin.credential.applicationDefault(),
+      projectId,
+    });
+    return projectId;
+  } catch (err) {
+    console.error(`❌ Error: could not load credentials — ${err?.message || err}`);
+    console.error("   Place serviceAccountKey.json in the project root, or run");
+    console.error("   `gcloud auth application-default login`.");
+    process.exit(1);
+  }
 }
+
+const activeProjectId = admin.apps.length ? null : initAdmin();
 
 const db = admin.firestore();
 
@@ -144,6 +181,7 @@ async function backfillCollection(name) {
 
 async function main() {
   console.log("\n🔧 Backfill: cv_index candidate projection\n");
+  console.log(`Project: ${activeProjectId || "(pre-initialized app)"}`);
   console.log(`Mode: ${isDryRun ? "🔍 DRY RUN (no writes)" : "✏️  WRITE MODE"}`);
   console.log(`Batch size: ${batchSize}`);
   console.log(`Prune stale: ${shouldPrune ? "yes" : "no"}`);
