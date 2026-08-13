@@ -198,6 +198,30 @@ Created by server code, mostly not user-visible.
 | `archived_users` | Soft-deleted candidates (restorable) |
 | `archived_directions` | Soft-deleted `meta` entries |
 | `documents/<docId>` | Per-template content for the document template editors |
+| `cv_index/<collection>/items/<candidateId>` | Read-only list projection of each candidate — see below |
+
+---
+
+## `cv_index`
+
+A ~0.8 KB flat projection of every candidate, maintained by the `syncCandidateListIndex`
+Cloud Function. `/collectionCv/:major` subscribes here instead of to the candidate
+collection, which would otherwise ship 10–30 KB of CV per row.
+
+| Path | `cv_index/<collectionName>/items/<candidateId>` |
+|---|---|
+| Written by | `syncCandidateListIndex` only (Admin SDK) |
+| Read by | Any admin role; clients cannot write |
+| Seeded by | `node functions/scripts/backfill-cv-index.cjs` |
+
+Field shape is defined in [`functions/src/utils/candidateIndex.js`](../../functions/src/utils/candidateIndex.js) and mirrors what the table renders: `name`, `geburtsdatum`, `photo`, `email`, `statusValue`, `hasComment`, `hasCertificate`, `hasExperience`, `langLevels`, `stageDecisions`, `emailSentCount`, `rating`, `reaction`, and the comment/email author metadata.
+
+Two values are deliberately **not** stored and are derived on the client instead:
+
+- `age` — would go stale as birthdays pass; `geburtsdatum` is stored raw.
+- `statusLabel` / `statusTone` — constant lookups from `statusValue`; storing them would force a backfill whenever `src/constants/candidateStatus.js` changes.
+
+The list view falls back to reading the source collection when the projection is empty, so the frontend and the function can be deployed in any order.
 
 ---
 
