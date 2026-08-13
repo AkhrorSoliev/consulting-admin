@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { db } from "../../../firebase/config";
-import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
+import { collection, doc, getDoc, onSnapshot, orderBy, query } from "firebase/firestore";
 import toast from "react-hot-toast";
 import { getMetaByName } from "../../../utils";
 import { CV_INDEX_ITEMS, CV_INDEX_ROOT } from "../../../constants/cvIndex";
@@ -100,16 +100,37 @@ export function useCollectionData() {
       return undefined;
     }
 
-    // Read the lightweight cv_index projection (~400 bytes/candidate) instead of the
-    // full CV documents (~10-30 KB each). Falls back to the source collection when the
-    // projection is not populated yet, so client and backend can deploy in any order.
+    // Read the lightweight cv_index projection (~0.8 KB/candidate) instead of the full CV
+    // documents (~10-30 KB each), falling back to the source collection when the
+    // projection has not been backfilled, so client and backend deploy in any order.
+    //
+    // The gate is the `cv_index/{name}` marker written by the backfill script, not
+    // emptiness: the trigger populates entries one edit at a time, so an un-backfilled
+    // index can be non-empty yet cover only a handful of candidates.
     let cancelled = false;
-    let unsubIndex = null;
-    let unsubSource = null;
+    let unsub = null;
+
+    function subscribeToIndex() {
+      if (cancelled) return;
+      unsub = onSnapshot(
+        query(
+          collection(db, CV_INDEX_ROOT, name, CV_INDEX_ITEMS),
+          orderBy("createdAt", "desc"),
+        ),
+        (snap) => {
+          setItems(snap.docs.map((d) => mapIndexedCandidate(d)));
+          setLoading(false);
+        },
+        () => {
+          toast.error("Fehler beim Laden der Daten.");
+          setLoading(false);
+        },
+      );
+    }
 
     function subscribeToSource() {
-      if (cancelled || unsubSource) return;
-      unsubSource = onSnapshot(
+      if (cancelled) return;
+      unsub = onSnapshot(
         query(collection(db, name), orderBy("createdAt", "desc")),
         (snap) => {
           setItems(snap.docs.map((d) => mapCandidate(d)));
@@ -122,32 +143,22 @@ export function useCollectionData() {
       );
     }
 
-    unsubIndex = onSnapshot(
-      query(
-        collection(db, CV_INDEX_ROOT, name, CV_INDEX_ITEMS),
-        orderBy("createdAt", "desc"),
-      ),
-      (snap) => {
-        if (snap.empty) {
-          // Not backfilled (or genuinely empty) — let the source collection decide.
-          unsubIndex?.();
-          unsubIndex = null;
-          subscribeToSource();
-          return;
-        }
-        setItems(snap.docs.map((d) => mapIndexedCandidate(d)));
-        setLoading(false);
-      },
-      () => {
-        unsubIndex = null;
-        subscribeToSource();
-      },
-    );
+    (async () => {
+      let indexReady = false;
+      try {
+        const marker = await getDoc(doc(db, CV_INDEX_ROOT, name));
+        indexReady = Boolean(marker.exists() && marker.data()?.backfilledAt);
+      } catch {
+        indexReady = false;
+      }
+      if (cancelled) return;
+      if (indexReady) subscribeToIndex();
+      else subscribeToSource();
+    })();
 
     return () => {
       cancelled = true;
-      unsubIndex?.();
-      unsubSource?.();
+      unsub?.();
     };
   }, [resolvedMajor.collectionName, metaLoading, resolvingMajor]);
 

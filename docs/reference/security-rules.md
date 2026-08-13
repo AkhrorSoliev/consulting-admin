@@ -55,7 +55,7 @@ The candidate list projection. Four segments deep, so the catch-all below does n
 | `read` | Any admin role (`super_admin`, `admin`, `limited_admin`) |
 | `write` | Nobody — only `syncCandidateListIndex` writes it, and the Admin SDK bypasses rules |
 
-The empty `cv_index/{collectionName}` parent documents are still matched by the catch-all below; they hold no data.
+The `cv_index/{collectionName}` parent documents hold only the `{ backfilledAt, count }` backfill marker and are matched by the catch-all below (public read, admin write).
 
 ### Catch-all `/{collectionName}/{documentId}`
 

@@ -43,6 +43,7 @@ const {
   looksLikeCandidateDoc,
   buildCandidateIndex,
   indexDocRef,
+  indexMetaRef,
   CV_INDEX_ROOT,
   CV_INDEX_ITEMS,
 } = require("../src/utils/candidateIndex");
@@ -98,6 +99,19 @@ async function backfillCollection(name) {
   }
 
   if (!isDryRun && pending > 0) await batch.commit();
+
+  // Marker the client checks before trusting the projection. Without it, a single
+  // candidate edit would populate one index entry and the list would show only that
+  // one row instead of falling back to the source collection.
+  if (!isDryRun) {
+    await indexMetaRef(db, name).set(
+      {
+        backfilledAt: Date.now(),
+        count: written,
+      },
+      { merge: true },
+    );
+  }
 
   let pruned = 0;
   if (shouldPrune) {

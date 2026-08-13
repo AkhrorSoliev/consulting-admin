@@ -138,13 +138,14 @@ function buildCandidateIndex(data) {
   };
 }
 
+/** cv_index/{collectionId} — marker written by the backfill script. */
+function indexMetaRef(db, collectionId) {
+  return db.collection(CV_INDEX_ROOT).doc(collectionId);
+}
+
 /** cv_index/{collectionId}/items/{docId} */
 function indexDocRef(db, collectionId, docId) {
-  return db
-    .collection(CV_INDEX_ROOT)
-    .doc(collectionId)
-    .collection(CV_INDEX_ITEMS)
-    .doc(docId);
+  return indexMetaRef(db, collectionId).collection(CV_INDEX_ITEMS).doc(docId);
 }
 
 module.exports = {
@@ -154,5 +155,6 @@ module.exports = {
   isCandidateCollectionId,
   looksLikeCandidateDoc,
   buildCandidateIndex,
+  indexMetaRef,
   indexDocRef,
 };

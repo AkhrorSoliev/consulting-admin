@@ -221,7 +221,16 @@ Two values are deliberately **not** stored and are derived on the client instead
 - `age` — would go stale as birthdays pass; `geburtsdatum` is stored raw.
 - `statusLabel` / `statusTone` — constant lookups from `statusValue`; storing them would force a backfill whenever `src/constants/candidateStatus.js` changes.
 
-The list view falls back to reading the source collection when the projection is empty, so the frontend and the function can be deployed in any order.
+### Backfill marker
+
+`cv_index/<collectionName>` (the parent document) holds `{ backfilledAt, count }`, written
+by the backfill script. The list view reads this marker first and only trusts the
+projection when it exists; otherwise it reads the source collection.
+
+The gate is the marker rather than "is the projection empty", because the trigger fills
+entries one edit at a time — an un-backfilled index can be non-empty while covering only a
+handful of candidates. Frontend and backend can therefore be deployed in any order, and
+the list stays correct until the backfill has run.
 
 ---
 
