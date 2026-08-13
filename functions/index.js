@@ -9,6 +9,7 @@ const telegram = require("./src/endpoints/telegram");
 const registry = require("./src/endpoints/registry");
 const userMgmt = require("./src/endpoints/userManagement");
 const misc = require("./src/endpoints/misc");
+const candidateIndex = require("./src/endpoints/candidateIndex");
 const { downloadProxy } = require("./src/downloadProxy");
 
-Object.assign(exports, telegram, registry, userMgmt, misc, { downloadProxy });
+Object.assign(exports, telegram, registry, userMgmt, misc, candidateIndex, { downloadProxy });

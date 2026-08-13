@@ -1,7 +1,12 @@
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+} from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
 import { getStorage } from "firebase/storage";
 
@@ -25,7 +30,23 @@ const analytics =
     : null;
 
 const auth = getAuth(app);
-const db = getFirestore(app);
+
+// Persistent (IndexedDB) cache: candidate lists render from the local copy on a
+// repeat visit while Firestore syncs only the changed documents. Falls back to the
+// default in-memory cache where IndexedDB is unavailable (private mode, old browsers).
+function createFirestore() {
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
+    });
+  } catch {
+    return getFirestore(app);
+  }
+}
+
+const db = createFirestore();
 const functions = getFunctions(app);
 const storage = getStorage(app);
 

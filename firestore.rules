@@ -99,6 +99,20 @@ service cloud.firestore {
     }
 
     // ============================================
+    // CV_INDEX - lightweight projection of candidate docs for the list view.
+    // Written exclusively by the syncCandidateListIndex Cloud Function; the Admin SDK
+    // bypasses these rules, so no client write path is granted here.
+    //
+    // Note: the catch-all `/{collectionName}/{documentId}` below also matches the
+    // `cv_index/{collectionName}` parent documents (they are empty placeholders).
+    // The `items` subcollection is four segments deep, so this is its only rule.
+    // ============================================
+    match /cv_index/{collectionName}/items/{candidateId} {
+      allow read: if isSuperAdmin() || isAdmin() || isLimitedAdmin();
+      allow write: if false;
+    }
+
+    // ============================================
     // ALL OTHER COLLECTIONS - with public access for DataExchange
     // Protected collections (users, settings, etc.) are handled above
     // ============================================

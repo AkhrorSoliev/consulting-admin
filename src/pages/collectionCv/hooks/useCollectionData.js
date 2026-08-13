@@ -4,8 +4,9 @@ import { db } from "../../../firebase/config";
 import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 import toast from "react-hot-toast";
 import { getMetaByName } from "../../../utils";
+import { CV_INDEX_ITEMS, CV_INDEX_ROOT } from "../../../constants/cvIndex";
 import { toDateFromMetaCreatedAt } from "../utils";
-import { mapCandidate } from "../mapCandidate";
+import { mapCandidate, mapIndexedCandidate } from "../mapCandidate";
 
 export function useCollectionData() {
   const { major } = useParams();
@@ -99,21 +100,55 @@ export function useCollectionData() {
       return undefined;
     }
 
-    const q = query(collection(db, name), orderBy("createdAt", "desc"));
+    // Read the lightweight cv_index projection (~400 bytes/candidate) instead of the
+    // full CV documents (~10-30 KB each). Falls back to the source collection when the
+    // projection is not populated yet, so client and backend can deploy in any order.
+    let cancelled = false;
+    let unsubIndex = null;
+    let unsubSource = null;
 
-    const unsub = onSnapshot(
-      q,
+    function subscribeToSource() {
+      if (cancelled || unsubSource) return;
+      unsubSource = onSnapshot(
+        query(collection(db, name), orderBy("createdAt", "desc")),
+        (snap) => {
+          setItems(snap.docs.map((d) => mapCandidate(d)));
+          setLoading(false);
+        },
+        () => {
+          toast.error("Fehler beim Laden der Daten.");
+          setLoading(false);
+        },
+      );
+    }
+
+    unsubIndex = onSnapshot(
+      query(
+        collection(db, CV_INDEX_ROOT, name, CV_INDEX_ITEMS),
+        orderBy("createdAt", "desc"),
+      ),
       (snap) => {
-        const list = snap.docs.map((d) => mapCandidate(d));
-        setItems(list);
+        if (snap.empty) {
+          // Not backfilled (or genuinely empty) — let the source collection decide.
+          unsubIndex?.();
+          unsubIndex = null;
+          subscribeToSource();
+          return;
+        }
+        setItems(snap.docs.map((d) => mapIndexedCandidate(d)));
         setLoading(false);
       },
       () => {
-        toast.error("Fehler beim Laden der Daten.");
-        setLoading(false);
+        unsubIndex = null;
+        subscribeToSource();
       },
     );
-    return () => unsub();
+
+    return () => {
+      cancelled = true;
+      unsubIndex?.();
+      unsubSource?.();
+    };
   }, [resolvedMajor.collectionName, metaLoading, resolvingMajor]);
 
   const statistics = useMemo(() => {

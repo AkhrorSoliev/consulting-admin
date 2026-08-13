@@ -53,29 +53,26 @@ export function useUserPhotos(items) {
 
       const newPhotos = {};
 
-      for (const uid of uidsToFetch) {
-        fetchedEmailsRef.current.add(uid);
-        try {
-          const userData = await getUserFromFirestore(uid);
-          if (userData && (userData.avatar || userData.photoURL)) {
-            newPhotos[uid] = userData.avatar || userData.photoURL;
-          }
-        } catch (error) {
-          console.error(`Failed to fetch user photo for UID ${uid}:`, error);
-        }
-      }
+      // Fetch every author in parallel; a serial loop cost one round trip per admin.
+      const lookups = [
+        ...Array.from(uidsToFetch, (uid) => ({ key: uid, load: () => getUserFromFirestore(uid) })),
+        ...Array.from(emailsToFetch, (email) => ({ key: email, load: () => getUserByEmail(email) })),
+      ];
 
-      for (const email of emailsToFetch) {
-        fetchedEmailsRef.current.add(email);
-        try {
-          const userData = await getUserByEmail(email);
-          if (userData && (userData.avatar || userData.photoURL)) {
-            newPhotos[email] = userData.avatar || userData.photoURL;
+      lookups.forEach(({ key }) => fetchedEmailsRef.current.add(key));
+
+      await Promise.all(
+        lookups.map(async ({ key, load }) => {
+          try {
+            const userData = await load();
+            if (userData && (userData.avatar || userData.photoURL)) {
+              newPhotos[key] = userData.avatar || userData.photoURL;
+            }
+          } catch (error) {
+            console.error(`Failed to fetch user photo for ${key}:`, error);
           }
-        } catch (error) {
-          console.error(`Failed to fetch user photo for email ${email}:`, error);
-        }
-      }
+        }),
+      );
 
       if (Object.keys(newPhotos).length > 0) {
         setUserPhotosCache((prev) => ({ ...prev, ...newPhotos }));

@@ -8,8 +8,40 @@ import { normalizeRating } from "../generate/utils/ratingUtils";
 import { calculateAgeFromDDMMYYYY } from "./utils";
 
 /**
- * Map a Firestore document snapshot to a flat candidate object
+ * Map a `cv_index/{collection}/items/{id}` document to the shape the list view uses.
+ *
+ * The Cloud Function already flattened everything expensive (comment HTML scanning,
+ * certificate/experience/language traversal, stage decisions). What is left here is
+ * derived on purpose: `age` would go stale in a stored index, and the status label and
+ * tone are constant lookups that must not require a backfill when the constants change.
+ */
+export function mapIndexedCandidate(d) {
+  const data = d.data() || {};
+  const statusValue =
+    normalizeCandidateStatusValue(data.statusValue) || CANDIDATE_STATUS_DEFAULT;
+  const statusMeta = getCandidateStatus(statusValue);
+
+  return {
+    ...data,
+    id: d.id,
+    age: calculateAgeFromDDMMYYYY(data.geburtsdatum),
+    statusValue,
+    statusLabel: statusMeta.label,
+    statusTone: statusMeta.badgeTone || "info",
+    rating: normalizeRating(data.rating),
+    langLevels: Array.isArray(data.langLevels) ? data.langLevels : [],
+    stageDecisions:
+      data.stageDecisions && typeof data.stageDecisions === "object"
+        ? data.stageDecisions
+        : {},
+  };
+}
+
+/**
+ * Map a full candidate Firestore document snapshot to a flat candidate object
  * used in the collection list view.
+ *
+ * Fallback path: used only when the `cv_index` projection is not populated yet.
  */
 export function mapCandidate(d) {
   const data = d.data() || {};

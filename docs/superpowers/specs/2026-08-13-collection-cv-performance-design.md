@@ -52,15 +52,23 @@ Extracting the row also brings `CollectionCv.jsx` (currently 353 lines) back und
 
 ```
 {berufsfeld}/{id}  ──onDocumentWritten──▶  cv_index/{berufsfeld}/items/{id}
-   (full CV, ~20 KB)                          (~400 bytes, flat)
+   (full CV, ~10-30 KB)                       (~0.7-0.9 KB, flat)
                                                       │
                                        CollectionCv onSnapshot ◀┘
 ```
 
-**Index schema.** Exactly the object `src/pages/collectionCv/mapCandidate.js` returns today.
-The mapping logic is ported to `functions/src/utils/buildCandidateIndex.js` and the
-Cloud Function stores the flat result. The client reads `d.data()` directly, so the
-per-snapshot mapping cost disappears as well.
+**Index schema.** Essentially the object `src/pages/collectionCv/mapCandidate.js` returns
+today. The derivation lives in `functions/src/utils/candidateIndex.js`.
+
+Two fields are deliberately *not* stored:
+
+- `age` — it would go stale as birthdays pass, so `geburtsdatum` is stored raw and the
+  client computes the age.
+- `statusLabel` / `statusTone` — constant lookups from `statusValue`; storing them would
+  force a backfill whenever `candidateStatus.js` changes.
+
+Everything expensive (comment HTML scanning, certificate/experience/language traversal,
+stage decisions) is precomputed, so `mapIndexedCandidate` on the client is trivial.
 
 **Trigger.** `onDocumentWritten("{collectionId}/{docId}")`. Candidate collection names are
 dynamic (one per Berufsfeld), so the trigger matches every top-level collection and filters:
@@ -69,11 +77,17 @@ dynamic (one per Berufsfeld), so the trigger matches every top-level collection 
   `archived_users`, `deleted_users`, `candidate_metadata`, `cv_index`, …), and
 - a shape check that the document carries `persoenlicheDaten`.
 
-On delete, the index document is deleted too.
+On delete, the index document is deleted too. When a write does not change any indexed
+field — which is most candidate writes, since documents and CV autosave touch nothing the
+table shows — the projection is rebuilt and compared, and the write is skipped.
 
-**Risk.** A wildcard in the top-level collection segment is not documented by Firebase.
-It must be confirmed against the emulator before deploy. Fallback if it does not work:
-a single dual-write helper called from `persistCandidate` and the other client write paths.
+**Wildcard risk: resolved.** `onDocumentWritten("{collectionId}/{docId}")` is already
+running in production in this project as `syncEmailAndPassIdRegistry`
+(`functions/src/endpoints/registry.js:264`), so no fallback dual-write is needed.
+
+**Deploy-order safety.** The client subscribes to the index and falls back to the source
+collection when the index subcollection is empty or unreadable. Client and backend can
+therefore ship in any order, and the page keeps working if the backfill has not run.
 
 **Backfill.** `functions/scripts/backfill-cv-index.cjs` iterates the collections listed in
 `meta` and writes index documents in batches.
@@ -93,5 +107,17 @@ never modified.
 
 ## Expected result
 
-~10 MB → ~200 KB per load (about 50×), and near-instant repeat visits from the persistent
-cache.
+Measured projection size is ~0.7–0.9 KB per candidate against 10–30 KB for a full
+document, so a 500-candidate list drops from roughly 10 MB to under 0.5 MB — a 15–30×
+reduction — plus near-instant repeat visits from the persistent cache.
+
+## Operator steps
+
+```bash
+firebase deploy --only functions:syncCandidateListIndex
+node functions/scripts/backfill-cv-index.cjs --dry-run   # verify counts
+node functions/scripts/backfill-cv-index.cjs
+firebase deploy --only firestore:rules
+```
+
+`--prune` additionally removes index entries whose source document no longer exists.
