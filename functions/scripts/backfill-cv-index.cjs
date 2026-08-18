@@ -93,6 +93,9 @@ const targetCollection = collectionArg ? collectionArg.split("=")[1] : null;
 const batchSizeArg = args.find((a) => a.startsWith("--batch-size="));
 const batchSize = batchSizeArg ? Number(batchSizeArg.split("=")[1]) || 400 : 400;
 
+// Firestore rejects requests above ~11.5 MB; stay well under it.
+const MAX_BATCH_BYTES = 8 * 1024 * 1024;
+
 /** Read candidate collection names from `meta`. */
 async function discoverCollections() {
   if (targetCollection) return [targetCollection];
@@ -115,6 +118,7 @@ async function backfillCollection(name) {
 
   let batch = db.batch();
   let pending = 0;
+  let pendingBytes = 0;
 
   for (const doc of snap.docs) {
     const data = doc.data() || {};
@@ -126,12 +130,26 @@ async function backfillCollection(name) {
     written++;
     if (isDryRun) continue;
 
-    batch.set(indexDocRef(db, name, doc.id), buildCandidateIndex(data));
+    const projection = buildCandidateIndex(data);
+    const bytes = JSON.stringify(projection).length;
+
+    // Commit early when the batch approaches the request payload limit; a document
+    // count alone is not enough if any field turns out to be unexpectedly large.
+    if (pending > 0 && pendingBytes + bytes > MAX_BATCH_BYTES) {
+      await batch.commit();
+      batch = db.batch();
+      pending = 0;
+      pendingBytes = 0;
+    }
+
+    batch.set(indexDocRef(db, name, doc.id), projection);
     pending++;
+    pendingBytes += bytes;
     if (pending >= batchSize) {
       await batch.commit();
       batch = db.batch();
       pending = 0;
+      pendingBytes = 0;
     }
   }
 

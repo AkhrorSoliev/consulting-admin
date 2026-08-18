@@ -111,6 +111,30 @@ Measured projection size is ~0.7–0.9 KB per candidate against 10–30 KB for a
 document, so a 500-candidate list drops from roughly 10 MB to under 0.5 MB — a 15–30×
 reduction — plus near-instant repeat visits from the persistent cache.
 
+## Measured outcome (2026-08-18 backfill)
+
+18 collections, 842 candidates. The largest — `europa-park-kkb-2027-tashqi`, 600
+candidates — went from **74.21 MB to 574 KB, a 132x reduction** (126.7 KB down to 980 B
+per candidate). Coverage is complete: 0 missing, 0 stale index entries.
+
+### Base64 photos are the real bulk
+
+The backfill surfaced that `persoenlicheDaten.foto` is frequently a base64 data URI stored
+inside the Firestore document, averaging ~127 KB and reaching 500 KB. It accounted for
+roughly 72 of the 74 MB in that collection — the CV fields the design targeted were only
+~0.5 MB of it. The first backfill run failed on that collection with
+`INVALID_ARGUMENT: Request payload size exceeds the limit` for exactly this reason.
+
+The projection therefore carries `photo` only when it is an `http(s)` URL and records
+`hasPhoto` otherwise, and the backfill commits batches by byte budget rather than document
+count alone.
+
+**Known regression:** all 600 candidates in that collection have a base64 photo, so the
+list now shows the initial-letter placeholder for them. Migrating those photos to Cloud
+Storage (which `src/utils/fileUpload` already does for other uploads) restores the avatar
+and would shrink the source documents themselves — worth doing as a follow-up, since it
+also speeds up the Generate page and cuts Firestore storage cost.
+
 ## Operator steps
 
 ```bash

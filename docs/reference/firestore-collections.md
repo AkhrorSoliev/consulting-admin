@@ -216,7 +216,14 @@ collection, which would otherwise ship 10–30 KB of CV per row.
 
 Field shape is defined in [`functions/src/utils/candidateIndex.js`](../../functions/src/utils/candidateIndex.js) and mirrors what the table renders: `name`, `geburtsdatum`, `photo`, `email`, `statusValue`, `hasComment`, `hasCertificate`, `hasExperience`, `langLevels`, `stageDecisions`, `emailSentCount`, `rating`, `reaction`, and the comment/email author metadata.
 
-Two values are deliberately **not** stored and are derived on the client instead:
+The candidate photo is only carried when `persoenlicheDaten.foto` is an `http(s)` URL.
+Many candidates store it as a base64 data URI inside the document instead (observed at
+~127 KB average, up to 500 KB), which would make the projection as heavy as the source.
+For those, `photo` is empty and `hasPhoto` is `true`, so the list falls back to the
+initial-letter placeholder. Moving such a photo to Cloud Storage restores it in the list
+automatically on the candidate's next write.
+
+Two further values are deliberately **not** stored and are derived on the client instead:
 
 - `age` — would go stale as birthdays pass; `geburtsdatum` is stored raw.
 - `statusLabel` / `statusTone` — constant lookups from `statusValue`; storing them would force a backfill whenever `src/constants/candidateStatus.js` changes.

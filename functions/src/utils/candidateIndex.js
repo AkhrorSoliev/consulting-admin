@@ -6,7 +6,7 @@
  * stageMeta, …) — roughly 10-30 KB each. Subscribing to a 500+ document collection meant
  * downloading megabytes to render a table.
  *
- * This module derives a ~400 byte projection stored at
+ * This module derives a ~0.7-0.9 KB projection stored at
  *   cv_index/{collectionId}/items/{docId}
  * which the list view subscribes to instead.
  *
@@ -69,6 +69,21 @@ function str(value) {
   return String(value ?? "").trim();
 }
 
+/**
+ * Candidate photos are sometimes stored as base64 data URIs inside the document
+ * (observed up to 500 KB, ~125 KB on average). Copying those into the projection would
+ * make it as heavy as the source, so only real URLs are carried; a data URI degrades to
+ * the initial-letter placeholder in the list. `hasPhoto` records that a photo exists but
+ * was too heavy to index — migrating it to Cloud Storage restores it automatically on the
+ * next write.
+ */
+function indexablePhoto(value) {
+  const raw = str(value);
+  if (!raw) return { photo: "", hasPhoto: false };
+  if (/^https?:\/\//i.test(raw)) return { photo: raw, hasPhoto: true };
+  return { photo: "", hasPhoto: true };
+}
+
 /** Firestore rejects `undefined`; every field below resolves to a concrete value. */
 function buildCandidateIndex(data) {
   const d = data && typeof data === "object" ? data : {};
@@ -94,12 +109,17 @@ function buildCandidateIndex(data) {
   const emailCountRaw = emailMeta.count;
   const emailSentCount = Number(emailCountRaw) || 0;
 
+  const { photo, hasPhoto } = indexablePhoto(pd.foto);
+  const emailSenderPhoto = indexablePhoto(emailMeta.lastSentByPhoto).photo;
+  const commentAuthorPhoto = indexablePhoto(commentMeta.updatedByPhoto).photo;
+
   return {
     createdAt: d.createdAt ?? 0,
     name: [str(pd.name), str(pd.nachname)].filter(Boolean).join(" "),
     // Stored raw: age is derived on the client so it never goes stale in the index.
     geburtsdatum: str(pd.geburtsdatum),
-    photo: str(pd.foto),
+    photo,
+    hasPhoto,
     phone: str(pd.telefon),
     email: str(pd.email),
     maritalStatus: str(pd.familienstand),
@@ -119,14 +139,14 @@ function buildCandidateIndex(data) {
     emailLastSentAt: emailMeta.lastSentAt ?? null,
     emailLastSentBy: str(emailMeta.lastSentBy),
     emailLastSentByName: str(emailMeta.lastSentByName),
-    emailLastSentByPhoto: str(emailMeta.lastSentByPhoto),
+    emailLastSentByPhoto: emailSenderPhoto,
     emailLastSentByUid: str(emailMeta.lastSentByUid),
 
     hasComment: hasRichTextContent(d.commentar),
     commentUpdatedAt: commentMeta.updatedAt ?? null,
     commentUpdatedBy: str(commentMeta.updatedBy),
     commentUpdatedByName: str(commentMeta.updatedByName),
-    commentUpdatedByPhoto: str(commentMeta.updatedByPhoto),
+    commentUpdatedByPhoto: commentAuthorPhoto,
     commentUpdatedByUid: str(commentMeta.updatedByUid),
 
     telegramId: d.telegramId ?? null,

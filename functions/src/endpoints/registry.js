@@ -25,8 +25,10 @@ const RECAPTCHA_SECRET_KEY = defineSecret("RECAPTCHA_SECRET_KEY");
 
 const REMOTE_API_BASE = "https://json-api.uz/api/project/consultinguz";
 const REMOTE_ALL_USERS = `${REMOTE_API_BASE}/all_users`;
-const BREVO_EMAIL_URL =
+const BREVO_EMAIL_BASE =
+  process.env.BREVO_EMAIL_URL?.trim() ||
   "https://consultinguz-email-system-production.up.railway.app";
+const BREVO_EMAIL_URL = `${BREVO_EMAIL_BASE.replace(/\/+$/, "").replace(/\/send-email$/, "")}/send-email`;
 
 function findLead(meta, leadParam) {
   const list = Array.isArray(meta?.leadLinks) ? meta.leadLinks : [];
