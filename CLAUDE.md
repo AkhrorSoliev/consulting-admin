@@ -229,6 +229,7 @@ Each stage has an outcome (`accepted` / `rejected`) which triggers the correspon
 |---|---|
 | `meta` | Job field (Berufsfeld) metadata: uuid, name, title, linkActive, linkId, createdAt |
 | `{collectionName}` | Candidates in a specific job field |
+| `cv_index/{collectionName}/items` | Read-only list projection (~0.8 KB/candidate) powering CollectionCv; maintained by the `syncCandidateListIndex` trigger |
 | `archived_users` | Soft-deleted candidates |
 | `deleted_users` | Permanently deleted candidates (audit) |
 | `users` | Admin user profiles (displayName, photoURL, avatar, lastLogin) |

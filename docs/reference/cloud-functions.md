@@ -93,6 +93,12 @@ Run automatically on Firestore writes — no client invocation.
 |---|---|---|
 | `syncEmailAndPassIdRegistry` | `onDocumentWritten({collectionId}/{docId})` | Keep the duplicate-prevention registry in sync with candidate canonical docs |
 | `syncRemoteAllUsers` | `onDocumentWritten({collectionId}/{docId})` | Best-effort mirror to `json-api.uz` for external reporting |
+| `syncCandidateListIndex` | `onDocumentWritten({collectionId}/{docId})` | Maintain the `cv_index` list projection so CollectionCv never downloads full CV documents |
+
+`syncCandidateListIndex` skips the write when no indexed field changed, so document
+uploads and CV autosaves — which touch nothing the list shows — cost nothing. Seed
+existing candidates once with `node functions/scripts/backfill-cv-index.cjs`
+(`--dry-run`, `--collection=NAME`, `--prune` supported).
 
 ---
 

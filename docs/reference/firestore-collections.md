@@ -198,6 +198,46 @@ Created by server code, mostly not user-visible.
 | `archived_users` | Soft-deleted candidates (restorable) |
 | `archived_directions` | Soft-deleted `meta` entries |
 | `documents/<docId>` | Per-template content for the document template editors |
+| `cv_index/<collection>/items/<candidateId>` | Read-only list projection of each candidate — see below |
+
+---
+
+## `cv_index`
+
+A ~0.8 KB flat projection of every candidate, maintained by the `syncCandidateListIndex`
+Cloud Function. `/collectionCv/:major` subscribes here instead of to the candidate
+collection, which would otherwise ship 10–30 KB of CV per row.
+
+| Path | `cv_index/<collectionName>/items/<candidateId>` |
+|---|---|
+| Written by | `syncCandidateListIndex` only (Admin SDK) |
+| Read by | Any admin role; clients cannot write |
+| Seeded by | `node functions/scripts/backfill-cv-index.cjs` |
+
+Field shape is defined in [`functions/src/utils/candidateIndex.js`](../../functions/src/utils/candidateIndex.js) and mirrors what the table renders: `name`, `geburtsdatum`, `photo`, `email`, `statusValue`, `hasComment`, `hasCertificate`, `hasExperience`, `langLevels`, `stageDecisions`, `emailSentCount`, `rating`, `reaction`, and the comment/email author metadata.
+
+The candidate photo is only carried when `persoenlicheDaten.foto` is an `http(s)` URL.
+Many candidates store it as a base64 data URI inside the document instead (observed at
+~127 KB average, up to 500 KB), which would make the projection as heavy as the source.
+For those, `photo` is empty and `hasPhoto` is `true`, so the list falls back to the
+initial-letter placeholder. Moving such a photo to Cloud Storage restores it in the list
+automatically on the candidate's next write.
+
+Two further values are deliberately **not** stored and are derived on the client instead:
+
+- `age` — would go stale as birthdays pass; `geburtsdatum` is stored raw.
+- `statusLabel` / `statusTone` — constant lookups from `statusValue`; storing them would force a backfill whenever `src/constants/candidateStatus.js` changes.
+
+### Backfill marker
+
+`cv_index/<collectionName>` (the parent document) holds `{ backfilledAt, count }`, written
+by the backfill script. The list view reads this marker first and only trusts the
+projection when it exists; otherwise it reads the source collection.
+
+The gate is the marker rather than "is the projection empty", because the trigger fills
+entries one edit at a time — an un-backfilled index can be non-empty while covering only a
+handful of candidates. Frontend and backend can therefore be deployed in any order, and
+the list stays correct until the backfill has run.
 
 ---
 

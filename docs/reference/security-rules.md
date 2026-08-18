@@ -46,6 +46,17 @@ request.auth.token.role in ['super_admin', 'admin']
 | `read` | Public |
 | `write` | `admin` or `super_admin` |
 
+### `/cv_index/{collectionName}/items/{candidateId}`
+
+The candidate list projection. Four segments deep, so the catch-all below does not reach it.
+
+| Operation | Who |
+|---|---|
+| `read` | Any admin role (`super_admin`, `admin`, `limited_admin`) |
+| `write` | Nobody — only `syncCandidateListIndex` writes it, and the Admin SDK bypasses rules |
+
+The `cv_index/{collectionName}` parent documents hold only the `{ backfilledAt, count }` backfill marker and are matched by the catch-all below (public read, admin write).
+
 ### Catch-all `/{collectionName}/{documentId}`
 
 Applies to candidate collections (`pflegefachkraft`, `krankenpfleger`, …) and any other top-level collection not explicitly matched above.
