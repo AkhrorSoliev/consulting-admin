@@ -118,13 +118,13 @@ export function buildTelegramStatusMessage({
           ? "Suhbat uchun Telegram havolasi"
           : "Suhbat uchun havola";
       parts.push(
-        `🔗 <b>${linkLabel}:</b> <a href="${link}">Guruhga qo'shilish</a>`
+        `🔗 <b>${linkLabel}:</b> <a href="${escapeHtml(link)}">Guruhga qo'shilish</a>`
       );
     }
     if (locName || locUrl) {
       if (locUrl) {
         parts.push(
-          `📍 <b>Lokatsiya:</b> <a href="${locUrl}">${escapeHtml(
+          `📍 <b>Lokatsiya:</b> <a href="${escapeHtml(locUrl)}">${escapeHtml(
             locName || "Manzilni ko'rish"
           )}</a>`
         );
@@ -134,12 +134,12 @@ export function buildTelegramStatusMessage({
     }
     if (dataExchangeLinkTg) {
       parts.push(
-        `📄 <b>Hujjatlar yuklash havolasi:</b> <a href="${dataExchangeLinkTg}">Hujjatlarni yuklash</a>`
+        `📄 <b>Hujjatlar yuklash havolasi:</b> <a href="${escapeHtml(dataExchangeLinkTg)}">Hujjatlarni yuklash</a>`
       );
     }
     if (channelInviteLinkTg) {
       parts.push(
-        `📢 <b>Yangiliklar kanaliga a'zo bo'lish:</b> <a href="${channelInviteLinkTg}">Kanalga qo'shilish</a>`
+        `📢 <b>Yangiliklar kanaliga a'zo bo'lish:</b> <a href="${escapeHtml(channelInviteLinkTg)}">Kanalga qo'shilish</a>`
       );
     }
     parts.push("");

@@ -1,5 +1,9 @@
 import { auth } from "../firebase/config";
 import { buildTelegramStatusMessage } from "./statusEmail";
+import {
+  htmlToTelegramHtml,
+  escapeTelegramHtml,
+} from "./telegramHtml";
 
 function getFunctionsBaseUrl() {
   const env = import.meta.env || {};
@@ -15,56 +19,43 @@ function getFunctionsBaseUrl() {
 }
 
 /**
- * Convert HTML email template to Telegram-friendly format (LEGACY - for custom emails)
- * @param {string} htmlContent - HTML content from email
- * @param {string} subject - Email subject
+ * Telegram rejects messages longer than 4096 characters. Cut on a line
+ * boundary and re-close any inline tag that was left open by the cut.
+ */
+function clampTelegramHtml(text, limit = 3900) {
+  if (text.length <= limit) return text;
+  const cut = text.slice(0, limit);
+  const boundary = cut.lastIndexOf("\n");
+  let body = (boundary > limit * 0.5 ? cut.slice(0, boundary) : cut).trimEnd();
+
+  const open = [];
+  const tagRe = /<(\/?)(b|i|u|s|code|pre|a)\b[^>]*>/gi;
+  let m;
+  while ((m = tagRe.exec(body)) !== null) {
+    const tag = m[2].toLowerCase();
+    if (m[1] === "/") {
+      const idx = open.lastIndexOf(tag);
+      if (idx !== -1) open.splice(idx, 1);
+    } else {
+      open.push(tag);
+    }
+  }
+  while (open.length) body += `</${open.pop()}>`;
+  return `${body}\n…`;
+}
+
+/**
+ * Convert HTML (an email template or plain text) into Telegram-safe HTML.
+ * @param {string} htmlContent - HTML or plain-text content
+ * @param {string} subject - Optional headline rendered above the body
  * @returns {string} Telegram-formatted message
  */
 export function convertEmailToTelegramFormat(htmlContent, subject) {
-  if (!htmlContent) return "";
-
-  // Remove HTML tags but preserve structure
-  let text = htmlContent
-    // Convert headers
-    .replace(/<h[1-6][^>]*>(.*?)<\/h[1-6]>/gi, "\n<b>$1</b>\n")
-    // Convert bold
-    .replace(/<strong[^>]*>(.*?)<\/strong>/gi, "<b>$1</b>")
-    .replace(/<b[^>]*>(.*?)<\/b>/gi, "<b>$1</b>")
-    // Convert italic
-    .replace(/<em[^>]*>(.*?)<\/em>/gi, "<i>$1</i>")
-    .replace(/<i[^>]*>(.*?)<\/i>/gi, "<i>$1</i>")
-    // Convert links
-    .replace(
-      /<a[^>]*href=["']([^"']+)["'][^>]*>(.*?)<\/a>/gi,
-      '<a href="$1">$2</a>'
-    )
-    // Convert line breaks
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n\n")
-    .replace(/<p[^>]*>/gi, "")
-    // Convert lists
-    .replace(/<li[^>]*>/gi, "• ")
-    .replace(/<\/li>/gi, "\n")
-    .replace(/<\/?[uo]l[^>]*>/gi, "\n")
-    // Remove remaining HTML tags
-    .replace(/<[^>]+>/g, "")
-    // Decode HTML entities
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    // Clean up extra whitespace
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-
-  // Add subject as header if provided
-  if (subject) {
-    text = `📧 <b>${subject}</b>\n\n${text}`;
-  }
-
-  return text;
+  const body = htmlToTelegramHtml(htmlContent);
+  const title = String(subject || "").trim();
+  if (!title) return clampTelegramHtml(body);
+  const header = `\u{1F4E7} <b>${escapeTelegramHtml(title)}</b>`;
+  return clampTelegramHtml(body ? `${header}\n\n${body}` : header);
 }
 
 /**
