@@ -1,57 +1,61 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
+import {
+  filterStateKey,
+  isFilterKey,
+  readFilterState,
+  writeFilterState,
+} from "../filterState";
 
 export function useCollectionFilters(items) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [certificateFilter, setCertificateFilter] = useState("all");
-  const [experienceFilter, setExperienceFilter] = useState("all");
-  const [commentFilter, setCommentFilter] = useState("all");
-  const [commentAuthorFilter, setCommentAuthorFilter] = useState("all");
-  const [stageFilter, setStageFilter] = useState("all");
-  const [stageOutcomeFilter, setStageOutcomeFilter] = useState("all");
-  const [ageFilter, setAgeFilter] = useState("all");
-  const [drivingFilter, setDrivingFilter] = useState("all");
-  const [langLevelFilter, setLangLevelFilter] = useState("all");
-  const [ratingFilter, setRatingFilter] = useState("all");
-  const [reactionFilter, setReactionFilter] = useState("all");
-  const [currentPage, setCurrentPage] = useState(1);
+  const { major } = useParams();
+  const storageKey = filterStateKey(major);
+
+  const [view, setView] = useState(() => readFilterState(storageKey));
+
+  // Switching Berufsfeld swaps in that list's own saved view.
+  const [appliedKey, setAppliedKey] = useState(storageKey);
+  if (appliedKey !== storageKey) {
+    setAppliedKey(storageKey);
+    setView(readFilterState(storageKey));
+  }
+
+  useEffect(() => {
+    writeFilterState(storageKey, view);
+  }, [storageKey, view]);
+
+  const {
+    searchQuery,
+    commentAuthorFilter,
+    currentPage,
+    filters,
+  } = view;
   const itemsPerPage = 10;
 
-  const filters = useMemo(
-    () => ({
-      certificate: certificateFilter,
-      experience: experienceFilter,
-      comment: commentFilter,
-      stage: stageFilter,
-      stageOutcome: stageOutcomeFilter,
-      age: ageFilter,
-      driving: drivingFilter,
-      langLevel: langLevelFilter,
-      rating: ratingFilter,
-      reaction: reactionFilter,
-    }),
-    [
-      certificateFilter, experienceFilter, commentFilter, stageFilter,
-      stageOutcomeFilter, ageFilter, drivingFilter, langLevelFilter,
-      ratingFilter, reactionFilter,
-    ],
-  );
+  // Any narrowing of the list starts over at page 1.
+  const setSearchQuery = useCallback((value) => {
+    setView((s) => ({ ...s, searchQuery: String(value ?? ""), currentPage: 1 }));
+  }, []);
 
-  function setFilter(key, value) {
+  const setCommentAuthorFilter = useCallback((value) => {
     const next = String(value || "all").trim();
-    const map = {
-      certificate: setCertificateFilter,
-      experience: setExperienceFilter,
-      comment: setCommentFilter,
-      stage: setStageFilter,
-      stageOutcome: setStageOutcomeFilter,
-      age: setAgeFilter,
-      driving: setDrivingFilter,
-      langLevel: setLangLevelFilter,
-      rating: setRatingFilter,
-      reaction: setReactionFilter,
-    };
-    map[key]?.(next);
-  }
+    setView((s) => ({ ...s, commentAuthorFilter: next, currentPage: 1 }));
+  }, []);
+
+  const setFilter = useCallback((key, value) => {
+    if (!isFilterKey(key)) return;
+    const next = String(value || "all").trim();
+    setView((s) => ({
+      ...s,
+      filters: { ...s.filters, [key]: next },
+      currentPage: 1,
+    }));
+  }, []);
+
+  const setCurrentPage = useCallback((page) => {
+    const next = Math.max(1, Math.floor(Number(page) || 1));
+    setView((s) => ({ ...s, currentPage: next }));
+  }, []);
 
   const filteredItems = useMemo(() => {
     const ranges = {
@@ -65,25 +69,25 @@ export function useCollectionFilters(items) {
     const tokens = q.split(/\s+/).filter(Boolean);
 
     return items.filter((it) => {
-      if (certificateFilter === "with" && !it.hasCertificate) return false;
-      if (certificateFilter === "without" && it.hasCertificate) return false;
-      if (experienceFilter === "with" && !it.hasExperience) return false;
-      if (experienceFilter === "without" && it.hasExperience) return false;
-      if (commentFilter === "with" && !it.hasComment) return false;
-      if (commentFilter === "without" && it.hasComment) return false;
+      if (filters.certificate === "with" && !it.hasCertificate) return false;
+      if (filters.certificate === "without" && it.hasCertificate) return false;
+      if (filters.experience === "with" && !it.hasExperience) return false;
+      if (filters.experience === "without" && it.hasExperience) return false;
+      if (filters.comment === "with" && !it.hasComment) return false;
+      if (filters.comment === "without" && it.hasComment) return false;
 
       if (commentAuthorFilter !== "all") {
         const authorName = String(it.commentUpdatedByName || "").trim();
         if (authorName !== commentAuthorFilter) return false;
       }
 
-      if (stageFilter !== "all") {
-        if (String(it.statusValue || "").trim() !== String(stageFilter || "").trim())
+      if (filters.stage !== "all") {
+        if (String(it.statusValue || "").trim() !== String(filters.stage || "").trim())
           return false;
       }
 
-      if (stageOutcomeFilter !== "all") {
-        const [stageKey, decisionRaw] = String(stageOutcomeFilter || "")
+      if (filters.stageOutcome !== "all") {
+        const [stageKey, decisionRaw] = String(filters.stageOutcome || "")
           .split(":")
           .map((s) => String(s || "").trim());
         const decision = decisionRaw === "rejected" ? "rejected" : "accepted";
@@ -94,27 +98,27 @@ export function useCollectionFilters(items) {
         if (stageDecisions[stageKey] !== decision) return false;
       }
 
-      if (ageFilter !== "all") {
-        const range = ranges[ageFilter];
+      if (filters.age !== "all") {
+        const range = ranges[filters.age];
         if (!range || typeof it.age !== "number") return false;
         if (range.min !== null && it.age < range.min) return false;
         if (range.max !== null && it.age > range.max) return false;
       }
 
-      if (drivingFilter === "with" && !it.hasDrivingLicense) return false;
-      if (drivingFilter === "without" && it.hasDrivingLicense) return false;
+      if (filters.driving === "with" && !it.hasDrivingLicense) return false;
+      if (filters.driving === "without" && it.hasDrivingLicense) return false;
 
-      if (langLevelFilter !== "all") {
-        const wanted = String(langLevelFilter || "").toUpperCase();
+      if (filters.langLevel !== "all") {
+        const wanted = String(filters.langLevel || "").toUpperCase();
         if (!Array.isArray(it.langLevels) || it.langLevels.length === 0) return false;
         if (!it.langLevels.some((lv) => lv === wanted)) return false;
       }
 
-      if (ratingFilter === "with" && it.rating === null) return false;
-      if (ratingFilter === "without" && it.rating !== null) return false;
+      if (filters.rating === "with" && it.rating === null) return false;
+      if (filters.rating === "without" && it.rating !== null) return false;
 
-      if (reactionFilter !== "all") {
-        const wantedReaction = String(reactionFilter || "").trim();
+      if (filters.reaction !== "all") {
+        const wantedReaction = String(filters.reaction || "").trim();
         if (String(it.reaction || "").trim() !== wantedReaction) return false;
       }
 
@@ -122,26 +126,16 @@ export function useCollectionFilters(items) {
       const name = String(it.name || "").toLowerCase();
       return tokens.every((t) => name.includes(t));
     });
-  }, [
-    items, searchQuery, certificateFilter, experienceFilter, commentFilter,
-    commentAuthorFilter, stageFilter, stageOutcomeFilter, ageFilter,
-    drivingFilter, langLevelFilter, ratingFilter, reactionFilter,
-  ]);
+  }, [items, searchQuery, commentAuthorFilter, filters]);
 
-  // Pagination
-  const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
+  // Pagination. The stored page is clamped rather than corrected, so a page that
+  // is briefly out of range (list still loading, a candidate just deleted) comes
+  // back once the data does.
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / itemsPerPage));
+  const safePage = Math.min(currentPage, totalPages);
+  const startIndex = (safePage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const paginatedItems = filteredItems.slice(startIndex, endIndex);
-
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [
-    searchQuery, certificateFilter, experienceFilter, commentFilter,
-    commentAuthorFilter, stageFilter, stageOutcomeFilter, ageFilter,
-    drivingFilter, langLevelFilter, ratingFilter, reactionFilter,
-  ]);
 
   const uniqueCommentAuthors = useMemo(() => {
     const authors = new Set();
@@ -156,7 +150,7 @@ export function useCollectionFilters(items) {
     searchQuery, setSearchQuery,
     filters, setFilter,
     filteredItems, paginatedItems,
-    currentPage, setCurrentPage,
+    currentPage: safePage, setCurrentPage,
     totalPages, startIndex, endIndex,
     commentAuthorFilter, setCommentAuthorFilter,
     uniqueCommentAuthors,
