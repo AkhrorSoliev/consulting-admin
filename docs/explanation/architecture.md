@@ -201,7 +201,7 @@ Covered above — fillable-PDF manipulation is the only workload that doesn't fi
 
 | Surface | Builds to | Deploys via |
 |---|---|---|
-| Frontend | `dist/` | Firebase Hosting (or Vercel — `vercel.json` present) |
+| Frontend | `dist/` | Firebase Hosting (`firebase deploy --only hosting`) |
 | Cloud Functions | — | `firebase deploy --only functions` (from `functions/`) |
 | PDF backend | — | Separately (Cloud Run / VM / etc., from `backend/`) |
 

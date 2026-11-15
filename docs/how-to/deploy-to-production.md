@@ -64,15 +64,11 @@ Firebase prints the deployed URL. Verify:
 - Open `/statistics` → counts render.
 - Open `/create?linkId=<known-good>` → form renders.
 
-### Vercel (alternative)
+### Environment variables and domain
 
-If deploying to Vercel (`vercel.json` is present):
+`VITE_*` values are baked into the bundle at build time from the local `.env` / `.env.local`. There is no hosting-side dashboard for them — build on a machine that has the production values.
 
-```bash
-vercel --prod
-```
-
-Vercel reads environment variables from its dashboard — make sure they match `.env.local`.
+The production domain `admin.consultinguz.de` is a custom domain on the `consulting-bdb74` Hosting site (DNS: `CNAME admin → consulting-bdb74.web.app`). Hashed files under `/assets/` are served `immutable`; HTML routes are `no-cache` (see `hosting.headers` in `firebase.json`).
 
 ---
 
@@ -179,8 +175,6 @@ Rule deploys are essentially instant and atomic. Index builds can take minutes �
 firebase hosting:clone <site>:<channel> <site>:live
 # or from Firebase Console: Hosting → Release history → "Rollback" on an older entry
 ```
-
-Vercel has a similar one-click rollback in its dashboard.
 
 ### Cloud Functions
 
