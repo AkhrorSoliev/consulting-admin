@@ -22,7 +22,6 @@ consulting-admin/
 ├── firebase-storage-cors.json CORS for Cloud Storage
 ├── vite.config.js        Vite config
 ├── eslint.config.js      ESLint flat config
-├── vercel.json           Optional Vercel deploy config
 ├── package.json          Frontend deps + scripts
 ├── CLAUDE.md             AI coding agent instructions
 └── README.md             Project intro
